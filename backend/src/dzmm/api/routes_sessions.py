@@ -148,6 +148,64 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
     }
 
 
+@router.get("/{session_id}/threads")
+async def get_threads(session_id: int, s: AsyncSession = Depends(get_session_dep)):
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (
+        await s.execute(
+            select(PlotThread)
+            .where(PlotThread.session_id == session_id)
+            .order_by(PlotThread.status, PlotThread.importance.desc(), PlotThread.id.desc())
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": t.id,
+            "type": t.type,
+            "description": t.description,
+            "importance": t.importance,
+            "status": t.status,
+            "introduced_turn": t.introduced_turn,
+            "resolution": t.resolution,
+        }
+        for t in rows
+    ]
+
+
+@router.post("/{session_id}/warmup", status_code=202)
+async def warmup_model(
+    session_id: int,
+    session_maker = Depends(get_session_maker_dep),
+):
+    """Fire-and-forget: load the GM model into the runtime so the first turn
+    doesn't pay the cold load cost (typically 5-20s for a 7B local model)."""
+    import asyncio as _asyncio
+
+    async def _do_warmup():
+        async with session_maker() as s:
+            sess = await s.get(GameSession, session_id)
+            if sess is None:
+                return
+            cfg = await s.get(ModelConfig, sess.gm_model_config_id)
+            if cfg is None:
+                return
+            client = build_client(cfg)
+            try:
+                from dzmm.models.client import GenerationParams, Message
+                async for _ in client.stream(
+                    [Message(role="user", content="ok")],
+                    GenerationParams(max_tokens=1, temperature=0.0),
+                ):
+                    pass
+            except Exception:
+                pass  # warmup failures are non-fatal
+
+    _asyncio.create_task(_do_warmup())
+    return {"status": "started"}
+
+
 @router.delete("/{session_id}/last_turn", status_code=204)
 async def delete_last_turn(
     session_id: int, s: AsyncSession = Depends(get_session_dep)

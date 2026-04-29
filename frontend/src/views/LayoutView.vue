@@ -2,8 +2,10 @@
 import { ElMessage } from 'element-plus'
 import SidebarNav from '@/components/SidebarNav.vue'
 import { useAppStore } from '@/stores/app'
+import { useAudio } from '@/composables/useAudio'
 
 const appStore = useAppStore()
+const audio = useAudio()
 
 async function copyLan() {
   if (!appStore.lanUrl) return
@@ -14,10 +16,21 @@ async function copyLan() {
     ElMessage.warning('请手动复制')
   }
 }
+
+function toggleMute() {
+  audio.setMuted(!appStore.muted)
+}
 </script>
 
 <template>
   <div class="flex flex-col h-full">
+    <button type="button"
+            class="fixed top-2 right-2 z-50 bg-white/80 hover:bg-white border border-slate-300 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow"
+            :title="appStore.muted ? '取消静音' : '静音'"
+            @click="toggleMute">
+      {{ appStore.muted ? '🔇' : '🔊' }}
+    </button>
+
     <div
       v-if="appStore.lanUrl"
       class="bg-amber-100 border-b border-amber-300 text-amber-900 px-4 py-2 text-sm flex items-center justify-between gap-3"

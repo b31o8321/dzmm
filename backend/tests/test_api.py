@@ -269,3 +269,37 @@ async def test_delete_last_turn_removes_pair_and_decrements(http, monkeypatch):
     msgs = (await http.get(f"/sessions/{sid}/messages")).json()
     assert len(msgs) == 2
     assert msgs[0]["content"] == "环顾"
+
+
+async def test_threads_endpoint_separates_active_and_resolved(http, monkeypatch):
+    sid = await _make_session(http)
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: StubGM(
+            "<narrative>探索</narrative>"
+            '<plot_event type="hook_introduced" importance="3">神秘地图</plot_event>'
+            '<plot_event type="new_quest" importance="2">取回药材</plot_event>'
+        ),
+    )
+    async with http.stream("POST", f"/sessions/{sid}/turn",
+                           json={"action": "调查"}) as r:
+        async for _ in r.aiter_text(): pass
+
+    r = await http.get(f"/sessions/{sid}/threads")
+    assert r.status_code == 200
+    threads = r.json()
+    assert len(threads) >= 2
+    descriptions = [t["description"] for t in threads]
+    assert any("神秘地图" in d for d in descriptions)
+    assert any("取回药材" in d for d in descriptions)
+
+
+async def test_warmup_endpoint_returns_202(http, monkeypatch):
+    sid = await _make_session(http)
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: StubGM("<narrative>warm</narrative>"),
+    )
+    r = await http.post(f"/sessions/{sid}/warmup")
+    assert r.status_code == 202
+    assert r.json()["status"] == "started"
