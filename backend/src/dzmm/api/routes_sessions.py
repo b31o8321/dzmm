@@ -15,6 +15,9 @@ from dzmm.db.models import (
     NPC,
     PlotThread,
     Session as GameSession,
+    Era,
+    PCGoal,
+    Timeline,
 )
 from dzmm.models.factory import build_client
 from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
@@ -172,6 +175,62 @@ async def get_threads(session_id: int, s: AsyncSession = Depends(get_session_dep
             "resolution": t.resolution,
         }
         for t in rows
+    ]
+
+
+@router.get("/{session_id}/timeline")
+async def get_timeline(session_id: int, s: AsyncSession = Depends(get_session_dep)):
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (await s.execute(
+        select(Timeline).where(Timeline.session_id == session_id)
+        .order_by(Timeline.turn, Timeline.id)
+    )).scalars().all()
+    return [
+        {
+            "id": t.id, "turn": t.turn, "event_text": t.event_text,
+            "importance": t.importance,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in rows
+    ]
+
+
+@router.get("/{session_id}/eras")
+async def get_eras(session_id: int, s: AsyncSession = Depends(get_session_dep)):
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (await s.execute(
+        select(Era).where(Era.session_id == session_id)
+        .order_by(Era.started_turn, Era.id)
+    )).scalars().all()
+    return [
+        {"id": e.id, "name": e.name, "started_turn": e.started_turn,
+         "description": e.description}
+        for e in rows
+    ]
+
+
+@router.get("/{session_id}/goals")
+async def get_goals(session_id: int, s: AsyncSession = Depends(get_session_dep)):
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (await s.execute(
+        select(PCGoal).where(PCGoal.session_id == session_id)
+        .order_by(PCGoal.status, PCGoal.id.desc())
+    )).scalars().all()
+    return [
+        {
+            "id": g.id, "description": g.description,
+            "priority": g.priority, "status": g.status,
+            "introduced_turn": g.introduced_turn,
+            "completed_turn": g.completed_turn,
+            "completion_note": g.completion_note,
+        }
+        for g in rows
     ]
 
 
