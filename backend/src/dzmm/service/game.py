@@ -172,16 +172,118 @@ async def _load_recent_messages(
     return [Message(role=r.role, content=r.content) for r in rows]
 
 
+def _format_npc_dossier(npc: NPC) -> str:
+    """Full 3-5 line dossier block for pinned/recalled NPCs."""
+    archetype = (npc.archetype or "").strip()
+    state = (npc.state or "").strip() or "未知"
+    head = f"- {npc.name}"
+    if archetype:
+        head += f" [{archetype}]"
+    head += f" 状态：{state}"
+
+    lines: list[str] = [head]
+
+    purpose = (npc.purpose or "").strip()
+    if purpose:
+        lines.append(f"  动机：{purpose}")
+
+    affinity_parts = [f"好感{npc.favor:+d}"]
+    try:
+        affinity = json.loads(npc.affinity_json or "{}")
+    except (TypeError, ValueError):
+        affinity = {}
+    if isinstance(affinity, dict):
+        for axis, val in affinity.items():
+            if isinstance(val, (int, float)):
+                affinity_parts.append(f"{axis}{int(val):+d}")
+    lines.append("  " + "｜".join(affinity_parts))
+
+    try:
+        notes = json.loads(npc.notes_json or "[]")
+    except (TypeError, ValueError):
+        notes = []
+    if isinstance(notes, list) and notes:
+        last = notes[-1]
+        text = ""
+        if isinstance(last, dict):
+            text = str(last.get("text", "")).strip()
+        elif isinstance(last, str):
+            text = last.strip()
+        if text:
+            lines.append(f"  最近：{text}")
+    elif npc.description:
+        desc = npc.description.strip()
+        if desc:
+            lines.append(f"  备注：{desc[:60]}")
+
+    return "\n".join(lines)
+
+
+def _format_npc_short(npc: NPC) -> str:
+    """One-line summary for recently-seen NPCs (legacy compact format)."""
+    desc = (npc.description or "").strip()
+    return f"- {npc.name}（好感{npc.favor:+d}，状态：{npc.state}）{desc[:40]}"
+
+
 async def _build_key_facts(
     session: AsyncSession, session_id: int, current_turn: int
 ) -> str:
-    npcs = (
+    """Build NPC + plot context with a 3-pass union:
+    1. Pinned NPCs (no limit) — full dossier
+    2. Recently-seen NPCs (top 8 by last_seen_turn, excluding pinned) — short line
+    3. Recalled NPCs — drained from Session.recall_pending_json — full dossier"""
+    pinned_npcs = (
         await session.execute(
-            select(NPC).where(NPC.session_id == session_id)
+            select(NPC)
+            .where(NPC.session_id == session_id, NPC.pinned == True)  # noqa: E712
             .order_by(NPC.last_seen_turn.desc())
-            .limit(8)
         )
     ).scalars().all()
+    pinned_ids = {n.id for n in pinned_npcs}
+
+    recent_npcs = (
+        await session.execute(
+            select(NPC)
+            .where(NPC.session_id == session_id)
+            .order_by(NPC.last_seen_turn.desc())
+            .limit(16)
+        )
+    ).scalars().all()
+    recent_filtered: list[NPC] = []
+    for n in recent_npcs:
+        if n.id in pinned_ids:
+            continue
+        recent_filtered.append(n)
+        if len(recent_filtered) >= 8:
+            break
+
+    sess = await session.get(GameSession, session_id)
+    recalled_names: list[str] = []
+    if sess is not None:
+        try:
+            raw = json.loads(sess.recall_pending_json or "[]")
+            if isinstance(raw, list):
+                recalled_names = [str(x) for x in raw if x]
+        except (TypeError, ValueError):
+            recalled_names = []
+        # Drain — recall is one-shot.
+        if recalled_names:
+            sess.recall_pending_json = "[]"
+
+    recalled_npcs: list[NPC] = []
+    seen_ids = pinned_ids | {n.id for n in recent_filtered}
+    for name in recalled_names:
+        npc = (
+            await session.execute(
+                select(NPC).where(
+                    NPC.session_id == session_id, NPC.name == name
+                )
+            )
+        ).scalar_one_or_none()
+        if npc is not None and npc.id not in seen_ids:
+            recalled_npcs.append(npc)
+            seen_ids.add(npc.id)
+
     threads = (
         await session.execute(
             select(PlotThread)
@@ -192,10 +294,22 @@ async def _build_key_facts(
     ).scalars().all()
 
     parts: list[str] = []
-    if npcs:
-        parts.append("NPC 列表：")
-        for n in npcs:
-            parts.append(f"- {n.name}（好感{n.favor:+d}，状态：{n.state}）{n.description[:40]}")
+
+    if pinned_npcs:
+        parts.append("📌 重点 NPC（始终在场或玩家关注）：")
+        for n in pinned_npcs:
+            parts.append(_format_npc_dossier(n))
+
+    if recent_filtered:
+        parts.append("\nNPC 列表：" if not pinned_npcs else "\n最近出现的其他 NPC：")
+        for n in recent_filtered:
+            parts.append(_format_npc_short(n))
+
+    if recalled_npcs:
+        parts.append("\n🔁 本回合回归的 NPC（请重新带入设定）：")
+        for n in recalled_npcs:
+            parts.append(_format_npc_dossier(n))
+
     if threads:
         parts.append("\n进行中的剧情线：")
         for t in threads:

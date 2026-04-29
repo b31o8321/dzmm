@@ -14,6 +14,9 @@ async def app(tmp_path):
     await init_db(engine)
     SessionMaker = async_session(engine)
     app = create_app(SessionMaker)
+    # Tests need direct DB access (e.g. seed an NPC); attach the session maker
+    # so they can grab it via app.state.session_maker.
+    app.state.session_maker = SessionMaker
     yield app
     await engine.dispose()
 
@@ -427,6 +430,64 @@ async def test_levelup_unknown_stat_gets_plus_one(http, monkeypatch):
 async def test_levelup_404_when_missing(http):
     r = await http.post("/characters/9999/levelup", json={"stat": "hp"})
     assert r.status_code == 404
+
+
+async def test_get_npcs_returns_all_fields(http, app):
+    """The /sessions/{id}/npcs endpoint must return purpose, archetype,
+    affinity, pin, notes — everything the detail dialog needs."""
+    sid = await _make_session(http)
+
+    # Insert an NPC directly via the app's session maker so we control all fields.
+    from dzmm.db.models import NPC
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid,
+            name="御坂雪",
+            description="21 岁早大学生",
+            favor=8,
+            state="对你敞开了一些心扉",
+            last_seen_turn=3,
+            notes_json='[{"turn":3,"text":"分享了童年阴影"}]',
+            purpose="查清祖母遗物里咒符的来源",
+            archetype="外柔内刚的文学少女",
+            affinity_json='{"信任":3,"羁绊":2}',
+            pinned=True,
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/npcs")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 1
+    n = items[0]
+    assert n["name"] == "御坂雪"
+    assert n["favor"] == 8
+    assert n["purpose"] == "查清祖母遗物里咒符的来源"
+    assert n["archetype"] == "外柔内刚的文学少女"
+    assert n["affinity"] == {"信任": 3, "羁绊": 2}
+    assert n["pinned"] is True
+    assert isinstance(n["notes"], list) and n["notes"][0]["text"] == "分享了童年阴影"
+
+
+async def test_pin_toggle(http, app):
+    sid = await _make_session(http)
+    from dzmm.db.models import NPC
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        npc = NPC(session_id=sid, name="A", last_seen_turn=1)
+        s.add(npc)
+        await s.commit()
+        await s.refresh(npc)
+        npc_id = npc.id
+
+    r = await http.put(f"/sessions/{sid}/npcs/{npc_id}/pin", json={"pinned": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["pinned"] is True
+
+    r = await http.put(f"/sessions/{sid}/npcs/{npc_id}/pin", json={"pinned": False})
+    assert r.status_code == 200
+    assert r.json()["pinned"] is False
 
 
 async def test_warmup_endpoint_returns_202(http, monkeypatch):

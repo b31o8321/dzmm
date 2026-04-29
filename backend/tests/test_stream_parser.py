@@ -130,3 +130,22 @@ def test_attrs_with_spaces_and_quotes():
     ])
     tag = [e for e in out if isinstance(e, TagComplete)][0]
     assert tag.attrs == {"type": "new_quest", "importance": "3"}
+
+
+def test_recall_tag_in_known():
+    """Self-closing <recall name="X"/> emits a TagComplete with the name attr."""
+    p = StreamingTagParser()
+    out = collect(p, ['<recall name="御坂雪" />'])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert len(tags) == 1
+    assert tags[0].name == "recall"
+    assert tags[0].attrs == {"name": "御坂雪"}
+    assert tags[0].content == ""
+
+
+def test_recall_tag_no_space_self_close():
+    """`<recall name="X"/>` without trailing space is also accepted."""
+    p = StreamingTagParser()
+    out = collect(p, ['<narrative>hello</narrative><recall name="A"/>'])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert any(t.name == "recall" and t.attrs.get("name") == "A" for t in tags)

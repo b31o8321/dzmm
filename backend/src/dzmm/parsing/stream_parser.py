@@ -10,10 +10,11 @@ KNOWN_TAGS: set[str] = {
     "plot_event",
     "choices",
     "character_xp",
+    "recall",
 }
 STREAMING_TAGS: set[str] = {"narrative"}
 
-_OPEN_TAG_RE = re.compile(r"<(\w+)((?:\s+\w+=\"[^\"]*\")*)\s*>")
+_OPEN_TAG_RE = re.compile(r"<(\w+)((?:\s+\w+=\"[^\"]*\")*)\s*(/?)>")
 _ATTR_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
@@ -42,12 +43,23 @@ class StreamingTagParser:
                     break
                 tag = m.group(1).lower()
                 attrs_str = m.group(2) or ""
+                self_close = m.group(3) == "/"
                 self._current_tag = tag
                 self._current_attrs = dict(_ATTR_RE.findall(attrs_str))
                 self._tag_buf = ""
                 self._buf = self._buf[m.end():]
 
-                if tag in STREAMING_TAGS:
+                if self_close:
+                    if tag in KNOWN_TAGS:
+                        events.append(TagComplete(
+                            name=tag,
+                            attrs=self._current_attrs,
+                            content="",
+                        ))
+                    self._state = "OUTSIDE"
+                    self._current_tag = None
+                    self._current_attrs = {}
+                elif tag in STREAMING_TAGS:
                     self._state = "IN_STREAMING"
                 elif tag in KNOWN_TAGS:
                     self._state = "IN_BUFFERED"

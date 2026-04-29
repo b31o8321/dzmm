@@ -25,6 +25,8 @@ async def apply_tags(
             await _apply_plot_event(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "character_xp":
             await _apply_character_xp(session, session_id, tag.attrs, tag.content)
+        elif tag.name == "recall":
+            await _apply_recall(session, session_id, tag.attrs, tag.content)
 
 
 async def _apply_state_change(
@@ -83,6 +85,10 @@ async def _apply_npc_update(
             state=payload.get("state", "未知"),
             last_seen_turn=current_turn,
             notes_json="[]",
+            purpose="",
+            archetype="",
+            affinity_json="{}",
+            pinned=False,
         )
         session.add(npc)
 
@@ -93,12 +99,60 @@ async def _apply_npc_update(
         npc.state = str(payload["state"])
     if "description" in payload and not npc.description:
         npc.description = str(payload["description"])
+
+    purpose = payload.get("purpose")
+    if purpose is not None:
+        npc.purpose = str(purpose)
+
+    archetype = payload.get("archetype")
+    if archetype is not None:
+        npc.archetype = str(archetype)
+
+    affinity_delta = payload.get("affinity")
+    if isinstance(affinity_delta, dict):
+        existing = json.loads(npc.affinity_json or "{}")
+        if not isinstance(existing, dict):
+            existing = {}
+        for axis, delta in affinity_delta.items():
+            if not isinstance(delta, (int, float)):
+                continue
+            axis_key = str(axis)
+            existing[axis_key] = int(existing.get(axis_key, 0)) + int(delta)
+        npc.affinity_json = json.dumps(existing, ensure_ascii=False)
+
     note = payload.get("note")
     if note:
         notes = json.loads(npc.notes_json or "[]")
         notes.append({"turn": current_turn, "text": str(note)})
         npc.notes_json = json.dumps(notes, ensure_ascii=False)
     npc.last_seen_turn = current_turn
+
+
+async def _apply_recall(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    content: str,
+) -> None:
+    """GM-driven NPC recall: signals 'this NPC is back, re-inject full dossier
+    next turn.' Appends the name to Session.recall_pending_json (a JSON list).
+    The list is drained on the next prompt build."""
+    name = (attrs.get("name") or "").strip()
+    if not name:
+        # Tolerate GM placing the name in body text as a fallback.
+        name = (content or "").strip()
+    if not name:
+        return
+
+    sess = await session.get(GameSession, session_id)
+    if sess is None:
+        return
+    pending = json.loads(sess.recall_pending_json or "[]")
+    if not isinstance(pending, list):
+        pending = []
+    if name not in pending:
+        pending.append(name)
+    sess.recall_pending_json = json.dumps(pending, ensure_ascii=False)
 
 
 async def _apply_plot_event(

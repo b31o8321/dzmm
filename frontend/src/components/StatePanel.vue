@@ -2,9 +2,13 @@
 defineProps<{
   stats: Record<string, number>
   inventory: string[]
-  npcs: { name: string; favor: number; state: string }[]
+  npcs: { name: string; favor: number; state: string; pinned?: boolean }[]
   dice: { skill: string; target: string; result: string }[]
   threads: { type: string; description: string; importance: number }[]
+}>()
+
+const emit = defineEmits<{
+  (e: 'select-npc', name: string): void
 }>()
 </script>
 
@@ -52,9 +56,17 @@ defineProps<{
     <section>
       <h3 class="font-bold text-slate-700 mb-2">NPC 关系</h3>
       <ul class="space-y-1 text-sm">
-        <li v-for="n in npcs" :key="n.name" class="flex justify-between">
-          <span>{{ n.name }}</span>
-          <span class="text-slate-500">
+        <li v-for="n in npcs" :key="n.name" class="flex justify-between items-center gap-2">
+          <button
+            type="button"
+            class="text-left hover:underline hover:text-amber-700 truncate flex items-center gap-1"
+            @click="emit('select-npc', n.name)"
+            :title="`查看 ${n.name} 的详情`"
+          >
+            <span v-if="n.pinned" class="text-amber-500" title="已置顶">📌</span>
+            <span>{{ n.name }}</span>
+          </button>
+          <span class="text-slate-500 shrink-0">
             <span class="font-mono mr-1">{{ n.favor >= 0 ? '+' : '' }}{{ n.favor }}</span>
             <span class="text-xs">{{ n.state }}</span>
           </span>

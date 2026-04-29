@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { sessionsApi, type MessageRow } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type Npc } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
@@ -12,6 +12,7 @@ import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
 import LevelUpDialog from '@/components/LevelUpDialog.vue'
+import NpcDetailDialog from '@/components/NpcDetailDialog.vue'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -91,9 +92,31 @@ async function refreshTokens() {
 
 const stats = reactive<Record<string, number>>({})
 const inventory = ref<string[]>([])
-const npcs = ref<{ name: string; favor: number; state: string }[]>([])
+const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean }[]>([])
 const dice = ref<{ skill: string; target: string; result: string }[]>([])
 const threads = ref<{ type: string; description: string; importance: number }[]>([])
+
+const npcDialogOpen = ref(false)
+const selectedNpc = ref<Npc | null>(null)
+
+async function openNpcDetail(name: string) {
+  try {
+    const all = await sessionsApi.npcs(sessionId)
+    const found = all.find((n) => n.name === name) ?? null
+    selectedNpc.value = found
+    npcDialogOpen.value = !!found
+    if (!found) ElMessage.warning(`未找到 NPC：${name}`)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '加载失败')
+  }
+}
+
+function onNpcUpdated(updated: Npc) {
+  // Reflect pin state into the side-panel list immediately.
+  const existing = npcs.value.find((n) => n.name === updated.name)
+  if (existing) existing.pinned = updated.pinned
+  selectedNpc.value = updated
+}
 
 const MAX_DICE = 8
 
@@ -402,8 +425,15 @@ onMounted(async () => {
     Object.keys(stats).forEach((k) => delete stats[k])
     Object.assign(stats, st.stats)
     inventory.value = st.inventory
-    npcs.value = st.npcs
+    npcs.value = st.npcs.map((n) => ({ ...n }))
     threads.value = st.threads
+
+    // Augment with pinned flag from /npcs endpoint (state endpoint doesn't include it).
+    try {
+      const fullNpcs = await sessionsApi.npcs(sessionId)
+      const pinSet = new Set(fullNpcs.filter((n) => n.pinned).map((n) => n.name))
+      for (const n of npcs.value) n.pinned = pinSet.has(n.name)
+    } catch { /* ignore */ }
   } catch {
     /* ignore */
   }
@@ -449,6 +479,10 @@ onUnmounted(() => audio.stopBgm())
           <router-link :to="`/play/${sessionId}/journal`"
                        class="text-sm text-slate-500 hover:text-slate-800">
             📖 任务日志
+          </router-link>
+          <router-link :to="`/play/${sessionId}/npcs`"
+                       class="text-sm text-slate-500 hover:text-slate-800">
+            📒 NPC
           </router-link>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
@@ -515,7 +549,8 @@ onUnmounted(() => audio.stopBgm())
     <!-- Desktop: side panel always visible -->
     <div class="hidden md:flex">
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
-                  :dice="dice" :threads="threads" />
+                  :dice="dice" :threads="threads"
+                  @select-npc="openNpcDetail" />
     </div>
 
     <!-- Mobile: floating toggle button, drawer slides in from right -->
@@ -543,13 +578,21 @@ onUnmounted(() => audio.stopBgm())
         @click="panelOpen = false"
       >×</button>
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
-                  :dice="dice" :threads="threads" />
+                  :dice="dice" :threads="threads"
+                  @select-npc="openNpcDetail" />
     </div>
 
     <LevelUpDialog
       v-model="levelUpDialogOpen"
       :character="character"
       @leveled="onLeveled"
+    />
+
+    <NpcDetailDialog
+      v-model="npcDialogOpen"
+      :session-id="sessionId"
+      :npc="selectedNpc"
+      @updated="onNpcUpdated"
     />
   </div>
 </template>

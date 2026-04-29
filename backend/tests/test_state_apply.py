@@ -146,6 +146,91 @@ async def test_apply_plot_event_creates_thread(session_with_state):
     assert "山猫" in threads[0].description
 
 
+async def test_npc_purpose_archetype_setter(session_with_state):
+    """purpose / archetype are setters: subsequent updates overwrite prior values."""
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="npc_update",
+        content=(
+            '{"name":"御坂雪","purpose":"查清祖母遗物里咒符的来源",'
+            '"archetype":"外柔内刚的文学少女"}'
+        ),
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid)
+    )).scalar_one()
+    assert npc.purpose == "查清祖母遗物里咒符的来源"
+    assert npc.archetype == "外柔内刚的文学少女"
+
+    tag2 = TagComplete(
+        name="npc_update",
+        content='{"name":"御坂雪","purpose":"保护妹妹"}',
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[tag2])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid)
+    )).scalar_one()
+    assert npc.purpose == "保护妹妹"
+    # archetype unchanged because not provided
+    assert npc.archetype == "外柔内刚的文学少女"
+
+
+async def test_npc_affinity_additive_multiaxis(session_with_state):
+    """affinity is a partial axis→delta map; multiple updates accumulate per axis."""
+    s, sid = session_with_state
+    tag1 = TagComplete(
+        name="npc_update",
+        content='{"name":"御坂雪","affinity":{"信任":5,"羁绊":2}}',
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag1])
+    await s.commit()
+
+    tag2 = TagComplete(
+        name="npc_update",
+        content='{"name":"御坂雪","affinity":{"信任":3}}',
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[tag2])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid)
+    )).scalar_one()
+    affinity = json.loads(npc.affinity_json)
+    assert affinity == {"信任": 8, "羁绊": 2}
+
+
+async def test_recall_appends_name_to_session_pending(session_with_state):
+    """<recall name="X"/> appends X to Session.recall_pending_json (idempotent)."""
+    s, sid = session_with_state
+    tag = TagComplete(name="recall", attrs={"name": "御坂雪"}, content="")
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    pending = json.loads(sess.recall_pending_json)
+    assert "御坂雪" in pending
+
+    # Repeating the same name shouldn't duplicate.
+    await apply_tags(s, sid, current_turn=2, tags=[tag])
+    await s.commit()
+    sess = await s.get(GameSession, sid)
+    pending = json.loads(sess.recall_pending_json)
+    assert pending.count("御坂雪") == 1
+
+    # A second recall name is appended.
+    tag2 = TagComplete(name="recall", attrs={"name": "卫兵长"}, content="")
+    await apply_tags(s, sid, current_turn=3, tags=[tag2])
+    await s.commit()
+    sess = await s.get(GameSession, sid)
+    pending = json.loads(sess.recall_pending_json)
+    assert "卫兵长" in pending and "御坂雪" in pending
+
+
 async def test_character_xp_tag_grants_xp(session_with_state):
     s, sid = session_with_state
     tag = TagComplete(name="character_xp", attrs={"delta": "50"},

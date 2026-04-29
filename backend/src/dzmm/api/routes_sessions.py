@@ -2,6 +2,7 @@ import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -172,6 +173,71 @@ async def get_threads(session_id: int, s: AsyncSession = Depends(get_session_dep
         }
         for t in rows
     ]
+
+
+def _npc_to_dict(n: NPC) -> dict:
+    try:
+        affinity = json.loads(n.affinity_json or "{}")
+        if not isinstance(affinity, dict):
+            affinity = {}
+    except (TypeError, ValueError):
+        affinity = {}
+    try:
+        notes = json.loads(n.notes_json or "[]")
+        if not isinstance(notes, list):
+            notes = []
+    except (TypeError, ValueError):
+        notes = []
+    return {
+        "id": n.id,
+        "name": n.name,
+        "description": n.description,
+        "favor": n.favor,
+        "state": n.state,
+        "last_seen_turn": n.last_seen_turn,
+        "purpose": n.purpose,
+        "archetype": n.archetype,
+        "affinity": affinity,
+        "pinned": bool(n.pinned),
+        "notes": notes,
+    }
+
+
+@router.get("/{session_id}/npcs")
+async def get_npcs(session_id: int, s: AsyncSession = Depends(get_session_dep)):
+    """Return all NPCs for this session with full fields (affinity, archetype,
+    purpose, pin, notes timeline). Used by the NPC roster + detail dialog."""
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (
+        await s.execute(
+            select(NPC)
+            .where(NPC.session_id == session_id)
+            .order_by(NPC.pinned.desc(), NPC.last_seen_turn.desc(), NPC.id.desc())
+        )
+    ).scalars().all()
+    return [_npc_to_dict(n) for n in rows]
+
+
+class PinUpdate(BaseModel):
+    pinned: bool
+
+
+@router.put("/{session_id}/npcs/{npc_id}/pin")
+async def update_npc_pin(
+    session_id: int,
+    npc_id: int,
+    body: PinUpdate,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    npc = await s.get(NPC, npc_id)
+    if npc is None or npc.session_id != session_id:
+        raise HTTPException(404, "npc not found")
+    npc.pinned = bool(body.pinned)
+    await s.commit()
+    await s.refresh(npc)
+    return _npc_to_dict(npc)
 
 
 @router.post("/{session_id}/warmup", status_code=202)
