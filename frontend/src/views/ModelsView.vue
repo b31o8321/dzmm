@@ -119,6 +119,15 @@ onMounted(() => store.refresh())
       <el-button type="primary" @click="openCreate">+ 新增</el-button>
     </div>
 
+    <el-alert type="info" :closable="false" class="mb-4">
+      <template #title>
+        <span class="text-sm">
+          推荐模型：本地 <code>qwen2.5:7b</code> / <code>llama3.1:8b</code>；云端 <code>gpt-4o-mini</code> / <code>claude-haiku</code>。
+          <strong>避免</strong> <code>deepseek-r1</code> 等推理模型——它们会把输出全部放在 <code>&lt;think&gt;</code> 中，导致状态标签缺失。
+        </span>
+      </template>
+    </el-alert>
+
     <el-table :data="store.items" v-loading="store.loading" border>
       <el-table-column prop="name" label="名称" width="160" />
       <el-table-column prop="type" label="类型" width="140" />
