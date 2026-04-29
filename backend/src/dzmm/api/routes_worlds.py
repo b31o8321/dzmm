@@ -5,6 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.schemas import WorldIn, WorldOut
+from dzmm.db.models import Character as CharacterModel
+from dzmm.db.models import Session as SessionModel
 from dzmm.db.models import World
 
 router = APIRouter(prefix="/worlds", tags=["worlds"])
@@ -46,3 +48,42 @@ async def get_world(world_id: int, s: AsyncSession = Depends(get_session_dep)):
     if w is None:
         raise HTTPException(404, "world not found")
     return _to_out(w)
+
+
+@router.put("/{world_id}", response_model=WorldOut)
+async def update_world(
+    world_id: int, body: WorldIn, s: AsyncSession = Depends(get_session_dep)
+):
+    w = await s.get(World, world_id)
+    if w is None:
+        raise HTTPException(404, "world not found")
+    w.name = body.name
+    w.content_md = body.content_md
+    w.style = body.style
+    w.rules_json = json.dumps({"mode": body.rules_mode})
+    await s.commit()
+    await s.refresh(w)
+    return _to_out(w)
+
+
+@router.delete("/{world_id}", status_code=204)
+async def delete_world(world_id: int, s: AsyncSession = Depends(get_session_dep)):
+    w = await s.get(World, world_id)
+    if w is None:
+        raise HTTPException(404, "world not found")
+    has_chars = (
+        await s.execute(
+            select(CharacterModel.id).where(CharacterModel.world_id == world_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if has_chars is not None:
+        raise HTTPException(409, "world has characters (该世界仍有角色)")
+    has_sessions = (
+        await s.execute(
+            select(SessionModel.id).where(SessionModel.world_id == world_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if has_sessions is not None:
+        raise HTTPException(409, "world has sessions (该世界仍有跑团存档)")
+    await s.delete(w)
+    await s.commit()

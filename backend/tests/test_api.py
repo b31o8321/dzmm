@@ -152,3 +152,91 @@ async def test_turn_streams_sse(http, monkeypatch):
 
     r = await http.get(f"/sessions/{sid}")
     assert r.json()["turn_count"] == 1
+
+
+async def test_update_world(http):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.put(f"/worlds/{wid}", json={
+        "name": "W2", "content_md": "y", "style": "horror", "rules_mode": "standard"
+    })
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "W2"
+    assert r.json()["style"] == "horror"
+
+
+async def test_delete_world_cascading_refusal(http):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.post("/characters", json={
+        "world_id": wid, "name": "C", "profile_md": "y", "base_stats_json": "{}"
+    })
+    assert r.status_code == 200
+    r = await http.delete(f"/worlds/{wid}")
+    assert r.status_code == 409, r.text
+
+
+async def test_delete_world_succeeds_when_unused(http):
+    r = await http.post("/worlds", json={"name": "Wempty", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.delete(f"/worlds/{wid}")
+    assert r.status_code == 204, r.text
+    r = await http.get(f"/worlds/{wid}")
+    assert r.status_code == 404
+
+
+async def test_update_character(http):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.post("/characters", json={
+        "world_id": wid, "name": "C", "profile_md": "y", "base_stats_json": "{}"
+    })
+    cid = r.json()["id"]
+    r = await http.put(f"/characters/{cid}", json={
+        "world_id": wid, "name": "C2", "profile_md": "updated",
+        "base_stats_json": '{"hp":30}'
+    })
+    assert r.status_code == 200
+    assert r.json()["name"] == "C2"
+
+
+async def test_delete_character_blocked_by_session(http):
+    sid = await _make_session(http)
+    chars = (await http.get("/characters")).json()
+    cid = chars[0]["id"]
+    r = await http.delete(f"/characters/{cid}")
+    assert r.status_code == 409
+
+
+async def test_update_model_config_no_key_change(http):
+    r = await http.post("/model_configs", json={
+        "name": "local", "type": "ollama",
+        "base_url": "http://localhost:11434", "model_name": "qwen2.5:7b",
+    })
+    mid = r.json()["id"]
+    r = await http.put(f"/model_configs/{mid}", json={
+        "name": "local-v2", "type": "ollama",
+        "base_url": "http://localhost:11434", "model_name": "llama3:8b",
+        "timeout": 120
+    })
+    assert r.status_code == 200
+    assert r.json()["name"] == "local-v2"
+    assert r.json()["model_name"] == "llama3:8b"
+    assert r.json()["timeout"] == 120
+
+
+async def test_delete_model_config_blocked_by_session(http):
+    sid = await _make_session(http)
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    r = await http.delete(f"/model_configs/{sess['gm_model_config_id']}")
+    assert r.status_code == 409
+
+
+async def test_delete_unused_model_config(http):
+    r = await http.post("/model_configs", json={
+        "name": "x", "type": "ollama",
+        "base_url": "http://x", "model_name": "y",
+    })
+    mid = r.json()["id"]
+    r = await http.delete(f"/model_configs/{mid}")
+    assert r.status_code == 204
