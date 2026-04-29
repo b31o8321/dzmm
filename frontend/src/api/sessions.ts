@@ -46,6 +46,31 @@ export interface Npc {
   notes: NpcNote[]
 }
 
+export interface TimelineItem {
+  id: number
+  turn: number
+  event_text: string
+  importance: number
+  created_at?: string
+}
+
+export interface EraItem {
+  id: number
+  name: string
+  started_turn: number
+  description: string
+}
+
+export interface PCGoalItem {
+  id: number
+  description: string
+  priority: 'high' | 'normal' | 'low'
+  status: 'active' | 'completed' | 'abandoned'
+  introduced_turn: number
+  completed_turn: number | null
+  completion_note: string
+}
+
 export const sessionsApi = {
   list: () => api.get<GameSession[]>('/sessions').then((r) => r.data),
   get: (id: number) => api.get<GameSession>(`/sessions/${id}`).then((r) => r.data),
@@ -65,4 +90,10 @@ export const sessionsApi = {
     api.delete(`/sessions/${id}/last_turn`).then(() => undefined),
   warmup: (id: number) =>
     api.post(`/sessions/${id}/warmup`).then(() => undefined),
+  timeline: (id: number) =>
+    api.get<TimelineItem[]>(`/sessions/${id}/timeline`).then((r) => r.data),
+  eras: (id: number) =>
+    api.get<EraItem[]>(`/sessions/${id}/eras`).then((r) => r.data),
+  goals: (id: number) =>
+    api.get<PCGoalItem[]>(`/sessions/${id}/goals`).then((r) => r.data),
 }

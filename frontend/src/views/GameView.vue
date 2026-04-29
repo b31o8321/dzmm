@@ -484,6 +484,10 @@ onUnmounted(() => audio.stopBgm())
                        class="text-sm text-slate-500 hover:text-slate-800">
             📒 NPC
           </router-link>
+          <router-link :to="`/play/${sessionId}/chronicle`"
+                       class="text-sm text-slate-500 hover:text-slate-800">
+            📜 编年史
+          </router-link>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
           </router-link>

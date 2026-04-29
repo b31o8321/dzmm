@@ -499,3 +499,43 @@ async def test_warmup_endpoint_returns_202(http, monkeypatch):
     r = await http.post(f"/sessions/{sid}/warmup")
     assert r.status_code == 202
     assert r.json()["status"] == "started"
+
+
+async def test_timeline_endpoint_empty(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/timeline")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+async def test_eras_endpoint_empty(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/eras")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+async def test_goals_endpoint_empty(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/goals")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+async def test_timeline_returns_seeded_rows(http, app):
+    """Insert Timeline row directly via session_maker, verify endpoint reflects it."""
+    sid = await _make_session(http)
+    from dzmm.db.models import Timeline
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(Timeline(session_id=sid, turn=5, event_text="重要转折",
+                       importance=3))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/timeline")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 1
+    assert items[0]["event_text"] == "重要转折"
+    assert items[0]["importance"] == 3
+    assert items[0]["turn"] == 5
