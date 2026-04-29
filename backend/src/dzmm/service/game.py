@@ -11,6 +11,7 @@ from dzmm.db.models import (
     CharState,
     Message as MessageRow,
     NPC,
+    PCGoal,
     PlotThread,
     Session as GameSession,
     StorySummary,
@@ -315,4 +316,19 @@ async def _build_key_facts(
         for t in threads:
             stars = "★" * t.importance
             parts.append(f"- [{t.type} {stars}] {t.description}")
+
+    active_goals = (
+        await session.execute(
+            select(PCGoal).where(
+                PCGoal.session_id == session_id,
+                PCGoal.status == "active",
+            ).order_by(PCGoal.priority.desc(), PCGoal.id.desc()).limit(8)
+        )
+    ).scalars().all()
+
+    if active_goals:
+        parts.append("\nPC 当前目标：")
+        for g in active_goals:
+            prio_mark = {"high": "★★★", "normal": "★★", "low": "★"}.get(g.priority, "★★")
+            parts.append(f"- [id={g.id}] {prio_mark} {g.description}")
     return "\n".join(parts)

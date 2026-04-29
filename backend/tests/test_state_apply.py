@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, ModelConfig, NPC, PlotThread, Session as GameSession, World,
+    Character, CharState, ModelConfig, NPC, PCGoal, PlotThread, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply import apply_tags
@@ -281,6 +281,48 @@ async def test_character_xp_tag_floors_at_zero(session_with_state):
     sess = await s.get(GameSession, sid)
     char = await s.get(Character, sess.character_id)
     assert char.xp == 0
+
+
+async def test_pc_goal_add_creates_row(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="pc_goal", attrs={"type": "add", "priority": "high"},
+        content="找到义体黑医",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[tag])
+    await s.commit()
+
+    goals = (await s.execute(select(PCGoal).where(PCGoal.session_id == sid))).scalars().all()
+    assert len(goals) == 1
+    assert goals[0].description == "找到义体黑医"
+    assert goals[0].priority == "high"
+    assert goals[0].status == "active"
+    assert goals[0].introduced_turn == 2
+
+
+async def test_pc_goal_complete_closes_existing(session_with_state):
+    s, sid = session_with_state
+
+    # 先 add
+    add_tag = TagComplete(name="pc_goal", attrs={"type": "add"}, content="目标 A")
+    await apply_tags(s, sid, current_turn=1, tags=[add_tag])
+    await s.commit()
+    goal_id = (await s.execute(select(PCGoal.id).where(PCGoal.session_id == sid))).scalar_one()
+
+    # 再 complete
+    complete_tag = TagComplete(
+        name="pc_goal", attrs={"type": "complete", "id": str(goal_id)},
+        content="任务完成原因",
+    )
+    await apply_tags(s, sid, current_turn=5, tags=[complete_tag])
+    await s.commit()
+
+    goal = (await s.execute(
+        select(PCGoal).where(PCGoal.id == goal_id)
+    )).scalar_one()
+    assert goal.status == "completed"
+    assert goal.completed_turn == 5
+    assert "完成原因" in goal.completion_note
 
 
 async def test_apply_plot_event_resolution_closes_latest(session_with_state):
