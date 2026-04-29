@@ -23,6 +23,7 @@ const sending = ref(false)
 const turnCount = ref(0)
 const tokensIn = ref(0)
 const tokensOut = ref(0)
+const panelOpen = ref(false)
 
 async function refreshTokens() {
   try {
@@ -405,7 +406,38 @@ onMounted(async () => {
       </footer>
     </section>
 
-    <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
-                :dice="dice" :threads="threads" />
+    <!-- Desktop: side panel always visible -->
+    <div class="hidden md:flex">
+      <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
+                  :dice="dice" :threads="threads" />
+    </div>
+
+    <!-- Mobile: floating toggle button, drawer slides in from right -->
+    <button
+      v-if="!panelOpen"
+      type="button"
+      class="md:hidden fixed top-2 right-2 z-20 bg-white border border-slate-300 rounded-full w-10 h-10 shadow flex items-center justify-center text-lg"
+      title="打开状态面板"
+      @click="panelOpen = true"
+    >📋</button>
+
+    <div
+      v-if="panelOpen"
+      class="md:hidden fixed inset-0 z-30 bg-black/40"
+      @click="panelOpen = false"
+    ></div>
+
+    <div
+      class="md:hidden fixed top-0 right-0 h-full z-40 transition-transform duration-200 bg-white shadow-xl"
+      :class="panelOpen ? 'translate-x-0' : 'translate-x-full'"
+    >
+      <button
+        type="button"
+        class="absolute top-2 left-2 text-slate-400 hover:text-slate-700 text-2xl leading-none z-50"
+        @click="panelOpen = false"
+      >×</button>
+      <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
+                  :dice="dice" :threads="threads" />
+    </div>
   </div>
 </template>

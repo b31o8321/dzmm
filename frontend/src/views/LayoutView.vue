@@ -31,13 +31,14 @@ async function copyLan() {
       </span>
       <button
         type="button"
-        class="px-2 py-1 bg-white hover:bg-amber-50 border border-amber-300 rounded text-xs"
+        class="px-2 py-1 bg-white hover:bg-amber-50 border border-amber-300 rounded text-xs shrink-0"
         @click="copyLan"
       >复制</button>
     </div>
-    <div class="flex flex-1 min-h-0">
+
+    <div class="flex flex-col md:flex-row flex-1 min-h-0">
       <SidebarNav />
-      <main class="flex-1 overflow-auto bg-slate-50">
+      <main class="flex-1 overflow-auto bg-slate-50 min-h-0">
         <router-view />
       </main>
     </div>
