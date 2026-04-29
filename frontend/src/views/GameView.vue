@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted } from 'vue'
+import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
+import { useWorldsStore } from '@/stores/worlds'
 import { sessionsApi, type MessageRow } from '@/api/sessions'
+import { useAudio } from '@/composables/useAudio'
 import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
 const sessionsStore = useSessionsStore()
+const worldsStore = useWorldsStore()
+const audio = useAudio()
 
 interface Turn {
   action: string
@@ -118,7 +122,18 @@ async function sendAction(userAction: string) {
         scrollToBottom()
       },
       onTag: (name, attrs, content) => {
-        if (name === 'state_change') applyStateChange(content)
+        if (name === 'state_change') {
+          try {
+            const obj = JSON.parse(content)
+            let totalDelta = 0
+            for (const [, v] of Object.entries(obj)) {
+              if (typeof v === 'number') totalDelta += v
+            }
+            if (totalDelta < 0) audio.playSfx('state_down')
+            else if (totalDelta > 0) audio.playSfx('state_up')
+          } catch { /* ignore */ }
+          applyStateChange(content)
+        }
         else if (name === 'npc_update') applyNpcUpdate(content)
         else if (name === 'choices') {
           const opts: string[] = []
@@ -129,6 +144,7 @@ async function sendAction(userAction: string) {
           turn.choices = opts
         }
         else if (name === 'dice') {
+          audio.playSfx('dice')
           dice.value.unshift({
             skill: attrs.skill ?? '判定',
             target: attrs.target ?? '?',
@@ -279,12 +295,23 @@ function extractDiceFromHistory(messages: MessageRow[]) {
 }
 
 onMounted(async () => {
+  // Fire-and-forget GM model warmup so the first turn isn't cold.
+  sessionsApi.warmup(sessionId).catch(() => { /* ignore */ })
+
   try {
     const sess = await sessionsStore.get(sessionId)
     turnCount.value = sess.turn_count
   } catch {
     /* ignore */
   }
+
+  // Start BGM matching the world style
+  try {
+    const sess = await sessionsStore.get(sessionId)
+    await worldsStore.refresh()
+    const world = worldsStore.items.find((w) => w.id === sess.world_id)
+    if (world) audio.playBgm(world.style)
+  } catch { /* ignore */ }
 
   // Rehydrate conversation log
   try {
@@ -332,6 +359,8 @@ onMounted(async () => {
 
   await scrollToBottom()
 })
+
+onUnmounted(() => audio.stopBgm())
 </script>
 
 <template>
@@ -345,9 +374,15 @@ onMounted(async () => {
             tokens: {{ tokensIn.toLocaleString() }} in / {{ tokensOut.toLocaleString() }} out
           </span>
         </div>
-        <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
-          返回存档
-        </router-link>
+        <div class="flex items-center gap-4">
+          <router-link :to="`/play/${sessionId}/journal`"
+                       class="text-sm text-slate-500 hover:text-slate-800">
+            📖 任务日志
+          </router-link>
+          <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
+            返回存档
+          </router-link>
+        </div>
       </header>
 
       <div ref="logEl" class="flex-1 overflow-auto px-6 py-4 space-y-6">
