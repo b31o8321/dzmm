@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 import SidebarNav from '@/components/SidebarNav.vue'
+import OnboardingTour from '@/components/OnboardingTour.vue'
 import { useAppStore } from '@/stores/app'
 import { useAudio } from '@/composables/useAudio'
 
@@ -20,6 +21,10 @@ async function copyLan() {
 function toggleMute() {
   audio.setMuted(!appStore.muted)
 }
+
+function restartTour() {
+  appStore.restartTour()
+}
 </script>
 
 <template>
@@ -29,6 +34,12 @@ function toggleMute() {
             :title="appStore.muted ? '取消静音' : '静音'"
             @click="toggleMute">
       {{ appStore.muted ? '🔇' : '🔊' }}
+    </button>
+    <button type="button"
+            class="fixed top-2 right-12 z-50 bg-white/80 hover:bg-white border border-slate-300 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow"
+            title="重新查看引导"
+            @click="restartTour">
+      ❓
     </button>
 
     <div
@@ -55,5 +66,7 @@ function toggleMute() {
         <router-view />
       </main>
     </div>
+
+    <OnboardingTour />
   </div>
 </template>

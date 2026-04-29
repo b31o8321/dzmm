@@ -1,9 +1,15 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import LayoutView from '@/views/LayoutView.vue'
+import { useAppStore } from '@/stores/app'
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    {
+      path: '/welcome',
+      name: 'welcome',
+      component: () => import('@/views/WelcomeView.vue'),
+    },
     {
       path: '/',
       component: LayoutView,
@@ -23,6 +29,25 @@ const router = createRouter({
       ],
     },
   ],
+})
+
+// First-launch guard: if the user hasn't completed (or started) the
+// onboarding tour, redirect them to /welcome on their initial visit.
+router.beforeEach((to, _from, next) => {
+  if (to.path === '/welcome') {
+    next()
+    return
+  }
+  try {
+    const appStore = useAppStore()
+    if (!appStore.tourCompleted && appStore.tourStep === 0) {
+      next('/welcome')
+      return
+    }
+  } catch {
+    /* pinia not ready yet, fall through */
+  }
+  next()
 })
 
 export default router
