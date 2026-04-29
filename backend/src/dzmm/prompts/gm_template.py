@@ -31,6 +31,38 @@ _STYLE_HINTS = {
     "horror": "恐怖风格，缓慢推进，依赖暗示而非直白血腥。",
 }
 
+_FEW_SHOT_EXAMPLE = """
+# 输出范例（参考此格式，每个标签都必须闭合）
+
+假设玩家行动是「上前盘问那个卫兵」，正确的输出应该长这样：
+
+<narrative>
+你大步走向那名年轻卫兵。他握紧了腰间的电棍，但眼神有些慌乱。
+
+「站住！」他喝道，声音却带着颤抖，「这里禁止通行。」
+
+你注意到他左手边制服上沾着新鲜的血迹——他想用衣袖盖住，但失败了。
+</narrative>
+
+<dice skill="洞察" target="12">
+d20=15，成功
+</dice>
+
+<state_change>
+{"sanity": -1}
+</state_change>
+
+<npc_update>
+{"name": "年轻卫兵", "favor_delta": 0, "state": "警戒紧张", "description": "二十出头的男性，制服沾血，明显在隐瞒什么"}
+</npc_update>
+
+<choices>
+- 直接质问血迹的来历
+- 假装没看见，继续打听通行
+- 后退一步观察周围有无同伴
+</choices>
+"""
+
 _SYSTEM_TEMPLATE = """# 你的身份
 你是一位专业的 TRPG 跑团主持人（GM）。你的职责：
 - 推动剧情、描写场景与氛围
@@ -105,7 +137,7 @@ _SYSTEM_TEMPLATE = """# 你的身份
 
 # 开局规则
 若剧情摘要为空（首轮），输出一段 600-1000 字的开局：交代 PC 当下所处环境、感官细节、身份处境、引子事件，停在 PC 必须做决定的瞬间，等待玩家行动。
-
+{example}
 # 立即开始（最后提示）
 你的下一句话必须以 `<narrative>` 标签开头。不要先输出思考过程；如果你需要思考，把思考放在 `<narrative>` 之外的注释，或者直接进入叙事。任何状态变化必须用 `<state_change>` 标签。
 """
@@ -142,6 +174,7 @@ def build_gm_messages(
         live_state=_format_live_state(live_state),
         story_summary=story_summary.strip() or "（暂无，首次互动）",
         key_facts=key_facts.strip() or "（暂无）",
+        example=_FEW_SHOT_EXAMPLE,
     )
 
     messages: list[Message] = [Message(role="system", content=system)]
