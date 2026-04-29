@@ -86,3 +86,19 @@ def test_rules_mode_light_disables_dice_requirement():
     )
     sys = msgs[0].content
     assert "轻量化" in sys
+
+
+def test_format_reinforcement_at_end():
+    """Anthropic/OpenAI prompt-engineering best practice: the final line of the
+    system prompt is the strongest priming. Verify the format reminder is the
+    last meaningful line."""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content.rstrip()
+    last_paragraph = sys.split("\n\n")[-1]
+    assert "<narrative>" in last_paragraph
+    assert "必须" in last_paragraph or "立即" in last_paragraph
