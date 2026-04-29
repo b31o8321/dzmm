@@ -22,9 +22,21 @@ export const useModelConfigsStore = defineStore('modelConfigs', () => {
     return m
   }
 
+  async function update(id: number, body: ModelConfigIn) {
+    const m = await modelsApi.update(id, body)
+    const idx = items.value.findIndex((x) => x.id === id)
+    if (idx >= 0) items.value[idx] = m
+    return m
+  }
+
+  async function remove(id: number) {
+    await modelsApi.remove(id)
+    items.value = items.value.filter((x) => x.id !== id)
+  }
+
   async function test(id: number) {
     return modelsApi.test(id)
   }
 
-  return { items, loading, refresh, create, test }
+  return { items, loading, refresh, create, update, remove, test }
 })

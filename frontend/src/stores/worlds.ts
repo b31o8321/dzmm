@@ -22,5 +22,17 @@ export const useWorldsStore = defineStore('worlds', () => {
     return w
   }
 
-  return { items, loading, refresh, create }
+  async function update(id: number, body: WorldIn) {
+    const w = await worldsApi.update(id, body)
+    const idx = items.value.findIndex((x) => x.id === id)
+    if (idx >= 0) items.value[idx] = w
+    return w
+  }
+
+  async function remove(id: number) {
+    await worldsApi.remove(id)
+    items.value = items.value.filter((x) => x.id !== id)
+  }
+
+  return { items, loading, refresh, create, update, remove }
 })

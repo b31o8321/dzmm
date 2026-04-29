@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useWorldsStore } from '@/stores/worlds'
 import MarkdownView from '@/components/MarkdownView.vue'
-import type { WorldIn } from '@/api/types'
+import type { World, WorldIn } from '@/api/types'
 
 const store = useWorldsStore()
 const dialogOpen = ref(false)
+const editingId = ref<number | null>(null)
 const submitting = ref(false)
+const removing = ref<number | null>(null)
 
 const form = reactive<WorldIn>({
   name: '',
@@ -23,7 +25,6 @@ const styles = [
   { label: '幽默', value: 'comedy' },
   { label: '恐怖', value: 'horror' },
 ]
-
 const rules = [
   { label: '轻量化（无骰子）', value: 'light' },
   { label: '标准（d20）', value: 'standard' },
@@ -34,17 +35,59 @@ function reset() {
   Object.assign(form, { name: '', content_md: '', style: 'dark', rules_mode: 'light' })
 }
 
-async function onCreate() {
+function openCreate() {
+  editingId.value = null
+  reset()
+  dialogOpen.value = true
+}
+
+function openEdit(row: World) {
+  editingId.value = row.id
+  Object.assign(form, {
+    name: row.name,
+    content_md: row.content_md,
+    style: row.style,
+    rules_mode: row.rules_mode,
+  })
+  dialogOpen.value = true
+}
+
+async function onSubmit() {
   submitting.value = true
   try {
-    await store.create(form)
-    ElMessage.success('已创建')
+    if (editingId.value === null) {
+      await store.create(form)
+      ElMessage.success('已创建')
+    } else {
+      await store.update(editingId.value, form)
+      ElMessage.success('已更新')
+    }
     dialogOpen.value = false
     reset()
+    editingId.value = null
   } catch (e: any) {
     ElMessage.error(e.message)
   } finally {
     submitting.value = false
+  }
+}
+
+async function onDelete(row: World) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除世界观 "${row.name}"? 该操作不可逆。`,
+      '确认',
+      { type: 'warning' },
+    )
+  } catch { return }
+  removing.value = row.id
+  try {
+    await store.remove(row.id)
+    ElMessage.success('已删除')
+  } catch (e: any) {
+    ElMessage.error(e.message)
+  } finally {
+    removing.value = null
   }
 }
 
@@ -55,21 +98,37 @@ onMounted(() => store.refresh())
   <div class="p-6">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-2xl font-bold">世界观</h2>
-      <el-button type="primary" @click="dialogOpen = true">+ 新建世界观</el-button>
+      <el-button type="primary" @click="openCreate">+ 新建世界观</el-button>
     </div>
 
     <el-table :data="store.items" v-loading="store.loading" border>
       <el-table-column prop="name" label="名称" width="200" />
-      <el-table-column prop="style" label="风格" width="120" />
-      <el-table-column prop="rules_mode" label="规则" width="120" />
+      <el-table-column prop="style" label="风格" width="100" />
+      <el-table-column prop="rules_mode" label="规则" width="100" />
       <el-table-column label="设定预览">
         <template #default="{ row }">
           <div class="line-clamp-2 text-sm text-slate-600">{{ row.content_md }}</div>
         </template>
       </el-table-column>
+      <el-table-column label="操作" width="160">
+        <template #default="{ row }">
+          <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button
+            size="small"
+            type="danger"
+            :loading="removing === row.id"
+            @click="onDelete(row)"
+          >删除</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogOpen" title="新建世界观" width="900px" top="5vh">
+    <el-dialog
+      v-model="dialogOpen"
+      :title="editingId === null ? '新建世界观' : '编辑世界观'"
+      width="900px"
+      top="5vh"
+    >
       <el-form :model="form" label-width="80px">
         <el-form-item label="名称" required>
           <el-input v-model="form.name" />
@@ -100,7 +159,7 @@ onMounted(() => store.refresh())
       </el-form>
       <template #footer>
         <el-button @click="dialogOpen = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="onCreate">保存</el-button>
+        <el-button type="primary" :loading="submitting" @click="onSubmit">保存</el-button>
       </template>
     </el-dialog>
   </div>
