@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { api, pingBackend } from '@/api/client'
 import { useAppStore } from '@/stores/app'
 
@@ -71,6 +72,20 @@ async function bootAfterBackendStarted() {
 
   if (await ensureOllama()) {
     phase.value = 'ready'
+
+    // 后台检查更新（不阻塞 UI）
+    import('@/composables/useUpdater').then(({ useUpdater }) => {
+      const { checkForUpdates } = useUpdater()
+      checkForUpdates().then((info) => {
+        if (info.available) {
+          ElMessage({
+            message: `🆕 新版本 v${info.version} 可用！点击设置中的"检查更新"安装。`,
+            type: 'info',
+            duration: 8000,
+          })
+        }
+      })
+    })
   }
 }
 

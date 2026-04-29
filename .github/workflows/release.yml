@@ -110,6 +110,32 @@ jobs:
           mkdir -p release
           find dist -type f \( -name '*.dmg' -o -name '*.exe' \) -exec cp {} release/ \;
           ls -la release/
+      - name: generate latest.json
+        run: |
+          set -e
+          VERSION="${GITHUB_REF#refs/tags/}"
+          # 收集 .dmg 和 .exe 路径
+          DMG=$(find release -name '*.dmg' | head -1)
+          EXE=$(find release -name '*.exe' | head -1)
+
+          cat > release/latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "见 https://github.com/${GITHUB_REPOSITORY}/releases/tag/${VERSION}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/$(basename "$DMG")"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/$(basename "$EXE")"
+              }
+            }
+          }
+          EOF
+          cat release/latest.json
       - name: publish release
         uses: softprops/action-gh-release@v2
         with:
