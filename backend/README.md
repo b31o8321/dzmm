@@ -46,6 +46,25 @@ In a third:
 - `summarize_error` — `{ message }`
 - `done` — `{}`
 
+## Recommended models
+
+The GM prompt requires the model to emit structured `<narrative>` and
+`<state_change>` tags. **Reasoning-tuned models that wrap output in `<think>`
+blocks (e.g. deepseek-r1, o1) often skip the format**; even with v0.2's graceful
+fallback you'll lose state tracking. Pick a strong instruction-following model:
+
+| Model | Size | Notes |
+|---|---|---|
+| `qwen2.5:7b` | 7B | Best balance of size and tag compliance for local |
+| `qwen2.5:14b` | 14B | Better narrative quality, needs 16GB RAM |
+| `llama3.1:8b` | 8B | Solid alternative, slightly looser narrative |
+| `gpt-4o-mini` (cloud) | — | Excellent compliance, ~$0.08/hour of play |
+| `claude-haiku` (cloud) | — | Excellent compliance, similar cost |
+| `deepseek-r1:8b` | 8B | NOT recommended — burns tokens in `<think>` |
+
+For cloud models use the `openai_compat` type with the provider's OpenAI-format
+endpoint.
+
 ## Storage
 
 - SQLite at `~/.dzmm/dzmm.db`
