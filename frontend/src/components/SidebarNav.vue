@@ -10,7 +10,8 @@ const items = [
 </script>
 
 <template>
-  <nav class="w-48 bg-slate-800 text-slate-100 h-full p-4 flex flex-col gap-1">
+  <!-- Desktop: vertical sidebar, persistent -->
+  <nav class="hidden md:flex w-48 bg-slate-800 text-slate-100 h-full p-4 flex-col gap-1 shrink-0">
     <div class="text-xl font-bold mb-6 px-2">dzmm</div>
     <RouterLink
       v-for="i in items"
@@ -20,6 +21,19 @@ const items = [
       active-class="bg-slate-700"
     >
       <span class="mr-2">{{ i.icon }}</span>{{ i.label }}
+    </RouterLink>
+  </nav>
+
+  <!-- Mobile: horizontal tab bar at top of layout -->
+  <nav class="flex md:hidden w-full bg-slate-800 text-slate-100 px-2 py-1 gap-1 overflow-x-auto shrink-0">
+    <RouterLink
+      v-for="i in items"
+      :key="i.to"
+      :to="i.to"
+      class="px-3 py-2 rounded hover:bg-slate-700 transition shrink-0 text-sm whitespace-nowrap"
+      active-class="bg-slate-700"
+    >
+      <span class="mr-1">{{ i.icon }}</span>{{ i.label }}
     </RouterLink>
   </nav>
 </template>
