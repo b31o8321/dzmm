@@ -11,6 +11,7 @@ from dzmm.db.models import (
     CharState,
     Message as MessageRow,
     NPC,
+    PlotThread,
     Session as GameSession,
     StorySummary,
     World,
@@ -169,9 +170,23 @@ async def _build_key_facts(
             .limit(8)
         )
     ).scalars().all()
-    if not npcs:
-        return ""
-    lines = ["NPC 列表："]
-    for n in npcs:
-        lines.append(f"- {n.name}（好感{n.favor:+d}，状态：{n.state}）{n.description[:40]}")
-    return "\n".join(lines)
+    threads = (
+        await session.execute(
+            select(PlotThread)
+            .where(PlotThread.session_id == session_id, PlotThread.status == "active")
+            .order_by(PlotThread.importance.desc(), PlotThread.id.desc())
+            .limit(8)
+        )
+    ).scalars().all()
+
+    parts: list[str] = []
+    if npcs:
+        parts.append("NPC 列表：")
+        for n in npcs:
+            parts.append(f"- {n.name}（好感{n.favor:+d}，状态：{n.state}）{n.description[:40]}")
+    if threads:
+        parts.append("\n进行中的剧情线：")
+        for t in threads:
+            stars = "★" * t.importance
+            parts.append(f"- [{t.type} {stars}] {t.description}")
+    return "\n".join(parts)

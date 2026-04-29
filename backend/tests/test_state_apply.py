@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, ModelConfig, NPC, Session as GameSession, World,
+    Character, CharState, ModelConfig, NPC, PlotThread, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply import apply_tags
@@ -124,3 +124,49 @@ async def test_ignores_non_state_tags(session_with_state):
     tag = TagComplete(name="dice", content="d20=15")
     await apply_tags(s, sid, current_turn=1, tags=[tag])
     await s.commit()
+
+
+async def test_apply_plot_event_creates_thread(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "3"},
+        content="从义体黑市的山猫处取回加密芯片",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
+    assert threads[0].type == "new_quest"
+    assert threads[0].importance == 3
+    assert threads[0].status == "active"
+    assert "山猫" in threads[0].description
+
+
+async def test_apply_plot_event_resolution_closes_latest(session_with_state):
+    s, sid = session_with_state
+    open_tag = TagComplete(
+        name="plot_event",
+        attrs={"type": "hook_introduced", "importance": "2"},
+        content="一个神秘人在酒吧角落注视 PC",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[open_tag])
+    await s.commit()
+
+    close_tag = TagComplete(
+        name="plot_event",
+        attrs={"type": "hook_resolved"},
+        content="原来是地下情报贩子打听 PC 的义体来源",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[close_tag])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
+    assert threads[0].status == "resolved"
+    assert "情报贩子" in threads[0].resolution

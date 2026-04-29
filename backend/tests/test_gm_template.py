@@ -102,3 +102,15 @@ def test_format_reinforcement_at_end():
     last_paragraph = sys.split("\n\n")[-1]
     assert "<narrative>" in last_paragraph
     assert "必须" in last_paragraph or "立即" in last_paragraph
+
+
+def test_plot_event_format_in_prompt():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "<plot_event" in sys
+    assert "显式登记剧情事件" in sys
