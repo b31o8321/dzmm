@@ -148,6 +148,32 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
     }
 
 
+@router.delete("/{session_id}/last_turn", status_code=204)
+async def delete_last_turn(
+    session_id: int, s: AsyncSession = Depends(get_session_dep)
+):
+    """Remove the most recent user/assistant message pair and decrement
+    turn_count. Frontend uses this for the regenerate / edit-last actions."""
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    if sess.turn_count <= 0:
+        return  # nothing to delete
+
+    rows = (
+        await s.execute(
+            select(MessageRow)
+            .where(MessageRow.session_id == session_id)
+            .order_by(MessageRow.id.desc())
+            .limit(2)
+        )
+    ).scalars().all()
+    for r in rows:
+        await s.delete(r)
+    sess.turn_count = max(0, sess.turn_count - 1)
+    await s.commit()
+
+
 @router.post("/{session_id}/turn")
 async def take_turn(
     session_id: int,
