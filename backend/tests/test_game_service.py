@@ -231,6 +231,34 @@ async def test_pinned_npc_always_in_prompt(seeded):
     assert "羁绊+2" in sys_msg
 
 
+async def test_era_appears_in_next_prompt(seeded):
+    """An era declared in turn N must surface in the system prompt of turn N+1."""
+    engine, SessionMaker, sid = seeded
+
+    # turn 1: GM declares an era
+    async with SessionMaker() as s:
+        async for _ in run_turn(
+            s, sid, "推进",
+            FakeClient(
+                "<narrative>新章开始</narrative>"
+                '<era_begin name="第二章">新阶段</era_begin>'
+            ),
+        ):
+            pass
+        await s.commit()
+
+    # turn 2: capture system prompt
+    captured = FakeClient("<narrative>第二回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "第二章" in sys_msg
+    assert "当前章节" in sys_msg
+
+
 async def test_recall_drains_after_one_use(seeded):
     """Recalled NPC injects full dossier this turn; recall_pending is cleared
     after one use."""
