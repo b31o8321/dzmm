@@ -22,6 +22,9 @@ class Character(Base):
     name: Mapped[str] = mapped_column(String(120))
     profile_md: Mapped[str] = mapped_column(Text)
     base_stats_json: Mapped[str] = mapped_column(Text)
+    portrait_path: Mapped[str] = mapped_column(String(255), default="")
+    xp: Mapped[int] = mapped_column(default=0)
+    level: Mapped[int] = mapped_column(default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
     world: Mapped[World] = relationship()
@@ -49,6 +52,7 @@ class Session(Base):
     summarizer_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))
     turn_count: Mapped[int] = mapped_column(default=0)
     schema_version: Mapped[int] = mapped_column(default=1)
+    recall_pending_json: Mapped[str] = mapped_column(Text, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
     last_played: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
@@ -93,6 +97,10 @@ class NPC(Base):
     state: Mapped[str] = mapped_column(String(60), default="未知")
     last_seen_turn: Mapped[int] = mapped_column(default=0)
     notes_json: Mapped[str] = mapped_column(Text, default="[]")
+    purpose: Mapped[str] = mapped_column(Text, default="")
+    archetype: Mapped[str] = mapped_column(String(120), default="")
+    affinity_json: Mapped[str] = mapped_column(Text, default="{}")
+    pinned: Mapped[bool] = mapped_column(default=False)
 
 
 class PlotThread(Base):
@@ -105,3 +113,16 @@ class PlotThread(Base):
     importance: Mapped[int] = mapped_column(default=2)  # 1=minor, 2=normal, 3=major
     status: Mapped[str] = mapped_column(String(20), default="active")  # active|resolved|abandoned
     resolution: Mapped[str] = mapped_column(Text, default="")
+
+
+class Timeline(Base):
+    """Long-term key events extracted during recursive summary compression.
+    Not injected into prompts (would defeat the compression); used for
+    explicit user retrieval ("when did I first meet X?")."""
+    __tablename__ = "timeline"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    turn: Mapped[int] = mapped_column(default=0)
+    event_text: Mapped[str] = mapped_column(Text)
+    importance: Mapped[int] = mapped_column(default=2)  # 1-3
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
