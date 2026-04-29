@@ -37,6 +37,10 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
 
 
 async def build_default_app() -> FastAPI:
+    from dzmm.seed_data import seed_if_empty
+
     engine = get_engine()
     await init_db(engine)
-    return create_app(async_session(engine))
+    session_maker = async_session(engine)
+    await seed_if_empty(session_maker)
+    return create_app(session_maker)
