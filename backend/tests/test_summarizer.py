@@ -105,3 +105,59 @@ async def test_summarize_skips_when_below_threshold(tmp_path):
     assert result is False
     assert client.called_with is None
     await engine.dispose()
+
+
+async def test_summary_compression_triggers_above_threshold(seeded_with_messages):
+    """When the generated summary is too long, a second compression pass runs;
+    importance>=2 events get persisted to the Timeline table."""
+    engine, SessionMaker, sid = seeded_with_messages
+    from dzmm.db.models import Timeline as TLModel
+    from dzmm.service.summarizer import COMPRESSION_TRIGGER_CHARS
+
+    long_text = "卷起的剧情" * 800  # ~3200 chars > 3000 trigger
+    short_text = (
+        "PC 经历了赛博朋克城市的多个事件，遇到了义体黑客阿山，"
+        "在九龙黑街揭穿了一桩义体走私案。\n\n"
+        '<event importance="3">PC 与黑客阿山达成同盟</event>\n'
+        '<event importance="2">PC 救出了被绑架的少女小雨</event>\n'
+        '<event importance="1">在便利店买了个泡面</event>\n'
+    )
+
+    class TwoStageClient(ModelClient):
+        name = "two-stage"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def stream(self, messages, params):
+            self.calls += 1
+            # First call → bloated summary; second call (compression) → shorter
+            output = long_text if self.calls == 1 else short_text
+            yield StreamChunk(delta=output, finish_reason="stop",
+                              usage=TokenUsage(input_tokens=10, output_tokens=len(output)))
+
+    client = TwoStageClient()
+    async with SessionMaker() as s:
+        result = await maybe_summarize(s, sid, client)
+        await s.commit()
+
+    assert result is True
+    assert client.calls == 2  # one bloated + one compression
+
+    async with SessionMaker() as s:
+        ss = (await s.execute(
+            select(StorySummary).where(StorySummary.session_id == sid)
+        )).scalar_one()
+        # Compressed summary is much shorter
+        assert len(ss.summary_text) < COMPRESSION_TRIGGER_CHARS
+
+        # Two importance>=2 events persisted
+        tl = (await s.execute(
+            select(TLModel).where(TLModel.session_id == sid)
+        )).scalars().all()
+        assert len(tl) == 2
+        importances = sorted(t.importance for t in tl)
+        assert importances == [2, 3]
+        texts = [t.event_text for t in tl]
+        assert any("阿山" in t for t in texts)
+        assert any("小雨" in t for t in texts)

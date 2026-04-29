@@ -34,3 +34,26 @@ def build_summarizer_messages(
         key_facts=key_facts.strip() or "（暂无）",
     )
     return [Message(role="user", content=user)]
+
+
+_COMPRESSION_TEMPLATE = """你是一个 TRPG 长线归档员。下面这段剧情摘要太长了，需要：
+
+1. 把它压缩到 600 字以内的精炼版（保留剧情骨架、关键 NPC、未解伏笔）
+2. 同时把其中"独立成事件"的高亮（NPC 首次相遇、重大转折、伏笔回收）以下面格式输出：
+
+<event importance="3">大转折/核心 NPC 首次登场，对剧情走向有持续影响</event>
+<event importance="2">重要的支线进展或人物关系变化</event>
+<event importance="1">细节，可以省略</event>
+
+# 待压缩的摘要
+{long_summary}
+
+# 输出要求
+- 第一行起到一个空行为止，是新的精炼摘要正文
+- 之后以 <event> 标签罗列至少 2 条 importance≥2 的事件
+- 不要任何额外说明文字、Markdown 标题
+"""
+
+
+def build_compression_messages(long_summary: str) -> list[Message]:
+    return [Message(role="user", content=_COMPRESSION_TEMPLATE.format(long_summary=long_summary))]
