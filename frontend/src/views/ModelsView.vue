@@ -2,12 +2,14 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
-import type { ModelConfigIn } from '@/api/types'
+import type { ModelConfig, ModelConfigIn } from '@/api/types'
 
 const store = useModelConfigsStore()
 const dialogOpen = ref(false)
+const editingId = ref<number | null>(null)
 const submitting = ref(false)
 const testing = ref<number | null>(null)
+const removing = ref<number | null>(null)
 
 const form = reactive<ModelConfigIn>({
   name: '',
@@ -29,19 +31,65 @@ function resetForm() {
   })
 }
 
-async function onCreate() {
+function openCreate() {
+  editingId.value = null
+  resetForm()
+  dialogOpen.value = true
+}
+
+function openEdit(row: ModelConfig) {
+  editingId.value = row.id
+  Object.assign(form, {
+    name: row.name,
+    type: row.type,
+    base_url: row.base_url,
+    model_name: row.model_name,
+    api_key: '',
+    timeout: row.timeout,
+  })
+  dialogOpen.value = true
+}
+
+async function onSubmit() {
   submitting.value = true
   try {
     const payload: ModelConfigIn = { ...form }
     if (!payload.api_key) delete (payload as any).api_key
-    await store.create(payload)
-    ElMessage.success('已添加')
+    if (editingId.value === null) {
+      await store.create(payload)
+      ElMessage.success('已添加')
+    } else {
+      await store.update(editingId.value, payload)
+      ElMessage.success('已更新')
+    }
     dialogOpen.value = false
     resetForm()
+    editingId.value = null
   } catch (e: any) {
     ElMessage.error(e.message)
   } finally {
     submitting.value = false
+  }
+}
+
+async function onDelete(row: ModelConfig) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除模型配置 "${row.name}"?`,
+      '确认',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  removing.value = row.id
+  try {
+    await store.remove(row.id)
+    ElMessage.success('已删除')
+  } catch (e: any) {
+    ElMessage.error(e.message)
+  } finally {
+    removing.value = null
   }
 }
 
@@ -68,7 +116,7 @@ onMounted(() => store.refresh())
   <div class="p-6">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-2xl font-bold">模型配置</h2>
-      <el-button type="primary" @click="dialogOpen = true">+ 新增</el-button>
+      <el-button type="primary" @click="openCreate">+ 新增</el-button>
     </div>
 
     <el-table :data="store.items" v-loading="store.loading" border>
@@ -81,18 +129,29 @@ onMounted(() => store.refresh())
           {{ row.api_key_ref ? '已设置' : '—' }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120">
+      <el-table-column label="操作" width="240">
         <template #default="{ row }">
           <el-button
             size="small"
             :loading="testing === row.id"
             @click="onTest(row.id)"
           >测试</el-button>
+          <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button
+            size="small"
+            type="danger"
+            :loading="removing === row.id"
+            @click="onDelete(row)"
+          >删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogOpen" title="新增模型配置" width="520px">
+    <el-dialog
+      v-model="dialogOpen"
+      :title="editingId === null ? '新增模型配置' : '编辑模型配置'"
+      width="520px"
+    >
       <el-form :model="form" label-width="100px">
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="例如：本地 qwen" />
@@ -110,7 +169,12 @@ onMounted(() => store.refresh())
           <el-input v-model="form.model_name" placeholder="例如：qwen2.5:7b" />
         </el-form-item>
         <el-form-item label="API Key" v-if="form.type === 'openai_compat'">
-          <el-input v-model="form.api_key" type="password" show-password />
+          <el-input
+            v-model="form.api_key"
+            type="password"
+            show-password
+            :placeholder="editingId !== null ? '留空则保留原密钥' : ''"
+          />
         </el-form-item>
         <el-form-item label="超时（秒）">
           <el-input-number v-model="form.timeout" :min="5" :max="300" />
@@ -118,7 +182,7 @@ onMounted(() => store.refresh())
       </el-form>
       <template #footer>
         <el-button @click="dialogOpen = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="onCreate">保存</el-button>
+        <el-button type="primary" :loading="submitting" @click="onSubmit">保存</el-button>
       </template>
     </el-dialog>
   </div>

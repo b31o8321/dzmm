@@ -9,4 +9,7 @@ export const charactersApi = {
   get: (id: number) => api.get<Character>(`/characters/${id}`).then((r) => r.data),
   create: (body: CharacterIn) =>
     api.post<Character>('/characters', body).then((r) => r.data),
+  update: (id: number, body: CharacterIn) =>
+    api.put<Character>(`/characters/${id}`, body).then((r) => r.data),
+  remove: (id: number) => api.delete(`/characters/${id}`).then(() => undefined),
 }

@@ -22,5 +22,17 @@ export const useCharactersStore = defineStore('characters', () => {
     return c
   }
 
-  return { items, loading, refresh, create }
+  async function update(id: number, body: CharacterIn) {
+    const c = await charactersApi.update(id, body)
+    const idx = items.value.findIndex((x) => x.id === id)
+    if (idx >= 0) items.value[idx] = c
+    return c
+  }
+
+  async function remove(id: number) {
+    await charactersApi.remove(id)
+    items.value = items.value.filter((x) => x.id !== id)
+  }
+
+  return { items, loading, refresh, create, update, remove }
 })
