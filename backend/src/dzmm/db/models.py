@@ -1,0 +1,95 @@
+from datetime import datetime
+from sqlalchemy import ForeignKey, String, Text, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from dzmm.db.base import Base
+
+
+class World(Base):
+    __tablename__ = "worlds"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    content_md: Mapped[str] = mapped_column(Text)
+    rules_json: Mapped[str] = mapped_column(Text, default='{"mode":"light"}')
+    style: Mapped[str] = mapped_column(String(40), default="realistic")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Character(Base):
+    __tablename__ = "characters"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    world_id: Mapped[int] = mapped_column(ForeignKey("worlds.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    profile_md: Mapped[str] = mapped_column(Text)
+    base_stats_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    world: Mapped[World] = relationship()
+
+
+class ModelConfig(Base):
+    __tablename__ = "model_configs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    type: Mapped[str] = mapped_column(String(40))
+    base_url: Mapped[str] = mapped_column(String(255))
+    model_name: Mapped[str] = mapped_column(String(120))
+    api_key_ref: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    timeout: Mapped[float] = mapped_column(default=60.0)
+    params_json: Mapped[str] = mapped_column(Text, default='{}')
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    world_id: Mapped[int] = mapped_column(ForeignKey("worlds.id"))
+    character_id: Mapped[int] = mapped_column(ForeignKey("characters.id"))
+    gm_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))
+    summarizer_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))
+    turn_count: Mapped[int] = mapped_column(default=0)
+    schema_version: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_played: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    role: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    turn: Mapped[int] = mapped_column(default=0)
+    tokens_in: Mapped[int] = mapped_column(default=0)
+    tokens_out: Mapped[int] = mapped_column(default=0)
+    summarized: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class StorySummary(Base):
+    __tablename__ = "story_summaries"
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    summary_text: Mapped[str] = mapped_column(Text, default="")
+    last_summarized_msg_id: Mapped[int] = mapped_column(default=0)
+    summary_tokens: Mapped[int] = mapped_column(default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CharState(Base):
+    __tablename__ = "char_states"
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    stats_json: Mapped[str] = mapped_column(Text, default="{}")
+    inventory_json: Mapped[str] = mapped_column(Text, default="[]")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class NPC(Base):
+    __tablename__ = "npcs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text, default="")
+    favor: Mapped[int] = mapped_column(default=0)
+    state: Mapped[str] = mapped_column(String(60), default="未知")
+    last_seen_turn: Mapped[int] = mapped_column(default=0)
+    notes_json: Mapped[str] = mapped_column(Text, default="[]")
