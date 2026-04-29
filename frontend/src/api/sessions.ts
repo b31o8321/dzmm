@@ -27,6 +27,25 @@ export interface PlotThreadItem {
   resolution: string
 }
 
+export interface NpcNote {
+  turn: number
+  text: string
+}
+
+export interface Npc {
+  id: number
+  name: string
+  description: string
+  favor: number
+  state: string
+  last_seen_turn: number
+  purpose: string
+  archetype: string
+  affinity: Record<string, number>
+  pinned: boolean
+  notes: NpcNote[]
+}
+
 export const sessionsApi = {
   list: () => api.get<GameSession[]>('/sessions').then((r) => r.data),
   get: (id: number) => api.get<GameSession>(`/sessions/${id}`).then((r) => r.data),
@@ -38,6 +57,10 @@ export const sessionsApi = {
     api.get<SessionState>(`/sessions/${id}/state`).then((r) => r.data),
   threads: (id: number) =>
     api.get<PlotThreadItem[]>(`/sessions/${id}/threads`).then((r) => r.data),
+  npcs: (id: number) =>
+    api.get<Npc[]>(`/sessions/${id}/npcs`).then((r) => r.data),
+  pinNpc: (sid: number, npcId: number, pinned: boolean) =>
+    api.put<Npc>(`/sessions/${sid}/npcs/${npcId}/pin`, { pinned }).then((r) => r.data),
   deleteLastTurn: (id: number) =>
     api.delete(`/sessions/${id}/last_turn`).then(() => undefined),
   warmup: (id: number) =>

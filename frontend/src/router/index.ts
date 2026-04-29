@@ -16,6 +16,8 @@ const router = createRouter({
         { path: 'play/:id', name: 'play', component: () => import('@/views/GameView.vue'), props: true },
         { path: 'play/:id/journal', name: 'journal',
           component: () => import('@/views/JournalView.vue'), props: true },
+        { path: 'play/:id/npcs', name: 'npcs',
+          component: () => import('@/views/NpcsView.vue'), props: true },
       ],
     },
   ],

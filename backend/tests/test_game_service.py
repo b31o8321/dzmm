@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Message as MessageRow, ModelConfig,
+    Character, CharState, Message as MessageRow, ModelConfig, NPC,
     Session as GameSession, World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
@@ -166,3 +166,103 @@ async def test_plot_threads_appear_in_next_prompt(seeded):
     sys_msg = captured.last_messages[0].content
     assert "神秘地图" in sys_msg
     assert "进行中的剧情线" in sys_msg or "hook_introduced" in sys_msg
+
+
+async def test_pinned_npc_always_in_prompt(seeded):
+    """A pinned NPC must appear (full dossier) in key_facts even after a long
+    drought — last_seen_turn-based eviction must NOT drop pinned NPCs."""
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid,
+            name="御坂雪",
+            description="21 岁早大学生",
+            favor=8,
+            state="对你敞开了一些心扉",
+            last_seen_turn=1,
+            notes_json='[{"turn":1,"text":"在浅草庙会上分享了童年阴影"}]',
+            purpose="查清祖母遗物里咒符的来源",
+            archetype="外柔内刚的文学少女",
+            affinity_json='{"信任":3,"羁绊":2}',
+            pinned=True,
+        ))
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 30
+        await s.commit()
+
+    # Bury her with 12 newer NPCs that are NOT pinned.
+    async with SessionMaker() as s:
+        for i in range(12):
+            s.add(NPC(
+                session_id=sid,
+                name=f"路人{i}",
+                description="背景 NPC",
+                last_seen_turn=30 + i,
+            ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>下一回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "御坂雪" in sys_msg
+    assert "外柔内刚的文学少女" in sys_msg
+    assert "查清祖母遗物里咒符的来源" in sys_msg
+    # Multi-axis affinity should render
+    assert "信任+3" in sys_msg
+    assert "羁绊+2" in sys_msg
+
+
+async def test_recall_drains_after_one_use(seeded):
+    """Recalled NPC injects full dossier this turn; recall_pending is cleared
+    after one use."""
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid,
+            name="御坂雪",
+            description="21 岁早大学生",
+            favor=8,
+            state="对你敞开了一些心扉",
+            last_seen_turn=1,
+            notes_json='[]',
+            purpose="查清祖母遗物里咒符的来源",
+            archetype="外柔内刚的文学少女",
+            affinity_json='{"信任":3}',
+            pinned=False,
+        ))
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 50
+        sess.recall_pending_json = '["御坂雪"]'
+        await s.commit()
+
+    # Bury her under newer NPCs so she wouldn't appear via last_seen alone.
+    async with SessionMaker() as s:
+        for i in range(12):
+            s.add(NPC(
+                session_id=sid,
+                name=f"路人{i}",
+                description="背景 NPC",
+                last_seen_turn=40 + i,
+            ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>下一回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "御坂雪" in sys_msg
+    assert "外柔内刚的文学少女" in sys_msg
+
+    # recall_pending must have been drained.
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        assert json.loads(sess.recall_pending_json) == []
