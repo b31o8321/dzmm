@@ -3,6 +3,7 @@ import { ref, reactive, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
+import { sessionsApi, type MessageRow } from '@/api/sessions'
 import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 
@@ -135,6 +136,51 @@ function quick(act: string) {
   action.value = act
 }
 
+// Extract narrative text from a stored assistant message (which contains
+// raw <narrative>...</narrative> tags interleaved with state tags).
+const NARRATIVE_RE = /<narrative\b[^>]*>([\s\S]*?)<\/narrative>/g
+const DICE_RE = /<dice\s+([^>]*)>([\s\S]*?)<\/dice>/g
+const ATTR_RE = /(\w+)="([^"]*)"/g
+
+function extractNarrative(content: string): string {
+  const parts: string[] = []
+  let m: RegExpExecArray | null
+  NARRATIVE_RE.lastIndex = 0
+  while ((m = NARRATIVE_RE.exec(content))) parts.push(m[1].trim())
+  // Fallback for raw fallback text (no <narrative>): strip <think> blocks
+  // and any other tags, return the rest.
+  if (!parts.length) {
+    return content
+      .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
+      .replace(/<[a-z_]+[^>]*>[\s\S]*?<\/[a-z_]+>/gi, '')
+      .trim()
+  }
+  return parts.join('\n\n')
+}
+
+function extractDiceFromHistory(messages: MessageRow[]) {
+  const out: { skill: string; target: string; result: string }[] = []
+  for (const m of messages) {
+    if (m.role !== 'assistant') continue
+    DICE_RE.lastIndex = 0
+    let dm: RegExpExecArray | null
+    while ((dm = DICE_RE.exec(m.content))) {
+      const attrsStr = dm[1]
+      const inner = dm[2]
+      const attrs: Record<string, string> = {}
+      ATTR_RE.lastIndex = 0
+      let am: RegExpExecArray | null
+      while ((am = ATTR_RE.exec(attrsStr))) attrs[am[1]] = am[2]
+      out.push({
+        skill: attrs.skill ?? '判定',
+        target: attrs.target ?? '?',
+        result: inner.trim() || '?',
+      })
+    }
+  }
+  return out.slice(-MAX_DICE).reverse()
+}
+
 onMounted(async () => {
   try {
     const sess = await sessionsStore.get(sessionId)
@@ -142,6 +188,44 @@ onMounted(async () => {
   } catch {
     /* ignore */
   }
+
+  // Rehydrate conversation log
+  try {
+    const msgs = await sessionsApi.messages(sessionId)
+    const reconstructed: Turn[] = []
+    let pendingUser: string | null = null
+    for (const m of msgs) {
+      if (m.role === 'user') {
+        pendingUser = m.content
+      } else if (m.role === 'assistant' && pendingUser !== null) {
+        reconstructed.push({
+          action: pendingUser,
+          narrative: extractNarrative(m.content),
+        })
+        pendingUser = null
+      }
+    }
+    turns.value = reconstructed
+
+    // Dice rolls don't have a dedicated table; rebuild from assistant content.
+    dice.value = extractDiceFromHistory(msgs)
+  } catch {
+    /* ignore */
+  }
+
+  // Rehydrate right-side state from authoritative DB tables.
+  try {
+    const st = await sessionsApi.state(sessionId)
+    Object.keys(stats).forEach((k) => delete stats[k])
+    Object.assign(stats, st.stats)
+    inventory.value = st.inventory
+    npcs.value = st.npcs
+    threads.value = st.threads
+  } catch {
+    /* ignore */
+  }
+
+  await scrollToBottom()
 })
 </script>
 
