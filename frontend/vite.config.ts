@@ -18,6 +18,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'element-plus': ['element-plus', '@element-plus/icons-vue'],
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          markdown: ['marked'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
