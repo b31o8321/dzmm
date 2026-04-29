@@ -1,6 +1,62 @@
-# Changelog
+# 更新日志
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
+
+## [v0.8] - 2026-04-29（进行中）
+
+**主题：编年史 + 目标系统 + 易用性**
+
+### 新增
+- 编年史页（`/play/:id/chronicle`）—— Timeline 数据可视化，按 Era 分章
+- `<era_begin>` GM 标签 + Era 表 —— 标记剧情阶段切换
+- PC 目标列表（StatePanel 新区块）+ `<pc_goal>` GM 标签
+- 首次启动引导（4 步教程 + 欢迎页）
+- Tauri 自动更新插件 + GitHub Releases 推送 `latest.json`
+
+### 数据库
+- 新表 `eras`、`pc_goals`
+- 现有数据库自动迁移（迁移 helper 已有）
+
+---
+
+## [v0.7] - 2026-04-29
+
+**主题：沉浸感增强 + 长线持续 + ACG 攻略向**
+
+### 新增
+- 任务日志页 `/play/:id/journal` —— 进行中 / 已解决 两栏分组
+- **NPC 攻略详情**（点击 NPC 名打开）：
+  - 多维好感（默认好感度 + GM 自定义轴：信任 / 羁绊 / 恋慕 / 敌意 ……）
+  - 动机（purpose）、人设原型（archetype）字段
+  - 完整互动时间线（notes_json 可视化）
+  - 📌 钉住功能：核心 NPC 永不掉出 prompt context
+  - GM 用 `<recall name="X"/>` 临时召回老 NPC，下回合自动注入完整档案
+- NPC 浏览页 `/play/:id/npcs` —— 所有 NPC 卡片 + 搜索
+- 角色立绘上传（5MB 上限，png/jpg/webp/svg/gif）+ GameView 头像显示
+- 角色 XP / 升级系统：
+  - GM 用 `<character_xp delta="N"/>` 给经验
+  - POST /levelup 选属性 +1（HP/耐力 +5）
+  - GameView 头部 XP 进度条；过阈值弹升级框
+- 默认 BGM × 5 风格（dark/horror/healing/realistic/comedy） + SFX × 3（dice/state-up/state-down），ffmpeg 合成的 30s loop
+- 4 张默认 SVG 立绘（Riku / 御坂雪 / 佐藤亚矢 / 沈三川）
+- 静音按钮（🔊/🔇）右上角，localStorage 持久化
+- GM 模型预热端点（POST /sessions/{id}/warmup）
+
+### 性能
+- 递归摘要压缩：摘要 > 3000 字时自动二次压缩，importance≥2 事件存到 `timeline` 表
+- SSE 流式批处理（20 字 / 50ms 窗口）
+
+### 数据库
+- 新表：`timeline`
+- NPC 表加列：`purpose`、`archetype`、`affinity_json`、`pinned`
+- Session 表加列：`recall_pending_json`
+- Character 表加列：`portrait_path`、`xp`、`level`
+- 轻量迁移 helper（PRAGMA + ALTER TABLE，幂等）
+
+### 测试
+- 70 → 96（+26）
+
+---
 
 ## [v0.6] - 2026-04-29
 

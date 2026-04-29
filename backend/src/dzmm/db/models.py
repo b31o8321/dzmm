@@ -126,3 +126,30 @@ class Timeline(Base):
     event_text: Mapped[str] = mapped_column(Text)
     importance: Mapped[int] = mapped_column(default=2)  # 1-3
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+
+
+class Era(Base):
+    """Story 'chapter' / 'arc' marker. GM emits <era_begin> to signal a
+    significant narrative phase shift — used to group Timeline events in the
+    Chronicle view."""
+    __tablename__ = "eras"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    started_turn: Mapped[int] = mapped_column(default=0)
+    description: Mapped[str] = mapped_column(Text, default="")
+
+
+class PCGoal(Base):
+    """Player-character goals. GM auto-registers via <pc_goal type='add'>;
+    closes via <pc_goal type='complete' id='...'/>. Active goals injected
+    into key_facts so GM stays aware of what PC is pursuing."""
+    __tablename__ = "pc_goals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    description: Mapped[str] = mapped_column(Text)
+    priority: Mapped[str] = mapped_column(String(20), default="normal")  # high|normal|low
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active|completed|abandoned
+    introduced_turn: Mapped[int] = mapped_column(default=0)
+    completed_turn: Mapped[int | None] = mapped_column(nullable=True)
+    completion_note: Mapped[str] = mapped_column(Text, default="")
