@@ -5,9 +5,12 @@ import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { sessionsApi, type MessageRow } from '@/api/sessions'
+import { charactersApi } from '@/api/characters'
+import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
 import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
+import CharacterAvatar from '@/components/CharacterAvatar.vue'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -28,6 +31,7 @@ const turnCount = ref(0)
 const tokensIn = ref(0)
 const tokensOut = ref(0)
 const panelOpen = ref(false)
+const currentCharacter = ref<Character | null>(null)
 
 async function refreshTokens() {
   try {
@@ -301,6 +305,9 @@ onMounted(async () => {
   try {
     const sess = await sessionsStore.get(sessionId)
     turnCount.value = sess.turn_count
+    try {
+      currentCharacter.value = await charactersApi.get(sess.character_id)
+    } catch { /* ignore */ }
   } catch {
     /* ignore */
   }
@@ -367,8 +374,14 @@ onUnmounted(() => audio.stopBgm())
   <div class="flex h-full">
     <section class="flex-1 flex flex-col bg-slate-50">
       <header class="px-6 py-3 border-b bg-white flex items-center justify-between">
-        <div class="flex items-center gap-4 flex-wrap">
-          <span class="font-bold">跑团进行中</span>
+        <div class="flex items-center gap-3 flex-wrap">
+          <CharacterAvatar
+            :character-id="currentCharacter?.id"
+            :has-portrait="!!currentCharacter?.portrait_path"
+            :fallback-name="currentCharacter?.name"
+            :size="36"
+          />
+          <span class="font-bold">{{ currentCharacter?.name ?? '跑团进行中' }}</span>
           <span class="text-xs text-slate-500">{{ turnCount }} 回合</span>
           <span class="text-xs text-slate-500 font-mono">
             tokens: {{ tokensIn.toLocaleString() }} in / {{ tokensOut.toLocaleString() }} out

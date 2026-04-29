@@ -12,4 +12,13 @@ export const charactersApi = {
   update: (id: number, body: CharacterIn) =>
     api.put<Character>(`/characters/${id}`, body).then((r) => r.data),
   remove: (id: number) => api.delete(`/characters/${id}`).then(() => undefined),
+  uploadPortrait: (id: number, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api
+      .post<Character>(`/characters/${id}/portrait`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data)
+  },
 }

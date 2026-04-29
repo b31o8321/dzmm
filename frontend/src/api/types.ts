@@ -14,9 +14,10 @@ export interface Character {
   name: string
   profile_md: string
   base_stats_json: string
+  portrait_path?: string
 }
 
-export type CharacterIn = Omit<Character, 'id'>
+export type CharacterIn = Omit<Character, 'id' | 'portrait_path'>
 
 export interface ModelConfig {
   id: number

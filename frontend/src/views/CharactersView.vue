@@ -3,15 +3,21 @@ import { onMounted, reactive, ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCharactersStore } from '@/stores/characters'
 import { useWorldsStore } from '@/stores/worlds'
+import { charactersApi } from '@/api/characters'
 import type { Character, CharacterIn } from '@/api/types'
+import CharacterAvatar from '@/components/CharacterAvatar.vue'
 
 const charsStore = useCharactersStore()
 const worldsStore = useWorldsStore()
 
 const dialogOpen = ref(false)
 const editingId = ref<number | null>(null)
+const editingPortraitPath = ref<string>('')
+const portraitVersion = ref(0)  // bump after upload to bust img cache
 const submitting = ref(false)
 const removing = ref<number | null>(null)
+const uploadingPortrait = ref(false)
+const portraitInput = ref<HTMLInputElement | null>(null)
 
 const form = reactive<CharacterIn>({
   world_id: 0,
@@ -27,6 +33,7 @@ function reset() {
     profile_md: '',
     base_stats_json: '{"hp":20,"sanity":15,"stamina":10}',
   })
+  editingPortraitPath.value = ''
 }
 
 function openCreate() {
@@ -37,6 +44,7 @@ function openCreate() {
 
 function openEdit(row: Character) {
   editingId.value = row.id
+  editingPortraitPath.value = row.portrait_path ?? ''
   Object.assign(form, {
     world_id: row.world_id,
     name: row.name,
@@ -44,6 +52,28 @@ function openEdit(row: Character) {
     base_stats_json: row.base_stats_json,
   })
   dialogOpen.value = true
+}
+
+async function onPortraitChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Reset the input so selecting the same file twice still triggers change.
+  input.value = ''
+  if (!file || editingId.value === null) return
+  uploadingPortrait.value = true
+  try {
+    const updated = await charactersApi.uploadPortrait(editingId.value, file)
+    editingPortraitPath.value = updated.portrait_path ?? ''
+    portraitVersion.value++
+    // Update the row in the store too so the list thumbnail refreshes.
+    const idx = charsStore.items.findIndex((c) => c.id === updated.id)
+    if (idx >= 0) charsStore.items[idx] = updated
+    ElMessage.success('头像已更新')
+  } catch (err: any) {
+    ElMessage.error(err.message ?? '上传失败')
+  } finally {
+    uploadingPortrait.value = false
+  }
 }
 
 const worldNameById = computed(() => {
@@ -112,7 +142,19 @@ onMounted(async () => {
     </div>
 
     <el-table :data="charsStore.items" v-loading="charsStore.loading" border>
-      <el-table-column prop="name" label="姓名" width="160" />
+      <el-table-column label="姓名" width="180">
+        <template #default="{ row }">
+          <div class="flex items-center gap-2">
+            <CharacterAvatar
+              :character-id="row.id"
+              :has-portrait="!!row.portrait_path"
+              :fallback-name="row.name"
+              :size="32"
+            />
+            <span>{{ row.name }}</span>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column label="世界观" width="200">
         <template #default="{ row }">{{ worldNameById.get(row.world_id) ?? '?' }}</template>
       </el-table-column>
@@ -141,6 +183,32 @@ onMounted(async () => {
       width="640px"
     >
       <el-form :model="form" label-width="80px">
+        <el-form-item label="头像">
+          <div class="flex items-center gap-3">
+            <CharacterAvatar
+              :key="portraitVersion"
+              :character-id="editingId"
+              :has-portrait="!!editingPortraitPath"
+              :fallback-name="form.name"
+              :size="64"
+            />
+            <input
+              ref="portraitInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+              class="hidden"
+              @change="onPortraitChange"
+            />
+            <el-button
+              :disabled="editingId === null"
+              :loading="uploadingPortrait"
+              @click="portraitInput?.click()"
+            >上传图片</el-button>
+            <span v-if="editingId === null" class="text-xs text-slate-500">
+              请先保存角色再上传头像
+            </span>
+          </div>
+        </el-form-item>
         <el-form-item label="世界观" required>
           <el-select v-model="form.world_id">
             <el-option

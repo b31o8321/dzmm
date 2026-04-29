@@ -21,6 +21,7 @@ class CharacterIn(BaseModel):
 
 class CharacterOut(CharacterIn):
     id: int
+    portrait_path: str = ""
 
 
 class ModelConfigIn(BaseModel):
