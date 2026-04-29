@@ -22,6 +22,8 @@ class CharacterIn(BaseModel):
 class CharacterOut(CharacterIn):
     id: int
     portrait_path: str = ""
+    xp: int = 0
+    level: int = 1
 
 
 class ModelConfigIn(BaseModel):

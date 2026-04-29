@@ -21,4 +21,8 @@ export const charactersApi = {
       })
       .then((r) => r.data)
   },
+  levelup: (id: number, stat: string) =>
+    api
+      .post<Character>(`/characters/${id}/levelup`, { stat })
+      .then((r) => r.data),
 }

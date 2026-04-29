@@ -9,6 +9,7 @@ KNOWN_TAGS: set[str] = {
     "npc_update",
     "plot_event",
     "choices",
+    "character_xp",
 }
 STREAMING_TAGS: set[str] = {"narrative"}
 

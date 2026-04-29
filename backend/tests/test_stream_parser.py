@@ -114,6 +114,15 @@ def test_fine_grained_chunking_per_character():
     assert tags[0].content == '{"hp":-1}'
 
 
+def test_character_xp_tag_known():
+    p = StreamingTagParser()
+    out = collect(p, ['<character_xp delta="50">完成任务</character_xp>'])
+    tag = [e for e in out if isinstance(e, TagComplete)][0]
+    assert tag.name == "character_xp"
+    assert tag.attrs == {"delta": "50"}
+    assert tag.content == "完成任务"
+
+
 def test_attrs_with_spaces_and_quotes():
     p = StreamingTagParser()
     out = collect(p, [
