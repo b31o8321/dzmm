@@ -149,8 +149,8 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 
 See [docs/superpowers/plans/](docs/superpowers/plans/) for the full plan history. The next focus:
 
-- **v0.7** — Game enjoyment: quest journal, character XP/levelup, BGM + sound effects, character portraits. Plus recursive summary compression.
-- **v0.8** — Sharing/creator tools: world JSON import/export, AI-assisted world generator, story export to Markdown/EPUB.
+- **v0.7** — Game enjoyment: quest journal, **NPC 攻略详情**（多维好感度 / 动机 / 人设原型 / 互动时间线 / 浏览所有 NPC）, character XP/levelup, BGM + sound effects, character portraits. Plus recursive summary compression and model warmup.
+- **v0.8** — Sharing/creator tools: world JSON import/export, AI-assisted world generator, story export to Markdown/EPUB, NPC relationship graph.
 - **v0.9+** — Multiplayer co-op, TTS/STT voice, Discord bot.
 
 ## Project layout
