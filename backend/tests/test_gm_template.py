@@ -137,3 +137,18 @@ def test_light_rules_explicitly_no_dice():
     )
     sys = msgs[0].content
     assert "不要输出 <dice>" in sys
+
+
+def test_few_shot_example_present():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="standard", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "输出范例" in sys
+    assert "</narrative>" in sys
+    assert "</state_change>" in sys
+    assert "</npc_update>" in sys
+    assert "</choices>" in sys
