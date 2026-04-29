@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import AsyncIterator
 from datetime import datetime
 
@@ -22,6 +23,14 @@ from dzmm.service.state_apply import apply_tags
 
 
 RECENT_WINDOW = 12
+
+_THINK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_thinking_tags(text: str) -> str:
+    """Remove <think>...</think> blocks (DeepSeek-R1 / o1-style reasoning).
+    Used in the no-tag fallback so the user sees a clean narrative."""
+    return _THINK_RE.sub("", text)
 
 
 async def run_turn(
@@ -79,6 +88,7 @@ async def run_turn(
     full_output_parts: list[str] = []
     completed_tags: list[TagComplete] = []
     usage = TokenUsage()
+    narrative_emitted = False
 
     async for chunk in client.stream(msgs, params):
         if chunk.delta:
@@ -86,6 +96,8 @@ async def run_turn(
             for ev in parser.feed(chunk.delta):
                 if isinstance(ev, TagComplete):
                     completed_tags.append(ev)
+                if isinstance(ev, NarrativeDelta):
+                    narrative_emitted = True
                 yield ev
         if chunk.usage is not None:
             usage = chunk.usage
@@ -93,10 +105,18 @@ async def run_turn(
     for ev in parser.finish():
         if isinstance(ev, TagComplete):
             completed_tags.append(ev)
+        if isinstance(ev, NarrativeDelta):
+            narrative_emitted = True
         yield ev
 
-    next_turn = sess.turn_count + 1
     full_output = "".join(full_output_parts)
+
+    if not narrative_emitted and full_output.strip():
+        fallback = _strip_thinking_tags(full_output).strip()
+        if fallback:
+            yield NarrativeDelta(fallback)
+
+    next_turn = sess.turn_count + 1
 
     session.add(MessageRow(
         session_id=session_id, role="user", content=user_action, turn=next_turn,
