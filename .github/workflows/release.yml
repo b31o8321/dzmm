@@ -1,0 +1,118 @@
+name: Build release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macos-arm64
+            artifact_glob: 'frontend/src-tauri/target/release/bundle/dmg/*.dmg'
+          - os: windows-latest
+            label: windows-x64
+            artifact_glob: 'frontend/src-tauri/target/release/bundle/msi/*.msi'
+
+    runs-on: ${{ matrix.os }}
+    name: build (${{ matrix.label }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+
+      - name: backend venv + deps
+        working-directory: backend
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ./.venv/Scripts/python -m pip install --upgrade pip
+            ./.venv/Scripts/python -m pip install -e ".[dev]"
+          else
+            ./.venv/bin/python -m pip install --upgrade pip
+            ./.venv/bin/python -m pip install -e ".[dev]"
+          fi
+
+      - name: backend tests
+        working-directory: backend
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            PYTHONPATH=src ./.venv/Scripts/python -m pytest -q
+          else
+            PYTHONPATH=src ./.venv/bin/python -m pytest -q
+          fi
+
+      - name: build sidecar
+        working-directory: backend
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ./.venv/Scripts/python build_sidecar.py
+          else
+            ./.venv/bin/python build_sidecar.py
+          fi
+
+      - name: install frontend deps
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: tauri build
+        working-directory: frontend
+        run: npm run tauri:build
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dzmm-${{ matrix.label }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: collect artifacts
+        run: |
+          mkdir -p release
+          find dist -type f \( -name '*.dmg' -o -name '*.msi' \) -exec cp {} release/ \;
+          ls -la release/
+      - name: publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: false
+          prerelease: false
