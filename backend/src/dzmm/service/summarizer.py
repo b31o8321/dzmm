@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +66,6 @@ async def maybe_summarize(
     summary_row.summary_text = summary_text.strip()
     summary_row.last_summarized_msg_id = new_msgs[-1].id
     summary_row.summary_tokens = usage.output_tokens
-    summary_row.updated_at = datetime.utcnow()
+    summary_row.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
     return True

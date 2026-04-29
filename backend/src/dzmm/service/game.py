@@ -1,7 +1,7 @@
 import json
 import re
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import datetime, UTC
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,7 +129,7 @@ async def run_turn(
     await apply_tags(session, session_id, next_turn, completed_tags)
 
     sess.turn_count = next_turn
-    sess.last_played = datetime.utcnow()
+    sess.last_played = datetime.now(UTC).replace(tzinfo=None)
 
 
 def _build_live_state(char: Character, cs: CharState | None) -> dict:

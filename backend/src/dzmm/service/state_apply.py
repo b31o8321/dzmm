@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,7 +54,7 @@ async def _apply_state_change(
 
     cs.stats_json = json.dumps(stats, ensure_ascii=False)
     cs.inventory_json = json.dumps(inventory, ensure_ascii=False)
-    cs.updated_at = datetime.utcnow()
+    cs.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
 
 async def _apply_npc_update(

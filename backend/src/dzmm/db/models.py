@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from sqlalchemy import ForeignKey, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,7 +12,7 @@ class World(Base):
     content_md: Mapped[str] = mapped_column(Text)
     rules_json: Mapped[str] = mapped_column(Text, default='{"mode":"light"}')
     style: Mapped[str] = mapped_column(String(40), default="realistic")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
 class Character(Base):
@@ -22,7 +22,7 @@ class Character(Base):
     name: Mapped[str] = mapped_column(String(120))
     profile_md: Mapped[str] = mapped_column(Text)
     base_stats_json: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
     world: Mapped[World] = relationship()
 
@@ -49,8 +49,8 @@ class Session(Base):
     summarizer_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))
     turn_count: Mapped[int] = mapped_column(default=0)
     schema_version: Mapped[int] = mapped_column(default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_played: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+    last_played: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
 class Message(Base):
@@ -63,7 +63,7 @@ class Message(Base):
     tokens_in: Mapped[int] = mapped_column(default=0)
     tokens_out: Mapped[int] = mapped_column(default=0)
     summarized: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
 class StorySummary(Base):
@@ -72,7 +72,7 @@ class StorySummary(Base):
     summary_text: Mapped[str] = mapped_column(Text, default="")
     last_summarized_msg_id: Mapped[int] = mapped_column(default=0)
     summary_tokens: Mapped[int] = mapped_column(default=0)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
 class CharState(Base):
@@ -80,7 +80,7 @@ class CharState(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
     stats_json: Mapped[str] = mapped_column(Text, default="{}")
     inventory_json: Mapped[str] = mapped_column(Text, default="[]")
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
 class NPC(Base):
