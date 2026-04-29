@@ -164,19 +164,51 @@ async def take_turn(
             cfg = await s.get(ModelConfig, sess.gm_model_config_id)
             client = build_client(cfg)
 
+            import time as _time
+            narrative_buf: list[str] = []
+            last_flush = _time.monotonic()
+            FLUSH_CHARS = 20
+            FLUSH_INTERVAL = 0.05  # 50ms
+
+            def _flush_narrative():
+                if narrative_buf:
+                    payload = "".join(narrative_buf)
+                    narrative_buf.clear()
+                    return {"event": "narrative",
+                            "data": json.dumps({"text": payload}, ensure_ascii=False)}
+                return None
+
             async for ev in run_turn(s, session_id, body.action, client):
                 if isinstance(ev, NarrativeDelta):
-                    yield {"event": "narrative",
-                           "data": json.dumps({"text": ev.text}, ensure_ascii=False)}
+                    narrative_buf.append(ev.text)
+                    now = _time.monotonic()
+                    total = sum(len(x) for x in narrative_buf)
+                    if total >= FLUSH_CHARS or (now - last_flush) >= FLUSH_INTERVAL:
+                        out = _flush_narrative()
+                        if out:
+                            yield out
+                        last_flush = now
                 elif isinstance(ev, TagComplete):
+                    out = _flush_narrative()
+                    if out:
+                        yield out
+                    last_flush = _time.monotonic()
                     yield {"event": "tag",
                            "data": json.dumps({"name": ev.name, "attrs": ev.attrs,
                                                "content": ev.content},
                                               ensure_ascii=False)}
                 elif isinstance(ev, ParseError):
+                    out = _flush_narrative()
+                    if out:
+                        yield out
                     yield {"event": "parse_error",
                            "data": json.dumps({"message": ev.message},
                                               ensure_ascii=False)}
+
+            # Flush any tail buffer before commit + cleanup.
+            out = _flush_narrative()
+            if out:
+                yield out
 
             await s.commit()
 
