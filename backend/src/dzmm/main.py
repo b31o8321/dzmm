@@ -1,7 +1,10 @@
+import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dzmm.api import (
@@ -49,6 +52,14 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
         return {"ok": True}
 
     app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
+
+    # If DZMM_FRONTEND_DIST points at a directory of built frontend files,
+    # mount it at "/" so a phone on the LAN can fetch the UI from the same
+    # backend that serves the API. Mount LAST so API routes win.
+    dist = os.environ.get("DZMM_FRONTEND_DIST")
+    if dist and Path(dist).is_dir():
+        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+
     return app
 
 

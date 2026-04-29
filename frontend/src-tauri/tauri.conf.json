@@ -27,8 +27,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "nsis"],
     "externalBin": ["binaries/dzmm-backend"],
+    "resources": {
+      "../dist/*": "frontend-dist/",
+      "../dist/assets/*": "frontend-dist/assets/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
