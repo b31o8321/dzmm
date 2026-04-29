@@ -53,3 +53,27 @@ async def test_list_models(client):
     )
     names = await client.list_models()
     assert names == ["qwen2.5:7b", "llama3:8b"]
+
+
+@respx.mock
+async def test_stream_sets_num_ctx(client):
+    captured = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            text=(
+                json.dumps({"message": {"content": "hi"}, "done": True,
+                            "prompt_eval_count": 1, "eval_count": 1}) + "\n"
+            ),
+        )
+
+    respx.post("http://localhost:11434/api/chat").mock(side_effect=handler)
+
+    async for _ in client.stream(
+        [Message(role="user", content="hi")], GenerationParams(),
+    ):
+        pass
+
+    assert captured["body"]["options"]["num_ctx"] == 8192
