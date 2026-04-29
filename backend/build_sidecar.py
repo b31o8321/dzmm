@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Build the dzmm-backend sidecar binary for the host platform via PyInstaller,
-then copy it into Tauri's binaries dir with the correct triple suffix.
+"""Build the dzmm-backend bundle for the host platform via PyInstaller (onedir
+mode), then copy the whole directory into the Tauri project so it can be
+included via tauri.conf.json:bundle.resources.
 
 Cross-platform: works on macOS, Linux, Windows.
 
@@ -17,7 +18,6 @@ from pathlib import Path
 
 
 def host_triple() -> str:
-    """Return the Rust target triple Tauri expects in the binary suffix."""
     machine = platform.machine().lower()
     system = platform.system().lower()
 
@@ -39,7 +39,6 @@ def host_triple() -> str:
 
 
 def find_python_in_venv(backend_dir: Path) -> Path:
-    """Return the python executable inside backend/.venv (or fall back to sys.executable)."""
     if sys.platform == "win32":
         cand = backend_dir / ".venv" / "Scripts" / "python.exe"
     else:
@@ -58,7 +57,7 @@ def main() -> int:
         return 2
 
     py = find_python_in_venv(backend_dir)
-    print(f"[1/3] running PyInstaller via {py}")
+    print(f"[1/3] running PyInstaller (onedir) via {py}")
     rc = subprocess.call(
         [str(py), "-m", "PyInstaller", str(spec_file), "--clean", "--noconfirm"],
         cwd=str(backend_dir),
@@ -70,24 +69,32 @@ def main() -> int:
     triple = host_triple()
     print(f"[2/3] host triple: {triple}")
 
-    bin_name = "dzmm-backend.exe" if sys.platform == "win32" else "dzmm-backend"
-    src = backend_dir / "dist" / bin_name
-    if not src.exists():
-        print(f"missing build output: {src}", file=sys.stderr)
+    # PyInstaller onedir outputs: dist/dzmm-backend/ (directory)
+    src_dir = backend_dir / "dist" / "dzmm-backend"
+    if not src_dir.is_dir():
+        print(f"missing build output dir: {src_dir}", file=sys.stderr)
         return 3
 
-    tauri_bin_dir = project_dir / "frontend" / "src-tauri" / "binaries"
-    tauri_bin_dir.mkdir(parents=True, exist_ok=True)
+    # Copy the whole directory into the Tauri tree where bundle.resources
+    # can reach it. Replace any prior copy.
+    tauri_runtime = project_dir / "frontend" / "src-tauri" / "backend-runtime"
+    if tauri_runtime.exists():
+        shutil.rmtree(tauri_runtime)
+    shutil.copytree(src_dir, tauri_runtime)
 
-    # Tauri externalBin convention: <basename>-<triple>[.exe]
-    suffix = ".exe" if sys.platform == "win32" else ""
-    dst = tauri_bin_dir / f"dzmm-backend-{triple}{suffix}"
-    shutil.copy2(src, dst)
+    # Verify the entry binary lives where Rust expects it.
+    bin_name = "dzmm-backend.exe" if sys.platform == "win32" else "dzmm-backend"
+    entry = tauri_runtime / bin_name
+    if not entry.exists():
+        print(f"entry binary missing after copy: {entry}", file=sys.stderr)
+        return 4
     if sys.platform != "win32":
-        dst.chmod(0o755)
+        entry.chmod(0o755)
 
-    size_mb = dst.stat().st_size / (1024 * 1024)
-    print(f"[3/3] ok: {dst} ({size_mb:.1f} MB)")
+    total_size = sum(p.stat().st_size for p in tauri_runtime.rglob("*") if p.is_file())
+    size_mb = total_size / (1024 * 1024)
+    file_count = sum(1 for _ in tauri_runtime.rglob("*"))
+    print(f"[3/3] ok: {tauri_runtime} ({size_mb:.1f} MB total, {file_count} entries)")
     return 0
 
 

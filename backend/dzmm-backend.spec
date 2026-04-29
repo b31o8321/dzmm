@@ -1,5 +1,14 @@
-# PyInstaller spec for dzmm backend single-file binary.
+# PyInstaller spec for dzmm backend, --onedir mode.
+# Output: dist/dzmm-backend/ (directory with dzmm-backend[.exe] + DLLs/data).
 # Run with: .venv/bin/pyinstaller dzmm-backend.spec
+#
+# We use onedir (not onefile) because:
+#   1. --onefile bootloader extracts to %TEMP%/_MEIxxxx/ on every launch.
+#      On Chinese-Windows usernames, GetTempPath() returns 8.3-short-name
+#      paths that LoadLibrary mishandles → "Failed to load Python DLL".
+#   2. Cold start drops from ~25s to ~3s — no extraction, all DLLs already
+#      sitting next to the .exe.
+# Tauri bundles this whole directory via bundle.resources.
 import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
@@ -61,14 +70,28 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# --- onedir mode ---
+# EXE holds only the entry executable; binaries/data go through COLLECT.
 exe = EXE(
-    pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
     name='dzmm-backend',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
     upx=False,
-    runtime_tmpdir=None,
     console=True,
     target_arch=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=True,
+    upx=False,
+    name='dzmm-backend',
 )

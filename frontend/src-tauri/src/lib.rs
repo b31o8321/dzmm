@@ -1,12 +1,64 @@
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 
 #[derive(Default)]
 struct BackendState {
-    child: Mutex<Option<CommandChild>>,
+    child: Mutex<Option<Child>>,
+}
+
+fn spawn_backend(
+    app: &tauri::AppHandle,
+    lan_mode: bool,
+) -> Result<Child, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resource_dir: {}", e))?;
+    let backend_dir = resource_dir.join("backend-runtime");
+
+    let bin_name = if cfg!(windows) { "dzmm-backend.exe" } else { "dzmm-backend" };
+    let exe = backend_dir.join(bin_name);
+
+    if !exe.exists() {
+        return Err(format!("backend binary missing at {}", exe.display()));
+    }
+
+    let mut cmd = Command::new(&exe);
+    cmd.current_dir(&backend_dir);
+    cmd.env(
+        "DZMM_HOST",
+        if lan_mode { "0.0.0.0" } else { "127.0.0.1" },
+    );
+    cmd.env("DZMM_PORT", "8765");
+
+    if lan_mode {
+        let dist = resource_dir.join("frontend-dist");
+        if dist.exists() {
+            cmd.env("DZMM_FRONTEND_DIST", dist.to_string_lossy().to_string());
+        }
+    }
+
+    // Don't pop a console window on Windows.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    cmd.stdout(Stdio::null()).stderr(Stdio::null()).stdin(Stdio::null());
+
+    cmd.spawn().map_err(|e| format!("spawn failed: {}", e))
+}
+
+fn kill_existing(state: &tauri::State<'_, BackendState>) {
+    if let Ok(mut guard) = state.child.lock() {
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }
 
 #[tauri::command]
@@ -15,59 +67,15 @@ async fn start_backend(
     state: tauri::State<'_, BackendState>,
     lan_mode: bool,
 ) -> Result<(), String> {
-    // Stop any existing instance.
-    {
-        let mut guard = state.child.lock().unwrap();
-        if let Some(child) = guard.take() {
-            let _ = child.kill();
-        }
-    }
+    kill_existing(&state);
+    let child = spawn_backend(&app, lan_mode)?;
+    *state.child.lock().unwrap() = Some(child);
+    Ok(())
+}
 
-    let host = if lan_mode { "0.0.0.0" } else { "127.0.0.1" };
-
-    let mut cmd = app
-        .shell()
-        .sidecar("dzmm-backend")
-        .map_err(|e| format!("failed to resolve sidecar: {}", e))?
-        .env("DZMM_HOST", host)
-        .env("DZMM_PORT", "8765");
-
-    if lan_mode {
-        // Resolve the bundled frontend dist so the backend can serve it on LAN.
-        // tauri.conf.json:bundle.resources copies "../dist" → "frontend-dist/".
-        if let Ok(resource_dir) = app.path().resource_dir() {
-            let dist = resource_dir.join("frontend-dist");
-            if dist.exists() {
-                cmd = cmd.env("DZMM_FRONTEND_DIST", dist.to_string_lossy().to_string());
-            }
-        }
-    }
-
-    let (mut rx, child) = cmd
-        .spawn()
-        .map_err(|e| format!("failed to spawn backend: {}", e))?;
-
-    {
-        let mut guard = state.child.lock().unwrap();
-        *guard = Some(child);
-    }
-
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            match event {
-                CommandEvent::Stdout(line) => {
-                    let s = String::from_utf8_lossy(&line);
-                    eprintln!("[dzmm-backend] {}", s.trim_end());
-                }
-                CommandEvent::Stderr(line) => {
-                    let s = String::from_utf8_lossy(&line);
-                    eprintln!("[dzmm-backend ERR] {}", s.trim_end());
-                }
-                _ => {}
-            }
-        }
-    });
-
+#[tauri::command]
+fn stop_backend(state: tauri::State<'_, BackendState>) -> Result<(), String> {
+    kill_existing(&state);
     Ok(())
 }
 
@@ -78,19 +86,9 @@ fn get_lan_url() -> Result<String, String> {
     Ok(format!("http://{}:8765", ip))
 }
 
-#[tauri::command]
-fn stop_backend(state: tauri::State<'_, BackendState>) -> Result<(), String> {
-    let mut guard = state.child.lock().unwrap();
-    if let Some(child) = guard.take() {
-        let _ = child.kill();
-    }
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .manage(BackendState::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -100,9 +98,6 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            // The sidecar is no longer auto-spawned here; the frontend's
-            // BootGate calls invoke('start_backend', { lanMode }) once the
-            // user picks a mode.
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -112,12 +107,8 @@ pub fn run() {
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                // Best-effort: kill the backend when the main window goes away.
                 let state: tauri::State<'_, BackendState> = window.state();
-                let mut guard = state.child.lock().unwrap();
-                if let Some(child) = guard.take() {
-                    let _ = child.kill();
-                }
+                kill_existing(&state);
             }
         })
         .run(tauri::generate_context!())
