@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dzmm.api import (
@@ -16,6 +17,17 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
     from dzmm.logging_config import setup_logging
     setup_logging()
     app = FastAPI(title="dzmm")
+
+    # Local desktop app — frontend (Vite dev / Tauri webview) is on a
+    # different origin from the backend. Allow all so SSE works without
+    # the Vite proxy (which buffers SSE responses).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     async def get_session_dep() -> AsyncIterator[AsyncSession]:
         async with session_maker() as s:
