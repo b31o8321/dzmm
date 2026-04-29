@@ -39,6 +39,7 @@ class OllamaClient(ModelClient):
                 "num_predict": params.max_tokens,
                 "top_p": params.top_p,
                 "stop": params.stop or [],
+                "num_ctx": 8192,
             },
         }
 
