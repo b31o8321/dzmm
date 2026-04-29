@@ -14,6 +14,7 @@ const sessionsStore = useSessionsStore()
 interface Turn {
   action: string
   narrative: string
+  choices: string[]
 }
 const turns = ref<Turn[]>([])
 const currentTurn = ref<Turn | null>(null)
@@ -81,8 +82,10 @@ async function send() {
   action.value = ''
   sending.value = true
 
-  const turn: Turn = { action: userAction, narrative: '' }
+  const turn: Turn = { action: userAction, narrative: '', choices: [] }
   currentTurn.value = turn
+  // Clear previous turn's choices — they're stale once the user sends.
+  for (const t of turns.value) t.choices = []
   turns.value.push(turn)
   await scrollToBottom()
 
@@ -95,6 +98,14 @@ async function send() {
       onTag: (name, attrs, content) => {
         if (name === 'state_change') applyStateChange(content)
         else if (name === 'npc_update') applyNpcUpdate(content)
+        else if (name === 'choices') {
+          const opts: string[] = []
+          for (const line of content.split('\n')) {
+            const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')
+            if (trimmed) opts.push(trimmed)
+          }
+          turn.choices = opts
+        }
         else if (name === 'dice') {
           dice.value.unshift({
             skill: attrs.skill ?? '判定',
@@ -119,6 +130,13 @@ async function send() {
       },
       onDone: () => {
         turnCount.value += 1
+        // GM may have forgotten </narrative> and embedded choices into the
+        // streamed narrative buffer; recover them here.
+        if (!turn.choices.length) {
+          const leaked = extractChoices(turn.narrative)
+          if (leaked.length) turn.choices = leaked
+        }
+        turn.narrative = cleanNarrative(turn.narrative)
       },
     })
   } catch (e: any) {
@@ -138,24 +156,48 @@ function quick(act: string) {
 
 // Extract narrative text from a stored assistant message (which contains
 // raw <narrative>...</narrative> tags interleaved with state tags).
-const NARRATIVE_RE = /<narrative\b[^>]*>([\s\S]*?)<\/narrative>/g
+//
+// Robustness note: weak models sometimes forget to close <narrative> before
+// emitting the next tag (e.g. <choices>). We defensively strip any embedded
+// child tags from the narrative content so options/state/dice blocks don't
+// leak into the chat log.
+const NARRATIVE_RE = /<narrative\b[^>]*>([\s\S]*?)(?:<\/narrative>|(?=<(?:choices|state_change|npc_update|plot_event|dice)\b))/g
+const CHOICES_RE = /<choices\b[^>]*>([\s\S]*?)<\/choices>/g
 const DICE_RE = /<dice\s+([^>]*)>([\s\S]*?)<\/dice>/g
 const ATTR_RE = /(\w+)="([^"]*)"/g
+const ANY_KNOWN_CHILD_RE = /<(?:choices|state_change|npc_update|plot_event|dice)\b[^>]*>[\s\S]*?(?:<\/(?:choices|state_change|npc_update|plot_event|dice)>|$)/g
+
+function cleanNarrative(raw: string): string {
+  return raw
+    .replace(ANY_KNOWN_CHILD_RE, '')   // any embedded child tag block
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
+    .replace(/<\/?\w+\b[^>]*>/g, '')   // any stray tag fragment
+    .trim()
+}
 
 function extractNarrative(content: string): string {
   const parts: string[] = []
   let m: RegExpExecArray | null
   NARRATIVE_RE.lastIndex = 0
-  while ((m = NARRATIVE_RE.exec(content))) parts.push(m[1].trim())
-  // Fallback for raw fallback text (no <narrative>): strip <think> blocks
-  // and any other tags, return the rest.
+  while ((m = NARRATIVE_RE.exec(content))) parts.push(cleanNarrative(m[1]))
   if (!parts.length) {
-    return content
-      .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
-      .replace(/<[a-z_]+[^>]*>[\s\S]*?<\/[a-z_]+>/gi, '')
-      .trim()
+    // Plain-text fallback (deepseek-r1-style). Strip <think> + any leftover tags.
+    return cleanNarrative(content)
   }
-  return parts.join('\n\n')
+  return parts.filter((p) => p).join('\n\n')
+}
+
+function extractChoices(content: string): string[] {
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  CHOICES_RE.lastIndex = 0
+  while ((m = CHOICES_RE.exec(content))) {
+    for (const line of m[1].split('\n')) {
+      const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')
+      if (trimmed) out.push(trimmed)
+    }
+  }
+  return out
 }
 
 function extractDiceFromHistory(messages: MessageRow[]) {
@@ -201,9 +243,15 @@ onMounted(async () => {
         reconstructed.push({
           action: pendingUser,
           narrative: extractNarrative(m.content),
+          choices: extractChoices(m.content),
         })
         pendingUser = null
       }
+    }
+    // Only the latest turn's choices are still actionable; older choices
+    // are stale once the player moved on.
+    for (let i = 0; i < reconstructed.length - 1; i++) {
+      reconstructed[i].choices = []
     }
     turns.value = reconstructed
 
@@ -247,6 +295,18 @@ onMounted(async () => {
           <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
           <div class="bg-white rounded shadow-sm p-4">
             <MarkdownView :source="t.narrative" />
+          </div>
+          <div v-if="t.choices.length" class="flex flex-col gap-2 ml-4">
+            <button
+              v-for="(c, ci) in t.choices"
+              :key="ci"
+              type="button"
+              class="text-left bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200 rounded px-3 py-2 text-sm text-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="sending"
+              @click="quick(c)"
+            >
+              <span class="font-mono text-amber-600 mr-2">{{ ci + 1 }}.</span>{{ c }}
+            </button>
           </div>
         </article>
       </div>
