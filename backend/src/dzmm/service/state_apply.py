@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import CharState, NPC
+from dzmm.db.models import CharState, NPC, PlotThread
 from dzmm.parsing.events import TagComplete
 from dzmm.parsing.repair import parse_loose_json
 
@@ -21,6 +21,8 @@ async def apply_tags(
             await _apply_state_change(session, session_id, tag.content)
         elif tag.name == "npc_update":
             await _apply_npc_update(session, session_id, current_turn, tag.content)
+        elif tag.name == "plot_event":
+            await _apply_plot_event(session, session_id, current_turn, tag.attrs, tag.content)
 
 
 async def _apply_state_change(
@@ -95,3 +97,54 @@ async def _apply_npc_update(
         notes.append({"turn": current_turn, "text": str(note)})
         npc.notes_json = json.dumps(notes, ensure_ascii=False)
     npc.last_seen_turn = current_turn
+
+
+async def _apply_plot_event(
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    attrs: dict[str, str],
+    content: str,
+) -> None:
+    event_type = attrs.get("type", "major_event")
+    try:
+        importance = int(attrs.get("importance", "2"))
+    except ValueError:
+        importance = 2
+    importance = max(1, min(3, importance))
+
+    description = content.strip()
+    if not description:
+        return
+
+    if event_type == "hook_resolved":
+        thread_id_str = attrs.get("thread_id", "").strip()
+        target = None
+        if thread_id_str.isdigit():
+            target = await session.get(PlotThread, int(thread_id_str))
+        if target is None:
+            target = (
+                await session.execute(
+                    select(PlotThread)
+                    .where(
+                        PlotThread.session_id == session_id,
+                        PlotThread.status == "active",
+                    )
+                    .order_by(PlotThread.introduced_turn.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if target is not None:
+            target.status = "resolved"
+            target.resolution = description
+        return
+
+    thread = PlotThread(
+        session_id=session_id,
+        type=event_type,
+        description=description,
+        introduced_turn=current_turn,
+        importance=importance,
+        status="active",
+    )
+    session.add(thread)

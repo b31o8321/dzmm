@@ -93,3 +93,15 @@ class NPC(Base):
     state: Mapped[str] = mapped_column(String(60), default="未知")
     last_seen_turn: Mapped[int] = mapped_column(default=0)
     notes_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class PlotThread(Base):
+    __tablename__ = "plot_threads"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    type: Mapped[str] = mapped_column(String(40))  # quest | hook | mystery | major_event
+    description: Mapped[str] = mapped_column(Text)
+    introduced_turn: Mapped[int] = mapped_column(default=0)
+    importance: Mapped[int] = mapped_column(default=2)  # 1=minor, 2=normal, 3=major
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active|resolved|abandoned
+    resolution: Mapped[str] = mapped_column(Text, default="")

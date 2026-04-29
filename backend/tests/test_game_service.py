@@ -139,3 +139,30 @@ async def test_run_turn_falls_back_when_no_narrative_tag(seeded):
     text = "".join(d.text for d in deltas)
     assert "霓虹" in text, f"fallback narrative not delivered, got: {text!r}"
     assert "<think>" not in text  # stripped
+
+
+async def test_plot_threads_appear_in_next_prompt(seeded):
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        async for _ in run_turn(
+            s, sid, "调查",
+            FakeClient(
+                "<narrative>你发现了一张神秘地图。</narrative>"
+                '<plot_event type="hook_introduced" importance="3">'
+                '神秘地图指向 X 区一个废弃工厂'
+                '</plot_event>'
+            ),
+        ):
+            pass
+        await s.commit()
+
+    captured = FakeClient("<narrative>第二回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "神秘地图" in sys_msg
+    assert "进行中的剧情线" in sys_msg or "hook_introduced" in sys_msg

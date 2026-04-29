@@ -54,6 +54,7 @@ _SYSTEM_TEMPLATE = """# 你的身份
 4. 状态变化必须显式：HP/理智/物品/好感度任何变化必须用 <state_change> 或 <npc_update> 声明。
 5. 风格一致：始终保持当前剧情风格的语调与节奏。
 6. 节奏控制：常规回应 200-400 字，重要场景可放宽到 600 字。
+7. 显式登记剧情事件：任何新任务、新伏笔、伏笔回收、首次进入地点、重大转折，必须用 <plot_event> 标签声明一次。importance=3 表示对剧情走向有持续影响。
 
 # 输出格式（严格遵守，每个标签独立成段）
 
@@ -81,6 +82,12 @@ _SYSTEM_TEMPLATE = """# 你的身份
 - 选项二
 - 选项三
 </choices>
+
+<plot_event type="new_quest|hook_introduced|hook_resolved|major_event|location_entered"
+            importance="1|2|3"
+            thread_id="可选，回收伏笔时填">
+描述这个事件。一句话。
+</plot_event>
 
 # 开局规则
 若剧情摘要为空（首轮），输出一段 600-1000 字的开局：交代 PC 当下所处环境、感官细节、身份处境、引子事件，停在 PC 必须做决定的瞬间，等待玩家行动。
