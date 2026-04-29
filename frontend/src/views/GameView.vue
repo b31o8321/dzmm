@@ -23,6 +23,10 @@ const turnCount = ref(0)
 const stats = reactive<Record<string, number>>({})
 const inventory = ref<string[]>([])
 const npcs = ref<{ name: string; favor: number; state: string }[]>([])
+const dice = ref<{ skill: string; target: string; result: string }[]>([])
+const threads = ref<{ type: string; description: string; importance: number }[]>([])
+
+const MAX_DICE = 8
 
 const logEl = ref<HTMLElement | null>(null)
 async function scrollToBottom() {
@@ -87,9 +91,27 @@ async function send() {
         turn.narrative += text
         scrollToBottom()
       },
-      onTag: (name, _attrs, content) => {
+      onTag: (name, attrs, content) => {
         if (name === 'state_change') applyStateChange(content)
         else if (name === 'npc_update') applyNpcUpdate(content)
+        else if (name === 'dice') {
+          dice.value.unshift({
+            skill: attrs.skill ?? '判定',
+            target: attrs.target ?? '?',
+            result: content.trim() || '?',
+          })
+          if (dice.value.length > MAX_DICE) dice.value.length = MAX_DICE
+        }
+        else if (name === 'plot_event') {
+          let importance = 2
+          const parsed = parseInt(attrs.importance ?? '2', 10)
+          if (!isNaN(parsed)) importance = Math.max(1, Math.min(3, parsed))
+          threads.value.push({
+            type: attrs.type ?? 'major_event',
+            description: content.trim(),
+            importance,
+          })
+        }
       },
       onError: (msg) => {
         ElMessage.warning(msg)
@@ -170,6 +192,7 @@ onMounted(async () => {
       </footer>
     </section>
 
-    <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs" />
+    <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
+                :dice="dice" :threads="threads" />
   </div>
 </template>

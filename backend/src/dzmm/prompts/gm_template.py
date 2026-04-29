@@ -4,9 +4,23 @@ from typing import Any
 from dzmm.models.client import Message
 
 _RULES_DESCRIPTIONS = {
-    "light": "轻量化：无骰子，按合理性叙事判定。",
-    "standard": "标准：d20 技能检定，关键行动需投骰。",
-    "hardcore": "硬核：完整属性消耗、判定、状态追踪。",
+    "light": (
+        "轻量化：无骰子，按合理性叙事判定。"
+        "不要输出 <dice> 标签。"
+    ),
+    "standard": (
+        "标准：d20 技能检定。"
+        "对任何不确定结果的行动（攻击、潜行、说服、感知、技术操作等），"
+        "必须先输出 <dice skill=\"技能名\" target=\"DC值\"> 标签描述判定，"
+        "然后在 <narrative> 中根据结果叙事。"
+        "DC 参考：8=轻松，12=普通，15=困难，18=非常困难，20=极难。"
+        "d20 大于等于 DC 算成功，d20=20 大成功，d20=1 大失败。"
+    ),
+    "hardcore": (
+        "硬核：完整属性消耗、判定、状态追踪。"
+        "除标准 d20 检定外，每个行动都要核算 stamina/sanity 消耗，"
+        "战斗按回合制处理，受伤要标 hp 变化。"
+    ),
 }
 
 _STYLE_HINTS = {
