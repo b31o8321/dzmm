@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.db.models import (
     Character,
     CharState,
+    Era,
     Message as MessageRow,
     NPC,
     PlotThread,
@@ -293,7 +294,17 @@ async def _build_key_facts(
         )
     ).scalars().all()
 
+    current_era = (
+        await session.execute(
+            select(Era).where(Era.session_id == session_id)
+            .order_by(Era.started_turn.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+
     parts: list[str] = []
+
+    if current_era:
+        parts.insert(0, f"当前章节：{current_era.name}（自第 {current_era.started_turn} 回合起）\n")
 
     if pinned_npcs:
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")

@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import Character, CharState, NPC, PlotThread, Session as GameSession
+from dzmm.db.models import Character, CharState, Era, NPC, PlotThread, Session as GameSession
 from dzmm.parsing.events import TagComplete
 from dzmm.parsing.repair import parse_loose_json
 
@@ -27,6 +27,8 @@ async def apply_tags(
             await _apply_character_xp(session, session_id, tag.attrs, tag.content)
         elif tag.name == "recall":
             await _apply_recall(session, session_id, tag.attrs, tag.content)
+        elif tag.name == "era_begin":
+            await _apply_era_begin(session, session_id, current_turn, tag.attrs, tag.content)
 
 
 async def _apply_state_change(
@@ -204,6 +206,25 @@ async def _apply_plot_event(
         status="active",
     )
     session.add(thread)
+
+
+async def _apply_era_begin(
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    attrs: dict[str, str],
+    content: str,
+) -> None:
+    name = attrs.get("name", "").strip()
+    if not name:
+        return
+    era = Era(
+        session_id=session_id,
+        name=name,
+        started_turn=current_turn,
+        description=content.strip(),
+    )
+    session.add(era)
 
 
 async def _apply_character_xp(
