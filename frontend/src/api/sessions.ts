@@ -26,4 +26,6 @@ export const sessionsApi = {
     api.get<MessageRow[]>(`/sessions/${id}/messages`).then((r) => r.data),
   state: (id: number) =>
     api.get<SessionState>(`/sessions/${id}/state`).then((r) => r.data),
+  deleteLastTurn: (id: number) =>
+    api.delete(`/sessions/${id}/last_turn`).then(() => undefined),
 }

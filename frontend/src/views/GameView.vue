@@ -21,6 +21,23 @@ const currentTurn = ref<Turn | null>(null)
 const action = ref('')
 const sending = ref(false)
 const turnCount = ref(0)
+const tokensIn = ref(0)
+const tokensOut = ref(0)
+
+async function refreshTokens() {
+  try {
+    const msgs = await sessionsApi.messages(sessionId)
+    let ti = 0, to = 0
+    for (const m of msgs) {
+      if (m.role === 'assistant') {
+        ti += m.tokens_in
+        to += m.tokens_out
+      }
+    }
+    tokensIn.value = ti
+    tokensOut.value = to
+  } catch { /* ignore */ }
+}
 
 const stats = reactive<Record<string, number>>({})
 const inventory = ref<string[]>([])
@@ -77,9 +94,13 @@ function applyNpcUpdate(content: string) {
 }
 
 async function send() {
-  if (!action.value.trim() || sending.value) return
   const userAction = action.value.trim()
+  if (!userAction || sending.value) return
   action.value = ''
+  await sendAction(userAction)
+}
+
+async function sendAction(userAction: string) {
   sending.value = true
 
   const turn: Turn = { action: userAction, narrative: '', choices: [] }
@@ -137,6 +158,7 @@ async function send() {
           if (leaked.length) turn.choices = leaked
         }
         turn.narrative = cleanNarrative(turn.narrative)
+        refreshTokens()  // fire-and-forget
       },
     })
   } catch (e: any) {
@@ -146,6 +168,38 @@ async function send() {
     sending.value = false
     currentTurn.value = null
   }
+}
+
+async function regenerate() {
+  if (!turns.value.length || sending.value) return
+  const last = turns.value[turns.value.length - 1]
+  const oldAction = last.action
+  try {
+    await sessionsApi.deleteLastTurn(sessionId)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '删除失败')
+    return
+  }
+  turns.value.pop()
+  turnCount.value = Math.max(0, turnCount.value - 1)
+  await refreshTokens()
+  await sendAction(oldAction)
+}
+
+async function editPrev() {
+  if (!turns.value.length || sending.value) return
+  const last = turns.value[turns.value.length - 1]
+  const oldAction = last.action
+  try {
+    await sessionsApi.deleteLastTurn(sessionId)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '删除失败')
+    return
+  }
+  turns.value.pop()
+  turnCount.value = Math.max(0, turnCount.value - 1)
+  action.value = oldAction
+  await refreshTokens()
 }
 
 const quickActions = ['环顾四周', '探索', '搭话', '潜行', '战斗', '使用物品']
@@ -261,6 +315,8 @@ onMounted(async () => {
     /* ignore */
   }
 
+  await refreshTokens()
+
   // Rehydrate right-side state from authoritative DB tables.
   try {
     const st = await sessionsApi.state(sessionId)
@@ -281,7 +337,13 @@ onMounted(async () => {
   <div class="flex h-full">
     <section class="flex-1 flex flex-col bg-slate-50">
       <header class="px-6 py-3 border-b bg-white flex items-center justify-between">
-        <div class="font-bold">跑团进行中（已进行 {{ turnCount }} 回合）</div>
+        <div class="flex items-center gap-4 flex-wrap">
+          <span class="font-bold">跑团进行中</span>
+          <span class="text-xs text-slate-500">{{ turnCount }} 回合</span>
+          <span class="text-xs text-slate-500 font-mono">
+            tokens: {{ tokensIn.toLocaleString() }} in / {{ tokensOut.toLocaleString() }} out
+          </span>
+        </div>
         <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
           返回存档
         </router-link>
@@ -307,6 +369,13 @@ onMounted(async () => {
             >
               <span class="font-mono text-amber-600 mr-2">{{ ci + 1 }}.</span>{{ c }}
             </button>
+          </div>
+          <div v-if="i === turns.length - 1 && !sending"
+               class="flex gap-3 text-xs text-slate-500 pt-1">
+            <button type="button" class="hover:text-slate-800 underline"
+                    @click="regenerate">🔄 重新生成</button>
+            <button type="button" class="hover:text-slate-800 underline"
+                    @click="editPrev">✏️ 编辑上一动作</button>
           </div>
         </article>
       </div>

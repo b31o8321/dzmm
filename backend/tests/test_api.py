@@ -240,3 +240,32 @@ async def test_delete_unused_model_config(http):
     mid = r.json()["id"]
     r = await http.delete(f"/model_configs/{mid}")
     assert r.status_code == 204
+
+
+async def test_delete_last_turn_removes_pair_and_decrements(http, monkeypatch):
+    sid = await _make_session(http)
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: StubGM("<narrative>hi</narrative>"),
+    )
+
+    for action in ["环顾", "前进"]:
+        async with http.stream(
+            "POST", f"/sessions/{sid}/turn", json={"action": action}
+        ) as r:
+            async for _ in r.aiter_text():
+                pass
+
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    assert sess["turn_count"] == 2
+    msgs = (await http.get(f"/sessions/{sid}/messages")).json()
+    assert len(msgs) == 4
+
+    r = await http.delete(f"/sessions/{sid}/last_turn")
+    assert r.status_code == 204
+
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    assert sess["turn_count"] == 1
+    msgs = (await http.get(f"/sessions/{sid}/messages")).json()
+    assert len(msgs) == 2
+    assert msgs[0]["content"] == "环顾"
