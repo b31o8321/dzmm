@@ -294,6 +294,44 @@ async def test_threads_endpoint_separates_active_and_resolved(http, monkeypatch)
     assert any("取回药材" in d for d in descriptions)
 
 
+async def test_portrait_upload_and_serve(http, tmp_path):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.post("/characters", json={
+        "world_id": wid, "name": "C", "profile_md": "y", "base_stats_json": "{}"
+    })
+    cid = r.json()["id"]
+    assert r.json().get("portrait_path", "") == ""
+
+    # Upload a tiny PNG
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+    r = await http.post(
+        f"/characters/{cid}/portrait",
+        files={"file": ("test.png", png, "image/png")},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["portrait_path"]
+
+    # Retrieve
+    r = await http.get(f"/characters/{cid}/portrait")
+    assert r.status_code == 200
+    assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+async def test_portrait_upload_rejects_unknown_ext(http):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.post("/characters", json={
+        "world_id": wid, "name": "C", "profile_md": "y", "base_stats_json": "{}"
+    })
+    cid = r.json()["id"]
+    r = await http.post(
+        f"/characters/{cid}/portrait",
+        files={"file": ("evil.exe", b"MZ\x90\x00", "application/octet-stream")},
+    )
+    assert r.status_code == 400
+
+
 async def test_warmup_endpoint_returns_202(http, monkeypatch):
     sid = await _make_session(http)
     monkeypatch.setattr(

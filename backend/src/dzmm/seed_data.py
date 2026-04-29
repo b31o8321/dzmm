@@ -5,13 +5,25 @@ when the corresponding table is empty.
 """
 import json
 import logging
+import shutil
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
+from dzmm.config import APP_DIR
 from dzmm.db.models import Character, ModelConfig, World
 
 log = logging.getLogger(__name__)
+
+# Mapping from preset character name to its bundled portrait filename in
+# repo_root/frontend/public/portraits/. Names match the entries in _CHARACTERS.
+_PORTRAIT_FILES = {
+    "Riku": "riku.svg",
+    "御坂雪": "yuki.svg",
+    "佐藤亚矢": "aya.svg",
+    "沈三川": "sanchuan.svg",
+}
 
 _WORLDS = [
     {
@@ -190,6 +202,32 @@ _MODEL_CONFIGS = [
 ]
 
 
+def _copy_bundled_portraits(char_objs: list[Character]) -> None:
+    """Copy bundled SVG portraits from frontend/public/portraits into
+    APP_DIR/portraits and set portrait_path on the matching Character objects.
+    Silently skips when source dir is missing (e.g. backend-only bundle)."""
+    # backend/src/dzmm/seed_data.py → repo_root is parents[3]
+    repo_root = Path(__file__).resolve().parents[3]
+    portrait_src_dir = repo_root / "frontend" / "public" / "portraits"
+    if not portrait_src_dir.is_dir():
+        return
+    portraits_dst_dir = APP_DIR / "portraits"
+    portraits_dst_dir.mkdir(parents=True, exist_ok=True)
+    for c in char_objs:
+        src_filename = _PORTRAIT_FILES.get(c.name)
+        if not src_filename:
+            continue
+        src = portrait_src_dir / src_filename
+        if not src.exists():
+            continue
+        dst = portraits_dst_dir / f"{c.id}.svg"
+        try:
+            shutil.copy(src, dst)
+            c.portrait_path = str(dst)
+        except Exception:
+            log.warning("failed to copy portrait for %s", c.name, exc_info=True)
+
+
 async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None:
     """Insert default worlds/characters/model_configs if those tables are empty.
     Each table is checked independently so partial DBs (e.g. user kept worlds
@@ -228,6 +266,8 @@ async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None
                     for c in _CHARACTERS
                 ]
                 s.add_all(char_objs)
+                await s.flush()  # populate IDs so we can name portrait files by id
+                _copy_bundled_portraits(char_objs)
                 added += len(char_objs)
                 log.info("seeded %d default characters", len(char_objs))
 
