@@ -1,4 +1,5 @@
 import type { TurnEvent } from '@/api/types'
+import { backendOrigin } from '@/api/client'
 
 export interface TurnHandlers {
   onNarrative?: (text: string) => void
@@ -19,7 +20,7 @@ export async function streamTurn(
   handlers: TurnHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const resp = await fetch(`/api/sessions/${sessionId}/turn`, {
+  const resp = await fetch(`${backendOrigin}/sessions/${sessionId}/turn`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({ action }),

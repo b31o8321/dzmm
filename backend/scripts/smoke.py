@@ -13,7 +13,7 @@ import json
 import httpx
 
 BASE = "http://127.0.0.1:8765"
-MODEL_NAME = "qwen2.5:7b"
+MODEL_NAME = "deepseek-r1:8b"
 
 
 async def main():

@@ -38,3 +38,15 @@ Output in `frontend/dist/`.
 - `/characters` — manage characters
 - `/models` — manage model configs (Ollama / OpenAI-compatible)
 - `/play/:id` — gameplay screen
+
+## Tauri (desktop)
+
+Prereqs: Rust toolchain (`rustup`), backend running separately.
+
+    npm run tauri:dev    # opens native window, hot-reloads frontend
+    npm run tauri:build  # produces native installer in src-tauri/target/release/bundle/
+
+The Tauri shell loads the Vite dev server in dev and `dist/` in build. The
+Python backend is **not** bundled in v0.1 — start it manually before launching
+Tauri (`cd backend && python scripts/run_dev.py`). v0.2 will bundle it as a
+PyInstaller sidecar.

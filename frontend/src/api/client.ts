@@ -1,9 +1,15 @@
 import axios from 'axios'
 
+// In Vite dev, `/api` is proxied to the backend by vite.config.ts.
+// In built bundles (Tauri or plain `vite build`), there is no proxy — go direct.
+const baseURL = import.meta.env.DEV ? '/api' : 'http://127.0.0.1:8765'
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL,
   timeout: 30000,
 })
+
+export const backendOrigin = baseURL
 
 api.interceptors.response.use(
   (r) => r,
