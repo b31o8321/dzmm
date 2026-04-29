@@ -5,10 +5,12 @@ import sys
 
 import uvicorn
 
+from dzmm.logging_config import setup_logging
 from dzmm.main import build_default_app
 
 
 def main():
+    setup_logging()
     port = int(os.environ.get('DZMM_PORT', '8765'))
     host = os.environ.get('DZMM_HOST', '127.0.0.1')
 

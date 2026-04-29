@@ -13,6 +13,8 @@ from dzmm.db.base import async_session, get_engine, init_db
 
 
 def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
+    from dzmm.logging_config import setup_logging
+    setup_logging()
     app = FastAPI(title="dzmm")
 
     async def get_session_dep() -> AsyncIterator[AsyncSession]:
