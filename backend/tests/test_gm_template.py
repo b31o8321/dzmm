@@ -114,3 +114,26 @@ def test_plot_event_format_in_prompt():
     sys = msgs[0].content
     assert "<plot_event" in sys
     assert "显式登记剧情事件" in sys
+
+
+def test_standard_rules_emits_dice_instructions():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="standard", style="realistic",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "d20" in sys
+    assert "DC" in sys
+
+
+def test_light_rules_explicitly_no_dice():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="realistic",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "不要输出 <dice>" in sys

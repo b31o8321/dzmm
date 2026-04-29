@@ -3,6 +3,8 @@ defineProps<{
   stats: Record<string, number>
   inventory: string[]
   npcs: { name: string; favor: number; state: string }[]
+  dice: { skill: string; target: string; result: string }[]
+  threads: { type: string; description: string; importance: number }[]
 }>()
 </script>
 
@@ -24,6 +26,26 @@ defineProps<{
       <ul class="space-y-1 text-sm">
         <li v-for="item in inventory" :key="item">· {{ item }}</li>
         <li v-if="!inventory.length" class="text-slate-400 italic">空</li>
+      </ul>
+    </section>
+
+    <section v-if="dice.length">
+      <h3 class="font-bold text-slate-700 mb-2">最近骰点</h3>
+      <ul class="space-y-1 text-xs font-mono">
+        <li v-for="(d, i) in dice" :key="i" class="text-slate-600">
+          🎲 {{ d.skill }} (DC {{ d.target }}) → {{ d.result }}
+        </li>
+      </ul>
+    </section>
+
+    <section v-if="threads.length">
+      <h3 class="font-bold text-slate-700 mb-2">剧情线</h3>
+      <ul class="space-y-1 text-sm">
+        <li v-for="(t, i) in threads" :key="i">
+          <span class="text-amber-600 mr-1">{{ '★'.repeat(t.importance) }}</span>
+          <span class="text-xs text-slate-500 mr-1">[{{ t.type }}]</span>
+          {{ t.description }}
+        </li>
       </ul>
     </section>
 
