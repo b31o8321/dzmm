@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- 沈三川: 青云宗外门弟子, jade robe + sword -->
+  <defs>
+    <radialGradient id="bgShen" cx="50%" cy="35%" r="85%">
+      <stop offset="0%" stop-color="#7a9d7a"/>
+      <stop offset="55%" stop-color="#2e4a3a"/>
+      <stop offset="100%" stop-color="#0e1a14"/>
+    </radialGradient>
+    <linearGradient id="robe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5a7a55"/>
+      <stop offset="100%" stop-color="#2a3a28"/>
+    </linearGradient>
+    <linearGradient id="innerRobe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#dfd5c0"/>
+      <stop offset="100%" stop-color="#a89878"/>
+    </linearGradient>
+    <linearGradient id="bladeGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#eaeaea"/>
+      <stop offset="50%" stop-color="#d8d4c8"/>
+      <stop offset="100%" stop-color="#fff8dc"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: misty mountain -->
+  <rect width="256" height="256" fill="url(#bgShen)"/>
+
+  <!-- Distant mountain silhouettes -->
+  <path d="M 0 200 L 50 160 L 90 180 L 130 150 L 170 175 L 220 145 L 256 165 L 256 256 L 0 256 Z" fill="#1c2e22" opacity="0.7"/>
+  <path d="M 0 220 L 60 195 L 130 210 L 200 192 L 256 208 L 256 256 L 0 256 Z" fill="#0e1a14" opacity="0.8"/>
+
+  <!-- Mist -->
+  <ellipse cx="80" cy="200" rx="60" ry="8" fill="#cfdcc8" opacity="0.18"/>
+  <ellipse cx="190" cy="195" rx="55" ry="7" fill="#cfdcc8" opacity="0.15"/>
+
+  <!-- Sword on his back / by side (handle visible at right shoulder) -->
+  <line x1="178" y1="100" x2="220" y2="245" stroke="url(#bladeGrad)" stroke-width="3" stroke-linecap="round"/>
+  <!-- guard -->
+  <rect x="170" y="96" width="14" height="3" fill="#7a5a30" rx="0.5"/>
+  <!-- handle wrap -->
+  <rect x="172" y="86" width="10" height="12" fill="#3a2818" rx="1"/>
+  <!-- pommel -->
+  <circle cx="177" cy="84" r="3" fill="#a08858"/>
+
+  <!-- Outer robe (青衫) -->
+  <path d="M 64 256 L 72 175 Q 90 140 128 138 Q 166 140 184 175 L 192 256 Z" fill="url(#robe)"/>
+
+  <!-- Inner robe (白衣) -->
+  <path d="M 100 175 Q 128 168 156 175 L 148 220 Q 128 215 108 220 Z" fill="url(#innerRobe)"/>
+
+  <!-- Belt (sash) -->
+  <rect x="84" y="170" width="88" height="6" fill="#7a3018"/>
+
+  <!-- Neck / face -->
+  <ellipse cx="128" cy="108" rx="22" ry="28" fill="#e8c8a8"/>
+
+  <!-- Hair (long, tied up traditional) -->
+  <path d="M 105 92 Q 100 70 116 60 Q 128 52 140 60 Q 156 70 151 92 L 151 110 Q 152 116 148 118 L 148 100 Q 128 92 108 100 L 108 118 Q 104 116 105 110 Z" fill="#1a1612"/>
+  <!-- Top knot -->
+  <ellipse cx="128" cy="55" rx="9" ry="6" fill="#1a1612"/>
+  <!-- Hair cord -->
+  <path d="M 117 55 Q 128 50 139 55" stroke="#7a3018" stroke-width="1" fill="none"/>
+
+  <!-- Eyebrows (sharp) -->
+  <path d="M 113 100 L 122 99" stroke="#1a1612" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M 134 99 L 143 100" stroke="#1a1612" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Eyes (steady, half-confident gaze) -->
+  <path d="M 114 108 L 122 108" stroke="#1a1410" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 134 108 L 142 108" stroke="#1a1410" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="118" cy="108" r="1" fill="#3a2818"/>
+  <circle cx="138" cy="108" r="1" fill="#3a2818"/>
+
+  <!-- Mouth (slight smirk) -->
+  <path d="M 122 124 Q 128 127 134 123" stroke="#80442a" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+  <!-- Scar on left hand (tiger's mouth, visible faintly) -->
+  <path d="M 88 215 L 92 220" stroke="#80442a" stroke-width="0.8" opacity="0.7"/>
+</svg>

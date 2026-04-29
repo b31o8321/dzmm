@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- 佐藤亚矢: modern OL with mild psychic powers, tired vibe + subtle aura -->
+  <defs>
+    <radialGradient id="bgAya" cx="50%" cy="40%" r="80%">
+      <stop offset="0%" stop-color="#5a6a85"/>
+      <stop offset="50%" stop-color="#2c3340"/>
+      <stop offset="100%" stop-color="#15191f"/>
+    </radialGradient>
+    <linearGradient id="suit" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a4250"/>
+      <stop offset="100%" stop-color="#1a1e26"/>
+    </linearGradient>
+    <radialGradient id="auraAya" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a8d4ff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#a8d4ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background: night street -->
+  <rect width="256" height="256" fill="url(#bgAya)"/>
+
+  <!-- Distant convenience-store glow (left) -->
+  <rect x="0" y="170" width="50" height="40" fill="#ffe080" opacity="0.12"/>
+  <!-- Distant train track lights (right) -->
+  <line x1="200" y1="180" x2="256" y2="180" stroke="#ffaa55" stroke-width="1" opacity="0.3"/>
+  <line x1="200" y1="190" x2="256" y2="190" stroke="#ffaa55" stroke-width="0.8" opacity="0.2"/>
+
+  <!-- Subtle psychic aura around figure -->
+  <circle cx="128" cy="130" r="80" fill="url(#auraAya)"/>
+
+  <!-- Suit body -->
+  <path d="M 70 256 L 78 165 Q 128 152 178 165 L 186 256 Z" fill="url(#suit)"/>
+
+  <!-- Lapels -->
+  <path d="M 88 168 L 128 200 L 88 200 Z" fill="#252a35"/>
+  <path d="M 168 168 L 128 200 L 168 200 Z" fill="#252a35"/>
+
+  <!-- White inner blouse -->
+  <path d="M 110 165 L 128 195 L 146 165 Z" fill="#e8e4dc"/>
+
+  <!-- Neck / face -->
+  <ellipse cx="128" cy="115" rx="22" ry="28" fill="#f0d5c0"/>
+
+  <!-- Hair (black short bob) -->
+  <path d="M 105 100 Q 102 80 115 72 Q 128 64 141 72 Q 154 80 151 100 L 151 125 Q 152 132 148 134 L 148 105 Q 128 95 108 105 L 108 134 Q 104 132 105 125 Z" fill="#15110f"/>
+
+  <!-- Bangs -->
+  <path d="M 108 100 Q 118 96 128 100 Q 138 96 148 100 L 148 110 Q 128 102 108 110 Z" fill="#15110f"/>
+
+  <!-- Eyes (tired, half-lidded) -->
+  <path d="M 113 118 Q 119 121 125 118" stroke="#2a1814" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M 131 118 Q 137 121 143 118" stroke="#2a1814" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- Slight under-eye shadow (overworked) -->
+  <path d="M 113 122 Q 119 123 125 122" stroke="#806060" stroke-width="0.8" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 131 122 Q 137 123 143 122" stroke="#806060" stroke-width="0.8" fill="none" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Mouth (slight resigned) -->
+  <path d="M 122 132 Q 128 130 134 132" stroke="#9a5050" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+  <!-- Company lanyard -->
+  <line x1="118" y1="160" x2="124" y2="200" stroke="#404858" stroke-width="1"/>
+  <line x1="138" y1="160" x2="132" y2="200" stroke="#404858" stroke-width="1"/>
+  <rect x="120" y="195" width="16" height="12" fill="#dadce0" stroke="#404858" stroke-width="0.5"/>
+</svg>

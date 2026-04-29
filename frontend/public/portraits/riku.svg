@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Riku: cyberpunk hacker, dark hooded figure with glowing purple left eye -->
+  <defs>
+    <radialGradient id="bgRiku" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#3a1f5d"/>
+      <stop offset="60%" stop-color="#1a0d2e"/>
+      <stop offset="100%" stop-color="#0a0515"/>
+    </radialGradient>
+    <linearGradient id="hood" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1c1a26"/>
+      <stop offset="100%" stop-color="#0a0a14"/>
+    </linearGradient>
+    <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d090ff" stop-opacity="1"/>
+      <stop offset="40%" stop-color="#a040ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#a040ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="neon" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" fill="url(#bgRiku)"/>
+
+  <!-- Distant rain streaks -->
+  <g stroke="#6a4a90" stroke-width="0.5" opacity="0.3">
+    <line x1="20" y1="0" x2="10" y2="80"/>
+    <line x1="60" y1="0" x2="50" y2="80"/>
+    <line x1="100" y1="0" x2="90" y2="80"/>
+    <line x1="160" y1="0" x2="150" y2="80"/>
+    <line x1="200" y1="0" x2="190" y2="80"/>
+    <line x1="240" y1="0" x2="230" y2="80"/>
+  </g>
+
+  <!-- Neon line at horizon -->
+  <line x1="0" y1="180" x2="256" y2="180" stroke="#ff2a6d" stroke-width="1" opacity="0.6" filter="url(#neon)"/>
+
+  <!-- Hooded silhouette -->
+  <path d="M 70 256 L 70 200 Q 70 140 100 110 Q 110 90 128 90 Q 146 90 156 110 Q 186 140 186 200 L 186 256 Z" fill="url(#hood)"/>
+
+  <!-- Hood opening (face shadow) -->
+  <ellipse cx="128" cy="135" rx="32" ry="38" fill="#0a0a14"/>
+
+  <!-- Subtle face hint (jaw line) -->
+  <path d="M 105 145 Q 128 165 151 145" stroke="#2a2238" stroke-width="1" fill="none"/>
+
+  <!-- Right eye (dim) -->
+  <circle cx="140" cy="135" r="2" fill="#3a3050"/>
+
+  <!-- Left eye: glowing scanner -->
+  <circle cx="116" cy="135" r="6" fill="url(#eyeGlow)" filter="url(#neon)"/>
+  <circle cx="116" cy="135" r="2" fill="#ffffff"/>
+
+  <!-- Tiny chest detail (zipper hint) -->
+  <line x1="128" y1="200" x2="128" y2="240" stroke="#2a2238" stroke-width="1.5"/>
+</svg>
