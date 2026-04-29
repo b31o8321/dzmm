@@ -14,13 +14,12 @@ cd "$(dirname "$0")"
 RUST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 echo "host triple: $RUST_TRIPLE"
 
-# Copy into Tauri binaries dir
-TAURI_BIN_DIR="../frontend/src-tauri/binaries"
-mkdir -p "$TAURI_BIN_DIR"
+# Copy into Tauri backend-runtime dir (lib.rs reads from here at runtime)
+TAURI_RUNTIME_DIR="../frontend/src-tauri/backend-runtime"
+mkdir -p "$TAURI_RUNTIME_DIR"
 
 SRC="dist/dzmm-backend"
-DST="${TAURI_BIN_DIR}/dzmm-backend-${RUST_TRIPLE}"
-cp "$SRC" "$DST"
-chmod +x "$DST"
+cp -r "$SRC/." "$TAURI_RUNTIME_DIR/"
+chmod +x "$TAURI_RUNTIME_DIR/dzmm-backend"
 
-echo "ok: $DST"
+echo "ok: $TAURI_RUNTIME_DIR"

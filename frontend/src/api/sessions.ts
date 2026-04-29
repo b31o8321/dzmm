@@ -86,6 +86,16 @@ export const sessionsApi = {
     api.get<Npc[]>(`/sessions/${id}/npcs`).then((r) => r.data),
   pinNpc: (sid: number, npcId: number, pinned: boolean) =>
     api.put<Npc>(`/sessions/${sid}/npcs/${npcId}/pin`, { pinned }).then((r) => r.data),
+  goals: (id: number) =>
+    api.get<PCGoalItem[]>(`/sessions/${id}/goals`).then((r) => r.data),
+  updateGoalStatus: (
+    sessionId: number, goalId: number,
+    status: 'active' | 'completed' | 'abandoned', note?: string,
+  ) =>
+    api.put<PCGoalItem>(
+      `/sessions/${sessionId}/goals/${goalId}/status`,
+      { status, ...(note !== undefined ? { note } : {}) },
+    ).then((r) => r.data),
   deleteLastTurn: (id: number) =>
     api.delete(`/sessions/${id}/last_turn`).then(() => undefined),
   warmup: (id: number) =>
@@ -94,6 +104,4 @@ export const sessionsApi = {
     api.get<TimelineItem[]>(`/sessions/${id}/timeline`).then((r) => r.data),
   eras: (id: number) =>
     api.get<EraItem[]>(`/sessions/${id}/eras`).then((r) => r.data),
-  goals: (id: number) =>
-    api.get<PCGoalItem[]>(`/sessions/${id}/goals`).then((r) => r.data),
 }

@@ -13,6 +13,7 @@ from dzmm.db.models import (
     Message as MessageRow,
     ModelConfig,
     NPC,
+    PCGoal,
     PlotThread,
     Session as GameSession,
     Era,
@@ -297,6 +298,36 @@ async def update_npc_pin(
     await s.commit()
     await s.refresh(npc)
     return _npc_to_dict(npc)
+
+
+@router.put("/{session_id}/goals/{goal_id}/status")
+async def update_goal_status(
+    session_id: int, goal_id: int, body: dict,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    """body: {'status': 'active'|'completed'|'abandoned', 'note'?: str}"""
+    goal = await s.get(PCGoal, goal_id)
+    if goal is None or goal.session_id != session_id:
+        raise HTTPException(404, "goal not found")
+
+    new_status = str(body.get("status", "")).strip().lower()
+    if new_status not in ("active", "completed", "abandoned"):
+        raise HTTPException(400, "invalid status")
+    goal.status = new_status
+    if new_status in ("completed", "abandoned"):
+        sess = await s.get(GameSession, session_id)
+        goal.completed_turn = sess.turn_count if sess else 0
+        if "note" in body:
+            goal.completion_note = str(body["note"])
+    else:
+        goal.completed_turn = None
+
+    await s.commit()
+    return {
+        "id": goal.id, "description": goal.description, "priority": goal.priority,
+        "status": goal.status, "introduced_turn": goal.introduced_turn,
+        "completed_turn": goal.completed_turn, "completion_note": goal.completion_note,
+    }
 
 
 @router.post("/{session_id}/warmup", status_code=202)

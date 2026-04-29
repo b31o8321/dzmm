@@ -12,6 +12,7 @@ KNOWN_TAGS: set[str] = {
     "character_xp",
     "recall",
     "era_begin",
+    "pc_goal",
 }
 STREAMING_TAGS: set[str] = {"narrative"}
 

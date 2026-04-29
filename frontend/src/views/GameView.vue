@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { sessionsApi, type MessageRow, type Npc } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type Npc, type PCGoalItem } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
@@ -95,6 +95,23 @@ const inventory = ref<string[]>([])
 const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean }[]>([])
 const dice = ref<{ skill: string; target: string; result: string }[]>([])
 const threads = ref<{ type: string; description: string; importance: number }[]>([])
+
+const goals = ref<PCGoalItem[]>([])
+
+async function refreshGoals() {
+  try {
+    goals.value = await sessionsApi.goals(sessionId)
+  } catch { /* ignore */ }
+}
+
+async function updateGoal(goalId: number, status: 'active' | 'completed' | 'abandoned') {
+  try {
+    await sessionsApi.updateGoalStatus(sessionId, goalId, status)
+    await refreshGoals()
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '更新失败')
+  }
+}
 
 const npcDialogOpen = ref(false)
 const selectedNpc = ref<Npc | null>(null)
@@ -245,6 +262,7 @@ async function sendAction(userAction: string) {
         turn.narrative = cleanNarrative(turn.narrative)
         refreshTokens()  // fire-and-forget
         refreshCharacter()  // pick up XP gains from <character_xp>
+        refreshGoals()  // pick up <pc_goal> add/complete
       },
     })
   } catch (e: any) {
@@ -438,6 +456,8 @@ onMounted(async () => {
     /* ignore */
   }
 
+  await refreshGoals()
+
   await scrollToBottom()
 })
 
@@ -553,8 +573,9 @@ onUnmounted(() => audio.stopBgm())
     <!-- Desktop: side panel always visible -->
     <div class="hidden md:flex">
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
-                  :dice="dice" :threads="threads"
-                  @select-npc="openNpcDetail" />
+                  :dice="dice" :threads="threads" :goals="goals"
+                  @select-npc="openNpcDetail"
+                  @goal-status="updateGoal" />
     </div>
 
     <!-- Mobile: floating toggle button, drawer slides in from right -->
@@ -582,8 +603,9 @@ onUnmounted(() => audio.stopBgm())
         @click="panelOpen = false"
       >×</button>
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
-                  :dice="dice" :threads="threads"
-                  @select-npc="openNpcDetail" />
+                  :dice="dice" :threads="threads" :goals="goals"
+                  @select-npc="openNpcDetail"
+                  @goal-status="updateGoal" />
     </div>
 
     <LevelUpDialog

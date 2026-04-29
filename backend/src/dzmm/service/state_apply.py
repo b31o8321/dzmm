@@ -4,7 +4,15 @@ from datetime import datetime, UTC
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import Character, CharState, Era, NPC, PlotThread, Session as GameSession
+from dzmm.db.models import (
+    Character,
+    CharState,
+    Era,
+    NPC,
+    PCGoal,
+    PlotThread,
+    Session as GameSession,
+)
 from dzmm.parsing.events import TagComplete
 from dzmm.parsing.repair import parse_loose_json
 
@@ -29,6 +37,8 @@ async def apply_tags(
             await _apply_recall(session, session_id, tag.attrs, tag.content)
         elif tag.name == "era_begin":
             await _apply_era_begin(session, session_id, current_turn, tag.attrs, tag.content)
+        elif tag.name == "pc_goal":
+            await _apply_pc_goal(session, session_id, current_turn, tag.attrs, tag.content)
 
 
 async def _apply_state_change(
@@ -225,6 +235,45 @@ async def _apply_era_begin(
         description=content.strip(),
     )
     session.add(era)
+
+
+async def _apply_pc_goal(
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    attrs: dict[str, str],
+    content: str,
+) -> None:
+    op = attrs.get("type", "add").strip().lower()
+    text = content.strip()
+
+    if op == "add":
+        if not text:
+            return
+        priority = attrs.get("priority", "normal").strip().lower()
+        if priority not in ("high", "normal", "low"):
+            priority = "normal"
+        goal = PCGoal(
+            session_id=session_id,
+            description=text,
+            priority=priority,
+            status="active",
+            introduced_turn=current_turn,
+        )
+        session.add(goal)
+        return
+
+    if op in ("complete", "abandon"):
+        goal_id_str = attrs.get("id", "").strip()
+        if not goal_id_str.isdigit():
+            return
+        goal = await session.get(PCGoal, int(goal_id_str))
+        if goal is None or goal.session_id != session_id:
+            return
+        goal.status = "completed" if op == "complete" else "abandoned"
+        goal.completed_turn = current_turn
+        if text:
+            goal.completion_note = text
 
 
 async def _apply_character_xp(

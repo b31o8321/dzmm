@@ -490,6 +490,41 @@ async def test_pin_toggle(http, app):
     assert r.json()["pinned"] is False
 
 
+async def test_update_goal_status(http, app):
+    sid = await _make_session(http)
+    from dzmm.db.models import PCGoal
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        g = PCGoal(session_id=sid, description="goal x", status="active",
+                   introduced_turn=1)
+        s.add(g)
+        await s.commit()
+        await s.refresh(g)
+        gid = g.id
+
+    r = await http.put(f"/sessions/{sid}/goals/{gid}/status",
+                       json={"status": "completed", "note": "done"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "completed"
+    assert r.json()["completion_note"] == "done"
+
+
+async def test_update_goal_status_invalid(http, app):
+    sid = await _make_session(http)
+    from dzmm.db.models import PCGoal
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        g = PCGoal(session_id=sid, description="x", status="active")
+        s.add(g)
+        await s.commit()
+        await s.refresh(g)
+        gid = g.id
+
+    r = await http.put(f"/sessions/{sid}/goals/{gid}/status",
+                       json={"status": "garbage"})
+    assert r.status_code == 400
+
+
 async def test_warmup_endpoint_returns_202(http, monkeypatch):
     sid = await _make_session(http)
     monkeypatch.setattr(

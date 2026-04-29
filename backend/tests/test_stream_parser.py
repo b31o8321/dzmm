@@ -143,6 +143,17 @@ def test_recall_tag_in_known():
     assert tags[0].content == ""
 
 
+def test_pc_goal_tag_known():
+    p = StreamingTagParser()
+    out = collect(p, [
+        '<pc_goal type="add" priority="high">找到黑医</pc_goal>'
+    ])
+    tag = [e for e in out if isinstance(e, TagComplete)][0]
+    assert tag.name == "pc_goal"
+    assert tag.attrs == {"type": "add", "priority": "high"}
+    assert tag.content == "找到黑医"
+
+
 def test_recall_tag_no_space_self_close():
     """`<recall name="X"/>` without trailing space is also accepted."""
     p = StreamingTagParser()

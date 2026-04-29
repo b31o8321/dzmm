@@ -165,6 +165,18 @@ def test_era_begin_documented():
     assert "章节切换" in sys
 
 
+def test_pc_goal_documented():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "<pc_goal" in sys
+    assert "PC 目标" in sys or "玩家明确表达意图" in sys
+
+
 def test_few_shot_example_present():
     msgs = build_gm_messages(
         world_md="x", character_md="y", live_state={},
