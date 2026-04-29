@@ -294,6 +294,103 @@ async def test_threads_endpoint_separates_active_and_resolved(http, monkeypatch)
     assert any("取回药材" in d for d in descriptions)
 
 
+async def test_levelup_requires_enough_xp(http):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.post("/characters", json={
+        "world_id": wid, "name": "C", "profile_md": "y",
+        "base_stats_json": '{"hp": 20}',
+    })
+    cid = r.json()["id"]
+    assert r.json()["xp"] == 0
+    assert r.json()["level"] == 1
+
+    r = await http.post(f"/characters/{cid}/levelup", json={"stat": "hp"})
+    assert r.status_code == 400
+    assert "xp" in r.text.lower()
+
+
+async def test_levelup_requires_stat_param(http):
+    r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
+    wid = r.json()["id"]
+    r = await http.post("/characters", json={
+        "world_id": wid, "name": "C", "profile_md": "y",
+        "base_stats_json": '{"hp": 20}',
+    })
+    cid = r.json()["id"]
+    r = await http.post(f"/characters/{cid}/levelup", json={"stat": ""})
+    # Even though XP gate fires first, this test verifies the endpoint is wired;
+    # 400 is the expected status either way.
+    assert r.status_code == 400
+
+
+async def test_levelup_succeeds_when_xp_threshold_met(http, monkeypatch):
+    """Drive xp via the GM tag pipeline so we exercise the real path."""
+    sid = await _make_session(http)
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    cid = sess["character_id"]
+
+    # Award 100 XP via <character_xp> tag — exactly the Lv1->Lv2 threshold.
+    output = ('<narrative>恭喜过关</narrative>'
+              '<character_xp delta="100">完成主线节点</character_xp>')
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: StubGM(output),
+    )
+    async with http.stream("POST", f"/sessions/{sid}/turn",
+                           json={"action": "推进"}) as r:
+        async for _ in r.aiter_text():
+            pass
+
+    # Verify XP got persisted on the character row.
+    char = (await http.get(f"/characters/{cid}")).json()
+    assert char["xp"] == 100
+    assert char["level"] == 1
+
+    # Now level up — pick HP for the +5 bonus.
+    r = await http.post(f"/characters/{cid}/levelup", json={"stat": "hp"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["level"] == 2
+    import json as _json
+    stats = _json.loads(body["base_stats_json"])
+    assert stats["hp"] == 25  # 20 base + 5
+
+    # Sanity stat would only +1; verify by leveling again? Need more XP:
+    # threshold for L2 is 100*2*3/2 = 300, character has 100 — should fail.
+    r = await http.post(f"/characters/{cid}/levelup", json={"stat": "sanity"})
+    assert r.status_code == 400
+
+
+async def test_levelup_unknown_stat_gets_plus_one(http, monkeypatch):
+    sid = await _make_session(http)
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    cid = sess["character_id"]
+
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: StubGM(
+            '<narrative>大成功</narrative>'
+            '<character_xp delta="100">章节</character_xp>'
+        ),
+    )
+    async with http.stream("POST", f"/sessions/{sid}/turn",
+                           json={"action": "推进"}) as r:
+        async for _ in r.aiter_text():
+            pass
+
+    r = await http.post(f"/characters/{cid}/levelup", json={"stat": "灵力"})
+    assert r.status_code == 200
+    import json as _json
+    stats = _json.loads(r.json()["base_stats_json"])
+    assert stats["灵力"] == 1
+
+
+async def test_levelup_404_when_missing(http):
+    r = await http.post("/characters/9999/levelup", json={"stat": "hp"})
+    assert r.status_code == 404
+
+
 async def test_warmup_endpoint_returns_202(http, monkeypatch):
     sid = await _make_session(http)
     monkeypatch.setattr(

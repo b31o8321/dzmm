@@ -12,4 +12,8 @@ export const charactersApi = {
   update: (id: number, body: CharacterIn) =>
     api.put<Character>(`/characters/${id}`, body).then((r) => r.data),
   remove: (id: number) => api.delete(`/characters/${id}`).then(() => undefined),
+  levelup: (id: number, stat: string) =>
+    api
+      .post<Character>(`/characters/${id}/levelup`, { stat })
+      .then((r) => r.data),
 }

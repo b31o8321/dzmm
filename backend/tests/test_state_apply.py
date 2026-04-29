@@ -146,6 +146,58 @@ async def test_apply_plot_event_creates_thread(session_with_state):
     assert "山猫" in threads[0].description
 
 
+async def test_character_xp_tag_grants_xp(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(name="character_xp", attrs={"delta": "50"},
+                      content="完成任务")
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    char = await s.get(Character, sess.character_id)
+    assert char.xp == 50
+    # Level is NOT auto-bumped — that happens via the explicit /levelup endpoint.
+    assert char.level == 1
+
+
+async def test_character_xp_tag_accumulates(session_with_state):
+    s, sid = session_with_state
+    tag1 = TagComplete(name="character_xp", attrs={"delta": "30"}, content="支线")
+    tag2 = TagComplete(name="character_xp", attrs={"delta": "20"}, content="另一段")
+    await apply_tags(s, sid, current_turn=1, tags=[tag1, tag2])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    char = await s.get(Character, sess.character_id)
+    assert char.xp == 50
+
+
+async def test_character_xp_tag_ignores_zero_and_invalid(session_with_state):
+    s, sid = session_with_state
+    bad = [
+        TagComplete(name="character_xp", attrs={"delta": "0"}, content=""),
+        TagComplete(name="character_xp", attrs={"delta": "abc"}, content=""),
+        TagComplete(name="character_xp", attrs={}, content=""),
+    ]
+    await apply_tags(s, sid, current_turn=1, tags=bad)
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    char = await s.get(Character, sess.character_id)
+    assert char.xp == 0
+
+
+async def test_character_xp_tag_floors_at_zero(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(name="character_xp", attrs={"delta": "-100"}, content="罚")
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    char = await s.get(Character, sess.character_id)
+    assert char.xp == 0
+
+
 async def test_apply_plot_event_resolution_closes_latest(session_with_state):
     s, sid = session_with_state
     open_tag = TagComplete(

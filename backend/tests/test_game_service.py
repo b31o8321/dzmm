@@ -141,6 +141,20 @@ async def test_run_turn_falls_back_when_no_narrative_tag(seeded):
     assert "<think>" not in text  # stripped
 
 
+async def test_character_level_injected_in_prompt(seeded):
+    engine, SessionMaker, sid = seeded
+    captured = FakeClient("<narrative>hi</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "x", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # Default level is 1; verify the GM sees it.
+    assert "Lv 1" in sys_msg
+    assert "等级" in sys_msg
+
+
 async def test_plot_threads_appear_in_next_prompt(seeded):
     engine, SessionMaker, sid = seeded
 

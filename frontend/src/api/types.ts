@@ -14,9 +14,11 @@ export interface Character {
   name: string
   profile_md: string
   base_stats_json: string
+  xp?: number
+  level?: number
 }
 
-export type CharacterIn = Omit<Character, 'id'>
+export type CharacterIn = Omit<Character, 'id' | 'xp' | 'level'>
 
 export interface ModelConfig {
   id: number

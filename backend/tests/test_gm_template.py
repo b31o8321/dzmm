@@ -139,6 +139,20 @@ def test_light_rules_explicitly_no_dice():
     assert "不要输出 <dice>" in sys
 
 
+def test_character_xp_documented():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    # Tag is documented in the format spec
+    assert "<character_xp" in sys
+    # And mentioned in the behavior rules
+    assert "经验值" in sys
+
+
 def test_few_shot_example_present():
     msgs = build_gm_messages(
         world_md="x", character_md="y", live_state={},

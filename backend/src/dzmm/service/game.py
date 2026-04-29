@@ -73,9 +73,11 @@ async def run_turn(
 
     rules_mode = json.loads(world.rules_json or '{"mode":"light"}').get("mode", "light")
 
+    character_md = _format_character_card(char)
+
     msgs = build_gm_messages(
         world_md=world.content_md,
-        character_md=char.profile_md,
+        character_md=character_md,
         live_state=live_state,
         rules_mode=rules_mode,
         style=world.style,
@@ -131,6 +133,16 @@ async def run_turn(
 
     sess.turn_count = next_turn
     sess.last_played = datetime.now(UTC).replace(tzinfo=None)
+
+
+def _format_character_card(char: Character) -> str:
+    """Prepend `等级: Lv N` so the GM knows PC progression when narrating
+    challenges, NPC reactions, and XP awards."""
+    profile = (char.profile_md or "").strip()
+    level_line = f"等级: Lv {char.level}"
+    if profile:
+        return f"{level_line}\n\n{profile}"
+    return level_line
 
 
 def _build_live_state(char: Character, cs: CharState | None) -> dict:

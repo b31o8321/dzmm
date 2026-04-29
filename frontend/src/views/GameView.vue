@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { sessionsApi, type MessageRow } from '@/api/sessions'
+import { charactersApi } from '@/api/characters'
 import { useAudio } from '@/composables/useAudio'
 import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
+import LevelUpDialog from '@/components/LevelUpDialog.vue'
+import type { Character } from '@/api/types'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -28,6 +31,47 @@ const turnCount = ref(0)
 const tokensIn = ref(0)
 const tokensOut = ref(0)
 const panelOpen = ref(false)
+const character = ref<Character | null>(null)
+const levelUpDialogOpen = ref(false)
+const levelUpAutoShown = ref(false)
+
+const xpThreshold = computed(() => {
+  const lv = character.value?.level ?? 1
+  return (100 * lv * (lv + 1)) / 2
+})
+const xpPct = computed(() => {
+  const xp = character.value?.xp ?? 0
+  if (!xpThreshold.value) return 0
+  return Math.min(100, (xp / xpThreshold.value) * 100)
+})
+const canLevelUp = computed(
+  () => !!character.value && (character.value.xp ?? 0) >= xpThreshold.value,
+)
+
+async function refreshCharacter() {
+  if (!character.value) return
+  try {
+    character.value = await charactersApi.get(character.value.id)
+  } catch {
+    /* ignore */
+  }
+}
+
+// Auto-pop the level-up dialog the first time we cross the threshold.
+watch(canLevelUp, (v) => {
+  if (v && !levelUpAutoShown.value && !levelUpDialogOpen.value) {
+    levelUpAutoShown.value = true
+    levelUpDialogOpen.value = true
+  }
+  if (!v) {
+    // Re-arm so a future threshold crossing pops the dialog again.
+    levelUpAutoShown.value = false
+  }
+})
+
+function onLeveled(updated: Character) {
+  character.value = updated
+}
 
 async function refreshTokens() {
   try {
@@ -176,6 +220,7 @@ async function sendAction(userAction: string) {
         }
         turn.narrative = cleanNarrative(turn.narrative)
         refreshTokens()  // fire-and-forget
+        refreshCharacter()  // pick up XP gains from <character_xp>
       },
     })
   } catch (e: any) {
@@ -301,6 +346,11 @@ onMounted(async () => {
   try {
     const sess = await sessionsStore.get(sessionId)
     turnCount.value = sess.turn_count
+    try {
+      character.value = await charactersApi.get(sess.character_id)
+    } catch {
+      /* ignore */
+    }
   } catch {
     /* ignore */
   }
@@ -373,6 +423,20 @@ onUnmounted(() => audio.stopBgm())
           <span class="text-xs text-slate-500 font-mono">
             tokens: {{ tokensIn.toLocaleString() }} in / {{ tokensOut.toLocaleString() }} out
           </span>
+          <div v-if="character" class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">
+              Lv {{ character.level ?? 1 }}
+              ({{ character.xp ?? 0 }} / {{ xpThreshold }} XP)
+            </span>
+            <div class="w-32 h-1.5 bg-slate-200 rounded overflow-hidden">
+              <div class="h-full bg-amber-400 transition-all"
+                   :style="{ width: xpPct + '%' }"></div>
+            </div>
+            <el-button v-if="canLevelUp" size="small" type="warning"
+                       @click="levelUpDialogOpen = true">
+              ⭐ 升级
+            </el-button>
+          </div>
         </div>
         <div class="flex items-center gap-4">
           <router-link :to="`/play/${sessionId}/journal`"
@@ -474,5 +538,11 @@ onUnmounted(() => audio.stopBgm())
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" />
     </div>
+
+    <LevelUpDialog
+      v-model="levelUpDialogOpen"
+      :character="character"
+      @leveled="onLeveled"
+    />
   </div>
 </template>

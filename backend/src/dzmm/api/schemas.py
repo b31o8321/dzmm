@@ -21,6 +21,8 @@ class CharacterIn(BaseModel):
 
 class CharacterOut(CharacterIn):
     id: int
+    xp: int = 0
+    level: int = 1
 
 
 class ModelConfigIn(BaseModel):
