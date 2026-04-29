@@ -26,6 +26,10 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
         app.dependency_overrides[module.get_session_dep] = get_session_dep
         app.include_router(module.router)
 
+    @app.get("/health")
+    async def health():
+        return {"ok": True}
+
     app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
     return app
 
