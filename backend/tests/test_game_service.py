@@ -117,3 +117,25 @@ async def test_run_turn_includes_recent_history_in_prompt(seeded):
     assert "动作1" in contents
     assert "<narrative>第一回合</narrative>" in contents
     assert contents[-1] == "动作2"
+
+
+async def test_run_turn_falls_back_when_no_narrative_tag(seeded):
+    """Reasoning models (deepseek-r1) emit <think>...</think> then plain text
+    without <narrative>. We should treat the captured raw text as narrative."""
+    engine, SessionMaker, sid = seeded
+    output = (
+        "<think>I should describe a scene</think>"
+        "你站在霓虹反射的雨中，远处传来警报声。"
+    )
+    client = FakeClient(output)
+
+    events = []
+    async with SessionMaker() as s:
+        async for ev in run_turn(s, sid, "环顾四周", client):
+            events.append(ev)
+        await s.commit()
+
+    deltas = [e for e in events if isinstance(e, NarrativeDelta)]
+    text = "".join(d.text for d in deltas)
+    assert "霓虹" in text, f"fallback narrative not delivered, got: {text!r}"
+    assert "<think>" not in text  # stripped
