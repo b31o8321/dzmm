@@ -2,8 +2,13 @@
 
 Usage:
     cd backend && python scripts/run_dev.py
+
+Environment overrides (also useful for LAN access from a phone):
+    DZMM_HOST=0.0.0.0 python scripts/run_dev.py
+    DZMM_PORT=9000    python scripts/run_dev.py
 """
 import asyncio
+import os
 
 import uvicorn
 
@@ -13,8 +18,10 @@ from dzmm.main import build_default_app
 
 async def main():
     setup_logging()
+    host = os.environ.get("DZMM_HOST", "127.0.0.1")
+    port = int(os.environ.get("DZMM_PORT", "8765"))
     app = await build_default_app()
-    config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_level="info")
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
     server = uvicorn.Server(config)
     await server.serve()
 

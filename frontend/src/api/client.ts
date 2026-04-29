@@ -1,9 +1,21 @@
 import axios from 'axios'
 
-// Always go direct to the backend. Vite's proxy buffers SSE responses,
-// breaking the streaming /turn endpoint. Backend's CORS allows localhost
-// dev origin via FastAPI defaults; for cross-origin we'd add CORSMiddleware.
-const baseURL = 'http://127.0.0.1:8765'
+// Backend port is fixed; the host is derived at runtime so the same bundle
+// works in three contexts:
+//   - Tauri prod webview (window.location.hostname = "tauri.localhost" or "localhost")
+//   - Local dev browser (hostname = "localhost" / "127.0.0.1")
+//   - LAN access from another device (hostname = the Mac's LAN IP)
+// This requires the backend to bind 0.0.0.0 when LAN access is desired
+// (DZMM_HOST=0.0.0.0). Default 127.0.0.1 still works for local-only modes.
+function deriveBaseURL(): string {
+  const host =
+    (typeof window !== 'undefined' && window.location.hostname) || '127.0.0.1'
+  // Tauri's custom-scheme webview reports special hostnames; treat them as local.
+  const normalized = host === 'tauri.localhost' ? 'localhost' : host
+  return `http://${normalized}:8765`
+}
+
+const baseURL = deriveBaseURL()
 
 export const api = axios.create({
   baseURL,
