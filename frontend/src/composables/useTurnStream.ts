@@ -37,7 +37,9 @@ export async function streamTurn(
   while (true) {
     const { value, done } = await reader.read()
     if (done) break
-    buf += decoder.decode(value, { stream: true })
+    // Normalize CRLF → LF first. sse_starlette uses \r\n per spec; our
+    // split-on-\n\n logic only works after normalization.
+    buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
 
     let nl: number
     while ((nl = buf.indexOf('\n\n')) >= 0) {
