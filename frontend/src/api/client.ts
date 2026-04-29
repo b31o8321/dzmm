@@ -18,3 +18,16 @@ api.interceptors.response.use(
     return Promise.reject(new Error(msg))
   },
 )
+
+export async function pingBackend(timeoutMs = 1500): Promise<boolean> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const resp = await fetch(`${baseURL}/health`, { signal: ctrl.signal })
+    return resp.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(t)
+  }
+}

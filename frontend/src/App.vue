@@ -1,5 +1,9 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import BootGate from '@/components/BootGate.vue'
+</script>
 
 <template>
-  <router-view />
+  <BootGate>
+    <router-view />
+  </BootGate>
 </template>
