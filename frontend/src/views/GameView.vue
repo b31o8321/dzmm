@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { sessionsApi, type MessageRow, type Npc, type PCGoalItem } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type MessageEvent, type Npc, type PCGoalItem } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
@@ -13,6 +13,8 @@ import MarkdownView from '@/components/MarkdownView.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
 import LevelUpDialog from '@/components/LevelUpDialog.vue'
 import NpcDetailDialog from '@/components/NpcDetailDialog.vue'
+import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
+import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -24,11 +26,18 @@ interface Turn {
   action: string
   narrative: string
   choices: string[]
+  events: MessageEvent[]
+  turn: number
+  rawContent?: string
 }
 const turns = ref<Turn[]>([])
 const currentTurn = ref<Turn | null>(null)
 const action = ref('')
 const sending = ref(false)
+const composing = ref(false)
+const eventsDialogOpen = ref(false)
+const eventsDialogEvents = ref<MessageEvent[]>([])
+const eventsDialogTurn = ref(0)
 const turnCount = ref(0)
 const tokensIn = ref(0)
 const tokensOut = ref(0)
@@ -207,10 +216,67 @@ async function send() {
   await sendAction(userAction)
 }
 
+function onKey(e: KeyboardEvent) {
+  if (e.key !== 'Enter') return
+  // While the user is composing a CJK candidate, never intercept Enter.
+  if (composing.value) return
+  // Any modifier => keep default newline behaviour.
+  if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+  e.preventDefault()
+  send()
+}
+
+function openEvents(t: Turn) {
+  eventsDialogEvents.value = t.events ?? []
+  eventsDialogTurn.value = t.turn
+  eventsDialogOpen.value = true
+}
+
+// Parse <narrative>, <say speaker="..">, <pc_action> tags from raw GM content
+// into an ordered list of parts. Falls back to a single narration block when
+// no tags are found, so legacy messages still render.
+const PARTS_TAG_RE =
+  /<(narrative|narriative|say|pc_action)\b([^>]*)>([\s\S]*?)<\/(?:narrative|narriative|say|pc_action)>/gi
+const SPEAKER_ATTR_RE = /speaker="([^"]*)"/i
+
+function parseParts(content: string): Part[] {
+  const parts: Part[] = []
+  PARTS_TAG_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = PARTS_TAG_RE.exec(content)) !== null) {
+    const tag = m[1].toLowerCase()
+    const attrs = m[2] ?? ''
+    const text = (m[3] ?? '').trim()
+    if (!text) continue
+    if (tag === 'narrative' || tag === 'narriative') {
+      parts.push({ type: 'narration', text })
+    } else if (tag === 'say') {
+      const sm = SPEAKER_ATTR_RE.exec(attrs)
+      parts.push({ type: 'dialogue', speaker: sm?.[1], text })
+    } else if (tag === 'pc_action') {
+      parts.push({ type: 'pc_action', text })
+    }
+  }
+  if (parts.length === 0) {
+    // Backwards-compat: messages predating the new tags fall through here, as
+    // do any messages where every tag is empty. Render the whole thing as a
+    // narration so nothing is lost.
+    const cleaned = content.trim()
+    if (cleaned) parts.push({ type: 'narration', text: cleaned })
+  }
+  return parts
+}
+
 async function sendAction(userAction: string) {
   sending.value = true
 
-  const turn: Turn = { action: userAction, narrative: '', choices: [] }
+  const turn: Turn = {
+    action: userAction,
+    narrative: '',
+    choices: [],
+    events: [],
+    turn: turnCount.value + 1,
+  }
   currentTurn.value = turn
   // Clear previous turn's choices — they're stale once the user sends.
   for (const t of turns.value) t.choices = []
@@ -224,6 +290,36 @@ async function sendAction(userAction: string) {
         scrollToBottom()
       },
       onTag: (name, attrs, content) => {
+        // Build a running rawContent so parseParts() can reconstruct speaker
+        // bubbles after the turn finishes (and on the live frame for non-
+        // streaming say/pc_action tags).
+        if (name === 'say') {
+          const speakerAttr = attrs.speaker ? ` speaker="${attrs.speaker}"` : ''
+          turn.rawContent =
+            (turn.rawContent ?? '') + `<say${speakerAttr}>${content}</say>`
+        } else if (name === 'pc_action') {
+          turn.rawContent = (turn.rawContent ?? '') + `<pc_action>${content}</pc_action>`
+        }
+        // Record any structured tag (besides `narrative`/`say`/`pc_action`/`choices`)
+        // as an event so it shows up in the per-message events dialog.
+        const skipForEvents = new Set(['narrative', 'narriative', 'say', 'pc_action', 'choices'])
+        if (!skipForEvents.has(name)) {
+          let payload: Record<string, any> = { ...attrs }
+          const trimmed = content.trim()
+          if (trimmed) {
+            try {
+              const parsed = JSON.parse(trimmed)
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                payload = { ...payload, ...parsed }
+              } else {
+                payload = { ...payload, value: parsed }
+              }
+            } catch {
+              payload = { ...payload, content: trimmed }
+            }
+          }
+          turn.events.push({ type: name, payload, content: trimmed || undefined })
+        }
         if (name === 'state_change') {
           try {
             const obj = JSON.parse(content)
@@ -278,6 +374,13 @@ async function sendAction(userAction: string) {
           if (leaked.length) turn.choices = leaked
         }
         turn.narrative = cleanNarrative(turn.narrative)
+        // Synthesize a rawContent that parseParts can chew on. We always
+        // prepend the cleaned narrative (wrapped) so backwards-compat is
+        // preserved when GM didn't emit any speaker tags at all.
+        if (turn.narrative) {
+          turn.rawContent =
+            `<narrative>${turn.narrative}</narrative>` + (turn.rawContent ?? '')
+        }
         refreshTokens()  // fire-and-forget
         refreshCharacter()  // pick up XP gains from <character_xp>
         refreshGoals()  // pick up <pc_goal> add/complete
@@ -436,6 +539,9 @@ onMounted(async () => {
           action: pendingUser,
           narrative: extractNarrative(m.content),
           choices: extractChoices(m.content),
+          events: m.events ?? [],
+          turn: m.turn,
+          rawContent: m.content,
         })
         pendingUser = null
       }
@@ -543,8 +649,25 @@ onUnmounted(() => audio.stopBgm())
         </div>
         <article v-for="(t, i) in turns" :key="i" class="space-y-2">
           <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
-          <div class="bg-white rounded shadow-sm p-4">
-            <MarkdownView :source="t.narrative" />
+          <div class="relative bg-white rounded shadow-sm p-4">
+            <template v-if="t.rawContent">
+              <SpeakerBubble
+                v-for="(part, pi) in parseParts(t.rawContent)"
+                :key="pi"
+                :part="part"
+                :pc-name="character?.name"
+              />
+            </template>
+            <MarkdownView v-else :source="t.narrative" />
+            <el-button
+              v-if="t.events && t.events.length > 0"
+              size="small"
+              link
+              class="!absolute bottom-1 right-1 text-xs"
+              @click="openEvents(t)"
+            >
+              🎲 {{ t.events.length }}
+            </el-button>
           </div>
           <div v-if="t.choices.length" class="flex flex-col gap-2 ml-4">
             <button
@@ -582,11 +705,12 @@ onUnmounted(() => audio.stopBgm())
           <el-input
             v-model="action"
             type="textarea"
-            :rows="2"
-            placeholder="输入你的行动…（Cmd/Ctrl+Enter 发送）"
-            @keydown.enter.meta.prevent="send"
-            @keydown.enter.ctrl.prevent="send"
+            :autosize="{ minRows: 2, maxRows: 6 }"
+            placeholder="输入你的行动…（Enter 发送，Shift+Enter 换行）"
             :disabled="sending"
+            @keydown="onKey"
+            @compositionstart="composing = true"
+            @compositionend="composing = false"
           />
           <el-button type="primary" :loading="sending" @click="send">发送</el-button>
         </div>
@@ -644,6 +768,12 @@ onUnmounted(() => audio.stopBgm())
       :session-id="sessionId"
       :npc="selectedNpc"
       @updated="onNpcUpdated"
+    />
+
+    <MessageEventsDialog
+      v-model="eventsDialogOpen"
+      :events="eventsDialogEvents"
+      :turn="eventsDialogTurn"
     />
   </div>
 </template>

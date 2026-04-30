@@ -1,6 +1,12 @@
 import { api } from './client'
 import type { GameSession, SessionIn } from './types'
 
+export interface MessageEvent {
+  type: string
+  payload: Record<string, any>
+  content?: string
+}
+
 export interface MessageRow {
   id: number
   role: 'user' | 'assistant' | 'system'
@@ -8,6 +14,8 @@ export interface MessageRow {
   turn: number
   tokens_in: number
   tokens_out: number
+  events?: MessageEvent[]
+  parts_json?: string | null
 }
 
 export interface SessionState {
@@ -117,4 +125,11 @@ export const sessionsApi = {
     api.get<EraItem[]>(`/sessions/${id}/eras`).then((r) => r.data),
   relations: (id: number) =>
     api.get<RelationItem[]>(`/sessions/${id}/relations`).then((r) => r.data),
+  exportSession: (id: number, format: 'json' | 'md' = 'json') =>
+    api
+      .get(`/sessions/${id}/export`, {
+        params: { format },
+        responseType: 'blob',
+      })
+      .then((r) => r.data as Blob),
 }
