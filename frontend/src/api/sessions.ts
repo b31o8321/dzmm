@@ -54,6 +54,12 @@ export interface Npc {
   emotion?: Record<string, number>
   pinned: boolean
   notes: NpcNote[]
+  // v0.11: progressive reveal map. Each key is a field name (e.g.
+  // "description", "purpose", "archetype", "state", "favor", "affinity",
+  // "emotion") whose value is true when the player has learned it.
+  // Optional for backwards-compat: if missing (legacy backend / mock), the
+  // UI treats every field as revealed.
+  revealed?: Record<string, boolean>
 }
 
 export interface RelationItem {
