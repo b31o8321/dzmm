@@ -902,6 +902,7 @@ async def test_health_includes_version(http):
     body = r.json()
     assert body["status"] == "ok"
     assert body["version"] == __version__
-    assert body["version"] == "0.12.0"
+    # Should match a SemVer-shaped string that begins with 0. (we're pre-1.0)
+    assert body["version"].startswith("0.")
     # Backwards-compat: legacy callers (pre-v0.12) parsed `ok: true`.
     assert body["ok"] is True
