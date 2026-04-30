@@ -8,6 +8,7 @@ defineProps<{
   dice: { skill: string; target: string; result: string }[]
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
+  pcMood?: Record<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +27,19 @@ const emit = defineEmits<{
           <span class="font-mono">{{ v }}</span>
         </div>
         <div v-if="!Object.keys(stats).length" class="text-slate-400 italic">尚未初始化</div>
+      </div>
+    </section>
+
+    <section v-if="pcMood && Object.keys(pcMood).length">
+      <h3 class="font-bold text-slate-700 mb-2">心情</h3>
+      <div class="flex flex-wrap gap-1.5">
+        <span
+          v-for="(v, k) in pcMood"
+          :key="k"
+          class="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-50 text-violet-700 rounded text-xs"
+        >
+          {{ k }}<span class="font-mono opacity-60">{{ v }}</span>
+        </span>
       </div>
     </section>
 

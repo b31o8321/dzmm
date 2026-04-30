@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Message as MessageRow, ModelConfig, NPC,
+    Character, CharState, Message as MessageRow, ModelConfig, NPC, NpcRelation,
     Session as GameSession, World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
@@ -257,6 +257,61 @@ async def test_era_appears_in_next_prompt(seeded):
     sys_msg = captured.last_messages[0].content
     assert "第二章" in sys_msg
     assert "当前章节" in sys_msg
+
+
+async def test_pc_mood_appears_in_next_prompt(seeded):
+    """PC mood declared in turn N must appear in the system prompt of turn N+1."""
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        async for _ in run_turn(
+            s, sid, "受惊",
+            FakeClient(
+                "<narrative>你脸色发白。</narrative>"
+                '<pc_mood>{"tense": 60, "exhausted": 20}</pc_mood>'
+            ),
+        ):
+            pass
+        await s.commit()
+
+    captured = FakeClient("<narrative>第二回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "PC 当前心情" in sys_msg
+    assert "tense" in sys_msg
+    assert "60" in sys_msg
+
+
+async def test_npc_relation_appears_in_next_prompt(seeded):
+    """A registered NPC relation must surface in the next turn's prompt."""
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        s.add(NpcRelation(
+            session_id=sid,
+            npc_a="御坂雪",
+            npc_b="卫兵长",
+            kind="父女",
+            description="失散多年",
+            introduced_turn=3,
+        ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "NPC 关系" in sys_msg
+    assert "御坂雪" in sys_msg
+    assert "卫兵长" in sys_msg
+    assert "父女" in sys_msg
 
 
 async def test_recall_drains_after_one_use(seeded):

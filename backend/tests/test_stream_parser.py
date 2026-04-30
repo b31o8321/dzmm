@@ -169,3 +169,25 @@ def test_era_begin_tag_known():
     assert tag.name == "era_begin"
     assert tag.attrs == {"name": "第一章"}
     assert tag.content == "序幕"
+
+
+def test_pc_mood_tag_known():
+    p = StreamingTagParser()
+    out = collect(p, ['<pc_mood>{"tense":+20,"exhausted":+10}</pc_mood>'])
+    tag = [e for e in out if isinstance(e, TagComplete)][0]
+    assert tag.name == "pc_mood"
+    assert "tense" in tag.content
+    assert "exhausted" in tag.content
+
+
+def test_npc_relation_tag_known():
+    p = StreamingTagParser()
+    out = collect(p, [
+        '<npc_relation between="御坂雪,卫兵长" kind="父女">'
+        '失散多年的女儿。'
+        '</npc_relation>'
+    ])
+    tag = [e for e in out if isinstance(e, TagComplete)][0]
+    assert tag.name == "npc_relation"
+    assert tag.attrs == {"between": "御坂雪,卫兵长", "kind": "父女"}
+    assert "失散多年" in tag.content

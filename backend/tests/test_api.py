@@ -557,6 +557,77 @@ async def test_goals_endpoint_empty(http):
     assert r.json() == []
 
 
+async def test_relations_endpoint_empty(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/relations")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+async def test_relations_endpoint_returns_seeded_rows(http, app):
+    """Insert NpcRelation directly, verify endpoint exposes the rows."""
+    sid = await _make_session(http)
+    from dzmm.db.models import NpcRelation
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(NpcRelation(
+            session_id=sid, npc_a="御坂雪", npc_b="卫兵长",
+            kind="父女", description="失散多年", introduced_turn=3,
+        ))
+        s.add(NpcRelation(
+            session_id=sid, npc_a="山猫", npc_b="黑医",
+            kind="对手", description="", introduced_turn=5,
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/relations")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 2
+    # Ordered by introduced_turn desc — turn 5 first.
+    assert items[0]["kind"] == "对手"
+    assert items[0]["npc_a"] == "山猫"
+    assert items[1]["kind"] == "父女"
+    assert items[1]["description"] == "失散多年"
+
+
+async def test_state_endpoint_returns_pc_mood(http, app):
+    """The /state endpoint must surface Session.pc_mood_json as pc_mood."""
+    sid = await _make_session(http)
+    from dzmm.db.models import Session as GameSession
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        sess.pc_mood_json = '{"tense": 30, "exhausted": 10}'
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/state")
+    assert r.status_code == 200
+    body = r.json()
+    assert "pc_mood" in body
+    assert body["pc_mood"] == {"tense": 30, "exhausted": 10}
+
+
+async def test_npcs_endpoint_returns_emotion(http, app):
+    """The /npcs endpoint must surface NPC.emotion_json as emotion (5-axis dict)."""
+    sid = await _make_session(http)
+    from dzmm.db.models import NPC
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid, name="御坂雪",
+            description="x", favor=0, state="未知", last_seen_turn=1,
+            emotion_json='{"love": 50, "fear": 10}',
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/npcs")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 1
+    assert items[0]["emotion"] == {"love": 50, "fear": 10}
+
+
 async def test_timeline_returns_seeded_rows(http, app):
     """Insert Timeline row directly via session_maker, verify endpoint reflects it."""
     sid = await _make_session(http)

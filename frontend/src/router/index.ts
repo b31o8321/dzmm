@@ -24,6 +24,8 @@ const router = createRouter({
           component: () => import('@/views/JournalView.vue'), props: true },
         { path: 'play/:id/npcs', name: 'npcs',
           component: () => import('@/views/NpcsView.vue'), props: true },
+        { path: 'play/:id/relations', name: 'relations',
+          component: () => import('@/views/RelationsView.vue'), props: true },
         { path: 'play/:id/chronicle', name: 'chronicle',
           component: () => import('@/views/ChronicleView.vue'), props: true },
       ],

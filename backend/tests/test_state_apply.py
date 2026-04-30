@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Era, ModelConfig, NPC, PCGoal, PlotThread, Session as GameSession, World,
+    Character, CharState, Era, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply import apply_tags
@@ -350,6 +350,148 @@ async def test_pc_goal_complete_closes_existing(session_with_state):
     assert goal.status == "completed"
     assert goal.completed_turn == 5
     assert "完成原因" in goal.completion_note
+
+
+async def test_npc_emotion_accumulates_and_clamps(session_with_state):
+    """5-axis emotion deltas accumulate and clamp to [0, 100]."""
+    s, sid = session_with_state
+    tag1 = TagComplete(
+        name="npc_update",
+        content='{"name":"御坂雪","emotion":{"love":40,"fear":10}}',
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag1])
+    await s.commit()
+
+    npc = (await s.execute(select(NPC).where(NPC.session_id == sid))).scalar_one()
+    emo = json.loads(npc.emotion_json)
+    assert emo == {"love": 40, "fear": 10}
+
+    # Second update accumulates and clamps.
+    tag2 = TagComplete(
+        name="npc_update",
+        content='{"name":"御坂雪","emotion":{"love":80,"fear":-30}}',
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[tag2])
+    await s.commit()
+
+    npc = (await s.execute(select(NPC).where(NPC.session_id == sid))).scalar_one()
+    emo = json.loads(npc.emotion_json)
+    assert emo["love"] == 100  # 40 + 80 clamped to 100
+    assert emo["fear"] == 0    # 10 - 30 clamped to 0
+
+
+async def test_npc_emotion_unknown_axis_ignored(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="npc_update",
+        content='{"name":"X","emotion":{"love":10,"happiness":50}}',
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    npc = (await s.execute(select(NPC).where(NPC.session_id == sid))).scalar_one()
+    emo = json.loads(npc.emotion_json)
+    assert emo == {"love": 10}  # unknown axis dropped
+
+
+async def test_pc_mood_accumulates_and_clamps(session_with_state):
+    """<pc_mood> deltas accumulate into Session.pc_mood_json, clamp 0-100."""
+    s, sid = session_with_state
+    tag1 = TagComplete(name="pc_mood", content='{"tense": 30, "exhausted": 10}')
+    await apply_tags(s, sid, current_turn=1, tags=[tag1])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    moods = json.loads(sess.pc_mood_json)
+    assert moods == {"tense": 30, "exhausted": 10}
+
+    tag2 = TagComplete(name="pc_mood", content='{"tense": 80, "exhausted": -20}')
+    await apply_tags(s, sid, current_turn=2, tags=[tag2])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    moods = json.loads(sess.pc_mood_json)
+    assert moods["tense"] == 100  # 30 + 80 clamped
+    assert moods["exhausted"] == 0  # 10 - 20 clamped
+
+
+async def test_pc_mood_skips_non_numeric(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="pc_mood", content='{"calm": 5, "weird": "not-a-number"}'
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    sess = await s.get(GameSession, sid)
+    moods = json.loads(sess.pc_mood_json)
+    assert moods == {"calm": 5}
+
+
+async def test_npc_relation_creates_row(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="npc_relation",
+        attrs={"between": "御坂雪,卫兵长", "kind": "父女"},
+        content="御坂雪是卫兵长失散多年的女儿。",
+    )
+    await apply_tags(s, sid, current_turn=3, tags=[tag])
+    await s.commit()
+
+    rels = (await s.execute(
+        select(NpcRelation).where(NpcRelation.session_id == sid)
+    )).scalars().all()
+    assert len(rels) == 1
+    r = rels[0]
+    assert r.npc_a == "御坂雪"
+    assert r.npc_b == "卫兵长"
+    assert r.kind == "父女"
+    assert "失散多年" in r.description
+    assert r.introduced_turn == 3
+
+
+async def test_npc_relation_dedupes_unordered_pair(session_with_state):
+    """A↔B with the same kind is treated as the same relation as B↔A."""
+    s, sid = session_with_state
+    tag1 = TagComplete(
+        name="npc_relation",
+        attrs={"between": "御坂雪,卫兵长", "kind": "父女"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=3, tags=[tag1])
+    await s.commit()
+
+    # Reverse order, same kind — must NOT create a duplicate.
+    tag2 = TagComplete(
+        name="npc_relation",
+        attrs={"between": "卫兵长,御坂雪", "kind": "父女"},
+        content="补充：母亲早逝。",
+    )
+    await apply_tags(s, sid, current_turn=4, tags=[tag2])
+    await s.commit()
+
+    rels = (await s.execute(
+        select(NpcRelation).where(NpcRelation.session_id == sid)
+    )).scalars().all()
+    assert len(rels) == 1
+    # Description should be backfilled from the second declaration.
+    assert "母亲早逝" in rels[0].description
+
+
+async def test_npc_relation_invalid_between_skipped(session_with_state):
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="npc_relation",
+        attrs={"between": "只有一个名字", "kind": "盟友"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    rels = (await s.execute(
+        select(NpcRelation).where(NpcRelation.session_id == sid)
+    )).scalars().all()
+    assert len(rels) == 0
 
 
 async def test_apply_plot_event_resolution_closes_latest(session_with_state):

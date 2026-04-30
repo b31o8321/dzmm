@@ -13,6 +13,7 @@ export interface MessageRow {
 export interface SessionState {
   stats: Record<string, number>
   inventory: string[]
+  pc_mood?: Record<string, number>
   npcs: { name: string; favor: number; state: string }[]
   threads: { type: string; description: string; importance: number }[]
 }
@@ -42,8 +43,18 @@ export interface Npc {
   purpose: string
   archetype: string
   affinity: Record<string, number>
+  emotion?: Record<string, number>
   pinned: boolean
   notes: NpcNote[]
+}
+
+export interface RelationItem {
+  id: number
+  npc_a: string
+  npc_b: string
+  kind: string
+  description: string
+  introduced_turn: number
 }
 
 export interface TimelineItem {
@@ -104,4 +115,6 @@ export const sessionsApi = {
     api.get<TimelineItem[]>(`/sessions/${id}/timeline`).then((r) => r.data),
   eras: (id: number) =>
     api.get<EraItem[]>(`/sessions/${id}/eras`).then((r) => r.data),
+  relations: (id: number) =>
+    api.get<RelationItem[]>(`/sessions/${id}/relations`).then((r) => r.data),
 }

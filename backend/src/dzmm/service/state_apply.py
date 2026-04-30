@@ -9,6 +9,7 @@ from dzmm.db.models import (
     CharState,
     Era,
     NPC,
+    NpcRelation,
     PCGoal,
     PlotThread,
     Session as GameSession,
@@ -39,6 +40,12 @@ async def apply_tags(
             await _apply_era_begin(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "pc_goal":
             await _apply_pc_goal(session, session_id, current_turn, tag.attrs, tag.content)
+        elif tag.name == "pc_mood":
+            await _apply_pc_mood(session, session_id, tag.content)
+        elif tag.name == "npc_relation":
+            await _apply_npc_relation(
+                session, session_id, current_turn, tag.attrs, tag.content
+            )
 
 
 async def _apply_state_change(
@@ -131,6 +138,20 @@ async def _apply_npc_update(
             axis_key = str(axis)
             existing[axis_key] = int(existing.get(axis_key, 0)) + int(delta)
         npc.affinity_json = json.dumps(existing, ensure_ascii=False)
+
+    emotion_delta = payload.get("emotion")
+    if isinstance(emotion_delta, dict):
+        emotions = json.loads(npc.emotion_json or "{}")
+        if not isinstance(emotions, dict):
+            emotions = {}
+        for axis, delta in emotion_delta.items():
+            if axis not in ("anger", "love", "fear", "respect", "jealousy"):
+                continue
+            if not isinstance(delta, (int, float)):
+                continue
+            new_val = int(emotions.get(axis, 0) + delta)
+            emotions[axis] = max(0, min(100, new_val))
+        npc.emotion_json = json.dumps(emotions, ensure_ascii=False)
 
     note = payload.get("note")
     if note:
@@ -274,6 +295,78 @@ async def _apply_pc_goal(
         goal.completed_turn = current_turn
         if text:
             goal.completion_note = text
+
+
+async def _apply_pc_mood(
+    session: AsyncSession,
+    session_id: int,
+    raw: str,
+) -> None:
+    """Accumulate PC mood deltas into Session.pc_mood_json.
+
+    Mood is a free-form keyword→int map (GM picks keywords like 紧张/兴奋/疲惫).
+    Values clamp to [0, 100]. Missing keys start at 0."""
+    payload = parse_loose_json(raw)
+    if not isinstance(payload, dict):
+        return
+    sess = await session.get(GameSession, session_id)
+    if sess is None:
+        return
+    moods = json.loads(sess.pc_mood_json or "{}")
+    if not isinstance(moods, dict):
+        moods = {}
+    for axis, delta in payload.items():
+        if not isinstance(delta, (int, float)):
+            continue
+        axis_key = str(axis)
+        new_val = int(moods.get(axis_key, 0) + delta)
+        moods[axis_key] = max(0, min(100, new_val))
+    sess.pc_mood_json = json.dumps(moods, ensure_ascii=False)
+
+
+async def _apply_npc_relation(
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    attrs: dict[str, str],
+    content: str,
+) -> None:
+    """Register an NPC↔NPC relationship. The pair is treated as unordered:
+    (A,B,kind) is equivalent to (B,A,kind), so re-declarations don't duplicate.
+
+    If a row already exists and the new declaration carries a description while
+    the old one is empty, fill in the description as a one-shot upgrade."""
+    between = (attrs.get("between") or "").strip()
+    parts = [p.strip() for p in between.split(",") if p.strip()]
+    if len(parts) != 2:
+        return
+    a, b = parts[0], parts[1]
+    kind = (attrs.get("kind") or "").strip() or "未定义"
+
+    existing = (
+        await session.execute(
+            select(NpcRelation).where(
+                NpcRelation.session_id == session_id,
+                NpcRelation.kind == kind,
+                ((NpcRelation.npc_a == a) & (NpcRelation.npc_b == b))
+                | ((NpcRelation.npc_a == b) & (NpcRelation.npc_b == a)),
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        if content.strip() and not existing.description:
+            existing.description = content.strip()
+        return
+
+    rel = NpcRelation(
+        session_id=session_id,
+        npc_a=a,
+        npc_b=b,
+        kind=kind,
+        description=content.strip(),
+        introduced_turn=current_turn,
+    )
+    session.add(rel)
 
 
 async def _apply_character_xp(

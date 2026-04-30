@@ -107,6 +107,12 @@ _SYSTEM_TEMPLATE = """# 你的身份
 10. PC 目标：当玩家明确表达意图（"我要找黑医"），用 <pc_goal type="add"> 登记。
     当玩家行动达成已登记目标时，用 <pc_goal type="complete" id="N"> 关闭。
     每局活跃目标控制在 3-5 个，避免过载。
+11. NPC 情绪追踪：用 <npc_update> 的 emotion 字段维护 5 轴情绪
+    （anger/love/fear/respect/jealousy）。情绪 ≥70 时 NPC 必须主动表达。
+12. PC 心情：当 PC 经历重大情绪事件（受伤/胜利/挫折/惊吓）时用 <pc_mood>
+    更新一两个心情轴。GM 描写场景时应该把当前心情融入语调。
+13. NPC 关系：当剧情揭示两位 NPC 之间的关系（家人/恋人/对手等）时，
+    用 <npc_relation> 登记一次。这是世界观持续性的关键。
 
 # 反应性原则（让世界真的"在乎"玩家做的事）
 
@@ -165,6 +171,7 @@ _SYSTEM_TEMPLATE = """# 你的身份
   "name": "卫兵长",
   "favor_delta": -10,
   "affinity": {{"信任": -2, "敌意": +3}},
+  "emotion": {{"anger": +10, "fear": -5}},
   "state": "警戒",
   "purpose": "守住后门，不让任何人靠近仓库",
   "archetype": "尽职但被收买的中年警卫",
@@ -174,6 +181,7 @@ _SYSTEM_TEMPLATE = """# 你的身份
 字段说明：
 - favor_delta（必填，整数）：综合好感度变化，沿用作总览。
 - affinity（可选）：多维亲密度，axis→delta 的部分映射；常见维度：信任 / 羁绊 / 恋慕 / 敬畏 / 敌意 / 警戒。叠加而非覆盖。
+- emotion（可选）：5 轴情绪 axis→delta 累加，clamp 0-100。轴名固定：anger / love / fear / respect / jealousy。仅按需累加，不预填。
 - state（可选）：一句话当前情绪/状态。
 - purpose（可选）：NPC 当前的核心动机；建议 NPC 首次成形时填写一次，后续若动机改变再覆盖。
 - archetype（可选）：人物原型/标签，例如「外柔内刚的文学少女」。一旦确立尽量保持稳定。
@@ -216,6 +224,17 @@ _SYSTEM_TEMPLATE = """# 你的身份
 （关闭已存在的目标，id 通过 prompt 中的"PC 当前目标"列表得知）
 关闭原因/结果一句话说明。
 </pc_goal>
+
+<pc_mood>
+仅在 PC 经历重大情绪事件时输出，free-form 关键词→delta 累加，clamp 0-100。
+关键词由你自定义（紧张 / 疲惫 / 兴奋 / 沮丧 / 满足 / 警觉 / 释然 / 愤怒 / …）。
+{{"tense": +20, "exhausted": +10}}
+</pc_mood>
+
+<npc_relation between="角色 A,角色 B" kind="父女|恋人|对手|师徒|盟友|仇敌|秘密|...">
+当剧情揭示两位 NPC 之间的关系时输出一次。between 用逗号分隔两个名字。
+关系一句话说明。允许多次声明，重复声明会自动去重（同一对+同一类型）。
+</npc_relation>
 
 # 开局规则
 若剧情摘要为空（首轮），输出一段 600-1000 字的开局：交代 PC 当下所处环境、感官细节、身份处境、引子事件，停在 PC 必须做决定的瞬间，等待玩家行动。

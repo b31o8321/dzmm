@@ -67,6 +67,22 @@ const affinityEntries = computed(() => {
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
 })
 
+const EMOTION_LABELS: Record<string, string> = {
+  anger: '怒',
+  love: '爱',
+  fear: '惧',
+  respect: '敬',
+  jealousy: '妒',
+}
+const EMOTION_NEGATIVE = new Set(['anger', 'fear', 'jealousy'])
+
+const emotionEntries = computed(() => {
+  if (!local.value || !local.value.emotion) return []
+  return Object.entries(local.value.emotion)
+    .filter(([, v]) => typeof v === 'number')
+    .sort((a, b) => b[1] - a[1])
+})
+
 const timelineEntries = computed(() => {
   const list = local.value?.notes ?? []
   return [...list].sort((a, b) => b.turn - a.turn)
@@ -142,6 +158,29 @@ const timelineEntries = computed(() => {
           </div>
           <div v-if="!affinityEntries.length" class="text-xs text-slate-400 italic">
             （GM 尚未为此 NPC 标注多维亲密度）
+          </div>
+        </div>
+      </section>
+
+      <section v-if="emotionEntries.length">
+        <h4 class="text-sm font-bold text-slate-600 mb-2">情绪</h4>
+        <div class="space-y-1 text-xs">
+          <div
+            v-for="[axis, val] in emotionEntries"
+            :key="axis"
+            class="flex items-center gap-2"
+          >
+            <span class="w-12 text-slate-500">
+              {{ EMOTION_LABELS[axis] || axis }}
+            </span>
+            <div class="flex-1 h-1.5 bg-slate-200 rounded overflow-hidden">
+              <div
+                class="h-full transition-all"
+                :class="EMOTION_NEGATIVE.has(axis) ? 'bg-rose-400' : 'bg-emerald-400'"
+                :style="{ width: Math.max(0, Math.min(100, val)) + '%' }"
+              ></div>
+            </div>
+            <span class="font-mono w-8 text-right">{{ val }}</span>
           </div>
         </div>
       </section>

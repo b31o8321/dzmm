@@ -95,6 +95,7 @@ const inventory = ref<string[]>([])
 const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean }[]>([])
 const dice = ref<{ skill: string; target: string; result: string }[]>([])
 const threads = ref<{ type: string; description: string; importance: number }[]>([])
+const pcMood = ref<Record<string, number>>({})
 
 const goals = ref<PCGoalItem[]>([])
 
@@ -183,6 +184,22 @@ function applyNpcUpdate(content: string) {
   }
 }
 
+function applyPcMood(content: string) {
+  try {
+    const obj = JSON.parse(content)
+    if (!obj || typeof obj !== 'object') return
+    const next = { ...pcMood.value }
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v !== 'number') continue
+      const cur = next[k] ?? 0
+      next[k] = Math.max(0, Math.min(100, cur + v))
+    }
+    pcMood.value = next
+  } catch {
+    /* ignore */
+  }
+}
+
 async function send() {
   const userAction = action.value.trim()
   if (!userAction || sending.value) return
@@ -220,6 +237,7 @@ async function sendAction(userAction: string) {
           applyStateChange(content)
         }
         else if (name === 'npc_update') applyNpcUpdate(content)
+        else if (name === 'pc_mood') applyPcMood(content)
         else if (name === 'choices') {
           const opts: string[] = []
           for (const line of content.split('\n')) {
@@ -445,6 +463,7 @@ onMounted(async () => {
     inventory.value = st.inventory
     npcs.value = st.npcs.map((n) => ({ ...n }))
     threads.value = st.threads
+    pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
 
     // Augment with pinned flag from /npcs endpoint (state endpoint doesn't include it).
     try {
@@ -503,6 +522,10 @@ onUnmounted(() => audio.stopBgm())
           <router-link :to="`/play/${sessionId}/npcs`"
                        class="text-sm text-slate-500 hover:text-slate-800">
             📒 NPC
+          </router-link>
+          <router-link :to="`/play/${sessionId}/relations`"
+                       class="text-sm text-slate-500 hover:text-slate-800">
+            🔗 关系
           </router-link>
           <router-link :to="`/play/${sessionId}/chronicle`"
                        class="text-sm text-slate-500 hover:text-slate-800">
@@ -574,6 +597,7 @@ onUnmounted(() => audio.stopBgm())
     <div class="hidden md:flex">
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
+                  :pc-mood="pcMood"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
     </div>
@@ -604,6 +628,7 @@ onUnmounted(() => audio.stopBgm())
       >×</button>
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
+                  :pc-mood="pcMood"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
     </div>
