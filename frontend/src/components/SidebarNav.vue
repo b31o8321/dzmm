@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { fetchHealth } from '@/api/client'
+import { useDebugStore } from '@/stores/debug'
+
+const debug = useDebugStore()
 
 const items = [
   { to: '/sessions', label: '跑团', icon: '🎲' },
@@ -28,6 +31,12 @@ const versionMismatch = computed(() => {
   <!-- Desktop: vertical sidebar, persistent -->
   <nav class="hidden md:flex w-48 bg-slate-800 text-slate-100 h-full p-4 flex-col gap-1 shrink-0">
     <div class="text-xl font-bold mb-6 px-2">dzmm</div>
+    <div
+      v-if="debug.enabled"
+      class="bg-red-700 text-white text-xs px-2 py-1 rounded mb-2 text-center font-bold"
+    >
+      🐛 DEBUG MODE
+    </div>
     <RouterLink
       v-for="i in items"
       :key="i.to"
@@ -38,6 +47,14 @@ const versionMismatch = computed(() => {
       <span class="mr-2">{{ i.icon }}</span>{{ i.label }}
     </RouterLink>
     <div class="mt-auto pt-4 border-t border-slate-700">
+      <RouterLink
+        v-if="debug.enabled"
+        to="/debug"
+        class="block px-3 py-2 rounded text-sm text-red-300 hover:bg-slate-700 transition"
+        active-class="bg-slate-700"
+      >
+        <span class="mr-2">🐛</span>调试
+      </RouterLink>
       <RouterLink
         to="/help"
         class="block px-3 py-2 rounded text-sm text-slate-300 hover:bg-slate-700 transition"
@@ -70,6 +87,14 @@ const versionMismatch = computed(() => {
       active-class="bg-slate-700"
     >
       <span class="mr-1">{{ i.icon }}</span>{{ i.label }}
+    </RouterLink>
+    <RouterLink
+      v-if="debug.enabled"
+      to="/debug"
+      class="px-3 py-2 rounded hover:bg-slate-700 transition shrink-0 text-sm whitespace-nowrap text-red-300"
+      active-class="bg-slate-700"
+    >
+      <span class="mr-1">🐛</span>调试
     </RouterLink>
     <RouterLink
       to="/help"

@@ -11,6 +11,34 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.1] - 2026-04-30
+
+**主题：调试模式 + e2e 修复**
+
+### 新增
+- **调试模式（Konami 风格触发）** —— 任意页面键入 `↑↑↓↓←→←→` 切换 debug 模式（toggle）；持久化到 localStorage
+- **DebugView 页（`/debug`）** —— 集中展示所有正常游玩中被隐藏 / 未揭示的数据：
+  - 完整剧本（含未来章节、未出场 NPC、ending 剧透）
+  - hidden_events（active + resolved）含 GM-only consequence
+  - 全部 NPC 字段（无视 reveal mask）—— purpose / archetype / 全 emotion / affinity
+  - plot_threads / token 累计 / 最近消息原文 / feedback
+- SidebarNav debug 开启时显示「🐛 DEBUG MODE」红色 watermark + 「🐛 调试」link
+
+### 修复
+- **e2e workflow CI 失败** —— 通过多重防御让 CI 通过：
+  - `vite.config.ts` 用 `fs.readFileSync` 替代 `import ... with { type: 'json' }`（Node < 20.10 不支持）
+  - playwright `webServer` 用 `url` 替代 `port` readiness（实际 HTTP 探测，避 IPv6/IPv4 不一致）
+  - Vite 显式 `--host 127.0.0.1` 强制 IPv4 binding（CI Ubuntu localhost 默认解析 IPv6）
+  - `addInitScript` 预设 onboarding 完成 localStorage（绕过 WelcomeView 冷启动 flake）
+  - smoke test 适配 v0.1.0 流程：4 个 dropdown 用键盘 Down + Enter 选择 + `/sessions/generate/:id` loading 页步骤
+  - `mock_backend.py` StubModelClient 智能化：检测 outliner system prompt 返回 JSON outline；GM 调用返 narrative
+  - `@playwright/test` 升级到 ^1.59.1
+
+### 不需要后端改动
+所有调试数据通过现有 API 暴露（reveal 限制只在 GM prompt 注入时生效，HTTP 响应是完整数据）。
+
+---
+
 ## [v0.1.0] - 2026-04-30
 
 **主题：剧本驱动跑团（首个 MINOR 版）**

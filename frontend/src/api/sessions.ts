@@ -147,6 +147,11 @@ export const sessionsApi = {
     api
       .post(`/sessions/${id}/feedback`, body)
       .then((r) => r.data as FeedbackItem),
+  hiddenEvents: (id: number, includeResolved = false) =>
+    api.get<HiddenEventItem[]>(`/sessions/${id}/hidden_events`, {
+      params: includeResolved ? { include_resolved: true } : {},
+    }).then((r) => r.data),
+
   listFeedback: (id: number) =>
     api.get<FeedbackItem[]>(`/sessions/${id}/feedback`).then((r) => r.data),
 }
@@ -158,4 +163,15 @@ export interface FeedbackItem {
   kind: 'bug' | 'suggestion' | 'praise' | 'other'
   content: string
   created_at: string
+}
+
+export interface HiddenEventItem {
+  id: number
+  subject: string
+  kind: string
+  severity: number
+  description: string
+  consequence: string
+  introduced_turn: number
+  status: string
 }

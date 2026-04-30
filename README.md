@@ -148,6 +148,7 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 - **v0.13（已发布）** —— **SSE 流式回归修复 + 铁律加狠**：修 v0.10 引入的 SSE 渲染 bug（displayParts）、plot 去重 normalize+0.6+多 type、铁律 22/23 改写为字面要求 + 禁止句式黑名单、few_shot 加正/反示范、后端版本对比警告。
 - **v0.0.14（已发布，启用三位数版本号）** —— **玩家反馈收集**：GameView 加 💬 反馈按钮，反馈绑定 session（turn / message_id / 时间戳），含入存档导出 JSON/MD，方便开发者结合上下文优化。
 - **v0.1.0（已发布，首个 MINOR 版）** —— **剧本驱动跑团**：开档调 LLM 生成结构化大纲（章节/主要 NPC/关键事件/完结）、5 套 genre 模板 + 自定义、GM 按主线推进 + 支线 PC 触发、4 新 GM 标签 + 铁律 24、剧本进度页 + 完结续写。
+- **v0.1.1（已发布）** —— **调试模式 + e2e 修复**：Konami 序列 `↑↑↓↓←→←→` 触发 debug 模式 + DebugView 集中展示所有隐藏数据；e2e workflow CI 修复（Node JSON import 兼容、IPv4 binding、onboarding 预设、smoke 适配 v0.1.0）。
 - **v1.0** —— **正式发布**：故事书导出（Markdown/EPUB）、世界 JSON 导入导出、模板库扩到 8 套、AI 辅助世界生成器、代码签名、macOS Universal、Linux 包。
 - **v1.1+** —— 多人合作、TTS / STT 语音、Discord bot、iOS/Android 客户端等（玩家驱动）。
 

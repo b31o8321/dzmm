@@ -6,19 +6,31 @@ test.beforeAll(async () => {
 })
 
 test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async ({ page }) => {
-  // 1. Open the app. Router will redirect first-time visitors to /welcome.
+  // Pre-set onboarding-completed in localStorage so the router beforeEach
+  // doesn't bounce us to /welcome. Avoids brittle dependence on the welcome
+  // page rendering timely in CI's cold cache.
+  await page.addInitScript(() => {
+    // Pinia persisted-state lives under various keys; set both the raw flag
+    // and the structured pinia state. Done before any app code runs.
+    try {
+      const appState = JSON.stringify({ tourCompleted: true, tourStep: 99 })
+      localStorage.setItem('dzmm.app', appState)
+      localStorage.setItem('dzmm.tourCompleted', '1')
+    } catch { /* ignore */ }
+  })
+
+  // 1. Open the app.
   await page.goto('/')
   await page.waitForLoadState('networkidle')
 
-  // 2. Skip the onboarding tour.
+  // 2. Belt-and-braces: if welcome still shows (e.g. store key changed),
+  //    click the skip button. Generous 10s in case Vite is warming up.
   const skipBtn = page.getByRole('button', { name: /直接进主界面/ })
-  if (await skipBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+  if (await skipBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
     await skipBtn.click()
   }
 
-  // 3. Browser mode skips the BootGate "choose mode" screen, but if it ever
-  //    appears (e.g. running under Tauri webview in the future) click the
-  //    local-only option.
+  // 3. BootGate's choose-mode screen appears only under Tauri; harmless skip.
   const localBtn = page.getByRole('button', { name: /仅本机使用/ })
   if (await localBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
     await localBtn.click()

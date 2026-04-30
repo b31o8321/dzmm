@@ -33,6 +33,7 @@ const router = createRouter({
         { path: 'play/:id/screenplay', name: 'screenplay',
           component: () => import('@/views/ScreenplayView.vue'), props: true },
         { path: 'help', name: 'help', component: () => import('@/views/HelpView.vue') },
+        { path: 'debug', name: 'debug', component: () => import('@/views/DebugView.vue') },
       ],
     },
   ],
