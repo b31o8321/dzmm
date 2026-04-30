@@ -13,6 +13,7 @@ import MarkdownView from '@/components/MarkdownView.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
 import LevelUpDialog from '@/components/LevelUpDialog.vue'
 import NpcDetailDialog from '@/components/NpcDetailDialog.vue'
+import CharacterCardDrawer from '@/components/CharacterCardDrawer.vue'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 
@@ -125,6 +126,7 @@ async function updateGoal(goalId: number, status: 'active' | 'completed' | 'aban
 
 const npcDialogOpen = ref(false)
 const selectedNpc = ref<Npc | null>(null)
+const characterCardOpen = ref(false)
 
 async function openNpcDetail(name: string) {
   try {
@@ -621,6 +623,11 @@ onUnmounted(() => audio.stopBgm())
           </div>
         </div>
         <div class="flex items-center gap-4">
+          <button
+            type="button"
+            class="text-sm text-slate-500 hover:text-slate-800"
+            @click="characterCardOpen = true"
+          >📜 角色卡</button>
           <router-link :to="`/play/${sessionId}/journal`"
                        class="text-sm text-slate-500 hover:text-slate-800">
             📖 任务日志
@@ -768,6 +775,13 @@ onUnmounted(() => audio.stopBgm())
       :session-id="sessionId"
       :npc="selectedNpc"
       @updated="onNpcUpdated"
+    />
+
+    <CharacterCardDrawer
+      v-model="characterCardOpen"
+      :character="character"
+      :stats="stats"
+      :inventory="inventory"
     />
 
     <MessageEventsDialog
