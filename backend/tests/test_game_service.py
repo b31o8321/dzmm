@@ -392,9 +392,16 @@ async def test_key_facts_skips_resolved_hidden_events(seeded):
         await s.commit()
 
     sys_msg = captured.last_messages[0].content
-    assert "暗中状态" not in sys_msg
-    # The resolution text shouldn't leak as an active fact either.
-    assert "渗血" not in sys_msg
+    # The key_facts injection lists each active event as a bullet:
+    # "- [小菱·injury·t+N] ..."
+    # That bullet must NOT appear when only resolved events exist. The static
+    # prompt template has section headers and examples that mention generic
+    # "渗血" / "暗中状态(GM only)" — those don't indicate an injected event.
+    # The unique signature of an actually-injected hidden_event is the bullet
+    # "[<subject>·<kind>·t+<N>]" pattern.
+    assert "[小菱·injury·" not in sys_msg
+    # The specific consequence text from this event also shouldn't leak.
+    assert "包扎止血" not in sys_msg
 
 
 async def test_message_events_json_persisted(seeded):
