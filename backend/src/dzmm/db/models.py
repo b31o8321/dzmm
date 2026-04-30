@@ -173,6 +173,42 @@ class PCGoal(Base):
     completion_note: Mapped[str] = mapped_column(Text, default="")
 
 
+class Screenplay(Base):
+    """v0.1.0 — Per-session screenplay (outline) generated at session creation.
+    GM follows main events strictly; optional events are PC-driven."""
+    __tablename__ = "screenplays"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    version: Mapped[int] = mapped_column(default=1)
+    genre: Mapped[str] = mapped_column(String(60), default="")
+    custom_prompt: Mapped[str] = mapped_column(Text, default="")
+    outline_md: Mapped[str] = mapped_column(Text, default="")
+    chapters_json: Mapped[str] = mapped_column(Text, default="[]")
+    main_characters_json: Mapped[str] = mapped_column(Text, default="[]")
+    ending_md: Mapped[str] = mapped_column(Text, default="")
+    opening_hook: Mapped[str] = mapped_column(Text, default="")
+    current_chapter: Mapped[int] = mapped_column(default=1)
+    completed_events_json: Mapped[str] = mapped_column(Text, default="[]")
+    parent_screenplay_id: Mapped[int | None] = mapped_column(ForeignKey("screenplays.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+    concluded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class ScreenplayRevision(Base):
+    """Append-only log of major plot_turn-triggered rewrites."""
+    __tablename__ = "screenplay_revisions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    screenplay_id: Mapped[int] = mapped_column(ForeignKey("screenplays.id"))
+    revision_num: Mapped[int] = mapped_column(default=1)
+    trigger_turn: Mapped[int] = mapped_column(default=0)
+    trigger_description: Mapped[str] = mapped_column(Text, default="")
+    before_chapters_json: Mapped[str] = mapped_column(Text, default="[]")
+    after_chapters_json: Mapped[str] = mapped_column(Text, default="[]")
+    diff_summary: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+
+
 class Feedback(Base):
     """v0.13.1 — In-app player feedback tied to a session. Captures the player's
     written complaint or suggestion plus the surrounding context (turn, optional
