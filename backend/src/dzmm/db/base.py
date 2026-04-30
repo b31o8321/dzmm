@@ -36,6 +36,13 @@ _V07_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("archetype", "archetype VARCHAR(120) NOT NULL DEFAULT ''"),
         ("affinity_json", "affinity_json TEXT NOT NULL DEFAULT '{}'"),
         ("pinned", "pinned BOOLEAN NOT NULL DEFAULT 0"),
+        ("emotion_json", "emotion_json TEXT NOT NULL DEFAULT '{}'"),
+    ],
+}
+
+_V09_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "sessions": [
+        ("pc_mood_json", "pc_mood_json TEXT NOT NULL DEFAULT '{}'"),
     ],
 }
 
@@ -58,4 +65,6 @@ async def init_db(engine: AsyncEngine) -> None:
         # databases originally created at v0.6 or earlier. New columns
         # have safe defaults so existing data is preserved.
         for table, cols in _V07_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V09_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

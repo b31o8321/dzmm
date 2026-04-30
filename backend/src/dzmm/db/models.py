@@ -53,6 +53,7 @@ class Session(Base):
     turn_count: Mapped[int] = mapped_column(default=0)
     schema_version: Mapped[int] = mapped_column(default=1)
     recall_pending_json: Mapped[str] = mapped_column(Text, default="[]")
+    pc_mood_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
     last_played: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
@@ -101,6 +102,7 @@ class NPC(Base):
     archetype: Mapped[str] = mapped_column(String(120), default="")
     affinity_json: Mapped[str] = mapped_column(Text, default="{}")
     pinned: Mapped[bool] = mapped_column(default=False)
+    emotion_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
 
 
 class PlotThread(Base):
@@ -138,6 +140,19 @@ class Era(Base):
     name: Mapped[str] = mapped_column(String(120))
     started_turn: Mapped[int] = mapped_column(default=0)
     description: Mapped[str] = mapped_column(Text, default="")
+
+
+class NpcRelation(Base):
+    """关系记录两个 NPC 之间的关系。By name not FK to avoid cascade complexity
+    when GM mentions an NPC before formally creating them via <npc_update>."""
+    __tablename__ = "npc_relations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    npc_a: Mapped[str] = mapped_column(String(120))
+    npc_b: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(60))  # 父女/恋人/对手/同事/师徒/盟友/仇敌/秘密/...
+    description: Mapped[str] = mapped_column(Text, default="")
+    introduced_turn: Mapped[int] = mapped_column(default=0)
 
 
 class PCGoal(Base):
