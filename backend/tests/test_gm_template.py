@@ -177,6 +177,64 @@ def test_pc_goal_documented():
     assert "PC 目标" in sys or "玩家明确表达意图" in sys
 
 
+def test_pc_mood_documented():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "<pc_mood>" in sys
+    assert "PC 心情" in sys
+
+
+def test_npc_relation_documented():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "<npc_relation" in sys
+    assert "NPC 关系" in sys
+
+
+def test_npc_emotion_field_documented():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    # The npc_update emotion field is documented with the 5 axes.
+    assert "anger" in sys
+    assert "love" in sys
+    assert "fear" in sys
+    assert "respect" in sys
+    assert "jealousy" in sys
+
+
+def test_emotion_mood_relation_behavior_rules_present():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    # Rule 11 (情绪追踪)
+    assert "NPC 情绪追踪" in sys
+    assert "≥70" in sys
+    # Rule 12 (PC 心情)
+    assert "重大情绪事件" in sys
+    # Rule 13 (NPC 关系)
+    assert "NPC 关系" in sys
+    assert "世界观持续性" in sys
+
+
 def test_few_shot_example_present():
     msgs = build_gm_messages(
         world_md="x", character_md="y", live_state={},

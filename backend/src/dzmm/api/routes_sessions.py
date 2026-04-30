@@ -13,6 +13,7 @@ from dzmm.db.models import (
     Message as MessageRow,
     ModelConfig,
     NPC,
+    NpcRelation,
     PCGoal,
     PlotThread,
     Session as GameSession,
@@ -135,9 +136,17 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
         )
     ).scalars().all()
 
+    try:
+        pc_mood = json.loads(sess.pc_mood_json or "{}")
+        if not isinstance(pc_mood, dict):
+            pc_mood = {}
+    except (TypeError, ValueError):
+        pc_mood = {}
+
     return {
         "stats": stats,
         "inventory": inventory,
+        "pc_mood": pc_mood,
         "npcs": [
             {"name": n.name, "favor": n.favor, "state": n.state}
             for n in npc_rows
@@ -248,6 +257,12 @@ def _npc_to_dict(n: NPC) -> dict:
             notes = []
     except (TypeError, ValueError):
         notes = []
+    try:
+        emotion = json.loads(n.emotion_json or "{}")
+        if not isinstance(emotion, dict):
+            emotion = {}
+    except (TypeError, ValueError):
+        emotion = {}
     return {
         "id": n.id,
         "name": n.name,
@@ -258,6 +273,7 @@ def _npc_to_dict(n: NPC) -> dict:
         "purpose": n.purpose,
         "archetype": n.archetype,
         "affinity": affinity,
+        "emotion": emotion,
         "pinned": bool(n.pinned),
         "notes": notes,
     }
@@ -278,6 +294,32 @@ async def get_npcs(session_id: int, s: AsyncSession = Depends(get_session_dep)):
         )
     ).scalars().all()
     return [_npc_to_dict(n) for n in rows]
+
+
+@router.get("/{session_id}/relations")
+async def get_relations(session_id: int, s: AsyncSession = Depends(get_session_dep)):
+    """Return all NPC↔NPC relations registered via <npc_relation> for this session."""
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (
+        await s.execute(
+            select(NpcRelation)
+            .where(NpcRelation.session_id == session_id)
+            .order_by(NpcRelation.introduced_turn.desc(), NpcRelation.id.desc())
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "npc_a": r.npc_a,
+            "npc_b": r.npc_b,
+            "kind": r.kind,
+            "description": r.description,
+            "introduced_turn": r.introduced_turn,
+        }
+        for r in rows
+    ]
 
 
 class PinUpdate(BaseModel):

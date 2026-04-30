@@ -12,6 +12,7 @@ from dzmm.db.models import (
     Era,
     Message as MessageRow,
     NPC,
+    NpcRelation,
     PCGoal,
     PlotThread,
     Session as GameSession,
@@ -342,4 +343,34 @@ async def _build_key_facts(
         for g in active_goals:
             prio_mark = {"high": "★★★", "normal": "★★", "low": "★"}.get(g.priority, "★★")
             parts.append(f"- [id={g.id}] {prio_mark} {g.description}")
+
+    # PC mood — surfaced so GM tunes language to current emotional state.
+    if sess is not None:
+        try:
+            moods = json.loads(sess.pc_mood_json or "{}")
+        except (TypeError, ValueError):
+            moods = {}
+        if isinstance(moods, dict) and moods:
+            sorted_moods = sorted(
+                ((str(k), int(v)) for k, v in moods.items() if isinstance(v, (int, float))),
+                key=lambda x: -x[1],
+            )[:5]
+            if sorted_moods:
+                parts.append("\nPC 当前心情：")
+                parts.append("- " + " / ".join(f"{k}({v})" for k, v in sorted_moods))
+
+    # Active NPC↔NPC relations — keep recent 10 so worldbuilding stays consistent.
+    relations = (
+        await session.execute(
+            select(NpcRelation)
+            .where(NpcRelation.session_id == session_id)
+            .order_by(NpcRelation.introduced_turn.desc(), NpcRelation.id.desc())
+            .limit(10)
+        )
+    ).scalars().all()
+    if relations:
+        parts.append("\nNPC 关系：")
+        for r in relations:
+            parts.append(f"- {r.npc_a} ↔ {r.npc_b} [{r.kind}]")
+
     return "\n".join(parts)
