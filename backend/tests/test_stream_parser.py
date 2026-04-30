@@ -290,3 +290,53 @@ def test_scene_shift_tag():
     assert len(ss) == 1
     assert ss[0].attrs == {"to": "后院"}
     assert ss[0].content == "天色已晚"
+
+
+# ---------------------------------------------------------------------------
+# v0.1.0 task B: screenplay-driven tags (chapter_advance / event_complete /
+# plot_turn / ending). Self-closing variants for chapter_advance + ending,
+# attribute-bearing for event_complete + plot_turn.
+# ---------------------------------------------------------------------------
+
+
+def test_chapter_advance_tag_known():
+    """Self-closing <chapter_advance/> emits a TagComplete with empty content."""
+    p = StreamingTagParser()
+    out = collect(p, ["<chapter_advance/>"])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert len(tags) == 1
+    assert tags[0].name == "chapter_advance"
+    assert tags[0].attrs == {}
+    assert tags[0].content == ""
+
+
+def test_event_complete_tag_with_attrs():
+    """<event_complete chapter=N event=M type=main|optional/> carries indices."""
+    p = StreamingTagParser()
+    out = collect(p, ['<event_complete chapter="1" event="0" type="main"/>'])
+    tags = [e for e in out if isinstance(e, TagComplete) and e.name == "event_complete"]
+    assert len(tags) == 1
+    assert tags[0].attrs == {"chapter": "1", "event": "0", "type": "main"}
+    assert tags[0].content == ""
+
+
+def test_plot_turn_tag_with_impact():
+    """<plot_turn impact=major|minor description=...> records PC pivotal moments."""
+    p = StreamingTagParser()
+    out = collect(p, [
+        '<plot_turn impact="major" description="PC 杀了线人陈子轩"></plot_turn>'
+    ])
+    tags = [e for e in out if isinstance(e, TagComplete) and e.name == "plot_turn"]
+    assert len(tags) == 1
+    assert tags[0].attrs.get("impact") == "major"
+    assert "陈子轩" in tags[0].attrs.get("description", "")
+
+
+def test_ending_tag_known():
+    """Self-closing <ending/> signals story conclusion."""
+    p = StreamingTagParser()
+    out = collect(p, ["<ending/>"])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert len(tags) == 1
+    assert tags[0].name == "ending"
+    assert tags[0].content == ""

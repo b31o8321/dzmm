@@ -20,6 +20,11 @@ KNOWN_TAGS: set[str] = {
     "say",
     "pc_action",
     "scene_shift",
+    # v0.1.0 — screenplay-driven tags
+    "chapter_advance",
+    "event_complete",
+    "plot_turn",
+    "ending",
 }
 STREAMING_TAGS: set[str] = {"narrative"}
 

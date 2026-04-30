@@ -608,3 +608,45 @@ def test_few_shot_includes_anti_pattern():
     )[0].content
     assert "错误示范" in sys_text or "错误原因" in sys_text
     assert "拖延" in sys_text or "循环" in sys_text
+
+
+# ---------------------------------------------------------------------------
+# v0.1.0 task B — screenplay-driven tag docs + iron rule 24
+# ---------------------------------------------------------------------------
+
+
+def test_gm_prompt_documents_screenplay_tags():
+    """All four screenplay-driven tags must appear in the tag dictionary so
+    the GM has a reference for syntax + when to emit each one."""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "<chapter_advance" in sys_text
+    assert "<event_complete" in sys_text
+    assert "<plot_turn" in sys_text
+    assert "<ending" in sys_text
+    # impact attr discriminator surfaces both modes
+    assert "major" in sys_text and "minor" in sys_text
+
+
+def test_gm_prompt_rule_24_screenplay_obedience():
+    """Iron rule 24 must explicitly tell the GM to follow '## 当前剧本进度'
+    and emit the right tags as main events get played out."""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    # Rule 24 mentions screenplay + advance behavior
+    assert "24." in sys_text
+    assert "剧本进度" in sys_text
+    assert "主线" in sys_text and "推进" in sys_text
+    # Concrete tag references in the rule body — these are the GM's emit cues
+    assert "event_complete" in sys_text
+    assert "chapter_advance" in sys_text
+    assert "ending" in sys_text
+    assert "plot_turn" in sys_text

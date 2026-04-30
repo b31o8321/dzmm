@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Era, HiddenEvent, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Session as GameSession, World,
+    Character, CharState, Era, HiddenEvent, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Screenplay, ScreenplayRevision, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply import apply_tags
@@ -1163,3 +1163,172 @@ async def test_plot_event_dedup_punctuation_width_normalized(session_with_state)
         select(PlotThread).where(PlotThread.session_id == sid)
     )).scalars().all()
     assert len(threads) == 1
+
+
+# ---------------------------------------------------------------------------
+# v0.1.0 task B — screenplay-driven tag handlers
+# ---------------------------------------------------------------------------
+
+
+async def _seed_screenplay(
+    s: AsyncSession,
+    sid: int,
+    chapters: list[dict] | None = None,
+    current_chapter: int = 1,
+    completed: list[dict] | None = None,
+) -> Screenplay:
+    """Helper: seed an active Screenplay for the given session."""
+    sp = Screenplay(
+        session_id=sid,
+        version=1,
+        genre="悬疑",
+        custom_prompt="",
+        outline_md="测试大纲",
+        chapters_json=json.dumps(chapters or [
+            {"title": "第一章：序", "main_events": ["e0", "e1"], "optional_events": ["o0"]},
+            {"title": "第二章：探", "main_events": ["e2"], "optional_events": []},
+            {"title": "第三章：终", "main_events": ["e3"], "optional_events": []},
+        ], ensure_ascii=False),
+        main_characters_json="[]",
+        ending_md="真相揭晓",
+        opening_hook="",
+        current_chapter=current_chapter,
+        completed_events_json=json.dumps(completed or [], ensure_ascii=False),
+        status="active",
+    )
+    s.add(sp)
+    await s.flush()
+    return sp
+
+
+async def test_chapter_advance_increments_current_chapter(session_with_state):
+    """<chapter_advance/> → current_chapter += 1 (3 chapters seeded → 1→2)."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid, current_chapter=1)
+    await s.commit()
+
+    tag = TagComplete(name="chapter_advance", attrs={}, content="")
+    await apply_tags(s, sid, current_turn=5, tags=[tag])
+    await s.commit()
+
+    sp_reloaded = await s.get(Screenplay, sp.id)
+    assert sp_reloaded.current_chapter == 2
+
+
+async def test_chapter_advance_at_last_chapter_no_op(session_with_state):
+    """At final chapter the advance must clamp — never go past total chapters.
+    This protects against double-emit (GM emitting <chapter_advance/> twice
+    in the final chapter would otherwise produce out-of-range indices in
+    downstream readers like _build_key_facts)."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid, current_chapter=3)  # last of 3
+    await s.commit()
+
+    tag = TagComplete(name="chapter_advance", attrs={}, content="")
+    await apply_tags(s, sid, current_turn=10, tags=[tag])
+    await s.commit()
+
+    sp_reloaded = await s.get(Screenplay, sp.id)
+    assert sp_reloaded.current_chapter == 3  # still 3, not 4
+
+
+async def test_event_complete_marks_event_done(session_with_state):
+    """<event_complete chapter=1 event=0 type=main/> → completed_events_json
+    grows by one record with int-typed chapter / event_idx."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid)
+    await s.commit()
+
+    tag = TagComplete(
+        name="event_complete",
+        attrs={"chapter": "1", "event": "0", "type": "main"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[tag])
+    await s.commit()
+
+    sp_reloaded = await s.get(Screenplay, sp.id)
+    completed = json.loads(sp_reloaded.completed_events_json)
+    assert completed == [{"chapter": 1, "event_idx": 0, "type": "main"}]
+
+
+async def test_event_complete_idempotent(session_with_state):
+    """Re-emitting the same chapter+event+type record must not create duplicates."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid)
+    await s.commit()
+
+    tag = TagComplete(
+        name="event_complete",
+        attrs={"chapter": "1", "event": "0", "type": "main"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[tag])
+    await apply_tags(s, sid, current_turn=3, tags=[tag])
+    await s.commit()
+
+    sp_reloaded = await s.get(Screenplay, sp.id)
+    completed = json.loads(sp_reloaded.completed_events_json)
+    assert len(completed) == 1
+
+
+async def test_plot_turn_major_creates_revision(session_with_state):
+    """<plot_turn impact=major description=...> → ScreenplayRevision row added,
+    capturing trigger_turn / description / before snapshot. The actual
+    chapter rewrite is deferred to a later async outliner pass."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid)
+    await s.commit()
+
+    tag = TagComplete(
+        name="plot_turn",
+        attrs={"impact": "major", "description": "PC 杀了关键 NPC 陈子轩"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=7, tags=[tag])
+    await s.commit()
+
+    revs = (await s.execute(
+        select(ScreenplayRevision).where(ScreenplayRevision.screenplay_id == sp.id)
+    )).scalars().all()
+    assert len(revs) == 1
+    assert revs[0].trigger_turn == 7
+    assert "陈子轩" in revs[0].trigger_description
+    # before snapshot must equal current chapters_json (outliner fills after_*)
+    assert revs[0].before_chapters_json == sp.chapters_json
+
+
+async def test_plot_turn_minor_no_revision(session_with_state):
+    """impact=minor is observational and must NOT create a revision row
+    (only major triggers a rewrite chain)."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid)
+    await s.commit()
+
+    tag = TagComplete(
+        name="plot_turn",
+        attrs={"impact": "minor", "description": "PC 选了茶不是酒"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=4, tags=[tag])
+    await s.commit()
+
+    revs = (await s.execute(
+        select(ScreenplayRevision).where(ScreenplayRevision.screenplay_id == sp.id)
+    )).scalars().all()
+    assert revs == []
+
+
+async def test_ending_marks_screenplay_concluded(session_with_state):
+    """<ending/> → status='concluded' + concluded_at populated."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid)
+    await s.commit()
+
+    tag = TagComplete(name="ending", attrs={}, content="")
+    await apply_tags(s, sid, current_turn=12, tags=[tag])
+    await s.commit()
+
+    sp_reloaded = await s.get(Screenplay, sp.id)
+    assert sp_reloaded.status == "concluded"
+    assert sp_reloaded.concluded_at is not None
