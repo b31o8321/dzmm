@@ -628,6 +628,211 @@ async def test_npcs_endpoint_returns_emotion(http, app):
     assert items[0]["emotion"] == {"love": 50, "fear": 10}
 
 
+async def test_messages_endpoint_includes_events_field(http, app):
+    """v0.10: /messages must surface Message.events_json (parsed) per row."""
+    sid = await _make_session(http)
+    from dzmm.db.models import Message as MessageRow
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(MessageRow(
+            session_id=sid, role="assistant", content="你掷出一个6。", turn=1,
+            events_json='[{"type":"dice","payload":{"check":"敏捷","result":6}}]',
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/messages")
+    assert r.status_code == 200
+    msgs = r.json()
+    assert len(msgs) == 1
+    assert "events" in msgs[0]
+    assert msgs[0]["events"] == [
+        {"type": "dice", "payload": {"check": "敏捷", "result": 6}}
+    ]
+
+
+async def test_messages_empty_events_returns_empty_list(http, app):
+    """events_json='' / '[]' / null all collapse to []."""
+    sid = await _make_session(http)
+    from dzmm.db.models import Message as MessageRow
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(MessageRow(session_id=sid, role="user", content="aa", turn=1,
+                         events_json=""))
+        s.add(MessageRow(session_id=sid, role="assistant", content="bb", turn=1,
+                         events_json="[]"))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/messages")
+    assert r.status_code == 200
+    msgs = r.json()
+    assert len(msgs) == 2
+    for m in msgs:
+        assert m["events"] == []
+
+
+async def test_hidden_events_endpoint_active_only(http, app):
+    sid = await _make_session(http)
+    from dzmm.db.models import HiddenEvent
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(HiddenEvent(
+            session_id=sid, subject="小菱", kind="injury", severity=2,
+            description="左肩擦伤", consequence="未处理则发炎",
+            introduced_turn=3, status="active",
+        ))
+        s.add(HiddenEvent(
+            session_id=sid, subject="主角", kind="poison", severity=3,
+            description="慢性毒", consequence="2回合后发作",
+            introduced_turn=4, status="active",
+        ))
+        s.add(HiddenEvent(
+            session_id=sid, subject="商队", kind="deadline", severity=1,
+            description="补给三日", consequence="超期则饿肚",
+            introduced_turn=2, status="resolved",
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/hidden_events")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 2
+    assert all(h["status"] == "active" for h in items)
+    # ordered by introduced_turn asc
+    assert items[0]["introduced_turn"] == 3
+    assert items[1]["introduced_turn"] == 4
+
+
+async def test_hidden_events_endpoint_include_resolved(http, app):
+    sid = await _make_session(http)
+    from dzmm.db.models import HiddenEvent
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(HiddenEvent(
+            session_id=sid, kind="injury", description="a", introduced_turn=1,
+            status="active",
+        ))
+        s.add(HiddenEvent(
+            session_id=sid, kind="injury", description="b", introduced_turn=2,
+            status="active",
+        ))
+        s.add(HiddenEvent(
+            session_id=sid, kind="injury", description="c", introduced_turn=3,
+            status="resolved",
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/hidden_events?include_resolved=true")
+    assert r.status_code == 200
+    assert len(r.json()) == 3
+
+
+async def test_export_default_format_is_json(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/export")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json")
+    body = r.json()
+    assert body["version"] == "0.10"
+
+
+async def test_export_json_full_structure(http, app):
+    """JSON export must contain all top-level keys from the spec."""
+    sid = await _make_session(http)
+    from dzmm.db.models import (
+        HiddenEvent, Message as MessageRow, NPC, NpcRelation,
+        PCGoal, PlotThread, Era, Timeline,
+    )
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(MessageRow(session_id=sid, role="user", content="探索", turn=1,
+                         events_json='[]'))
+        s.add(MessageRow(
+            session_id=sid, role="assistant", content="GM 回复", turn=1,
+            events_json='[{"type":"dice","payload":{"check":"察觉"}}]',
+        ))
+        s.add(NPC(session_id=sid, name="阿雪", description="商人",
+                  favor=2, last_seen_turn=1))
+        s.add(NpcRelation(session_id=sid, npc_a="阿雪", npc_b="老李",
+                          kind="师徒", introduced_turn=1))
+        s.add(PlotThread(session_id=sid, type="hook", description="谜雾",
+                         importance=3, status="active"))
+        s.add(PCGoal(session_id=sid, description="找到出路", priority="high",
+                     status="active", introduced_turn=1))
+        s.add(Era(session_id=sid, name="序章", started_turn=1,
+                  description="新生活"))
+        s.add(Timeline(session_id=sid, turn=1, event_text="出发", importance=2))
+        s.add(HiddenEvent(session_id=sid, kind="injury", subject="主角",
+                          severity=2, description="脚扭伤",
+                          introduced_turn=1, status="active"))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/export?format=json")
+    assert r.status_code == 200
+    body = r.json()
+    expected_keys = {
+        "version", "exported_at", "session", "world", "character",
+        "messages", "story_summary", "char_state", "npcs", "npc_relations",
+        "plot_threads", "pc_goals", "eras", "timeline", "hidden_events",
+    }
+    assert expected_keys.issubset(set(body.keys()))
+    assert body["session"]["id"] == sid
+    assert body["world"] is not None
+    assert body["character"] is not None
+    assert len(body["messages"]) == 2
+    # The assistant message must carry parsed events (not raw json string).
+    assistant_msg = next(m for m in body["messages"] if m["role"] == "assistant")
+    assert assistant_msg["events"] == [
+        {"type": "dice", "payload": {"check": "察觉"}}
+    ]
+    assert len(body["npcs"]) == 1
+    assert len(body["npc_relations"]) == 1
+    assert len(body["plot_threads"]) == 1
+    assert len(body["pc_goals"]) == 1
+    assert len(body["eras"]) == 1
+    assert len(body["timeline"]) == 1
+    assert len(body["hidden_events"]) == 1
+
+
+async def test_export_md_human_readable(http, app):
+    sid = await _make_session(http)
+    from dzmm.db.models import Message as MessageRow, NPC
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(MessageRow(session_id=sid, role="user", content="去酒馆", turn=1))
+        s.add(MessageRow(session_id=sid, role="assistant",
+                         content="你推开木门……", turn=1,
+                         events_json='[{"type":"dice","payload":{"r":3}}]'))
+        s.add(NPC(session_id=sid, name="酒保", favor=1, last_seen_turn=1,
+                  description="独眼"))
+        await s.commit()
+
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    r = await http.get(f"/sessions/{sid}/export?format=md")
+    assert r.status_code == 200
+    assert "markdown" in r.headers["content-type"]
+    cd = r.headers.get("content-disposition", "")
+    assert "attachment" in cd
+    assert ".md" in cd
+
+    text = r.text
+    assert text.startswith(f"# {sess['name']}")
+    assert "## 跑团记录" in text
+    assert "回合 1" in text
+    assert "去酒馆" in text
+    assert "推开木门" in text
+    # Events line should also appear since the assistant message had one.
+    assert "事件：" in text
+    # NPC section
+    assert "## 主要 NPC" in text
+    assert "酒保" in text
+
+
+async def test_export_invalid_format_rejected(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/export?format=pdf")
+    assert r.status_code == 400
+
+
 async def test_timeline_returns_seeded_rows(http, app):
     """Insert Timeline row directly via session_maker, verify endpoint reflects it."""
     sid = await _make_session(http)

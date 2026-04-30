@@ -60,3 +60,24 @@ class SessionOut(SessionIn):
 
 class TurnRequest(BaseModel):
     action: str
+
+
+class MessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    turn: int
+    tokens_in: int
+    tokens_out: int
+    events: list[dict] = []
+
+
+class HiddenEventOut(BaseModel):
+    id: int
+    subject: str
+    kind: str
+    severity: int
+    description: str
+    consequence: str
+    introduced_turn: int
+    status: str
