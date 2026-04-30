@@ -2,11 +2,15 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'node:path'
+import pkg from './package.json' with { type: 'json' }
 
 export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   server: {
     port: 5173,

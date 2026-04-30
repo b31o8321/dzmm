@@ -22,6 +22,7 @@ const sessionId = Number(props.id)
 const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
 const audio = useAudio()
+const version = __APP_VERSION__
 
 interface Turn {
   action: string
@@ -647,6 +648,7 @@ onUnmounted(() => audio.stopBgm())
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
           </router-link>
+          <span class="text-xs text-slate-400 ml-2">v{{ version }}</span>
         </div>
       </header>
 

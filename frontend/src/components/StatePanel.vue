@@ -15,6 +15,28 @@ const emit = defineEmits<{
   (e: 'select-npc', name: string): void
   (e: 'goal-status', goalId: number, status: 'active' | 'completed' | 'abandoned'): void
 }>()
+
+const STAT_TOOLTIPS: Record<string, string> = {
+  hp: '生命值。归 0 → 倒地或死亡。低于 30% 时 GM 会描写虚弱状态。',
+  HP: '生命值。归 0 → 倒地或死亡。低于 30% 时 GM 会描写虚弱状态。',
+  sanity: '理智值。受恐怖、超自然、心理压力影响。低于 5 → 可能出现幻觉；归 0 → 短暂崩溃。Cthulhu 系跑团常见机制。',
+  san: '理智值。受恐怖、超自然、心理压力影响。低于 5 → 可能出现幻觉；归 0 → 短暂崩溃。',
+  mp: '法力值 / 内力。释放法术或特殊技能时消耗。',
+  MP: '法力值 / 内力。释放法术或特殊技能时消耗。',
+  力量: '决定攻击伤害、举重、推门、扛人等物理强度判定。',
+  敏捷: '决定闪避、潜行、精细操作、轻功 / 跃越判定。',
+  体质: '决定耐力、抗毒、抗疾病、长途奔波耐受度。',
+  智力: '决定知识、推理、解谜、识别符文 / 装置判定。',
+  感知: '决定洞察、察觉、识破谎言、追踪痕迹判定。',
+  魅力: '决定说服、谈判、表演、影响 NPC 态度判定。',
+  幸运: '决定意外事件、捡到东西、关键关头的好运判定。',
+  耐力: '决定长跑、连续战斗、抵抗疲劳的能力。',
+  意志: '决定抗心控、抗恐惧、抵御精神攻击的能力。',
+}
+
+function tooltipFor(key: string): string {
+  return STAT_TOOLTIPS[key] || ''
+}
 </script>
 
 <template>
@@ -22,10 +44,21 @@ const emit = defineEmits<{
     <section>
       <h3 class="font-bold text-slate-700 mb-2">角色状态</h3>
       <div class="space-y-1 text-sm">
-        <div v-for="(v, k) in stats" :key="k" class="flex justify-between">
-          <span class="text-slate-500">{{ k }}</span>
-          <span class="font-mono">{{ v }}</span>
-        </div>
+        <el-tooltip
+          v-for="(v, k) in stats"
+          :key="k"
+          :content="tooltipFor(String(k))"
+          :disabled="!tooltipFor(String(k))"
+          placement="left"
+        >
+          <div
+            class="flex justify-between"
+            :class="tooltipFor(String(k)) ? 'cursor-help' : ''"
+          >
+            <span class="text-slate-500">{{ k }}</span>
+            <span class="font-mono">{{ v }}</span>
+          </div>
+        </el-tooltip>
         <div v-if="!Object.keys(stats).length" class="text-slate-400 italic">尚未初始化</div>
       </div>
     </section>
