@@ -14,6 +14,7 @@ from dzmm.api.schemas import SessionIn, SessionOut, TurnRequest
 from dzmm.db.models import (
     Character,
     CharState,
+    Feedback,
     HiddenEvent,
     Message as MessageRow,
     ModelConfig,
@@ -153,6 +154,87 @@ async def get_hidden_events(
     ]
 
 
+_FEEDBACK_KINDS = {"bug", "suggestion", "praise", "other"}
+
+
+@router.post("/{session_id}/feedback")
+async def post_feedback(
+    session_id: int,
+    payload: dict,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    """Player-submitted feedback bound to a session. The frontend sends:
+        { content: str, kind?: "bug"|"suggestion"|"praise"|"other",
+          message_id?: int }
+    Turn is snapshotted from session.turn_count so analysis later knows the
+    exact moment in the playthrough that prompted the complaint."""
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+
+    content = (payload.get("content") or "").strip()
+    if not content:
+        raise HTTPException(400, "content required")
+    if len(content) > 4000:
+        raise HTTPException(400, "content too long (max 4000 chars)")
+
+    kind = (payload.get("kind") or "other").strip().lower()
+    if kind not in _FEEDBACK_KINDS:
+        kind = "other"
+
+    msg_id = payload.get("message_id")
+    if msg_id is not None:
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            msg_id = None
+
+    fb = Feedback(
+        session_id=session_id,
+        turn=sess.turn_count,
+        message_id=msg_id,
+        kind=kind,
+        content=content,
+    )
+    s.add(fb)
+    await s.commit()
+    await s.refresh(fb)
+    return {
+        "id": fb.id,
+        "session_id": fb.session_id,
+        "turn": fb.turn,
+        "message_id": fb.message_id,
+        "kind": fb.kind,
+        "content": fb.content,
+        "created_at": fb.created_at.isoformat(),
+    }
+
+
+@router.get("/{session_id}/feedback")
+async def list_feedback(
+    session_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    rows = (await s.execute(
+        select(Feedback).where(Feedback.session_id == session_id)
+        .order_by(Feedback.created_at, Feedback.id)
+    )).scalars().all()
+    return [
+        {
+            "id": f.id,
+            "turn": f.turn,
+            "message_id": f.message_id,
+            "kind": f.kind,
+            "content": f.content,
+            "created_at": f.created_at.isoformat(),
+        }
+        for f in rows
+    ]
+
+
 def _redact_portrait(p: str | None) -> str:
     """Strip directory prefix from a portrait path so exports don't leak
     absolute filesystem locations. Returns just the basename (or '')."""
@@ -182,6 +264,7 @@ def _build_export_payload(
     eras: list[Era],
     timeline: list[Timeline],
     hidden: list[HiddenEvent],
+    feedbacks: list[Feedback],
 ) -> dict:
     return {
         "version": "0.10",
@@ -301,6 +384,14 @@ def _build_export_payload(
             }
             for h in hidden
         ],
+        "feedbacks": [
+            {
+                "id": f.id, "turn": f.turn, "message_id": f.message_id,
+                "kind": f.kind, "content": f.content,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in feedbacks
+        ],
     }
 
 
@@ -318,6 +409,7 @@ def _render_export_md(payload: dict) -> str:
     eras = payload.get("eras") or []
     timeline = payload.get("timeline") or []
     hidden = payload.get("hidden_events") or []
+    feedbacks = payload.get("feedbacks") or []
     messages = payload.get("messages") or []
 
     lines: list[str] = []
@@ -474,6 +566,15 @@ def _render_export_md(payload: dict) -> str:
                 lines.append(f"事件：{', '.join(ev_summaries)}")
             lines.append("")
 
+    if feedbacks:
+        lines.append("## 玩家反馈")
+        for f in feedbacks:
+            lines.append(
+                f"- [{f.get('kind', 'other')} @ 回合 {f.get('turn', 0)} / "
+                f"{f.get('created_at', '')}] {f.get('content', '')}"
+            )
+        lines.append("")
+
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -534,12 +635,16 @@ async def export_session(
         select(HiddenEvent).where(HiddenEvent.session_id == session_id)
         .order_by(HiddenEvent.introduced_turn, HiddenEvent.id)
     )).scalars().all()
+    feedbacks = (await s.execute(
+        select(Feedback).where(Feedback.session_id == session_id)
+        .order_by(Feedback.created_at, Feedback.id)
+    )).scalars().all()
 
     payload = _build_export_payload(
         sess=sess, world=world, char=char, messages=messages,
         summary=summary, cs=cs, npcs=npcs, relations=relations,
         threads=threads, goals=goals, eras=eras, timeline=timeline,
-        hidden=hidden,
+        hidden=hidden, feedbacks=feedbacks,
     )
 
     safe_name = _safe_filename(sess.name)

@@ -173,6 +173,21 @@ class PCGoal(Base):
     completion_note: Mapped[str] = mapped_column(Text, default="")
 
 
+class Feedback(Base):
+    """v0.13.1 — In-app player feedback tied to a session. Captures the player's
+    written complaint or suggestion plus the surrounding context (turn, optional
+    message_id) so the developer can debug from the actual moment that prompted it.
+    Included in session export."""
+    __tablename__ = "feedbacks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    turn: Mapped[int] = mapped_column(default=0)  # session turn_count snapshot at submission
+    message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(20), default="other")  # bug | suggestion | praise | other
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+
+
 class HiddenEvent(Base):
     """v0.10 — Implicit story state with a fuse. GM-emitted via <hidden_event>:
     things the player shouldn't see explicitly but the GM must remember and

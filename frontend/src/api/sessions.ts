@@ -138,4 +138,24 @@ export const sessionsApi = {
         responseType: 'blob',
       })
       .then((r) => r.data as Blob),
+
+  // v0.13.1 — player feedback
+  postFeedback: (
+    id: number,
+    body: { content: string; kind?: 'bug' | 'suggestion' | 'praise' | 'other'; message_id?: number },
+  ) =>
+    api
+      .post(`/sessions/${id}/feedback`, body)
+      .then((r) => r.data as FeedbackItem),
+  listFeedback: (id: number) =>
+    api.get<FeedbackItem[]>(`/sessions/${id}/feedback`).then((r) => r.data),
+}
+
+export interface FeedbackItem {
+  id: number
+  turn: number
+  message_id: number | null
+  kind: 'bug' | 'suggestion' | 'praise' | 'other'
+  content: string
+  created_at: string
 }

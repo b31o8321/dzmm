@@ -59,6 +59,9 @@ _V11_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# v0.13.1 — Player feedback table is created via Base.metadata.create_all.
+# Nothing to migrate column-wise.
+
 
 def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) -> None:
     """SQLite-friendly column-add migration. Idempotent: skips columns that

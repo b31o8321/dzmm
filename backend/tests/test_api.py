@@ -931,3 +931,95 @@ async def test_export_route_registered_in_app(http):
     # Schema sanity — these two keys are the spec contract for v0.10+ export.
     assert "version" in body
     assert "messages" in body
+
+
+# ============================================================================
+# v0.13.1 — Player feedback endpoints + export integration.
+# ============================================================================
+
+
+async def test_post_feedback_persists_with_turn_snapshot(http):
+    sid = await _make_session(http)
+    r = await http.post(
+        f"/sessions/{sid}/feedback",
+        json={"content": "对话有时反复反问，没推进", "kind": "bug"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["session_id"] == sid
+    assert body["kind"] == "bug"
+    assert "对话有时反复反问" in body["content"]
+    assert body["turn"] == 0  # session is brand new
+    assert body["created_at"]  # ISO timestamp
+
+
+async def test_post_feedback_normalizes_unknown_kind(http):
+    sid = await _make_session(http)
+    r = await http.post(
+        f"/sessions/{sid}/feedback",
+        json={"content": "什么都没说", "kind": "rant"},
+    )
+    assert r.status_code == 200
+    assert r.json()["kind"] == "other"
+
+
+async def test_post_feedback_rejects_empty(http):
+    sid = await _make_session(http)
+    r = await http.post(f"/sessions/{sid}/feedback", json={"content": "  "})
+    assert r.status_code == 400
+
+
+async def test_post_feedback_rejects_too_long(http):
+    sid = await _make_session(http)
+    r = await http.post(
+        f"/sessions/{sid}/feedback", json={"content": "x" * 4001}
+    )
+    assert r.status_code == 400
+
+
+async def test_post_feedback_404_for_unknown_session(http):
+    r = await http.post("/sessions/99999/feedback", json={"content": "hi"})
+    assert r.status_code == 404
+
+
+async def test_list_feedback_returns_chronological(http):
+    sid = await _make_session(http)
+    for c in ["第一条", "第二条", "第三条"]:
+        r = await http.post(f"/sessions/{sid}/feedback", json={"content": c})
+        assert r.status_code == 200
+
+    r = await http.get(f"/sessions/{sid}/feedback")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 3
+    assert [f["content"] for f in body] == ["第一条", "第二条", "第三条"]
+
+
+async def test_export_includes_feedbacks(http):
+    sid = await _make_session(http)
+    await http.post(
+        f"/sessions/{sid}/feedback",
+        json={"content": "希望剧情节奏快一点", "kind": "suggestion"},
+    )
+    r = await http.get(f"/sessions/{sid}/export?format=json")
+    assert r.status_code == 200
+    body = r.json()
+    assert "feedbacks" in body
+    assert len(body["feedbacks"]) == 1
+    fb = body["feedbacks"][0]
+    assert fb["kind"] == "suggestion"
+    assert fb["content"] == "希望剧情节奏快一点"
+
+
+async def test_export_md_includes_feedback_section(http):
+    sid = await _make_session(http)
+    await http.post(
+        f"/sessions/{sid}/feedback",
+        json={"content": "GM 喜欢反问", "kind": "bug"},
+    )
+    r = await http.get(f"/sessions/{sid}/export?format=md")
+    assert r.status_code == 200
+    text = r.text
+    assert "## 玩家反馈" in text
+    assert "GM 喜欢反问" in text
+    assert "bug" in text

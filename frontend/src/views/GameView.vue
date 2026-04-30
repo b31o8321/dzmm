@@ -16,6 +16,7 @@ import NpcDetailDialog from '@/components/NpcDetailDialog.vue'
 import CharacterCardDrawer from '@/components/CharacterCardDrawer.vue'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
+import FeedbackDialog from '@/components/FeedbackDialog.vue'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -128,6 +129,7 @@ async function updateGoal(goalId: number, status: 'active' | 'completed' | 'aban
 const npcDialogOpen = ref(false)
 const selectedNpc = ref<Npc | null>(null)
 const characterCardOpen = ref(false)
+const feedbackOpen = ref(false)
 
 async function openNpcDetail(name: string) {
   try {
@@ -669,12 +671,22 @@ onUnmounted(() => audio.stopBgm())
                        class="text-sm text-slate-500 hover:text-slate-800">
             📜 编年史
           </router-link>
+          <button
+            type="button"
+            class="text-sm text-slate-500 hover:text-slate-800"
+            @click="feedbackOpen = true"
+          >💬 反馈</button>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
           </router-link>
           <span class="text-xs text-slate-400 ml-2">v{{ version }}</span>
         </div>
       </header>
+
+      <FeedbackDialog
+        v-model="feedbackOpen"
+        :session-id="sessionId"
+      />
 
       <div ref="logEl" class="flex-1 overflow-auto px-6 py-4 space-y-6">
         <div v-if="!turns.length" class="text-slate-400 italic">

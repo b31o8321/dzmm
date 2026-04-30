@@ -146,6 +146,8 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 - **v0.11（已发布）** —— **角色卡 + 钩子 + 数值锚定**：PC 角色卡抽屉、NPC 渐进信息揭示（reveal 字段 + ****）、PC 钩子驱动场景（能力/物品/弱点节奏化使用）、dice DC 表锚定属性、物品 narrative 显式引用、铁律扩到 21 条。
 - **v0.12（已发布）** —— **姓名漂移根治 + 推进义务 + 帮助页**：UI 显示版本号、PC 姓名 repair 后端兜底（含 NPC 对白 mask）、数值 hover tooltip、`/help` 说明页、plot_event 去重（治重复登记）、铁律 22/23（关键信息推进 + 世界状态前进）。
 - **v0.13（已发布）** —— **SSE 流式回归修复 + 铁律加狠**：修 v0.10 引入的 SSE 渲染 bug（displayParts）、plot 去重 normalize+0.6+多 type、铁律 22/23 改写为字面要求 + 禁止句式黑名单、few_shot 加正/反示范、后端版本对比警告。
+- **v0.0.14（已发布，启用三位数版本号）** —— **玩家反馈收集**：GameView 加 💬 反馈按钮，反馈绑定 session（turn / message_id / 时间戳），含入存档导出 JSON/MD，方便开发者结合上下文优化。
+- **v0.1.0（计划中，需先 brainstorm + plan）** —— **剧本驱动跑团**：开新档调 LLM 生成大纲（章节/主要 NPC/关键事件/完结）、GM 围绕大纲发挥、PC 重大决策触发大纲重写、完结后可生成续集。
 - **v1.0** —— **正式发布**：故事书导出（Markdown/EPUB）、世界 JSON 导入导出、模板库扩到 8 套、AI 辅助世界生成器、代码签名、macOS Universal、Linux 包。
 - **v1.1+** —— 多人合作、TTS / STT 语音、Discord bot、iOS/Android 客户端等（玩家驱动）。
 

@@ -2,6 +2,36 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## 版本号约定
+
+`MAJOR.MINOR.PATCH`：
+- **MAJOR**：测试 / 正式 / 季度级大版本（0 = 测试阶段；1 = 正式发布之后）
+- **MINOR**：核心功能变更（如「剧本驱动」「编年史系统」整套机制）
+- **PATCH**：小修复 / 小增强（bug fix、UI 微调、文档）
+
+历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
+
+## [v0.0.14] - 2026-04-30
+
+**主题：玩家反馈收集**
+
+### 新增
+- **应用内反馈** —— GameView header 加「💬 反馈」按钮，新组件 `FeedbackDialog.vue` 弹窗输入；4 种 kind（bug / suggestion / praise / other）
+- 反馈绑定到 session：自动记录 `turn`、可选 `message_id`、`created_at` 时间戳，方便开发者结合上下文复盘
+- API：`POST /sessions/{id}/feedback`、`GET /sessions/{id}/feedback`
+- 反馈被纳入 `/export?format=json|md`：JSON 加 `feedbacks` 字段；Markdown 加「## 玩家反馈」段
+- 内容长度上限 4000 字、空内容返 400
+
+### 数据库
+- 新表 `feedbacks`（id, session_id, turn, message_id, kind, content, created_at）
+- 由 `Base.metadata.create_all` 自动建表，无 ALTER 迁移
+
+### 测试
+- 后端 217 → 225（+8：post / list / 校验 / 404 / export json+md / kind 归一化 / 空内容 / 长度上限）
+- 前端 build 通过
+
+---
+
 ## [v0.13] - 2026-04-30
 
 **主题：实玩反馈第三波 — SSE 流式回归 + 推进义务加狠 + plot 去重加严**
