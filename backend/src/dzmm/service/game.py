@@ -10,6 +10,7 @@ from dzmm.db.models import (
     Character,
     CharState,
     Era,
+    HiddenEvent,
     Message as MessageRow,
     NPC,
     NpcRelation,
@@ -70,7 +71,7 @@ async def run_turn(
     ).scalar_one_or_none()
     story_summary = summary_row.summary_text if summary_row else ""
 
-    key_facts = await _build_key_facts(session, session_id, sess.turn_count)
+    key_facts = await _build_key_facts(session, session_id, sess.turn_count, char)
 
     recent = await _load_recent_messages(session, session_id, summary_row)
 
@@ -93,6 +94,7 @@ async def run_turn(
     parser = StreamingTagParser()
     full_output_parts: list[str] = []
     completed_tags: list[TagComplete] = []
+    narrative_parts: list[str] = []
     usage = TokenUsage()
     narrative_emitted = False
 
@@ -104,6 +106,7 @@ async def run_turn(
                     completed_tags.append(ev)
                 if isinstance(ev, NarrativeDelta):
                     narrative_emitted = True
+                    narrative_parts.append(ev.text)
                 yield ev
         if chunk.usage is not None:
             usage = chunk.usage
@@ -113,6 +116,7 @@ async def run_turn(
             completed_tags.append(ev)
         if isinstance(ev, NarrativeDelta):
             narrative_emitted = True
+            narrative_parts.append(ev.text)
         yield ev
 
     full_output = "".join(full_output_parts)
@@ -120,6 +124,7 @@ async def run_turn(
     if not narrative_emitted and full_output.strip():
         fallback = _strip_thinking_tags(full_output).strip()
         if fallback:
+            narrative_parts.append(fallback)
             yield NarrativeDelta(fallback)
 
     next_turn = sess.turn_count + 1
@@ -127,12 +132,30 @@ async def run_turn(
     session.add(MessageRow(
         session_id=session_id, role="user", content=user_action, turn=next_turn,
     ))
+
+    # Capture this turn's non-narrative events (state_change / npc_update /
+    # dice / plot_event / hidden_event / etc.) so the frontend can render them
+    # as inline event chips and so the message history retains structured
+    # state transitions for replay/export.
+    events_payload = [
+        {
+            "type": tag.name,
+            "payload": dict(tag.attrs or {}),
+            "content": tag.content or "",
+        }
+        for tag in completed_tags
+    ]
+
     session.add(MessageRow(
         session_id=session_id, role="assistant", content=full_output, turn=next_turn,
         tokens_in=usage.input_tokens, tokens_out=usage.output_tokens,
+        events_json=json.dumps(events_payload, ensure_ascii=False),
     ))
 
-    await apply_tags(session, session_id, next_turn, completed_tags)
+    narrative_text = "".join(narrative_parts)
+    await apply_tags(
+        session, session_id, next_turn, completed_tags, narrative_text=narrative_text
+    )
 
     sess.turn_count = next_turn
     sess.last_played = datetime.now(UTC).replace(tzinfo=None)
@@ -229,12 +252,20 @@ def _format_npc_short(npc: NPC) -> str:
 
 
 async def _build_key_facts(
-    session: AsyncSession, session_id: int, current_turn: int
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    character: Character | None = None,
 ) -> str:
     """Build NPC + plot context with a 3-pass union:
     1. Pinned NPCs (no limit) — full dossier
     2. Recently-seen NPCs (top 8 by last_seen_turn, excluding pinned) — short line
-    3. Recalled NPCs — drained from Session.recall_pending_json — full dossier"""
+    3. Recalled NPCs — drained from Session.recall_pending_json — full dossier
+
+    Also: pin the PC identity at the very top (anti-drift — fixes a v0.9 bug
+    where the GM started referring to PC by a different name after ~3 turns)
+    and append GM-only "暗中状态" (hidden events) at the bottom.
+    """
     pinned_npcs = (
         await session.execute(
             select(NPC)
@@ -305,8 +336,27 @@ async def _build_key_facts(
 
     parts: list[str] = []
 
+    # PC identity lock — top priority, prevents the GM drifting to a different
+    # PC name after a few turns. character.name is the load-bearing field;
+    # everything else is a hint.
+    if character is not None:
+        identity_lines = [
+            "## PC 身份（最高优先级，永不可改）",
+            f"姓名: {character.name}",
+        ]
+        profile = (character.profile_md or "").strip()
+        if profile:
+            # Keep it short — first 80 chars of the profile, single line.
+            snippet = profile.replace("\n", " ").strip()[:80]
+            if snippet:
+                identity_lines.append(f"身份: {snippet}")
+        identity_lines.append(
+            "无论后文如何，PC 的姓名必须始终是上面这个，不得改名、不得替换、不得简称为别的名字。"
+        )
+        parts.append("\n".join(identity_lines))
+
     if current_era:
-        parts.insert(0, f"当前章节：{current_era.name}（自第 {current_era.started_turn} 回合起）\n")
+        parts.append(f"当前章节：{current_era.name}（自第 {current_era.started_turn} 回合起）")
 
     if pinned_npcs:
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")
@@ -372,5 +422,33 @@ async def _build_key_facts(
         parts.append("\nNPC 关系：")
         for r in relations:
             parts.append(f"- {r.npc_a} ↔ {r.npc_b} [{r.kind}]")
+
+    # Hidden events — GM-only state with a fuse. Re-inject every turn so the
+    # GM remembers an injury is still bleeding, a poison is still spreading,
+    # a deadline is still ticking. The player never sees this section
+    # directly; it's part of the system prompt.
+    hidden = (
+        await session.execute(
+            select(HiddenEvent)
+            .where(
+                HiddenEvent.session_id == session_id,
+                HiddenEvent.status == "active",
+            )
+            .order_by(HiddenEvent.introduced_turn)
+        )
+    ).scalars().all()
+    if hidden:
+        lines = ["\n## 暗中状态(GM only)"]
+        for ev in hidden:
+            age = current_turn - ev.introduced_turn
+            sub = (ev.subject or "").strip() or "?"
+            kind = (ev.kind or "").strip()
+            desc = (ev.description or "").strip()
+            cons = (ev.consequence or "").strip()
+            tail = desc
+            if cons:
+                tail = f"{tail}。{cons}" if tail else cons
+            lines.append(f"- [{sub}·{kind}·t+{age}] {tail}")
+        parts.append("\n".join(lines))
 
     return "\n".join(parts)
