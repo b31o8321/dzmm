@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dzmm.api import (
     routes_characters,
     routes_models,
+    routes_screenplay,
     routes_sessions,
     routes_system,
     routes_worlds,
@@ -40,8 +41,20 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
     def get_session_maker_dep() -> async_sessionmaker[AsyncSession]:
         return session_maker
 
-    for module in (routes_worlds, routes_characters, routes_models, routes_sessions):
-        app.dependency_overrides[module.get_session_dep] = get_session_dep
+    for module in (
+        routes_worlds,
+        routes_characters,
+        routes_models,
+        routes_sessions,
+        routes_screenplay,
+    ):
+        # routes_screenplay reuses routes_sessions.get_session_dep (same function
+        # object), so the override applied while iterating routes_sessions also
+        # covers it. Iterating routes_screenplay just adds an idempotent override
+        # by the same key — keeps the loop uniform and resilient if it ever
+        # introduces its own dep.
+        dep = getattr(module, "get_session_dep", get_session_dep)
+        app.dependency_overrides[dep] = get_session_dep
         app.include_router(module.router)
 
     # System routes don't need DB session.

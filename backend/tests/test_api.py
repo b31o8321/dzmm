@@ -1023,3 +1023,171 @@ async def test_export_md_includes_feedback_section(http):
     assert "## 玩家反馈" in text
     assert "GM 喜欢反问" in text
     assert "bug" in text
+
+
+# ========== v0.1.0 Task 8: screenplay endpoints ==========
+
+import json as _json  # noqa: E402
+
+from sqlalchemy import select as _select  # noqa: E402
+
+from dzmm.db.models import (  # noqa: E402
+    Screenplay as _Screenplay,
+    ScreenplayRevision as _ScreenplayRevision,
+)
+
+
+_STUB_SCREENPLAY_OUTPUT = _json.dumps({
+    "chapters": [
+        {"title": "第一章：迷雾", "summary": "调查",
+         "main_events": ["线索 A", "对峙 B"],
+         "optional_events": ["搜查老宅"],
+         "main_npcs": ["陈子轩"]},
+        {"title": "第二章：真相", "summary": "对峙黑手",
+         "main_events": ["进入据点", "战斗主反派"],
+         "optional_events": [],
+         "main_npcs": ["黑手党头目"]},
+    ],
+    "main_characters": [
+        {"name": "陈子轩", "role": "线人",
+         "description": "中年华人男子", "intro_chapter": 1},
+    ],
+    "ending": "PC 揭穿黑手党的阴谋",
+    "opening_hook": "雨夜的霓虹下，你接到一通电话",
+}, ensure_ascii=False)
+
+
+def _patch_screenplay_client(monkeypatch, output: str = _STUB_SCREENPLAY_OUTPUT):
+    """Replace build_client used by routes_screenplay so generate calls don't hit
+    a real LLM."""
+    def fake_build_client(cfg):
+        return StubGM(output)
+    monkeypatch.setattr("dzmm.api.routes_screenplay.build_client", fake_build_client)
+
+
+async def test_post_screenplay_generate_creates_active(http, monkeypatch):
+    sid = await _make_session(http)
+    _patch_screenplay_client(monkeypatch)
+    r = await http.post(
+        f"/sessions/{sid}/screenplay/generate",
+        json={"genre": "悬疑探案"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "active"
+    assert len(body["chapters"]) == 2
+    assert body["chapters"][0]["title"] == "第一章：迷雾"
+    assert body["main_characters"][0]["name"] == "陈子轩"
+    assert "雨夜" in body["opening_hook"]
+    assert body["current_chapter"] == 1
+    assert body["version"] == 1
+    assert body["genre"] == "悬疑探案"
+
+
+async def test_get_screenplay_returns_active(http, monkeypatch):
+    sid = await _make_session(http)
+    _patch_screenplay_client(monkeypatch)
+    await http.post(
+        f"/sessions/{sid}/screenplay/generate",
+        json={"genre": "悬疑探案"},
+    )
+
+    r = await http.get(f"/sessions/{sid}/screenplay")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "active"
+    assert len(body["chapters"]) == 2
+    assert body["session_id"] == sid
+
+
+async def test_get_screenplay_404_when_missing(http):
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/screenplay")
+    assert r.status_code == 404
+
+
+async def test_post_mark_decision_records_revision(http, app, monkeypatch):
+    sid = await _make_session(http)
+    _patch_screenplay_client(monkeypatch)
+    await http.post(
+        f"/sessions/{sid}/screenplay/generate",
+        json={"genre": "悬疑探案"},
+    )
+
+    r = await http.post(
+        f"/sessions/{sid}/screenplay/mark_decision",
+        json={"description": "PC 杀了线人陈子轩"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert isinstance(body["revision_id"], int)
+
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        rev = (await s.execute(_select(_ScreenplayRevision))).scalar_one()
+        assert rev.trigger_description == "PC 杀了线人陈子轩"
+        assert rev.diff_summary == "(player-marked, pending rewrite)"
+
+
+async def test_post_screenplay_continue_creates_v2(http, app, monkeypatch):
+    sid = await _make_session(http)
+    _patch_screenplay_client(monkeypatch)
+    r = await http.post(
+        f"/sessions/{sid}/screenplay/generate",
+        json={"genre": "悬疑探案"},
+    )
+    assert r.status_code == 200
+    sp1_id = r.json()["id"]
+
+    # Manually conclude the first screenplay so /continue has something to base on.
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        sp1 = await s.get(_Screenplay, sp1_id)
+        sp1.status = "concluded"
+        await s.commit()
+
+    r = await http.post(f"/sessions/{sid}/screenplay/continue", json={})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "active"
+    assert body["parent_screenplay_id"] == sp1_id
+    assert body["id"] != sp1_id
+
+    # Old one stays concluded; new one is the active.
+    r = await http.get(f"/sessions/{sid}/screenplay")
+    assert r.status_code == 200
+    assert r.json()["id"] == body["id"]
+
+
+async def test_post_screenplay_continue_400_without_concluded(http, monkeypatch):
+    sid = await _make_session(http)
+    _patch_screenplay_client(monkeypatch)
+    r = await http.post(f"/sessions/{sid}/screenplay/continue", json={})
+    assert r.status_code == 400
+
+
+async def test_get_revisions_returns_list(http, monkeypatch):
+    sid = await _make_session(http)
+    _patch_screenplay_client(monkeypatch)
+    await http.post(
+        f"/sessions/{sid}/screenplay/generate",
+        json={"genre": "悬疑探案"},
+    )
+
+    await http.post(
+        f"/sessions/{sid}/screenplay/mark_decision",
+        json={"description": "首次抉择"},
+    )
+    await http.post(
+        f"/sessions/{sid}/screenplay/mark_decision",
+        json={"description": "再次抉择"},
+    )
+
+    r = await http.get(f"/sessions/{sid}/screenplay/revisions")
+    assert r.status_code == 200
+    rows = r.json()
+    assert len(rows) == 2
+    descs = [row["trigger_description"] for row in rows]
+    assert "首次抉择" in descs
+    assert "再次抉择" in descs
