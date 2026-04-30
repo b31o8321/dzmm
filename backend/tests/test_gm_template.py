@@ -469,3 +469,87 @@ def test_numerical_anchoring_rule_present():
     assert "属性" in sys_text and "等级" in sys_text
     # DC 表参考点
     assert "12" in sys_text and ("14" in sys_text or "15" in sys_text)
+
+
+# ----------------------------------------------------------------------------
+# v0.12 task C: 关键信息推进义务 + 世界状态前进 + few_shot PC 名占位
+# ----------------------------------------------------------------------------
+
+
+def test_rule_information_progress_present():
+    """铁律 22 — 关键信息推进义务，禁止反复反问。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "关键信息" in sys_text or "追问" in sys_text
+    assert "必须给出" in sys_text or "本回合" in sys_text  # 推进义务
+    assert "反问" in sys_text  # 反问限制
+
+
+def test_rule_world_state_progress_present():
+    """铁律 23 — 每回合世界状态必须前进。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "世界状态" in sys_text or "前进" in sys_text
+    assert "原地循环" in sys_text or "重复" in sys_text  # 防原地
+
+
+def test_rule_name_self_check_present():
+    """铁律 16 强化 — PC 姓名锁的反向自检。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    # 反向自检关键词
+    assert "我叫" in sys_text and "我是" in sys_text
+    assert "改回" in sys_text or "纠正" in sys_text
+
+
+def test_few_shot_example_uses_actual_pc_name():
+    """few_shot example 必须用真实 character_name，不再硬编码沈三川。"""
+    msgs = build_gm_messages(
+        world_md="x",
+        character_md="姓名: 测试主角\n职业: 流浪者",
+        live_state={}, rules_mode="standard", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+        character_name="测试主角",
+    )
+    sys_text = msgs[0].content
+
+    # 实际 PC 名必须出现在范例中
+    assert "测试主角" in sys_text
+
+    # 之前硬编码的 "沈三川" 不能出现在范例中
+    example_idx = sys_text.find("输出范例")
+    assert example_idx >= 0
+    example_section = sys_text[example_idx:]
+    assert "沈三川" not in example_section
+
+
+def test_few_shot_example_pc_name_substituted_from_md():
+    """character_name 没显式传时，从 character_md 推断的名字也要替换进 example。"""
+    msgs = build_gm_messages(
+        world_md="x",
+        character_md="姓名: Riku\n职业: 义体黑客",
+        live_state={}, rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_text = msgs[0].content
+    example_idx = sys_text.find("输出范例")
+    assert example_idx >= 0
+    example_section = sys_text[example_idx:]
+    # PC name should appear inside the example block (in pc_action / 范例描述)
+    assert "Riku" in example_section
+    # And no leftover hardcoded name
+    assert "沈三川" not in example_section
