@@ -906,3 +906,28 @@ async def test_health_includes_version(http):
     assert body["version"].startswith("0.")
     # Backwards-compat: legacy callers (pre-v0.12) parsed `ok: true`.
     assert body["ok"] is True
+
+
+# ============================================================================
+# v0.13 regression guard: GET /sessions/{id}/export was added in v0.10. A
+# refactor that drops `routes_sessions.include_router(...)` (or accidentally
+# removes the export sub-route) silently 404s the export button on the FE.
+# This test fails loud the moment the route stops being registered on the
+# real FastAPI app instance produced by `create_app()`.
+# ============================================================================
+
+
+async def test_export_route_registered_in_app(http):
+    """Route registration smoke test: a freshly-constructed app must serve
+    GET /sessions/{id}/export and return the v0.10+ payload shape (version,
+    messages keys present). Doesn't care about content beyond shape."""
+    sid = await _make_session(http)
+    r = await http.get(f"/sessions/{sid}/export?format=json")
+    assert r.status_code == 200, (
+        f"GET /sessions/{sid}/export returned {r.status_code} — "
+        f"route likely de-registered. Body: {r.text[:200]}"
+    )
+    body = r.json()
+    # Schema sanity — these two keys are the spec contract for v0.10+ export.
+    assert "version" in body
+    assert "messages" in body

@@ -959,3 +959,207 @@ async def test_plot_event_dedup_applies_to_hook_introduced(session_with_state):
         select(PlotThread).where(PlotThread.session_id == sid)
     )).scalars().all()
     assert len(threads) == 1
+
+
+# ---------------------------------------------------------------------------
+# v0.13 plot_event dedup hardening — normalization + lower threshold + wider
+# type coverage. v0.12 missed near-identical descriptions that differed only
+# in whitespace / punctuation width / case.
+# ---------------------------------------------------------------------------
+
+
+async def test_plot_event_dedup_handles_whitespace_padding(session_with_state):
+    """v0.13: Normalization must strip leading/trailing whitespace AND
+    full-width spaces (U+3000) so visually-identical descriptions collapse."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="你需要寻找接触者陈子轩",
+    )
+    # Same text but wrapped in full-width spaces + a stray ASCII space + tab
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="　  你需要寻找接触者陈子轩  　\t",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1, f"expected 1 thread (whitespace-only diff), got {len(threads)}"
+
+
+async def test_plot_event_dedup_covers_hook_introduced_vs_new_quest(session_with_state):
+    """v0.13: A thread first opened as new_quest must still dedup when the
+    GM later re-emits a near-identical description as hook_introduced
+    (and vice versa). Cross-type wording-drift was a real production case."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="找出谁在背后操纵公司董事会",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "hook_introduced", "importance": "2"},
+        content="找出究竟是谁在背后操纵公司董事会",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
+
+
+async def test_plot_event_exact_duplicate_skipped(session_with_state):
+    """v0.13: Two byte-identical descriptions short-circuit on the equality
+    fast-path inside _is_duplicate_thread."""
+    s, sid = session_with_state
+    text = "去九龙黑街找黑医为小菱续命"
+    for turn in (1, 2, 3):
+        await apply_tags(
+            s, sid, current_turn=turn,
+            tags=[TagComplete(
+                name="plot_event",
+                attrs={"type": "new_quest", "importance": "2"},
+                content=text,
+            )],
+        )
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
+
+
+async def test_plot_event_threshold_06_catches_paraphrase(session_with_state):
+    """v0.13: The user's actual production case — two new_quest descriptions
+    differing by ~6 chars of paraphrase. Raw SequenceMatcher ratio ~0.79.
+    With v0.12's 0.7 threshold this was caught in synthetic cases; v0.13
+    drops to 0.6 to add safety margin so similar near-misses also collapse."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="你需要寻找老学者提到的接触者，并获取关于同源株式会社的秘密信息",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="你需要寻找接触者陈子轩，并从他那里获取关于同源株式会社的秘密信息",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1, (
+        f"expected paraphrased duplicate to collapse, got {len(threads)} threads: "
+        + repr([t.description for t in threads])
+    )
+
+
+async def test_plot_event_dissimilar_creates_new(session_with_state):
+    """v0.13: 0.6 threshold must NOT collapse genuinely distinct quests.
+    'Investigate gravity anomaly' vs 'Find cure for child' have ratio 0.0
+    after normalization — separate rows are correct."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="调查重力场异常",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "3"},
+        content="寻找解药救小菱",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 2
+
+
+async def test_plot_event_dedup_covers_major_event(session_with_state):
+    """v0.13: dedup type coverage extended from new_quest/hook_introduced to
+    also include major_event (and location_entered). GMs duplicate these too."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "major_event", "importance": "3"},
+        content="霓虹猫酒馆爆炸，三人重伤",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "major_event", "importance": "3"},
+        content="霓虹猫酒馆发生爆炸，三人重伤",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
+
+
+async def test_plot_event_dedup_covers_location_entered(session_with_state):
+    """v0.13: same with location_entered."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "location_entered", "importance": "2"},
+        content="进入九龙黑街地下集市",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "location_entered", "importance": "2"},
+        content="进入了九龙黑街的地下集市",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
+
+
+async def test_plot_event_dedup_punctuation_width_normalized(session_with_state):
+    """v0.13: CJK comma vs ASCII comma must not block dedup. Same text differing
+    only by punctuation width should collapse on the exact-equality fast path."""
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="找到老学者，问出真相",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="找到老学者,问出真相",  # ASCII comma
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1
