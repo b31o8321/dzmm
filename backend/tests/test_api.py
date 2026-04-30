@@ -628,6 +628,43 @@ async def test_npcs_endpoint_returns_emotion(http, app):
     assert items[0]["emotion"] == {"love": 50, "fear": 10}
 
 
+async def test_npcs_endpoint_includes_revealed_field(http, app):
+    """v0.11: GET /sessions/{id}/npcs must include a `revealed` dict on each
+    NPC describing which fields the player has learned. NPCs with no explicit
+    reveal mask fall back to {"name": True}."""
+    sid = await _make_session(http)
+    from dzmm.db.models import NPC
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        # Custom mask: name + description revealed; everything else hidden.
+        s.add(NPC(
+            session_id=sid, name="小菱",
+            description="少女剑客", favor=2, state="警觉",
+            purpose="找同伴", archetype="少女剑客原型",
+            last_seen_turn=1,
+            revealed_json='{"name": true, "description": true}',
+        ))
+        # Default mask via fallback (revealed_json left at column default).
+        s.add(NPC(
+            session_id=sid, name="幽影",
+            description="神秘刺客", last_seen_turn=2,
+        ))
+        await s.commit()
+
+    r = await http.get(f"/sessions/{sid}/npcs")
+    assert r.status_code == 200
+    items = r.json()
+    by_name = {n["name"]: n for n in items}
+    assert "revealed" in by_name["小菱"]
+    assert by_name["小菱"]["revealed"]["name"] is True
+    assert by_name["小菱"]["revealed"]["description"] is True
+    # purpose/archetype not in mask — frontend should treat as hidden.
+    assert by_name["小菱"]["revealed"].get("purpose") is not True
+
+    # Default-mask NPC: only name revealed.
+    assert by_name["幽影"]["revealed"] == {"name": True}
+
+
 async def test_messages_endpoint_includes_events_field(http, app):
     """v0.10: /messages must surface Message.events_json (parsed) per row."""
     sid = await _make_session(http)

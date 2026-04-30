@@ -37,7 +37,9 @@ async def apply_tags(
         if tag.name == "state_change":
             await _apply_state_change(session, session_id, tag.content)
         elif tag.name == "npc_update":
-            await _apply_npc_update(session, session_id, current_turn, tag.content)
+            await _apply_npc_update(
+                session, session_id, current_turn, tag.attrs, tag.content
+            )
         elif tag.name == "plot_event":
             await _apply_plot_event(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "character_xp":
@@ -103,11 +105,66 @@ async def _apply_state_change(
     cs.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
 
+# v0.11 progressive reveal: only these field names can be marked revealed.
+# Unknown reveal targets are silently ignored. "name" is always revealed
+# implicitly (defaulted in revealed_json), but listing it here is harmless.
+_NPC_REVEALABLE_FIELDS = frozenset({
+    "name", "description", "purpose", "archetype",
+    "state", "favor", "affinity", "emotion",
+})
+
+_REVEAL_SPLIT_RE = re.compile(r"[,\s]+")
+
+
+def _auto_reveal_for_create(payload: dict) -> dict:
+    """When creating a new NPC, fields whose value is being set in the same
+    payload (description / state / archetype / purpose / favor_delta / etc.)
+    should be auto-marked revealed=true — the GM is writing them now, so the
+    player has just seen them.
+
+    name is always revealed (the GM has to name an NPC for them to exist)."""
+    revealed = {"name": True}
+    for f in ("description", "state", "archetype", "purpose"):
+        if payload.get(f):
+            revealed[f] = True
+    if payload.get("favor_delta") is not None:
+        revealed["favor"] = True
+    if payload.get("affinity"):
+        revealed["affinity"] = True
+    if payload.get("emotion"):
+        revealed["emotion"] = True
+    return revealed
+
+
+def _parse_reveal_attr(reveal_str: str) -> list[str]:
+    """Split a reveal="..." attribute into a list of recognised field names.
+    Accepts commas, whitespace, or both as separators. Unknown fields are
+    silently dropped."""
+    if not reveal_str:
+        return []
+    fields = [f.strip() for f in _REVEAL_SPLIT_RE.split(reveal_str) if f.strip()]
+    return [f for f in fields if f in _NPC_REVEALABLE_FIELDS]
+
+
 async def _apply_npc_update(
-    session: AsyncSession, session_id: int, current_turn: int, raw: str
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    attrs: dict[str, str],
+    raw: str,
 ) -> None:
-    payload = parse_loose_json(raw)
+    # Merge attrs with body JSON. Body wins on conflict (GM is more deliberate
+    # when it serialises a JSON payload than when it inlines attrs).
+    payload: dict = {}
+    payload.update({k: v for k, v in (attrs or {}).items()})
+    body_payload = parse_loose_json(raw)
+    if body_payload:
+        payload.update(body_payload)
+
     name = payload.get("name")
+    if not name:
+        return
+    name = str(name).strip()
     if not name:
         return
 
@@ -116,7 +173,22 @@ async def _apply_npc_update(
             select(NPC).where(NPC.session_id == session_id, NPC.name == name)
         )
     ).scalar_one_or_none()
-    if npc is None:
+
+    reveal_fields = _parse_reveal_attr(str(payload.get("reveal", "")))
+
+    is_create = npc is None
+    if is_create:
+        # Special case: a payload that ONLY carries a reveal=... directive
+        # against a non-existent NPC is a silent no-op. The intent is
+        # "unlock previously-hidden fields"; without an existing NPC, there's
+        # nothing to unlock and we don't fabricate a stub from a typo.
+        # Any other shape (name only, name + value fields, etc.) creates.
+        keys_other_than_name_and_reveal = [
+            k for k in payload.keys() if k not in ("name", "reveal")
+        ]
+        if reveal_fields and not keys_other_than_name_and_reveal:
+            return
+
         npc = NPC(
             session_id=session_id,
             name=name,
@@ -129,13 +201,27 @@ async def _apply_npc_update(
             archetype="",
             affinity_json="{}",
             pinned=False,
+            revealed_json=json.dumps(
+                _auto_reveal_for_create(payload), ensure_ascii=False
+            ),
         )
         session.add(npc)
 
-    favor_delta = payload.get("favor_delta", 0)
-    if isinstance(favor_delta, (int, float)):
-        npc.favor += int(favor_delta)
-    if "state" in payload:
+    favor_delta_raw = payload.get("favor_delta", 0)
+    favor_delta_num = 0
+    if isinstance(favor_delta_raw, bool):
+        favor_delta_num = 0
+    elif isinstance(favor_delta_raw, (int, float)):
+        favor_delta_num = int(favor_delta_raw)
+    elif isinstance(favor_delta_raw, str):
+        # attrs always parse as strings; tolerate an integer literal.
+        try:
+            favor_delta_num = int(favor_delta_raw)
+        except ValueError:
+            favor_delta_num = 0
+    if favor_delta_num:
+        npc.favor += favor_delta_num
+    if "state" in payload and payload["state"] is not None:
         npc.state = str(payload["state"])
     if "description" in payload and not npc.description:
         npc.description = str(payload["description"])
@@ -180,6 +266,42 @@ async def _apply_npc_update(
         notes.append({"turn": current_turn, "text": str(note)})
         npc.notes_json = json.dumps(notes, ensure_ascii=False)
     npc.last_seen_turn = current_turn
+
+    # Progressive reveal bookkeeping. Two sources merge into revealed_json:
+    #   1. fields that have a concrete value in this payload
+    #      (auto-revealed: GM just wrote them, so the player has seen them)
+    #   2. names listed in the reveal="..." attribute
+    # Both add to the existing set; never clear what was previously revealed.
+    try:
+        revealed = json.loads(npc.revealed_json or '{"name": true}')
+        if not isinstance(revealed, dict):
+            revealed = {"name": True}
+    except (TypeError, ValueError):
+        revealed = {"name": True}
+
+    # Auto-reveal: any field with a meaningful value in this update was visible
+    # to the player when the GM emitted it — mark revealed. (For updates only;
+    # create path already auto-revealed via _auto_reveal_for_create above.)
+    if not is_create:
+        if payload.get("description"):
+            revealed["description"] = True
+        if payload.get("state") not in (None, ""):
+            revealed["state"] = True
+        if payload.get("archetype"):
+            revealed["archetype"] = True
+        if payload.get("purpose"):
+            revealed["purpose"] = True
+        if payload.get("favor_delta") is not None and favor_delta_num:
+            revealed["favor"] = True
+        if payload.get("affinity"):
+            revealed["affinity"] = True
+        if payload.get("emotion"):
+            revealed["emotion"] = True
+
+    for f in reveal_fields:
+        revealed[f] = True
+
+    npc.revealed_json = json.dumps(revealed, ensure_ascii=False)
 
 
 async def _apply_recall(

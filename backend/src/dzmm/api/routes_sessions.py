@@ -727,6 +727,14 @@ def _npc_to_dict(n: NPC) -> dict:
             emotion = {}
     except (TypeError, ValueError):
         emotion = {}
+    # v0.11: progressive reveal map — frontend masks fields not in this dict.
+    try:
+        revealed = json.loads(n.revealed_json or '{"name": true}')
+        if not isinstance(revealed, dict):
+            revealed = {"name": True}
+    except (TypeError, ValueError):
+        revealed = {"name": True}
+    revealed.setdefault("name", True)
     return {
         "id": n.id,
         "name": n.name,
@@ -740,6 +748,7 @@ def _npc_to_dict(n: NPC) -> dict:
         "emotion": emotion,
         "pinned": bool(n.pinned),
         "notes": notes,
+        "revealed": revealed,
     }
 
 

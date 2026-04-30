@@ -81,3 +81,22 @@ class HiddenEventOut(BaseModel):
     consequence: str
     introduced_turn: int
     status: str
+
+
+class NpcOut(BaseModel):
+    """Shape returned by GET /sessions/{id}/npcs.
+    All fields are returned verbatim; `revealed` is the per-field mask the
+    frontend uses to render unrevealed fields as '???' / blanks. v0.11."""
+    id: int
+    name: str
+    description: str = ""
+    favor: int = 0
+    state: str = ""
+    last_seen_turn: int = 0
+    purpose: str = ""
+    archetype: str = ""
+    affinity: dict = {}
+    emotion: dict = {}
+    pinned: bool = False
+    notes: list = []
+    revealed: dict[str, bool] = {"name": True}
