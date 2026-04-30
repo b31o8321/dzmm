@@ -2,7 +2,33 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
-## [v0.8] - 2026-04-29（进行中）
+## [v0.9] - 2026-04-30
+
+**主题：情绪系统 + GM 反应性**
+
+让世界真的「在乎」玩家做的事——NPC 有情绪、PC 有心情、NPC 之间有关系，GM prompt 强制读取并按规则反应。
+
+### 新增
+- **NPC 5 轴情绪雷达**（anger / love / fear / respect / jealousy），`<npc_update>` 标签 emotion 字段累加并 clamp 到 0-100；NPC 详情页底部 5 行水平条可视化
+- **PC 心情系统**：`<pc_mood>` GM 标签累加 PC 心情值；StatePanel 顶部徽章实时显示，流式更新（mirror `<state_change>` 模式）
+- **NPC↔NPC 关系图**：`<npc_relation>` 标签 + `npc_relations` 表 + 新视图 `/play/:id/relations`（列表式，按 kind 分组），key_facts 注入下回合 prompt
+- **GM 反应性原则** prompt 段落（4 节）：情绪 ≥70 必须主动表达、PC 心情同步场景描写、NPC 关系驱动剧情、PC 目标驱动 NPC 知情度
+- **Playwright 端到端冒烟测试**：真实 FastAPI + 注入 stub model client 走完跑团 SSE 链路；防止 SSE/CRLF/CORS 类隐蔽 bug 回归
+- **CI release artifact 冒烟检查**：DMG `hdiutil` 挂载验证 `dzmm.app` + `dzmm-backend` + `_internal/`；NSIS `7z l` 验证 `dzmm-backend.exe` + `python313.dll/_internal`，不通过 → 不发 release
+
+### 数据库
+- NPC 表加列：`emotion_json`
+- Session 表加列：`pc_mood_json`
+- 新表 `npc_relations`（按名字记录两个 NPC 之间的关系，避免级联问题）
+
+### 测试
+- 96 → 133（+37）后端测试
+- 新增前端 `frontend/e2e/`：playwright.config.ts + smoke.spec.ts + mock_backend.py + test-server.ts
+- 新增 GH workflow `.github/workflows/e2e.yml`：push/PR 触发 chromium 跑 e2e
+
+---
+
+## [v0.8] - 2026-04-29
 
 **主题：编年史 + 目标系统 + 易用性**
 

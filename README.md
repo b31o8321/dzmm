@@ -150,8 +150,8 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 完整规划见 [docs/superpowers/plans/](docs/superpowers/plans/) ，最近几个版本：
 
 - **v0.7（已发布）** —— 游戏性：任务日志页、**NPC 攻略详情**（多维好感 / 动机 / 人设原型 / 钉住 / GM 召回 / 互动时间线 / 浏览所有 NPC）、角色 XP+升级、BGM+音效、角色立绘。性能：递归摘要压缩、模型预热。
-- **v0.8（进行中）** —— **编年史 + 目标 + 易用性**：编年史页（Timeline UI + Era 分章）、PC 目标列表、首次启动引导、Tauri 自动更新。
-- **v0.9** —— **情绪系统 + GM 反应性**：NPC 情绪雷达（怒/爱/惧/敬/嫉）、PC 心情、NPC↔NPC 关系图、GM prompt 反应性原则、端到端自动化测试。
+- **v0.8（已发布）** —— **编年史 + 目标 + 易用性**：编年史页（Timeline UI + Era 分章）、PC 目标列表、首次启动引导、Tauri 自动更新。
+- **v0.9（已发布）** —— **情绪系统 + GM 反应性**：NPC 5 轴情绪雷达（怒/爱/惧/敬/嫉）、PC 心情、NPC↔NPC 关系图、GM prompt 反应性原则、Playwright 端到端冒烟、release artifact 完整性检查。
 - **v1.0** —— **正式发布**：故事书导出（Markdown/EPUB）、世界 JSON 导入导出、模板库扩到 8 套、AI 辅助世界生成器、代码签名、macOS Universal、Linux 包。
 - **v1.1+** —— 多人合作、TTS / STT 语音、Discord bot、iOS/Android 客户端等（玩家驱动）。
 
