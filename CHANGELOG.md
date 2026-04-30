@@ -2,6 +2,44 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.11] - 2026-04-30
+
+**主题：角色卡 UI + PC 钩子驱动 + 数值锚定**
+
+让 PC 的设定（能力/物品/弱点）和数值（属性/等级）真正影响跑团；NPC 信息按玩家「发现度」渐进揭示。
+
+### 新增
+- **PC 角色卡抽屉** —— GameView header 加「📜 角色卡」按钮，新组件 `CharacterCardDrawer.vue` 展示 PC 完整 profile + 当前数值 + 物品 + 基础属性 + XP 进度
+- **NPC 渐进信息揭示**：
+  - NPC 表加 `revealed_json TEXT default '{"name": true}'`，每字段一个 bool
+  - GM 用 `<npc_update name="..." reveal="purpose,archetype"/>` 来揭示某些字段（玩家通过对话/调查触发）
+  - NPC 创建时含值的字段自动 revealed=true（GM 写出来玩家就看到了）
+  - **未揭示字段在 GM prompt 里隐藏值**，但用 `[未揭示：a/b/c]` 提示 GM 知道有可挖掘背景；让 GM 自然选择何时揭示
+  - NpcDetailDialog 按 `revealed[field]` 渲染：未揭示显示 `**** （尚未通过对话/调查得知）`
+- **PC 钩子驱动场景**（铁律 20）：
+  - `_extract_pc_hooks` 从 profile_md 启发式抽取「能力/物品/弱点」三类（heading + 粗体 + key:value 三种 markdown 格式）
+  - key_facts 注入「## PC 钩子（用上它们）」段
+  - GM prompt 规定节奏：每 3-5 回合用上一项能力 / 物品在剧情节点起作用 / 每 5-8 回合触发弱点挑战
+- **数值锚定**（铁律 21）：
+  - key_facts 注入「## PC 当前数值」段（等级 + 自定义属性 + 物品列表）
+  - GM prompt 规定 dice DC 表（属性 8-10 → DC 12；11-13 → 14；14-15 → 15；16+ → 17）
+  - 物品必须在 narrative 显式引用 + 用完 emit `inventory_remove`
+  - 等级影响 NPC 隐性态度
+  - 升级时 narrative 描写气场变化
+
+### 数据库
+- NPC 表加列：`revealed_json`
+- v0.11 迁移自动追加
+
+### 测试
+- 后端 172 → 185（+13）
+- 前端 build 通过；新组件 `CharacterCardDrawer.vue`
+
+### API 变化
+- `GET /sessions/{id}/npcs` 返回每条 NPC 的 `revealed: dict[str, bool]` 字段（旧前端兜底：missing 时全部当 revealed）
+
+---
+
 ## [v0.10] - 2026-04-30
 
 **主题：实玩反馈统一优化（GM 输出质量 + UX）**
