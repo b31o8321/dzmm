@@ -105,6 +105,7 @@ class NPC(Base):
     affinity_json: Mapped[str] = mapped_column(Text, default="{}")
     pinned: Mapped[bool] = mapped_column(default=False)
     emotion_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
+    revealed_json: Mapped[str] = mapped_column(Text, default='{"name": true}')  # v0.11 progressive reveal: field→bool
 
 
 class PlotThread(Base):

@@ -53,6 +53,12 @@ _V10_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V11_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "npcs": [
+        ("revealed_json", "revealed_json TEXT NOT NULL DEFAULT '{\"name\": true}'"),
+    ],
+}
+
 
 def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) -> None:
     """SQLite-friendly column-add migration. Idempotent: skips columns that
@@ -76,4 +82,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V09_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V10_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V11_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
