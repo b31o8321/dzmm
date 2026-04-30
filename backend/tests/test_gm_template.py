@@ -553,3 +553,58 @@ def test_few_shot_example_pc_name_substituted_from_md():
     assert "Riku" in example_section
     # And no leftover hardcoded name
     assert "沈三川" not in example_section
+
+
+# ----------------------------------------------------------------------------
+# v0.13 task C: 铁律 22/23 加狠 + few_shot 关键信息推进示范
+# ----------------------------------------------------------------------------
+
+
+def test_rule_22_explicit_question_patterns():
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "包含问号" in sys_text or "?" in sys_text
+    assert "告诉我" in sys_text or "是谁" in sys_text
+    # forbidden phrases listed:
+    assert "可能告诉你" in sys_text or "下一步揭晓" in sys_text or "时机未到" in sys_text
+    # allowed escape: NPC doesn't know
+    assert "不知道" in sys_text
+
+
+def test_rule_22_repeated_question_must_repeat_answer():
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "重复问题" in sys_text or "同样问题" in sys_text or "重复给" in sys_text
+
+
+def test_few_shot_includes_correct_information_example():
+    """The new example demonstrates a question→answer flow with a concrete name."""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    # The good example should mention 陈子轩 + 清风茶寮 + 九龙黑街 (concrete proper nouns)
+    assert "陈子轩" in sys_text
+    assert "清风茶寮" in sys_text or "九龙黑街" in sys_text
+
+
+def test_few_shot_includes_anti_pattern():
+    """The example should also call out the wrong pattern by name."""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "错误示范" in sys_text or "错误原因" in sys_text
+    assert "拖延" in sys_text or "循环" in sys_text
