@@ -119,27 +119,17 @@ Caveats:
 
 ## Build from source
 
-### macOS / Linux
+集中入口在 [`packaging/`](packaging/README.md)，最终产物落到 `packaging/dist/`。
 
 ```bash
-cd backend
-.venv/bin/python build_sidecar.py    # produces frontend/src-tauri/backend-runtime/
+# macOS / Linux
+python packaging/build.py
 
-cd ../frontend
-npm run tauri:build                  # produces .dmg
+# Windows（PowerShell from repo root）
+.\packaging\build.ps1
 ```
 
-Output: `frontend/src-tauri/target/release/bundle/dmg/dzmm_x.y.z_*.dmg`
-
-### Windows
-
-Open PowerShell from the repo root:
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-.\build_windows.ps1
-```
-
-Output: `frontend\src-tauri\target\release\bundle\nsis\dzmm_x.y.z_x64-setup.exe`
+需要单独跑某一段（只重打 backend、或沿用现有 backend-runtime 跑 tauri）见 [packaging/README.md](packaging/README.md)。
 
 ### CI
 
@@ -163,15 +153,19 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 dzmm/
 ├── backend/                Python FastAPI + Ollama/cloud LLM client
 │   ├── src/dzmm/
-│   ├── tests/              60+ pytest tests
+│   ├── tests/              130+ pytest tests
 │   ├── dzmm-backend.spec   PyInstaller --onedir spec
-│   └── build_sidecar.py    cross-platform PyInstaller wrapper
+│   └── build_sidecar.py    PyInstaller wrapper（被 packaging/build.py 调用）
 ├── frontend/
 │   ├── src/                Vue 3 SPA
+│   ├── e2e/                Playwright SSE 冒烟（v0.9）
 │   └── src-tauri/          Rust shell + bundle config
-├── docs/superpowers/plans/ Implementation plans (v0.1 → v0.7+)
-├── .github/workflows/      release.yml — matrix build for macOS+Windows
-├── build_windows.ps1       PowerShell one-shot Windows build
+├── packaging/              整体打包入口 + 产物落地
+│   ├── build.py            一键打包脚本（跨平台）
+│   ├── build.ps1           Windows PowerShell 包装
+│   └── dist/               打好的 .dmg / setup.exe（gitignored）
+├── docs/superpowers/plans/ Implementation plans (v0.1 → v0.9+)
+├── .github/workflows/      release.yml + e2e.yml
 ├── CHANGELOG.md
 └── README.md
 ```
