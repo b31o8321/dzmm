@@ -848,3 +848,114 @@ async def test_apply_plot_event_resolution_closes_latest(session_with_state):
     assert len(threads) == 1
     assert threads[0].status == "resolved"
     assert "情报贩子" in threads[0].resolution
+
+
+# ---------------------------------------------------------------------------
+# v0.12 plot_event dedup — when GM re-emits a near-identical new_quest /
+# hook_introduced description, we collapse instead of fanning out rows.
+# ---------------------------------------------------------------------------
+
+
+async def test_plot_event_dedup_skips_similar(session_with_state):
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="寻找老学者提到的接触者，获取秘密信息",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await s.commit()
+
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="寻找老学者提到的接触者并获取关于公司的秘密",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1, f"expected 1 thread, got {len(threads)}"
+
+
+async def test_plot_event_creates_distinct(session_with_state):
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="调查重力场的异常波动",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "3"},
+        content="为村中孩童寻找解药",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 2
+
+
+async def test_plot_event_doesnt_dedup_resolved(session_with_state):
+    s, sid = session_with_state
+    # Open + resolve a quest.
+    t_open = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="调查 X 实验室的废弃记录",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t_open])
+    await s.commit()
+
+    t_close = TagComplete(
+        name="plot_event",
+        attrs={"type": "hook_resolved"},
+        content="发现实验室是公司的旧据点",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[t_close])
+    await s.commit()
+
+    # Re-emit a near-identical new_quest — the prior thread is resolved,
+    # so this should create a fresh row, not collapse into the closed one.
+    t_again = TagComplete(
+        name="plot_event",
+        attrs={"type": "new_quest", "importance": "2"},
+        content="再次调查 X 实验室的废弃记录",
+    )
+    await apply_tags(s, sid, current_turn=5, tags=[t_again])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 2
+    statuses = sorted(t.status for t in threads)
+    assert statuses == ["active", "resolved"]
+
+
+async def test_plot_event_dedup_applies_to_hook_introduced(session_with_state):
+    s, sid = session_with_state
+    t1 = TagComplete(
+        name="plot_event",
+        attrs={"type": "hook_introduced", "importance": "2"},
+        content="一个戴风衣的男人在街角注视着 PC",
+    )
+    t2 = TagComplete(
+        name="plot_event",
+        attrs={"type": "hook_introduced", "importance": "2"},
+        content="一个戴风衣的男人在街角偷偷注视着 PC",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[t1])
+    await apply_tags(s, sid, current_turn=2, tags=[t2])
+    await s.commit()
+
+    threads = (await s.execute(
+        select(PlotThread).where(PlotThread.session_id == sid)
+    )).scalars().all()
+    assert len(threads) == 1

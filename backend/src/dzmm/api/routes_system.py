@@ -7,9 +7,22 @@ import sys
 import httpx
 from fastapi import APIRouter
 
+from dzmm import __version__
+
 router = APIRouter(prefix="/system", tags=["system"])
+# /health is intentionally exposed without the /system prefix so cheap liveness
+# probes (frontend boot gate, deploy scripts, uptime monitors) keep the same
+# URL they've used since v0.x.
+health_router = APIRouter(tags=["system"])
 
 OLLAMA_URL = "http://localhost:11434/api/tags"
+
+
+@health_router.get("/health")
+async def health() -> dict:
+    """Liveness probe + version surface. The frontend reads `version` to detect
+    backend/frontend skew after a desktop upgrade."""
+    return {"ok": True, "status": "ok", "version": __version__}
 
 
 async def _ollama_running(timeout: float = 1.5) -> bool:

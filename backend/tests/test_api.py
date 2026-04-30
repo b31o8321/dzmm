@@ -887,3 +887,21 @@ async def test_timeline_returns_seeded_rows(http, app):
     assert items[0]["event_text"] == "重要转折"
     assert items[0]["importance"] == 3
     assert items[0]["turn"] == 5
+
+
+# ============================================================================
+# v0.12: /health surfaces app version (used by frontend skew detection).
+# ============================================================================
+
+
+async def test_health_includes_version(http):
+    from dzmm import __version__
+
+    r = await http.get("/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["version"] == __version__
+    assert body["version"] == "0.12.0"
+    # Backwards-compat: legacy callers (pre-v0.12) parsed `ok: true`.
+    assert body["ok"] is True
