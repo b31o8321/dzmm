@@ -37,6 +37,8 @@ from dzmm.db.models import (
     NpcRelation,
     PCGoal,
     PlotThread,
+    Screenplay,
+    ScreenplayRevision,
     Session as GameSession,
 )
 from dzmm.parsing.events import TagComplete
@@ -83,6 +85,14 @@ async def apply_tags(
             await _apply_hidden_event(
                 session, session_id, current_turn, tag.attrs, tag.content
             )
+        elif tag.name == "chapter_advance":
+            await _apply_chapter_advance(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "event_complete":
+            await _apply_event_complete(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "plot_turn":
+            await _apply_plot_turn(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "ending":
+            await _apply_ending(session, session_id, tag.attrs, current_turn)
 
     # Light NER fallback: if narrative mentions names the GM forgot to register
     # via <npc_update>, register them as stubs so the next prompt's NPC list
@@ -715,6 +725,143 @@ async def _apply_character_xp(
     if char is None:
         return
     char.xp = max(0, char.xp + delta)
+
+
+# ---------------------------------------------------------------------------
+# v0.1.0 — screenplay-driven tag handlers
+#
+# Four lightweight handlers that mutate the session's *active* Screenplay row
+# in response to <chapter_advance/>, <event_complete/>, <plot_turn/>,
+# <ending/>. All four share the same "lookup active screenplay then mutate"
+# shape; if no active screenplay exists they no-op silently (legacy sessions
+# created before v0.1.0 simply never see these tags applied).
+#
+# attrs is a string→string dict from XML attribute parsing — chapter / event
+# indices need explicit int conversion with try/except since the GM may emit
+# them as decorative text.
+# ---------------------------------------------------------------------------
+
+
+async def _get_active_screenplay(
+    session: AsyncSession, session_id: int
+) -> Screenplay | None:
+    """Return the highest-version active Screenplay for the session, or None."""
+    return (
+        await session.execute(
+            select(Screenplay)
+            .where(
+                Screenplay.session_id == session_id,
+                Screenplay.status == "active",
+            )
+            .order_by(Screenplay.version.desc())
+        )
+    ).scalars().first()
+
+
+async def _apply_chapter_advance(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> None:
+    """<chapter_advance/> → bump current_chapter by 1, clamped to total chapters
+    (last chapter is a no-op so we don't go past the planned outline)."""
+    sp = await _get_active_screenplay(session, session_id)
+    if sp is None:
+        return
+    try:
+        chapters = json.loads(sp.chapters_json or "[]")
+    except (TypeError, ValueError):
+        chapters = []
+    if not isinstance(chapters, list):
+        chapters = []
+    if sp.current_chapter < len(chapters):
+        sp.current_chapter += 1
+
+
+async def _apply_event_complete(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> None:
+    """<event_complete chapter=N event=M type=main|optional/> →
+    append {"chapter": N, "event_idx": M, "type": "main|optional"} to
+    completed_events_json. Idempotent: re-emitting same triple is a no-op."""
+    sp = await _get_active_screenplay(session, session_id)
+    if sp is None:
+        return
+
+    try:
+        chapter = int(attrs.get("chapter", ""))
+        event_idx = int(attrs.get("event", ""))
+    except (TypeError, ValueError):
+        return  # attrs missing or non-numeric — silently skip
+
+    type_ = (attrs.get("type") or "main").strip().lower()
+    if type_ not in ("main", "optional"):
+        type_ = "main"
+
+    try:
+        completed = json.loads(sp.completed_events_json or "[]")
+    except (TypeError, ValueError):
+        completed = []
+    if not isinstance(completed, list):
+        completed = []
+
+    rec = {"chapter": chapter, "event_idx": event_idx, "type": type_}
+    if rec not in completed:
+        completed.append(rec)
+        sp.completed_events_json = json.dumps(completed, ensure_ascii=False)
+
+
+async def _apply_plot_turn(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> None:
+    """<plot_turn impact=major|minor description=...> → only major creates a
+    ScreenplayRevision row. The actual rewrite (after_chapters_json + diff_summary)
+    is left to a later async outliner pass; we just stash the trigger and the
+    *before* snapshot so the chain has provenance. minor is observational and
+    intentionally a no-op here (we may pipe it into messages.events_json later).
+    """
+    impact = (attrs.get("impact") or "minor").strip().lower()
+    if impact != "major":
+        return
+
+    sp = await _get_active_screenplay(session, session_id)
+    if sp is None:
+        return
+
+    description = str(attrs.get("description", ""))[:500]
+
+    rev = ScreenplayRevision(
+        screenplay_id=sp.id,
+        revision_num=1,
+        trigger_turn=current_turn,
+        trigger_description=description,
+        before_chapters_json=sp.chapters_json or "[]",
+        after_chapters_json=sp.chapters_json or "[]",
+        diff_summary="(pending outliner rewrite)",
+    )
+    session.add(rev)
+
+
+async def _apply_ending(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> None:
+    """<ending/> → mark active screenplay status="concluded" + concluded_at=now.
+    Player can later launch a fresh chapter from the same session if desired."""
+    sp = await _get_active_screenplay(session, session_id)
+    if sp is None:
+        return
+    sp.status = "concluded"
+    sp.concluded_at = datetime.now(UTC).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
     Character, CharState, HiddenEvent, Message as MessageRow, ModelConfig, NPC,
-    NpcRelation, Session as GameSession, World,
+    NpcRelation, Screenplay, Session as GameSession, World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, TagComplete
@@ -673,3 +673,121 @@ async def test_recall_drains_after_one_use(seeded):
     async with SessionMaker() as s:
         sess = await s.get(GameSession, sid)
         assert json.loads(sess.recall_pending_json) == []
+
+
+# ---------------------------------------------------------------------------
+# v0.1.0 task B — screenplay progress injection into key_facts
+# ---------------------------------------------------------------------------
+
+
+async def test_key_facts_injects_screenplay_progress(seeded):
+    """Active screenplay → key_facts shows '## 当前剧本进度', current chapter
+    title, main_events with [pending] markers, and the ending condition.
+    This is the GM's source-of-truth for what to advance toward this turn."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(Screenplay(
+            session_id=sid,
+            version=1,
+            outline_md="测试大纲",
+            chapters_json=json.dumps([
+                {
+                    "title": "第一章：迷雾码头",
+                    "main_events": ["PC 抵达码头", "遇见线人"],
+                    "optional_events": ["搜查货箱"],
+                },
+                {"title": "第二章：揭幕", "main_events": ["对峙幕后黑手"]},
+            ], ensure_ascii=False),
+            main_characters_json="[]",
+            ending_md="揭穿走私网络",
+            current_chapter=1,
+            completed_events_json="[]",
+            status="active",
+        ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "走向码头", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "## 当前剧本进度" in sys_msg
+    assert "第一章" in sys_msg
+    assert "迷雾码头" in sys_msg
+    # main events listed with [pending] before any complete tag fires
+    assert "[pending]" in sys_msg
+    assert "PC 抵达码头" in sys_msg
+    assert "遇见线人" in sys_msg
+    # optional event listed under its own bucket
+    assert "[optional]" in sys_msg
+    assert "搜查货箱" in sys_msg
+    # ending condition surfaced
+    assert "揭穿走私网络" in sys_msg
+
+
+async def test_key_facts_marks_completed_events(seeded):
+    """An event with a matching {chapter, event_idx, type} record in
+    completed_events_json must render as [done], not [pending]."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(Screenplay(
+            session_id=sid,
+            version=1,
+            outline_md="x",
+            chapters_json=json.dumps([
+                {
+                    "title": "第一章",
+                    "main_events": ["事件零", "事件一"],
+                    "optional_events": [],
+                },
+            ], ensure_ascii=False),
+            main_characters_json="[]",
+            ending_md="",
+            current_chapter=1,
+            completed_events_json=json.dumps(
+                [{"chapter": 1, "event_idx": 0, "type": "main"}],
+                ensure_ascii=False,
+            ),
+            status="active",
+        ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # The completed event_idx=0 must display as [done] 事件零, the other as
+    # [pending] 事件一. We assert both signatures appear in order.
+    done_idx = sys_msg.find("[done] 事件零")
+    pending_idx = sys_msg.find("[pending] 事件一")
+    assert done_idx != -1, sys_msg
+    assert pending_idx != -1, sys_msg
+
+
+async def test_key_facts_omits_screenplay_when_none(seeded):
+    """Sessions without an active Screenplay (legacy / pre-v0.1.0) must not
+    surface the *injected* progress block. We can't simply assert the literal
+    header is absent, because rule 24 in the static prompt references it by
+    name. Instead we look for the unique signature of the actual injection:
+    the parenthesised subtitle '（GM 严格遵守主线，分支由 PC 探索触发）'
+    only appears in the injected block, never in the static template."""
+    engine, SessionMaker, sid = seeded
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # Signature of the *injected* block (only emitted when an active
+    # screenplay exists). The plain text "## 当前剧本进度" alone isn't unique
+    # because iron rule 24 references it by name; the parenthesised subtitle
+    # and "本章主线（必须演完才能推进下章）" only live in the injection.
+    assert "GM 严格遵守主线，分支由 PC 探索触发" not in sys_msg
+    assert "本章主线（必须演完才能推进下章）" not in sys_msg
+    assert "（推进规则：主线 [pending]" not in sys_msg

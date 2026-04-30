@@ -248,6 +248,16 @@ PC 姓名 = 「{character_name}」
     **不允许的循环**：
     - PC 思考 → NPC 模糊回应 → 三选一 choices（原地三回合以上）
     - 同一 choice 被点 ≥2 次 → 第二次必须有不同结果 / 答案
+24. **剧本进度遵守（v0.1.0，剧本驱动跑团）**：prompt 的 key_facts 若有「## 当前剧本进度」段：
+    - 主线 [pending] 事件每 1-3 回合至少演一个，演完后立即 emit
+      `<event_complete chapter="N" event="M" type="main"/>`（chapter / event 索引从 1 / 0 起，与剧本进度段一致）
+    - 支线 [optional] 事件不强制——PC 主动触发才演；演完同样 emit
+      `<event_complete>` type="optional"
+    - 本章 main_events 全部 [done] 后 emit `<chapter_advance/>` 推进到下一章
+    - 完结条件达成 emit `<ending/>`，故事完结
+    - PC 做出重大决策（杀关键 NPC、选择关键阵营、达成阶段性目标、放弃主线）
+      → emit `<plot_turn impact="major" description="..."/>`，后端会重写后续大纲
+    - 一般性的微小选择（喝茶 vs 喝酒、走左路 vs 右路）只用 impact="minor"，仅作记录
 
 # 反应性原则（让世界真的"在乎"玩家做的事）
 
@@ -410,6 +420,25 @@ NPC 的对白用此标签包，引语用「」。可连续多个 <say> 表现来
 某事物的截止时间。**你（GM）必须在后续回合按 consequence 描述把后果演出来**。
 玩家若处理（包扎/解毒/救援），emit <hidden_event resolve subject="..."/> 关闭它。
 **不要把 hidden_event 内容直接写进 narrative 让玩家看到**——这是给后台记的。
+
+<chapter_advance/>
+本章 main_events 全部演完后输出此自闭合标签，推进到下一章。系统会把 Screenplay.current_chapter +1。
+若已是最后一章则无效；通常应在本回合先 emit 最后一个 <event_complete>，再 emit <chapter_advance/>。
+
+<event_complete chapter="N" event="M" type="main|optional"/>
+某个 main_event 或 optional_event 演完时输出。chapter 跟「## 当前剧本进度」展示的章号一致（从 1 起），
+event 索引从 0 开始按列表顺序。type 必须是 main 或 optional，要与剧本中的归类匹配。
+重复 emit 同一 (chapter, event, type) 是幂等的，不会重复计数。
+
+<plot_turn impact="major|minor" description="...">
+PC 做出关键决策时记录。impact="major" 会触发后端把后续章节重写以反应这个决策
+（杀关键 NPC、选阵营、放弃主线、达成阶段性目标 等），description 一句话说明发生了什么。
+impact="minor" 仅作观察记录，不重写大纲——日常的小取舍用这个。
+</plot_turn>
+
+<ending/>
+完结条件（见「## 当前剧本进度」末尾「完结条件」段）达成时输出。Screenplay 状态切换为
+concluded，玩家可从同一 session 续写新章。**只在故事真的结束时 emit**——不要为了演一个章节高潮提前关闭剧本。
 
 # 开局规则
 若剧情摘要为空（首轮），输出一段 600-1000 字的开局：交代 PC（{character_name}）当下所处环境、感官细节、身份处境、引子事件，停在 PC 必须做决定的瞬间，等待玩家行动。

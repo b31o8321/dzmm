@@ -17,6 +17,7 @@ from dzmm.db.models import (
     NpcRelation,
     PCGoal,
     PlotThread,
+    Screenplay,
     Session as GameSession,
     StorySummary,
     World,
@@ -610,6 +611,116 @@ async def _build_key_facts(
         parts.append("\nNPC 关系：")
         for r in relations:
             parts.append(f"- {r.npc_a} ↔ {r.npc_b} [{r.kind}]")
+
+    # v0.1.0 — Screenplay progress (active screenplay only). Placed before the
+    # hidden_events block so the GM sees "what main events are still pending"
+    # alongside "what hidden timers are running" — both are GM-only operational
+    # state. Legacy sessions without a Screenplay row simply skip this block.
+    sp = (
+        await session.execute(
+            select(Screenplay)
+            .where(
+                Screenplay.session_id == session_id,
+                Screenplay.status == "active",
+            )
+            .order_by(Screenplay.version.desc())
+        )
+    ).scalars().first()
+    if sp is not None:
+        try:
+            chapters = json.loads(sp.chapters_json or "[]")
+        except (TypeError, ValueError):
+            chapters = []
+        if not isinstance(chapters, list):
+            chapters = []
+        try:
+            completed = json.loads(sp.completed_events_json or "[]")
+        except (TypeError, ValueError):
+            completed = []
+        if not isinstance(completed, list):
+            completed = []
+        try:
+            main_chars = json.loads(sp.main_characters_json or "[]")
+        except (TypeError, ValueError):
+            main_chars = []
+        if not isinstance(main_chars, list):
+            main_chars = []
+
+        if chapters:
+            cur_idx = max(0, min(sp.current_chapter - 1, len(chapters) - 1))
+            cur_ch = chapters[cur_idx] if isinstance(chapters[cur_idx], dict) else {}
+
+            sp_lines: list[str] = [
+                "\n## 当前剧本进度（GM 严格遵守主线，分支由 PC 探索触发）",
+                f"当前章节：第 {sp.current_chapter} 章「{cur_ch.get('title', '')}」"
+                f"（共 {len(chapters)} 章）",
+            ]
+
+            main_events = cur_ch.get("main_events") or []
+            if isinstance(main_events, list) and main_events:
+                sp_lines.append("本章主线（必须演完才能推进下章）：")
+                for i, ev in enumerate(main_events):
+                    done = any(
+                        isinstance(c, dict)
+                        and c.get("chapter") == sp.current_chapter
+                        and c.get("event_idx") == i
+                        and c.get("type") == "main"
+                        for c in completed
+                    )
+                    flag = "[done]" if done else "[pending]"
+                    sp_lines.append(f"- {flag} {ev}")
+
+            optional_events = cur_ch.get("optional_events") or []
+            if isinstance(optional_events, list) and optional_events:
+                sp_lines.append("本章可选支线（PC 主动探索才触发，不强制）：")
+                for i, ev in enumerate(optional_events):
+                    done = any(
+                        isinstance(c, dict)
+                        and c.get("chapter") == sp.current_chapter
+                        and c.get("event_idx") == i
+                        and c.get("type") == "optional"
+                        for c in completed
+                    )
+                    flag = "[done]" if done else "[optional]"
+                    sp_lines.append(f"- {flag} {ev}")
+
+            # Main NPCs whose intro_chapter is on or before current — surface
+            # only the names; details should already exist in the NPC list above
+            # once the GM declares them. Cap at 5 to keep the block compact.
+            existing_names = {n.name for n in (pinned_npcs or [])} | {
+                n.name for n in (recent_filtered or [])
+            }
+            pending_intro: list[str] = []
+            for c in main_chars:
+                if not isinstance(c, dict):
+                    continue
+                name = str(c.get("name") or "").strip()
+                if not name or name in existing_names:
+                    continue
+                try:
+                    intro_ch = int(c.get("intro_chapter", 1))
+                except (TypeError, ValueError):
+                    intro_ch = 1
+                if intro_ch <= sp.current_chapter:
+                    pending_intro.append(name)
+            if pending_intro:
+                names_str = " / ".join(pending_intro[:5])
+                sp_lines.append(f"重要 NPC（应在不晚于本章出场）：{names_str}")
+
+            ending_md = (sp.ending_md or "").strip()
+            if ending_md:
+                sp_lines.append(f"完结条件：{ending_md}")
+
+            sp_lines.append(
+                "（推进规则：主线 [pending] 事件每 1-3 回合至少演一个；"
+                "支线 [optional] 等 PC 触发；演完后 emit "
+                "<event_complete chapter=N event=M type=main/optional/>。"
+                "本章主线全部 [done] 后 emit <chapter_advance/>。"
+                "完结条件达成 emit <ending/>。"
+                "重大决策（杀关键 NPC / 选阵营 / 放弃主线）"
+                " emit <plot_turn impact=\"major\" description=\"...\"/>）"
+            )
+            parts.append("\n".join(sp_lines))
 
     # Hidden events — GM-only state with a fuse. Re-inject every turn so the
     # GM remembers an injury is still bleeding, a poison is still spreading,
