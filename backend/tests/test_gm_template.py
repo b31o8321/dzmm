@@ -292,3 +292,146 @@ def test_reactivity_emphasizes_action_not_telling():
     sys = msgs[0].content
     # 关键约束：show don't tell
     assert "用动作和对话" in sys or "show don" in sys.lower() or "动作" in sys
+
+
+# ----------------------------------------------------------------------------
+# v0.10 task B: 6 fixes from live-play feedback
+# ----------------------------------------------------------------------------
+
+
+def test_pc_name_lock_in_system_prompt():
+    """问题 4 — PC 角色名漂移。System prompt 中必须显式锁定 PC 姓名。"""
+    msgs = build_gm_messages(
+        world_md="赛博朋克",
+        character_md="姓名: 沈三川\n职业: 流浪医生",
+        live_state={}, rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+        character_name="沈三川",
+    )
+    sys_text = msgs[0].content
+    assert "沈三川" in sys_text
+    # 强约束词：永远 / 不可改 至少一个出现
+    assert "永远" in sys_text or "不可改" in sys_text
+
+
+def test_pc_name_lock_via_character_md_extraction():
+    """没有显式 character_name 也能从 character_md 推断 PC 姓名。"""
+    msgs = build_gm_messages(
+        world_md="x",
+        character_md="姓名: 沈三川\n职业: 流浪医生",
+        live_state={}, rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_text = msgs[0].content
+    assert "沈三川" in sys_text
+
+
+def test_npc_reactivity_baseline_rule():
+    """问题 2 — NPC 反应阈值过高。PC 直接搭话时 NPC 必须本回合回应。"""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_text = msgs[0].content
+    assert "搭话" in sys_text or "提问" in sys_text
+    assert "必须有回应" in sys_text or "必须回应" in sys_text
+
+
+def test_input_perspective_rule():
+    """问题 3 — 玩家输入第三人称导演视角 vs 第一人称代入视角。"""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_text = msgs[0].content
+    assert "导演视角" in sys_text and "代入视角" in sys_text
+
+
+def test_say_tag_documented():
+    """问题 9 — 引入 <say speaker="..."> 与 <pc_action> 区分对白主体。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "<say speaker" in sys_text
+    assert "pc_action" in sys_text
+
+
+def test_hidden_event_tag_documented():
+    """问题 10 — <hidden_event> 隐性事件标签必须被文档化。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "hidden_event" in sys_text
+    assert "consequence" in sys_text
+    assert "玩家" in sys_text and (
+        "不应直接看到" in sys_text or "不展示" in sys_text or "不要" in sys_text
+    )
+
+
+def test_narrative_length_guidance():
+    """问题 5 — narrative 描写过短。必须明示字数与丰度要求。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "200" in sys_text or "300" in sys_text or "400" in sys_text
+    assert "钩子" in sys_text or "线索" in sys_text or "推" in sys_text
+
+
+def test_npc_update_first_mention_rule():
+    """问题 7 — NPC 首次提名必须 emit npc_update 自动登记档案。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert (
+        "首次提名" in sys_text
+        or "首次提到" in sys_text
+        or "首次出现" in sys_text
+    )
+
+
+def test_output_order_rule_present():
+    """问题 9 — 输出顺序：narrative → pc_action → say 自然交错。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "发生顺序" in sys_text or "顺序" in sys_text
+    # 至少一处明确说 narrative + pc_action + say 三种共存
+    assert "pc_action" in sys_text and "<say" in sys_text and "<narrative>" in sys_text
+
+
+def test_few_shot_uses_new_tags():
+    """范例必须升级到使用 say / pc_action / hidden_event 等新标签。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="standard", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    # 范例段中包含至少一个 say / pc_action / hidden_event
+    example_idx = sys_text.find("输出范例")
+    assert example_idx >= 0
+    example_section = sys_text[example_idx:]
+    assert "<say speaker" in example_section
+    assert "<pc_action>" in example_section
+    assert "<hidden_event" in example_section
