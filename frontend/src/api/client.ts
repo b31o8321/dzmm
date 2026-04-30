@@ -44,3 +44,23 @@ export async function pingBackend(timeoutMs = 1500): Promise<boolean> {
     clearTimeout(t)
   }
 }
+
+export interface HealthInfo {
+  status: string
+  version: string
+  ok: boolean
+}
+
+export async function fetchHealth(timeoutMs = 2000): Promise<HealthInfo | null> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const resp = await fetch(`${baseURL}/health`, { signal: ctrl.signal })
+    if (!resp.ok) return null
+    return (await resp.json()) as HealthInfo
+  } catch {
+    return null
+  } finally {
+    clearTimeout(t)
+  }
+}

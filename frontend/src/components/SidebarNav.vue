@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { fetchHealth } from '@/api/client'
 
 const items = [
   { to: '/sessions', label: '跑团', icon: '🎲' },
@@ -8,7 +10,18 @@ const items = [
   { to: '/models', label: '模型', icon: '🤖' },
 ]
 
-const version = __APP_VERSION__
+const frontendVersion = __APP_VERSION__
+const backendVersion = ref<string | null>(null)
+
+onMounted(async () => {
+  const h = await fetchHealth()
+  backendVersion.value = h?.version ?? null
+})
+
+const versionMismatch = computed(() => {
+  if (!backendVersion.value) return false
+  return backendVersion.value !== frontendVersion
+})
 </script>
 
 <template>
@@ -32,7 +45,18 @@ const version = __APP_VERSION__
       >
         <span class="mr-2">📖</span>说明 / 帮助
       </RouterLink>
-      <div class="text-xs text-slate-500 mt-2 px-3">v{{ version }}</div>
+      <div class="text-xs text-slate-400 mt-2 px-3">
+        v{{ frontendVersion }}
+        <span
+          v-if="backendVersion"
+          :class="versionMismatch ? 'text-red-500 font-bold' : ''"
+        >
+          / 后端 v{{ backendVersion }}
+        </span>
+      </div>
+      <div v-if="versionMismatch" class="text-xs text-red-500 mt-1 px-3">
+        ⚠️ 前后端版本不一致，请重打包：<code>python packaging/build.py</code>
+      </div>
     </div>
   </nav>
 
@@ -54,6 +78,11 @@ const version = __APP_VERSION__
     >
       <span class="mr-1">📖</span>说明
     </RouterLink>
-    <span class="ml-auto self-center text-xs text-slate-500 px-2 shrink-0">v{{ version }}</span>
+    <span class="ml-auto self-center text-xs text-slate-400 px-2 shrink-0">
+      v{{ frontendVersion }}<span
+        v-if="backendVersion"
+        :class="versionMismatch ? 'text-red-500 font-bold' : ''"
+      > / 后端 v{{ backendVersion }}</span>
+    </span>
   </nav>
 </template>
