@@ -46,10 +46,7 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
 
     # System routes don't need DB session.
     app.include_router(routes_system.router)
-
-    @app.get("/health")
-    async def health():
-        return {"ok": True}
+    app.include_router(routes_system.health_router)
 
     app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
 

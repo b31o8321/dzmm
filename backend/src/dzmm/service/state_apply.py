@@ -1,9 +1,21 @@
 import json
+import logging
 import re
 from datetime import datetime, UTC
+from difflib import SequenceMatcher
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+log = logging.getLogger(__name__)
+
+# Similarity threshold for plot_event new_quest / hook_introduced dedup.
+# 0.7 chosen empirically: ratios of ~0.65-0.85 are typical when the GM
+# re-emits a quest with a slightly reworded description ("寻找老学者提到的接触者，
+# 获取秘密信息" vs "寻找老学者提到的接触者并获取关于公司的秘密"). Tighter
+# thresholds (>=0.8) miss real duplicates; looser (<=0.6) collapses two
+# distinct-but-related quests into one.
+_PLOT_DEDUP_RATIO = 0.7
 
 from dzmm.db.models import (
     Character,
@@ -331,6 +343,25 @@ async def _apply_recall(
     sess.recall_pending_json = json.dumps(pending, ensure_ascii=False)
 
 
+def _is_duplicate_thread(
+    new_desc: str, existing_threads: list[PlotThread]
+) -> int | None:
+    """If `new_desc` is substantially the same as an existing active thread's
+    description (SequenceMatcher ratio >= _PLOT_DEDUP_RATIO), return its id;
+    else None. Empty descriptions never match."""
+    new_norm = (new_desc or "").strip()
+    if not new_norm:
+        return None
+    for t in existing_threads:
+        old = (t.description or "").strip()
+        if not old:
+            continue
+        ratio = SequenceMatcher(None, new_norm, old).ratio()
+        if ratio >= _PLOT_DEDUP_RATIO:
+            return t.id
+    return None
+
+
 async def _apply_plot_event(
     session: AsyncSession,
     session_id: int,
@@ -370,6 +401,31 @@ async def _apply_plot_event(
             target.status = "resolved"
             target.resolution = description
         return
+
+    # Dedup new_quest / hook_introduced against existing *active* threads —
+    # GM frequently re-emits the same quest description across turns with
+    # minor wording tweaks, which previously inflated the plot_threads table.
+    # Resolved threads are intentionally NOT considered (a re-opened version
+    # of an old quest deserves a fresh row).
+    if event_type in ("new_quest", "hook_introduced"):
+        existing = list(
+            (
+                await session.execute(
+                    select(PlotThread).where(
+                        PlotThread.session_id == session_id,
+                        PlotThread.status == "active",
+                    )
+                )
+            ).scalars()
+        )
+        dup_id = _is_duplicate_thread(description, existing)
+        if dup_id is not None:
+            log.info(
+                "dedup: skipping duplicate plot_event for thread %d (turn %d)",
+                dup_id,
+                current_turn,
+            )
+            return
 
     thread = PlotThread(
         session_id=session_id,
