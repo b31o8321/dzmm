@@ -6,6 +6,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { useCharactersStore } from '@/stores/characters'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
+import { sessionsApi } from '@/api/sessions'
 import type { SessionIn } from '@/api/types'
 
 const router = useRouter()
@@ -37,6 +38,28 @@ function reset() {
     gm_model_config_id: modelsStore.items[0]?.id ?? 0,
     summarizer_model_config_id: modelsStore.items[0]?.id ?? 0,
   })
+}
+
+async function exportSession(id: number, format: 'json' | 'md') {
+  try {
+    const blob = await sessionsApi.exportSession(id, format)
+    const typed =
+      blob.type
+        ? blob
+        : new Blob([blob], {
+            type: format === 'json' ? 'application/json' : 'text/markdown',
+          })
+    const url = URL.createObjectURL(typed)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dzmm_export_${id}.${format}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '导出失败')
+  }
 }
 
 async function onCreate() {
@@ -95,11 +118,28 @@ onMounted(async () => {
         <template #default="{ row }">{{ charNameById.get(row.character_id) }}</template>
       </el-table-column>
       <el-table-column prop="turn_count" label="回合数" width="100" />
-      <el-table-column label="操作" width="120">
+      <el-table-column label="操作" width="220">
         <template #default="{ row }">
           <el-button size="small" type="primary" @click="router.push(`/play/${row.id}`)">
             继续
           </el-button>
+          <el-dropdown
+            class="ml-2"
+            trigger="click"
+            @command="(cmd: 'json' | 'md') => exportSession(row.id, cmd)"
+          >
+            <el-button size="small">📥 导出 ▾</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="json">
+                  JSON（含完整结构化数据）
+                </el-dropdown-item>
+                <el-dropdown-item command="md">
+                  Markdown（人类可读）
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
