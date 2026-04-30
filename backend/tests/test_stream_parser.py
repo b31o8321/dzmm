@@ -191,3 +191,102 @@ def test_npc_relation_tag_known():
     assert tag.name == "npc_relation"
     assert tag.attrs == {"between": "御坂雪,卫兵长", "kind": "父女"}
     assert "失散多年" in tag.content
+
+
+# ---------------------------------------------------------------------------
+# v0.10 task A: typo-tolerant close tags + new known tags
+# ---------------------------------------------------------------------------
+
+
+def test_typo_close_tag_narriative_recovers():
+    """`</narriative>` (extra `i`) should close the open <narrative> and let
+    the following <npc_update> parse normally, with a ParseError warning."""
+    p = StreamingTagParser()
+    events = list(p.feed(
+        "<narrative>大家好</narriative><npc_update>{}</npc_update>"
+    ))
+    events.extend(p.finish())
+
+    tag_completes = [e for e in events if isinstance(e, TagComplete)]
+    assert any(t.name == "npc_update" for t in tag_completes)
+
+    parse_errors = [e for e in events if isinstance(e, ParseError)]
+    assert any("typo" in pe.message.lower() for pe in parse_errors)
+
+    deltas = [e.text for e in events if isinstance(e, NarrativeDelta)]
+    assert "大家好" in "".join(deltas)
+
+
+def test_typo_close_tag_state_chnage_recovers():
+    """A buffered tag with a typo close should still emit TagComplete."""
+    p = StreamingTagParser()
+    events = list(p.feed('<state_change>{"hp":-1}</state_chnage>'))
+    events.extend(p.finish())
+
+    tags = [e for e in events if isinstance(e, TagComplete)]
+    assert len(tags) == 1
+    assert tags[0].name == "state_change"
+    assert tags[0].content == '{"hp":-1}'
+
+    errors = [e for e in events if isinstance(e, ParseError)]
+    assert any("typo" in e.message.lower() for e in errors)
+
+
+def test_far_off_close_tag_still_dropped():
+    """`</foobar>` is too dissimilar from `narrative` to be treated as a
+    typo close — narrative stays open and never emits TagComplete."""
+    p = StreamingTagParser()
+    events = list(p.feed("<narrative>x</foobar>"))
+    # Don't call finish(); we just want to confirm no narrative TagComplete
+    # has been produced from the bogus close tag.
+    completes = [e for e in events if isinstance(e, TagComplete)]
+    assert not any(t.name == "narrative" for t in completes)
+
+
+def test_say_tag_with_speaker():
+    p = StreamingTagParser()
+    out = collect(p, ['<say speaker="小菱">「你救了我。」</say>'])
+    sa = [e for e in out if isinstance(e, TagComplete) and e.name == "say"]
+    assert len(sa) == 1
+    assert sa[0].attrs.get("speaker") == "小菱"
+    assert "你救了我" in sa[0].content
+
+
+def test_hidden_event_tag_self_closing():
+    p = StreamingTagParser()
+    raw = (
+        '<hidden_event subject="小菱" kind="injury" severity="2" '
+        'description="渗血" consequence="5回合不治会昏迷"/>'
+    )
+    out = collect(p, [raw])
+    he = [e for e in out if isinstance(e, TagComplete) and e.name == "hidden_event"]
+    assert len(he) == 1
+    assert he[0].attrs.get("subject") == "小菱"
+    assert he[0].attrs.get("kind") == "injury"
+    assert he[0].attrs.get("severity") == "2"
+
+
+def test_hidden_event_tag_with_content():
+    p = StreamingTagParser()
+    raw = '<hidden_event subject="X" kind="secret">隐藏说明</hidden_event>'
+    out = collect(p, [raw])
+    he = [e for e in out if isinstance(e, TagComplete) and e.name == "hidden_event"]
+    assert len(he) == 1
+    assert he[0].content == "隐藏说明"
+
+
+def test_pc_action_tag():
+    p = StreamingTagParser()
+    out = collect(p, ["<pc_action>沈三川转身离开</pc_action>"])
+    pa = [e for e in out if isinstance(e, TagComplete) and e.name == "pc_action"]
+    assert len(pa) == 1
+    assert "沈三川" in pa[0].content
+
+
+def test_scene_shift_tag():
+    p = StreamingTagParser()
+    out = collect(p, ['<scene_shift to="后院">天色已晚</scene_shift>'])
+    ss = [e for e in out if isinstance(e, TagComplete) and e.name == "scene_shift"]
+    assert len(ss) == 1
+    assert ss[0].attrs == {"to": "后院"}
+    assert ss[0].content == "天色已晚"
