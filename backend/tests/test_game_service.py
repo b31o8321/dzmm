@@ -6,8 +6,8 @@ from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Message as MessageRow, ModelConfig, NPC, NpcRelation,
-    Session as GameSession, World,
+    Character, CharState, HiddenEvent, Message as MessageRow, ModelConfig, NPC,
+    NpcRelation, Session as GameSession, World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, TagComplete
@@ -312,6 +312,144 @@ async def test_npc_relation_appears_in_next_prompt(seeded):
     assert "御坂雪" in sys_msg
     assert "卫兵长" in sys_msg
     assert "父女" in sys_msg
+
+
+async def test_key_facts_includes_pc_name_lock(seeded):
+    """The PC's name must be pinned at the very top of key_facts so the GM
+    doesn't drift into using a different name across turns."""
+    engine, SessionMaker, sid = seeded
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # Riku is the seeded PC name.
+    assert "Riku" in sys_msg
+    assert "PC 身份" in sys_msg
+    # An anti-drift instruction must be present.
+    assert "永不可改" in sys_msg or "不得改名" in sys_msg
+
+
+async def test_key_facts_includes_active_hidden_events(seeded):
+    """Active hidden_events are re-injected into key_facts every turn under
+    the GM-only "暗中状态" header."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(HiddenEvent(
+            session_id=sid,
+            subject="小菱",
+            kind="injury",
+            severity=2,
+            description="云梦泽蒙面人砍伤渗血",
+            consequence="再过 5 回合不治会昏迷",
+            introduced_turn=2,
+            status="active",
+        ))
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 4
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "暗中状态" in sys_msg
+    assert "小菱" in sys_msg
+    assert "injury" in sys_msg
+    assert "渗血" in sys_msg
+    assert "昏迷" in sys_msg
+    # turn_age — current_turn is 4, introduced at 2 → t+2
+    assert "t+2" in sys_msg
+
+
+async def test_key_facts_skips_resolved_hidden_events(seeded):
+    """Resolved hidden_events must NOT appear in the prompt — they're done."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(HiddenEvent(
+            session_id=sid,
+            subject="小菱",
+            kind="injury",
+            severity=2,
+            description="渗血",
+            consequence="不治会昏迷",
+            introduced_turn=2,
+            status="resolved",
+            resolved_turn=4,
+            resolution="包扎止血",
+        ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "暗中状态" not in sys_msg
+    # The resolution text shouldn't leak as an active fact either.
+    assert "渗血" not in sys_msg
+
+
+async def test_message_events_json_persisted(seeded):
+    """Every non-narrative tag emitted in a turn lands in Message.events_json
+    so the frontend can render inline event chips."""
+    engine, SessionMaker, sid = seeded
+    output = (
+        "<narrative>你受伤了。</narrative>"
+        '<state_change>{"hp": -3}</state_change>'
+        '<npc_update>{"name":"卫兵长","favor_delta":-2,"state":"敌对"}</npc_update>'
+        '<dice skill="格挡" target="12">d20=8，失败</dice>'
+    )
+    client = FakeClient(output)
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "格挡", client):
+            pass
+        await s.commit()
+
+    async with SessionMaker() as s:
+        msg = (await s.execute(
+            select(MessageRow)
+            .where(MessageRow.session_id == sid, MessageRow.role == "assistant")
+            .order_by(MessageRow.id.desc())
+        )).scalars().first()
+        events = json.loads(msg.events_json)
+
+    assert isinstance(events, list)
+    assert len(events) == 3
+    types = [e["type"] for e in events]
+    assert "state_change" in types
+    assert "npc_update" in types
+    assert "dice" in types
+
+    dice_ev = next(e for e in events if e["type"] == "dice")
+    assert dice_ev["payload"].get("skill") == "格挡"
+    assert dice_ev["payload"].get("target") == "12"
+    assert "d20=8" in dice_ev["content"]
+
+
+async def test_message_events_json_empty_when_only_narrative(seeded):
+    """If the GM only emits <narrative>, events_json is an empty list."""
+    engine, SessionMaker, sid = seeded
+    client = FakeClient("<narrative>静谧的一夜。</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "睡觉", client):
+            pass
+        await s.commit()
+
+    async with SessionMaker() as s:
+        msg = (await s.execute(
+            select(MessageRow)
+            .where(MessageRow.session_id == sid, MessageRow.role == "assistant")
+            .order_by(MessageRow.id.desc())
+        )).scalars().first()
+        assert json.loads(msg.events_json) == []
 
 
 async def test_recall_drains_after_one_use(seeded):

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Era, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Session as GameSession, World,
+    Character, CharState, Era, HiddenEvent, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply import apply_tags
@@ -492,6 +492,200 @@ async def test_npc_relation_invalid_between_skipped(session_with_state):
         select(NpcRelation).where(NpcRelation.session_id == sid)
     )).scalars().all()
     assert len(rels) == 0
+
+
+async def test_hidden_event_create(session_with_state):
+    """<hidden_event> with required `kind` creates an active row keyed to subject."""
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="hidden_event",
+        attrs={
+            "subject": "小菱",
+            "kind": "injury",
+            "severity": "2",
+            "description": "云梦泽蒙面人砍伤渗血",
+            "consequence": "再过 5 回合不治会昏迷",
+        },
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=3, tags=[tag])
+    await s.commit()
+
+    rows = (await s.execute(
+        select(HiddenEvent).where(HiddenEvent.session_id == sid)
+    )).scalars().all()
+    assert len(rows) == 1
+    ev = rows[0]
+    assert ev.subject == "小菱"
+    assert ev.kind == "injury"
+    assert ev.severity == 2
+    assert ev.status == "active"
+    assert ev.introduced_turn == 3
+    assert "渗血" in ev.description
+    assert "昏迷" in ev.consequence
+
+
+async def test_hidden_event_resolve(session_with_state):
+    """A second <hidden_event resolve subject="..."/> marks the active row resolved."""
+    s, sid = session_with_state
+    create_tag = TagComplete(
+        name="hidden_event",
+        attrs={
+            "subject": "小菱",
+            "kind": "injury",
+            "severity": "2",
+            "description": "渗血",
+        },
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=3, tags=[create_tag])
+    await s.commit()
+
+    resolve_tag = TagComplete(
+        name="hidden_event",
+        attrs={"resolve": "1", "subject": "小菱", "resolution": "包扎止血"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=8, tags=[resolve_tag])
+    await s.commit()
+
+    ev = (await s.execute(
+        select(HiddenEvent).where(HiddenEvent.session_id == sid)
+    )).scalar_one()
+    assert ev.status == "resolved"
+    assert ev.resolved_turn == 8
+    assert "包扎" in ev.resolution
+
+
+async def test_hidden_event_ignores_invalid(session_with_state):
+    """Missing kind → no insert. Resolve on a non-existent subject → silent skip."""
+    s, sid = session_with_state
+
+    # Missing kind
+    invalid = TagComplete(
+        name="hidden_event",
+        attrs={"subject": "无名"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[invalid])
+    await s.commit()
+    rows = (await s.execute(
+        select(HiddenEvent).where(HiddenEvent.session_id == sid)
+    )).scalars().all()
+    assert rows == []
+
+    # Resolve a subject that doesn't exist — must not raise.
+    resolve = TagComplete(
+        name="hidden_event",
+        attrs={"resolve": "1", "subject": "幽灵"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[resolve])
+    await s.commit()
+    rows = (await s.execute(
+        select(HiddenEvent).where(HiddenEvent.session_id == sid)
+    )).scalars().all()
+    assert rows == []
+
+
+async def test_hidden_event_payload_in_body_json(session_with_state):
+    """GM may put the payload as JSON inside the tag body — also accepted."""
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="hidden_event",
+        attrs={},
+        content='{"subject":"小菱","kind":"poison","severity":3,"description":"中毒"}',
+    )
+    await apply_tags(s, sid, current_turn=4, tags=[tag])
+    await s.commit()
+
+    ev = (await s.execute(
+        select(HiddenEvent).where(HiddenEvent.session_id == sid)
+    )).scalar_one()
+    assert ev.kind == "poison"
+    assert ev.severity == 3
+    assert ev.subject == "小菱"
+
+
+async def test_npc_ner_fallback_creates_stub(session_with_state):
+    """Narrative text mentioning a name without <npc_update> creates a stub NPC."""
+    s, sid = session_with_state
+    # 小菱 appears 2x, satisfying the frequency >= 2 signal.
+    narrative = "小菱颤抖着说话。她抬头时，小菱的眼角还挂着泪。"
+    await apply_tags(
+        s, sid, current_turn=1, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    npcs = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalars().all()
+    assert len(npcs) == 1
+    assert npcs[0].description == "（GM 未补全）"
+    assert npcs[0].last_seen_turn == 1
+
+
+async def test_npc_ner_skips_existing(session_with_state):
+    """If an NPC with that name already exists, NER should not duplicate."""
+    s, sid = session_with_state
+    s.add(NPC(
+        session_id=sid,
+        name="小菱",
+        description="原本就登记好的",
+        favor=2,
+        state="平静",
+        last_seen_turn=0,
+    ))
+    await s.commit()
+
+    narrative = "小菱颤抖着说话。小菱低声重复了一遍。"
+    await apply_tags(
+        s, sid, current_turn=5, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    npcs = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalars().all()
+    # Still exactly one row — original kept.
+    assert len(npcs) == 1
+    assert npcs[0].description == "原本就登记好的"
+
+
+async def test_npc_ner_skips_when_explicit_npc_update(session_with_state):
+    """If GM declared the NPC via <npc_update> this turn, NER must not re-stub."""
+    s, sid = session_with_state
+    npc_tag = TagComplete(
+        name="npc_update",
+        content='{"name":"小菱","description":"少女剑客","state":"警觉"}',
+    )
+    narrative = "小菱颤抖着说话。小菱握紧了剑柄。"
+    await apply_tags(
+        s, sid, current_turn=1, tags=[npc_tag], narrative_text=narrative
+    )
+    await s.commit()
+
+    npcs = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalars().all()
+    assert len(npcs) == 1
+    # The explicit npc_update wins — description is the GM-supplied one,
+    # not the "(GM 未补全)" stub.
+    assert npcs[0].description == "少女剑客"
+    assert npcs[0].state == "警觉"
+
+
+async def test_npc_ner_filters_stopwords(session_with_state):
+    """Common pronouns / scene words must NOT be registered as NPCs."""
+    s, sid = session_with_state
+    narrative = "你看见远处。远处有一座庙。远处的雾很浓。她转过身。"
+    await apply_tags(
+        s, sid, current_turn=1, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    npcs = (await s.execute(select(NPC).where(NPC.session_id == sid))).scalars().all()
+    assert npcs == []
 
 
 async def test_apply_plot_event_resolution_closes_latest(session_with_state):
