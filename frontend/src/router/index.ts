@@ -19,6 +19,8 @@ const router = createRouter({
         { path: 'worlds', name: 'worlds', component: () => import('@/views/WorldsView.vue') },
         { path: 'characters', name: 'characters', component: () => import('@/views/CharactersView.vue') },
         { path: 'sessions', name: 'sessions', component: () => import('@/views/SessionsView.vue') },
+        { path: 'sessions/generate/:id', name: 'session-generate',
+          component: () => import('@/views/SessionGenerateView.vue'), props: true },
         { path: 'play/:id', name: 'play', component: () => import('@/views/GameView.vue'), props: true },
         { path: 'play/:id/journal', name: 'journal',
           component: () => import('@/views/JournalView.vue'), props: true },

@@ -8,6 +8,7 @@ import { useCharactersStore } from '@/stores/characters'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { sessionsApi } from '@/api/sessions'
 import type { SessionIn } from '@/api/types'
+import GenreSelector from '@/components/GenreSelector.vue'
 
 const router = useRouter()
 const sessionsStore = useSessionsStore()
@@ -26,6 +27,11 @@ const form = reactive<SessionIn>({
   summarizer_model_config_id: 0,
 })
 
+const genreForm = reactive<{ genre: string; custom_prompt: string }>({
+  genre: '悬疑探案',
+  custom_prompt: '',
+})
+
 const charsForWorld = computed(() =>
   charsStore.items.filter((c) => c.world_id === form.world_id),
 )
@@ -38,6 +44,8 @@ function reset() {
     gm_model_config_id: modelsStore.items[0]?.id ?? 0,
     summarizer_model_config_id: modelsStore.items[0]?.id ?? 0,
   })
+  genreForm.genre = '悬疑探案'
+  genreForm.custom_prompt = ''
 }
 
 async function exportSession(id: number, format: 'json' | 'md') {
@@ -69,10 +77,21 @@ async function onCreate() {
       ElMessage.warning('请补全所有字段')
       return
     }
+    if (genreForm.genre === '自定义' && !genreForm.custom_prompt.trim()) {
+      ElMessage.warning('选择「自定义」时请填写故事描述')
+      return
+    }
     const s = await sessionsStore.create(form)
-    ElMessage.success('已创建')
+    ElMessage.success('已创建，正在生成剧本…')
     dialogOpen.value = false
-    router.push(`/play/${s.id}`)
+    router.push({
+      name: 'session-generate',
+      params: { id: String(s.id) },
+      query: {
+        genre: genreForm.genre,
+        custom_prompt: genreForm.custom_prompt,
+      },
+    })
   } catch (e: any) {
     ElMessage.error(e.message)
   } finally {
@@ -188,6 +207,9 @@ onMounted(async () => {
               :value="m.id"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="故事类型" required>
+          <GenreSelector v-model="genreForm" />
         </el-form-item>
       </el-form>
       <template #footer>
