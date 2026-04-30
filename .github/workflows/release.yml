@@ -88,6 +88,89 @@ jobs:
         working-directory: frontend
         run: npm run tauri:build
 
+      - name: smoke artifact (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG=$(find frontend/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -1)
+          if [ -z "$DMG" ]; then
+            echo "::error::no .dmg found"
+            exit 1
+          fi
+          SIZE=$(stat -f %z "$DMG")
+          echo "DMG size: $SIZE bytes"
+          if [ "$SIZE" -lt 20971520 ]; then  # 20MB
+            echo "::error::DMG too small ($SIZE < 20MB), likely missing backend bundle"
+            exit 1
+          fi
+
+          MOUNTPOINT=$(mktemp -d)
+          hdiutil attach "$DMG" -mountpoint "$MOUNTPOINT" -nobrowse -readonly
+          trap "hdiutil detach \"$MOUNTPOINT\" -force || true" EXIT
+
+          APP=$(find "$MOUNTPOINT" -maxdepth 2 -name 'dzmm.app' -type d | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::dzmm.app missing from DMG"
+            exit 1
+          fi
+
+          if [ ! -f "$APP/Contents/MacOS/dzmm" ] && [ ! -f "$APP/Contents/MacOS/app" ]; then
+            echo "::error::main binary missing in dzmm.app/Contents/MacOS"
+            ls -la "$APP/Contents/MacOS/" || true
+            exit 1
+          fi
+
+          BACKEND=$(find "$APP/Contents/Resources" -name 'dzmm-backend' -type f | head -1)
+          if [ -z "$BACKEND" ]; then
+            echo "::error::dzmm-backend missing from .app resources"
+            ls -la "$APP/Contents/Resources/" | head -20
+            exit 1
+          fi
+
+          INTERNAL=$(find "$APP/Contents/Resources" -name '_internal' -type d | head -1)
+          if [ -z "$INTERNAL" ]; then
+            echo "::error::PyInstaller _internal dir missing — onedir bundle broken"
+            exit 1
+          fi
+
+          echo "::notice::DMG smoke OK: $SIZE bytes, .app + backend + _internal all present"
+
+      - name: smoke artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=$(find frontend/src-tauri/target/release/bundle/nsis -name '*-setup.exe' | head -1)
+          if [ -z "$EXE" ]; then
+            echo "::error::no NSIS .exe found"
+            exit 1
+          fi
+          SIZE=$(stat -c %s "$EXE")
+          echo "EXE size: $SIZE bytes"
+          if [ "$SIZE" -lt 15728640 ]; then  # 15MB
+            echo "::error::EXE too small ($SIZE < 15MB)"
+            exit 1
+          fi
+
+          # NSIS 安装包是 7z 自解压档（用 7z 列出内容）
+          7z l "$EXE" > /tmp/nsis_contents.txt 2>&1 || true
+          echo "::group::NSIS contents (excerpt)"
+          head -100 /tmp/nsis_contents.txt
+          echo "::endgroup::"
+
+          if ! grep -q 'dzmm-backend.exe' /tmp/nsis_contents.txt; then
+            echo "::error::dzmm-backend.exe not found in NSIS installer"
+            exit 1
+          fi
+
+          if ! grep -qi 'python313.dll\|_internal' /tmp/nsis_contents.txt; then
+            echo "::error::Python runtime files missing from installer (no python*.dll or _internal)"
+            exit 1
+          fi
+
+          echo "::notice::EXE smoke OK: $SIZE bytes, dzmm-backend.exe + Python runtime present"
+
       - name: upload artifact
         uses: actions/upload-artifact@v4
         with:
