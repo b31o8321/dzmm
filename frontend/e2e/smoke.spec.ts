@@ -32,11 +32,34 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
   // 5. Open the "new session" dialog.
   await page.getByRole('button', { name: /\+ 新开一局/ }).click()
 
-  // 6. Fill the form. World/character/model defaults come from seed data.
+  // 6. Fill the form. el-select dropdowns need click-to-open + click-option.
   await page.getByLabel('存档名称').fill('e2e-test')
+
+  async function pickFirst(label: string) {
+    // Click the el-select trigger, then drive selection via keyboard (Down +
+    // Enter). Element-plus's popper has display animations that confuse
+    // Playwright's visibility heuristics; keyboard navigation sidesteps it.
+    const trigger = page.locator(`.el-form-item:has(label:text("${label}")) .el-select`)
+    await trigger.click()
+    await page.waitForTimeout(150)
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+  }
+
+  await pickFirst('世界观')
+  await pickFirst('角色')
+  await pickFirst('GM 模型')
+  await pickFirst('摘要模型')
+
   await page.getByRole('button', { name: /开始跑团/ }).click()
 
-  // 7. Land on the game view.
+  // 7a. v0.1.0+: lands on generate loading page first
+  //     (/sessions/generate/:id). Wait for outline to finish + the explicit
+  //     "▶ 开始跑团" button on the preview phase.
+  await expect(page).toHaveURL(/\/sessions\/generate\/\d+/, { timeout: 10_000 })
+  await page.getByRole('button', { name: /▶ 开始跑团/ }).click({ timeout: 30_000 })
+
+  // 7b. Now land on the actual game view.
   await expect(page).toHaveURL(/\/play\/\d+/, { timeout: 10_000 })
 
   // 8. Send an action.

@@ -40,8 +40,23 @@ from dzmm.models.client import (  # noqa: E402
 )
 
 
+_STUB_OUTLINE_JSON = """{
+  "chapters": [
+    {"title": "第一章：测试场景", "summary": "一段简短测试场景。",
+     "main_events": ["遇到 NPC"], "optional_events": [], "main_npcs": ["路人甲"]}
+  ],
+  "main_characters": [
+    {"name": "路人甲", "role": "测试 NPC", "description": "占位",
+     "intro_chapter": 1}
+  ],
+  "ending": "测试结束。",
+  "opening_hook": "你站在测试用的虚拟街道上。"
+}"""
+
+
 class StubModelClient(ModelClient):
-    """Yields a tiny scripted narrative so the front-end can verify SSE."""
+    """Yields a tiny scripted narrative for GM calls; valid JSON for outliner
+    calls. The two are distinguished by inspecting the system prompt."""
 
     name = "stub-e2e"
 
@@ -50,6 +65,24 @@ class StubModelClient(ModelClient):
         messages: list[Message],
         params: GenerationParams,
     ):
+        # Detect outliner vs GM: outliner system prompt mentions "TRPG 编剧"
+        # and asks for JSON output. Heuristic: if "TRPG 编剧" appears in any
+        # message, treat as outliner.
+        is_outliner = any(
+            (m.content or "").find("TRPG 编剧") >= 0 for m in messages
+        )
+
+        if is_outliner:
+            # Stream the JSON in one chunk — outliner doesn't need progressive UI.
+            yield StreamChunk(delta=_STUB_OUTLINE_JSON)
+            yield StreamChunk(
+                delta="",
+                finish_reason="stop",
+                usage=TokenUsage(input_tokens=20, output_tokens=80),
+            )
+            return
+
+        # GM call: scripted narrative + state_change
         chunks = [
             "<narrative>",
             "你站在虚拟",
