@@ -270,6 +270,30 @@ function parseParts(content: string): Part[] {
   return parts
 }
 
+// Compose what the chat bubble actually renders. Two states must coexist:
+//   - Streaming: t.narrative grows token-by-token via onNarrative; once GM
+//     emits the first <say>/<pc_action> close, onTag populates t.rawContent
+//     (which does NOT contain narrative). We must keep showing t.narrative
+//     so the live text doesn't vanish mid-stream.
+//   - Rehydrated history (onMounted) / post-onDone: rawContent holds the full
+//     payload including <narrative>...</narrative>. parseParts handles it; we
+//     skip its narration parts when t.narrative is already non-empty to avoid
+//     double-rendering.
+function displayParts(t: Turn): Part[] {
+  const parts: Part[] = []
+  const liveNarrative = t.narrative && t.narrative.trim()
+  if (liveNarrative) {
+    parts.push({ type: 'narration', text: t.narrative })
+  }
+  if (t.rawContent) {
+    for (const p of parseParts(t.rawContent)) {
+      if (liveNarrative && p.type === 'narration') continue
+      parts.push(p)
+    }
+  }
+  return parts
+}
+
 async function sendAction(userAction: string) {
   sending.value = true
 
@@ -659,9 +683,9 @@ onUnmounted(() => audio.stopBgm())
         <article v-for="(t, i) in turns" :key="i" class="space-y-2">
           <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
           <div class="relative bg-white rounded shadow-sm p-4">
-            <template v-if="t.rawContent">
+            <template v-if="displayParts(t).length">
               <SpeakerBubble
-                v-for="(part, pi) in parseParts(t.rawContent)"
+                v-for="(part, pi) in displayParts(t)"
                 :key="pi"
                 :part="part"
                 :pc-name="character?.name"
