@@ -2,6 +2,50 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.10] - 2026-04-30
+
+**主题：实玩反馈统一优化（GM 输出质量 + UX）**
+
+v0.9 实玩 11 条问题集中收口。覆盖标签解析容错、prompt 大改、隐性事件机制、speaker 区分、导出存档、关键 UX。
+
+### 新增
+- **`<say speaker="...">` / `<pc_action>` / `<hidden_event>` / `<scene_shift>` 4 个新标签** —— GM 现在按主体（旁白 / PC / 各 NPC）分别输出，前端按 speaker 分气泡渲染（左右气泡 + 居中旁白）
+- **闭合标签错拼容错** —— `</narriative>`（多 i 拼写错）等编辑距离 ≤2 / 相似度 ≥70% 的错拼会自动当成正确标签关闭，不再吃掉后续 JSON
+- **隐性事件系统（带引信）** —— GM emit `<hidden_event subject="..." consequence="N 回合不处理则 X"/>`，存到 `hidden_events` 表，每回合在 key_facts 里以「## 暗中状态(GM only)」段注入；玩家不可见，GM 必须按 consequence 演变化
+- **PC 身份铁钉** —— `_build_key_facts` 顶部强制注入 `## PC 身份（最高优先级，永不可改）` 段，配合 prompt 铁律 16 治疗角色名漂移（沈三川 → 云野）
+- **NPC 自动登记 NER 兜底** —— GM 漏 emit `<npc_update>` 时，启发式（频率 ≥2 的 hanzi token + cue 词 + 80 词停用表）自动建 stub
+- **每回合事件持久化** —— `messages.events_json` 保存该回合所有非 narrative 标签结构化数据
+- **每条 GM 消息事件详情 dialog** —— 气泡右下角 `🎲 N` 按钮，点击弹框按类型分组显示骰子/状态/NPC/任务等
+- **存档导出** —— `GET /sessions/{id}/export?format=json|md`；SessionsView 每行加 📥 下拉菜单选 JSON / Markdown 下载
+- **Enter 发送** —— 单 Enter 发，Shift+Enter 换行，IME composition 下不拦截
+
+### Prompt 大改
+铁律从 13 条扩到 19 条：
+- 14：NPC 反应兜底 —— PC 任何搭话/提问/接近，本回合该 NPC 必须有反馈
+- 15：玩家输入双视角解读（导演 vs 代入），都要给 NPC/环境反馈
+- 16：PC 姓名锁
+- 17：描写丰度 —— 200-400 字 / 必含 PC 后果 + NPC 细节 + 推剧情
+- 18：首次提名必登记 —— narrative 提到新有名 NPC 必须紧跟 `<npc_update>`
+- 19：输出顺序 —— narrative / pc_action / say 自然交错
+- 新加「## 暗中状态机制」专节解释 hidden_event 用法
+- few-shot example 重写为含 say / pc_action / hidden_event 的高质量样例
+
+### 数据库
+- 新表 `hidden_events`（id, session_id, subject, kind, severity, description, consequence, introduced_turn, status, resolution, resolved_turn）
+- `messages` 加列：`events_json`、`parts_json`
+- v0.10 迁移自动追加（PRAGMA + ALTER TABLE 幂等）
+
+### 测试
+- 后端 133 → 172（+39）
+- 前端 build 通过；新组件：`SpeakerBubble.vue` / `MessageEventsDialog.vue`
+
+### API 变化
+- `GET /sessions/{id}/messages` 返回 message 多 `events: [...]` 字段
+- `GET /sessions/{id}/hidden_events?include_resolved=false` 新端点
+- `GET /sessions/{id}/export?format=json|md` 新端点
+
+---
+
 ## [v0.9] - 2026-04-30
 
 **主题：情绪系统 + GM 反应性**
