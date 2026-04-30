@@ -459,6 +459,95 @@ async def test_message_events_json_empty_when_only_narrative(seeded):
         assert json.loads(msg.events_json) == []
 
 
+async def test_key_facts_includes_pc_hooks_section(seeded):
+    """character.profile_md 含 能力 / 物品 / 弱点 段落 → key_facts 应注入
+    「PC 钩子」段，并把抽出的具体词带进 prompt。"""
+    engine, SessionMaker, sid = seeded
+
+    profile = (
+        "## 背景\n"
+        "江湖游医一名。\n"
+        "\n"
+        "**能力**：剑术、轻功、医术\n"
+        "\n"
+        "**物品**：玉佩、银针包\n"
+        "\n"
+        "**弱点**：怕水、易心软\n"
+    )
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        char = await s.get(Character, sess.character_id)
+        char.profile_md = profile
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "PC 钩子" in sys_msg
+    assert "剑术" in sys_msg
+    assert "玉佩" in sys_msg
+    assert "怕水" in sys_msg
+
+
+async def test_key_facts_skips_hooks_when_profile_empty(seeded):
+    """profile_md 空时不应注入「PC 钩子」段。"""
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        char = await s.get(Character, sess.character_id)
+        char.profile_md = ""
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # The static system template mentions "PC 钩子" in rule 20 itself; the
+    # injected key_facts section uses the heading "## PC 钩子（用上它们）" with
+    # concrete bullet rows. Only the latter should be absent when profile is empty.
+    assert "## PC 钩子（用上它们）\n能力" not in sys_msg
+    assert "## PC 钩子（用上它们）\n物品" not in sys_msg
+    assert "## PC 钩子（用上它们）\n弱点" not in sys_msg
+
+
+async def test_key_facts_includes_pc_numerical_state(seeded):
+    """character.level + char_state.stats_json + inventory_json → 注入
+    「PC 当前数值」段，列等级 / 属性 / 物品。"""
+    engine, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        char = await s.get(Character, sess.character_id)
+        char.level = 3
+        cs = (await s.execute(
+            select(CharState).where(CharState.session_id == sid)
+        )).scalar_one()
+        cs.stats_json = json.dumps({"hp": 20, "sanity": 15, "力量": 14, "敏捷": 12})
+        cs.inventory_json = json.dumps(["剑", "玉佩"])
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "PC 当前数值" in sys_msg
+    assert "Lv 3" in sys_msg
+    assert "力量=14" in sys_msg
+    assert "剑" in sys_msg
+    assert "玉佩" in sys_msg
+
+
 async def test_recall_drains_after_one_use(seeded):
     """Recalled NPC injects full dossier this turn; recall_pending is cleared
     after one use."""
