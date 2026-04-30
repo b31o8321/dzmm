@@ -200,6 +200,14 @@ async def test_pinned_npc_always_in_prompt(seeded):
             archetype="外柔内刚的文学少女",
             affinity_json='{"信任":3,"羁绊":2}',
             pinned=True,
+            # v0.11: this NPC is fully known to the player; explicit reveal
+            # mask so the dossier shows everything (otherwise default mask
+            # would hide purpose / archetype / affinity).
+            revealed_json=(
+                '{"name":true,"description":true,"state":true,'
+                '"purpose":true,"archetype":true,"favor":true,'
+                '"affinity":true}'
+            ),
         ))
         sess = await s.get(GameSession, sid)
         sess.turn_count = 30
@@ -548,6 +556,69 @@ async def test_key_facts_includes_pc_numerical_state(seeded):
     assert "玉佩" in sys_msg
 
 
+async def test_key_facts_filters_unrevealed_npc_fields(seeded):
+    """v0.11: an NPC field whose value is set in the DB but NOT marked
+    revealed must NOT leak into the GM system prompt. The NPC's name MUST
+    still appear so the GM can refer to them."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid,
+            name="小菱",
+            description="某秘密设定不应泄露给玩家",
+            purpose="同样不可见的隐秘动机",
+            favor=5,
+            state="表面平静",
+            last_seen_turn=1,
+            pinned=True,  # ensures full-dossier path is exercised
+            revealed_json='{"name": true}',
+        ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # Name must surface so GM can refer to the NPC.
+    assert "小菱" in sys_msg
+    # Hidden field values must NOT leak.
+    assert "某秘密设定不应泄露给玩家" not in sys_msg
+    assert "同样不可见的隐秘动机" not in sys_msg
+    # GM should be told about hidden fields without seeing their values.
+    assert "未揭示" in sys_msg
+
+
+async def test_key_facts_includes_revealed_npc_fields(seeded):
+    """v0.11: when description is revealed, its actual text must appear in
+    the GM system prompt — that's what makes it 'revealed'."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid,
+            name="小菱",
+            description="已知的公开身份描述",
+            favor=3,
+            state="警觉",
+            last_seen_turn=1,
+            pinned=True,
+            revealed_json='{"name": true, "description": true}',
+        ))
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "小菱" in sys_msg
+    assert "已知的公开身份描述" in sys_msg
+
+
 async def test_recall_drains_after_one_use(seeded):
     """Recalled NPC injects full dossier this turn; recall_pending is cleared
     after one use."""
@@ -566,6 +637,11 @@ async def test_recall_drains_after_one_use(seeded):
             archetype="外柔内刚的文学少女",
             affinity_json='{"信任":3}',
             pinned=False,
+            revealed_json=(
+                '{"name":true,"description":true,"state":true,'
+                '"purpose":true,"archetype":true,"favor":true,'
+                '"affinity":true}'
+            ),
         ))
         sess = await s.get(GameSession, sid)
         sess.turn_count = 50

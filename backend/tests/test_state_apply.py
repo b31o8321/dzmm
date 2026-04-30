@@ -688,6 +688,142 @@ async def test_npc_ner_filters_stopwords(session_with_state):
     assert npcs == []
 
 
+async def test_npc_create_auto_reveals_provided_fields(session_with_state):
+    """v0.11: when an NPC is first created via <npc_update>, fields whose
+    values are set in the same payload are auto-marked revealed (the GM has
+    just written them so the player has seen them). Fields not provided
+    remain hidden."""
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="npc_update",
+        content='{"name":"小菱","description":"少女剑客","purpose":"找同伴"}',
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalar_one()
+    revealed = json.loads(npc.revealed_json)
+    assert revealed.get("name") is True
+    assert revealed.get("description") is True
+    assert revealed.get("purpose") is True
+    # archetype not set in payload — must NOT be revealed
+    assert "archetype" not in revealed or revealed.get("archetype") is False
+
+
+async def test_npc_update_reveal_attribute_unlocks_fields(session_with_state):
+    """v0.11: <npc_update name="..." reveal="purpose,archetype"/> on an
+    existing NPC marks those fields revealed without changing their values."""
+    s, sid = session_with_state
+    # Step 1: minimal create — only name reveals.
+    create = TagComplete(
+        name="npc_update",
+        content='{"name":"小菱"}',
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[create])
+    await s.commit()
+
+    # Seed purpose/archetype directly so we can test reveal-only on existing values.
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalar_one()
+    npc.purpose = "寻找被抓走的同伴"
+    npc.archetype = "外柔内刚的少女剑客"
+    await s.commit()
+
+    # Step 2: reveal-only update via attribute.
+    reveal_tag = TagComplete(
+        name="npc_update",
+        attrs={"name": "小菱", "reveal": "purpose,archetype"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[reveal_tag])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalar_one()
+    revealed = json.loads(npc.revealed_json)
+    assert revealed.get("name") is True
+    assert revealed.get("purpose") is True
+    assert revealed.get("archetype") is True
+    # Existing field values must be unchanged by the reveal-only update.
+    assert npc.purpose == "寻找被抓走的同伴"
+    assert npc.archetype == "外柔内刚的少女剑客"
+
+
+async def test_npc_update_reveal_with_value_change_combined(session_with_state):
+    """v0.11: a single update can both mutate a field AND reveal a different
+    field via the reveal=... attribute. Auto-reveal also applies to any field
+    whose value is being set in the same payload."""
+    s, sid = session_with_state
+    # Create with only name revealed.
+    create = TagComplete(name="npc_update", content='{"name":"小菱"}')
+    await apply_tags(s, sid, current_turn=1, tags=[create])
+    await s.commit()
+
+    # Update purpose AND ask reveal=affinity.
+    update_tag = TagComplete(
+        name="npc_update",
+        attrs={"reveal": "affinity"},
+        content='{"name":"小菱","purpose":"新动机"}',
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[update_tag])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalar_one()
+    revealed = json.loads(npc.revealed_json)
+    assert npc.purpose == "新动机"
+    assert revealed.get("purpose") is True  # auto-reveal: value just changed
+    assert revealed.get("affinity") is True  # explicit reveal=affinity
+    assert revealed.get("name") is True
+
+
+async def test_npc_update_unknown_reveal_field_ignored(session_with_state):
+    """v0.11: reveal names not in the whitelist (e.g. 'banana') are silently
+    dropped. Recognised names in the same list still take effect."""
+    s, sid = session_with_state
+    create = TagComplete(name="npc_update", content='{"name":"小菱"}')
+    await apply_tags(s, sid, current_turn=1, tags=[create])
+    await s.commit()
+
+    bad_tag = TagComplete(
+        name="npc_update",
+        attrs={"name": "小菱", "reveal": "banana,description"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=2, tags=[bad_tag])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+    )).scalar_one()
+    revealed = json.loads(npc.revealed_json)
+    assert revealed.get("description") is True
+    assert "banana" not in revealed
+
+
+async def test_npc_update_reveal_only_no_npc_no_op(session_with_state):
+    """v0.11: a reveal-only update against a non-existent NPC is a silent
+    no-op — we don't fabricate a new NPC just to mark a field revealed."""
+    s, sid = session_with_state
+    tag = TagComplete(
+        name="npc_update",
+        attrs={"name": "幽灵", "reveal": "purpose"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    await s.commit()
+
+    rows = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "幽灵")
+    )).scalars().all()
+    assert rows == []
+
+
 async def test_apply_plot_event_resolution_closes_latest(session_with_state):
     s, sid = session_with_state
     open_tag = TagComplete(
