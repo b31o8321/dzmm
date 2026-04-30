@@ -2,6 +2,34 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.12] - 2026-04-30
+
+**主题：实玩反馈第二波 — 姓名漂移根治 + 推进义务 + 帮助页**
+
+v0.11 实玩 5 条问题集中收口。版本号显示、姓名漂移多重防御、数值 tooltip、帮助页、剧情推进。
+
+### 新增
+- **页面显示版本号** —— SidebarNav 底部 + GameView header 角落显示 `v{version}`，从 package.json 编译期注入；`/health` 端点也暴露后端 `app_version`
+- **PC 姓名 repair 兜底**（再次根治 Riku → 林峰 类漂移）：
+  - 后端在 GM 输出持久化前扫 `我叫 X / 我是 X / 在下 X / 鄙人 X / 叫我 X / 本人(是) X / 敝人 X` 6 类自报家门模式
+  - `<say speaker="...">` NPC 对白块用占位符 mask 后 repair 再恢复，避免误改 NPC 名
+  - `_FEW_SHOT_EXAMPLE` 里的 PC 名硬编码改为 `{character_name}` 占位符，防止本地 7B 模型把范例名当成 PC 名
+  - GM prompt 铁律 16 加反向自检要求
+- **数值 hover tooltip** —— StatePanel 的 hp / sanity / 各属性鼠标 hover 显示含义 + 阈值（12 项含大小写变体）
+- **帮助 / 说明页 `/help`** —— SidebarNav 加入口，markdown 渲染 9 个章节：数值 / 检定 / NPC / 行动 / 隐性事件 / 快捷键 / 存档 / 标签字典 / FAQ
+- **plot_event new_quest 去重** —— `<plot_event>` 描述与已有 active thread 相似度 ≥0.7（SequenceMatcher）时不新建（治图里 3 条几乎一样的「new_quest」）
+- **GM prompt 铁律 22「关键信息推进义务」** —— PC 追问关键信息时本回合必须给实质答案，不可反复反问（≥2 次反问 = 失败）
+- **GM prompt 铁律 23「世界状态前进」** —— 每回合 narrative 必须含外部世界变化（地点/新信息/NPC 出场/时间流动/物品）；禁止「思考-模糊-choices」原地循环
+
+### 测试
+- 后端 185 → 204（+19）；新文件 `test_name_repair.py`（9 个用例）
+- 前端 build 通过；新组件 `HelpView.vue`
+
+### API 变化
+- `/health` 返回多一字段 `version: "0.12.0"`
+
+---
+
 ## [v0.11] - 2026-04-30
 
 **主题：角色卡 UI + PC 钩子驱动 + 数值锚定**
