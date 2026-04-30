@@ -35,13 +35,13 @@ _STYLE_HINTS = {
 _FEW_SHOT_EXAMPLE = """
 # 输出范例（参考此格式，每个标签都必须闭合；narrative / pc_action / say 按发生顺序混合）
 
-假设玩家行动是「上前盘问那个卫兵」，PC 名为「沈三川」。正确的输出应当大致如下：
+假设玩家行动是「上前盘问那个卫兵」，PC 名为「{character_name}」。正确的输出应当大致如下：
 
 <narrative>
 夜风带着潮气从巷口灌进来，把廊下那盏老式钠灯吹得忽明忽暗。空气里有淡淡的血腥气，混着卫兵制服上廉价烟草的味道。
 </narrative>
 
-<pc_action>沈三川压低帽檐，三步并作两步走到那名年轻卫兵面前，目光落在他左手边的衣袖上。</pc_action>
+<pc_action>{character_name}压低帽檐，三步并作两步走到那名年轻卫兵面前，目光落在他左手边的衣袖上。</pc_action>
 
 <say speaker="年轻卫兵">「站——站住！这里禁止通行！」</say>
 
@@ -56,7 +56,7 @@ d20=15，成功
 </dice>
 
 <npc_update>
-{"name": "年轻卫兵", "favor_delta": 0, "emotion": {"fear": +15}, "state": "强装镇定，随时可能崩溃", "description": "二十出头的男性，制服左袖沾着新鲜血迹，明显在隐瞒什么", "purpose": "守住后门，但更想掩盖左袖的血迹"}
+{{"name": "年轻卫兵", "favor_delta": 0, "emotion": {{"fear": +15}}, "state": "强装镇定，随时可能崩溃", "description": "二十出头的男性，制服左袖沾着新鲜血迹，明显在隐瞒什么", "purpose": "守住后门，但更想掩盖左袖的血迹"}}
 </npc_update>
 
 <hidden_event subject="年轻卫兵" kind="injury" severity="2"
@@ -64,7 +64,7 @@ d20=15，成功
               consequence="2 回合内若不被揭穿/处理，他将因失血加剧而瘫坐，言语含糊"/>
 
 <state_change>
-{"sanity": -1}
+{{"sanity": -1}}
 </state_change>
 
 <choices>
@@ -142,6 +142,9 @@ PC 姓名 = 「{character_name}」
     **两种视角都必须在本回合产生 NPC 或环境的反馈，不可只描述 PC 自己。**
 16. **角色姓名锁**：PC 永远叫「{character_name}」。每次提到 PC，都必须使用
     这个名字，不允许漂移、缩写或替换为别的名字。
+    **对违规的反向自检**：每输出一段 narrative / pc_action / say(speaker=PC name)
+    之前，扫一遍：里面是否出现「我叫 X」「我是 X」「在下 X」？若 X 不是
+    「{character_name}」，**必须改回「{character_name}」**——这是不能犯的低级错误。
 17. **描写丰度（narrative 不可短）**：每回合 narrative 总字数 200-400 字
     （重要场景可到 600），且必含三件事——
     (1) PC 行动的具象后果（不要写抽象的「你成功了」）；
@@ -174,6 +177,28 @@ PC 姓名 = 「{character_name}」
       显出敬畏；同一句话不同等级时 NPC 反应应该有差。
     - 升级时（character_xp 累积过阈值）narrative 应有一句"你感觉力量充沛了"+
       后续 1-2 回合 NPC 注意到 PC 气场变化。
+22. **关键信息推进义务（防止反复反问）**：
+    当 PC 主动追问 NPC 一个具体的关键信息（人名 / 地点 / 时间 / 数量 / 联系方式 /
+    某事真相），且 NPC 知情或有据可查：
+    - **本回合必须给出实质答案**——一个名字、一个地址、一个具体的描述。
+    - 可以加条件（"但你需要先答应一件事"），但条件必须是这次能完成的，
+      不能用「以后再说」「时机未到」永远拖延。
+    - **同一信息被追问 ≥2 次还在反问，等于剧情卡死**——不允许。
+    - 如果 NPC 真的不知道，**明确说不知道**而不是模糊回避；让 PC 改去找别人。
+    保持悬念可以——但悬念是「我知道答案是 X，但我不能让 PC 现在就拿到」，
+    不是「无限反问拖时间」。
+23. **每回合世界状态必须前进**：每个回合 narrative 必须包含至少一项**外部
+    世界变化**——不是 PC 心理活动 / NPC 重复同样的话——可以是：
+    - 地点变化（移动到新场景）
+    - 新信息（NPC 透露的、环境揭示的）
+    - 新 NPC 出场或离场
+    - 时间流动（"半个时辰过去了"）
+    - 物品出现 / 消失
+    - 新的 plot_event（hook / 事件 / 任务）
+
+    禁止「PC 思考 → NPC 模糊回应 → choices 三选一」的纯原地循环。
+    若你输出的 choices 与上回合 choices 实质重复，**等同于失败**——
+    应该让玩家自己输入或重新设计。
 
 # 反应性原则（让世界真的"在乎"玩家做的事）
 
@@ -412,6 +437,13 @@ def build_gm_messages(
 
     pc_name = _extract_pc_name(character_md, fallback=character_name)
 
+    # Substitute the PC name into the few-shot example first.  Note that
+    # _FEW_SHOT_EXAMPLE contains literal `{{` / `}}` for the JSON examples;
+    # after this .format() they collapse to single `{` / `}` and the resulting
+    # text is treated as a *value* (not a format string) when interpolated
+    # into _SYSTEM_TEMPLATE below, so no further escaping is needed.
+    example_text = _FEW_SHOT_EXAMPLE.format(character_name=pc_name)
+
     system = _SYSTEM_TEMPLATE.format(
         world=world_md.strip() or "（未提供）",
         rules_label=rules_mode,
@@ -423,7 +455,7 @@ def build_gm_messages(
         live_state=_format_live_state(live_state),
         story_summary=story_summary.strip() or "（暂无，首次互动）",
         key_facts=key_facts.strip() or "（暂无）",
-        example=_FEW_SHOT_EXAMPLE,
+        example=example_text,
     )
 
     messages: list[Message] = [Message(role="system", content=system)]
