@@ -190,3 +190,47 @@ def test_few_shot_example_present():
     assert "</state_change>" in sys
     assert "</npc_update>" in sys
     assert "</choices>" in sys
+
+
+def test_reactivity_principles_present():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "反应性原则" in sys
+    # 关键提示词必须出现
+    assert "情绪" in sys
+    assert "≥ 70" in sys or "≥70" in sys
+    assert "PC 心情" in sys
+    assert "关系" in sys
+
+
+def test_reactivity_addresses_pc_goals():
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    # 反应性原则那一节应该说到 PC 目标
+    reactivity_section_idx = sys.find("反应性原则")
+    assert reactivity_section_idx >= 0
+    section_after = sys[reactivity_section_idx:]
+    assert "PC 的活跃目标" in section_after or "PC 目标" in section_after
+
+
+def test_reactivity_emphasizes_action_not_telling():
+    """反应性原则要点之一：用动作传达，不要直接说'她愤怒'。"""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    # 关键约束：show don't tell
+    assert "用动作和对话" in sys or "show don" in sys.lower() or "动作" in sys
