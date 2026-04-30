@@ -435,3 +435,37 @@ def test_few_shot_uses_new_tags():
     assert "<say speaker" in example_section
     assert "<pc_action>" in example_section
     assert "<hidden_event" in example_section
+
+
+# ----------------------------------------------------------------------------
+# v0.11 task B: PC hooks + numerical anchoring rules
+# ----------------------------------------------------------------------------
+
+
+def test_pc_hook_rule_present():
+    """铁律 20 — PC 钩子（能力 / 物品 / 弱点 必须被场景调用）。"""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_text = msgs[0].content
+    assert "PC 钩子" in sys_text
+    assert "能力" in sys_text and "物品" in sys_text and "弱点" in sys_text
+    # 节奏数字必须明示
+    assert "3-5 回合" in sys_text or "5-8 回合" in sys_text
+
+
+def test_numerical_anchoring_rule_present():
+    """铁律 21 — 数值锚定（DC 表 + 物品 + 等级影响 NPC 态度）。"""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    assert "数值锚定" in sys_text or "DC" in sys_text
+    assert "属性" in sys_text and "等级" in sys_text
+    # DC 表参考点
+    assert "12" in sys_text and ("14" in sys_text or "15" in sys_text)

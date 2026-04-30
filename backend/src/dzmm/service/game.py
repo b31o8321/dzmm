@@ -161,6 +161,44 @@ async def run_turn(
     sess.last_played = datetime.now(UTC).replace(tzinfo=None)
 
 
+def _extract_pc_hooks(profile_md: str) -> dict[str, list[str]]:
+    """Heuristic extraction of abilities/items/weaknesses from profile_md.
+
+    Looks for markdown headings, bold runs, or key:value lines whose key
+    matches a known PC-hook category, then captures the trailing list items
+    or comma-separated phrases until the next section break."""
+    out: dict[str, list[str]] = {"abilities": [], "items": [], "weaknesses": []}
+    if not profile_md:
+        return out
+    section_pat = {
+        "abilities": r"(?:能力|技能|绝技|擅长|专精)",
+        "items": r"(?:物品|装备|道具|随身|身上)",
+        "weaknesses": r"(?:弱点|弱项|禁忌|忌讳|害怕|畏惧)",
+    }
+    for key, kw in section_pat.items():
+        m = re.search(
+            rf"(?:^#+\s*{kw}|\*\*\s*{kw}\s*\*\*|{kw}[:：])",
+            profile_md,
+            re.M,
+        )
+        if not m:
+            continue
+        rest = profile_md[m.end():]
+        next_heading = re.search(
+            r"^#+\s|\*\*\s*[一-鿿]{2,4}\s*\*\*", rest, re.M
+        )
+        block = rest[: next_heading.start()] if next_heading else rest
+        items = re.findall(r"[-•*]\s*(.+?)(?:$|\n)", block)
+        if not items:
+            items = [
+                s.strip()
+                for s in re.split(r"[,，、；;]", block.strip())
+                if s.strip()
+            ][:6]
+        out[key] = [it.strip()[:50] for it in items if it.strip()][:6]
+    return out
+
+
 def _format_character_card(char: Character) -> str:
     """Prepend `等级: Lv N` so the GM knows PC progression when narrating
     challenges, NPC reactions, and XP awards."""
@@ -450,5 +488,70 @@ async def _build_key_facts(
                 tail = f"{tail}。{cons}" if tail else cons
             lines.append(f"- [{sub}·{kind}·t+{age}] {tail}")
         parts.append("\n".join(lines))
+
+    # PC hooks — abilities / items / weaknesses extracted from profile_md so
+    # GM is reminded to actually use them in scenes.
+    if character is not None:
+        hooks = _extract_pc_hooks(character.profile_md or "")
+        hook_lines: list[str] = []
+        if hooks["abilities"]:
+            hook_lines.append(
+                "能力（应该被场景调用）：" + " / ".join(hooks["abilities"])
+            )
+        if hooks["items"]:
+            hook_lines.append(
+                "物品（应在剧情节点起作用）：" + " / ".join(hooks["items"])
+            )
+        if hooks["weaknesses"]:
+            hook_lines.append(
+                "弱点（应触发挑战）：" + " / ".join(hooks["weaknesses"])
+            )
+        if hook_lines:
+            parts.append("## PC 钩子（用上它们）\n" + "\n".join(hook_lines))
+
+    # PC numerical state — current attributes / level / inventory, surfaced
+    # specifically as a "use this for DC and NPC attitude" reference.
+    if character is not None:
+        state_row = (
+            await session.execute(
+                select(CharState).where(CharState.session_id == session_id)
+            )
+        ).scalar_one_or_none()
+        stats: dict = {}
+        if state_row and state_row.stats_json:
+            try:
+                stats = json.loads(state_row.stats_json)
+            except (TypeError, ValueError):
+                stats = {}
+        attr_pairs = [
+            (k, v)
+            for k, v in stats.items()
+            if isinstance(v, (int, float))
+            and k not in ("hp", "max_hp", "sanity", "max_sanity")
+        ]
+        level = character.level or 1
+        inventory: list = []
+        if state_row and state_row.inventory_json:
+            try:
+                inv_raw = json.loads(state_row.inventory_json)
+                if isinstance(inv_raw, list):
+                    inventory = inv_raw
+            except (TypeError, ValueError):
+                inventory = []
+
+        if attr_pairs or level > 1 or inventory:
+            num_lines = ["## PC 当前数值（dice / NPC 态度参考）"]
+            if level > 1:
+                num_lines.append(f"等级: Lv {level}")
+            if attr_pairs:
+                attr_str = " / ".join(f"{k}={v}" for k, v in attr_pairs)
+                num_lines.append(f"属性: {attr_str}")
+            if inventory:
+                inv_str = "、".join(str(it) for it in inventory[:8])
+                num_lines.append(f"物品: {inv_str}")
+            num_lines.append(
+                "（dice 检定的 DC 应基于属性合理设置；物品要在 narrative 显式引用；等级影响 NPC 态度。）"
+            )
+            parts.append("\n".join(num_lines))
 
     return "\n".join(parts)
