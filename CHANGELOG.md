@@ -11,6 +11,46 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.0] - 2026-04-30
+
+**主题：剧本驱动跑团（首个 MINOR 版）**
+
+把跑团从「GM 自由发挥」改成「预生成剧本大纲 + GM 围绕大纲展开」。开新档时调 LLM 生成结构化剧本，GM 按章节推进；玩家重大决策可以触发后续大纲重写；故事完结后可生成续集（PC 状态延续）。
+
+### 新增
+- **开档同步生成剧本**：`POST /sessions/{id}/screenplay/generate` 调 outliner LLM 输出结构化 JSON（章节 / 主要 NPC / 关键事件 / 结局 / 不剧透开场白）
+- **5 套 genre 模板** + 自定义：悬疑探案 / 英雄成长 / 政治阴谋 / 灾难求生 / 恋爱攻略
+- **生成 loading 页**（`/sessions/generate/:id`）—— 倒计时 + tip 轮播 + 完成后展示 opening_hook 引子作为开局
+- **剧本进度页**（`/play/:id/screenplay`）—— 当前章节 / 主线 [done][pending] / 支线 [done][optional] / 主要 NPC / 完结条件 / 进度条
+- **GameView 头部加「📜 剧本」link** + 完结时蓝色 banner「📖 续写下一章」
+- **重大决策手动标记**：玩家可点「⚡ 这是重要决定」按钮添加 ScreenplayRevision（v0.1.1 接 outliner 异步重写）
+- **续作机制**：concluded screenplay → POST `/screenplay/continue` 基于 ending 生成 v2 大纲，PC 状态延续，旧 screenplay parent_screenplay_id 链
+- **4 个新 GM 标签**：`<chapter_advance/>` / `<event_complete chapter=N event=M type=main|optional/>` / `<plot_turn impact=major|minor description=.../>` / `<ending/>`
+- **GM prompt 铁律 24** 剧本进度遵守 + 4 个标签字典文档
+- **key_facts 注入「## 当前剧本进度」段** —— GM 每回合知道当前章节、待演主线、可选支线、未出场重要 NPC、完结条件
+
+### 数据库
+- 新表 `screenplays`（id, session_id, version, genre, custom_prompt, chapters_json, main_characters_json, ending_md, opening_hook, current_chapter, completed_events_json, parent_screenplay_id, status, created_at, concluded_at）
+- 新表 `screenplay_revisions`（append-only log）
+- 由 `Base.metadata.create_all` 自动建表
+
+### API 新增
+- `POST /sessions/{id}/screenplay/generate`
+- `GET /sessions/{id}/screenplay`
+- `POST /sessions/{id}/screenplay/mark_decision`
+- `POST /sessions/{id}/screenplay/continue`
+- `GET /sessions/{id}/screenplay/revisions`
+
+### 测试
+- 后端 225 → 256（+31：outliner 5 / screenplay service 3 / routes 7 / parser 4 / state_apply 7 / game 3 / gm_template 2）
+- 前端 build 通过；新组件 GenreSelector / SessionGenerateView / ScreenplayView
+
+### 待办（v0.1.1）
+- `<plot_turn impact="major"/>` 触发的异步 outliner 重写（v0.1.0 只记 ScreenplayRevision 占位）
+- ScreenplayView 历史 revisions 时间线展示
+
+---
+
 ## [v0.0.14] - 2026-04-30
 
 **主题：玩家反馈收集**
