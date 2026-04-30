@@ -17,6 +17,7 @@ import CharacterCardDrawer from '@/components/CharacterCardDrawer.vue'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
+import { screenplayApi, type Screenplay } from '@/api/screenplay'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -130,6 +131,7 @@ const npcDialogOpen = ref(false)
 const selectedNpc = ref<Npc | null>(null)
 const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
+const screenplay = ref<Screenplay | null>(null)
 
 async function openNpcDetail(name: string) {
   try {
@@ -535,6 +537,13 @@ onMounted(async () => {
   // Fire-and-forget GM model warmup so the first turn isn't cold.
   sessionsApi.warmup(sessionId).catch(() => { /* ignore */ })
 
+  // Pull screenplay state (legacy sessions without one are fine).
+  try {
+    screenplay.value = await screenplayApi.getActive(sessionId)
+  } catch {
+    screenplay.value = null
+  }
+
   try {
     const sess = await sessionsStore.get(sessionId)
     turnCount.value = sess.turn_count
@@ -655,6 +664,10 @@ onUnmounted(() => audio.stopBgm())
             class="text-sm text-slate-500 hover:text-slate-800"
             @click="characterCardOpen = true"
           >📜 角色卡</button>
+          <router-link :to="`/play/${sessionId}/screenplay`"
+                       class="text-sm text-slate-500 hover:text-slate-800">
+            📜 剧本
+          </router-link>
           <router-link :to="`/play/${sessionId}/journal`"
                        class="text-sm text-slate-500 hover:text-slate-800">
             📖 任务日志
@@ -687,6 +700,15 @@ onUnmounted(() => audio.stopBgm())
         v-model="feedbackOpen"
         :session-id="sessionId"
       />
+
+      <div v-if="screenplay && screenplay.status === 'concluded'"
+           class="bg-blue-50 border-b border-blue-200 px-6 py-3 flex items-center justify-between">
+        <div class="text-sm text-blue-900">🎬 故事已完结：{{ screenplay.ending_md }}</div>
+        <el-button size="small" type="primary"
+                   @click="$router.push(`/play/${sessionId}/screenplay`)">
+          📖 续写下一章
+        </el-button>
+      </div>
 
       <div ref="logEl" class="flex-1 overflow-auto px-6 py-4 space-y-6">
         <div v-if="!turns.length" class="text-slate-400 italic">

@@ -30,6 +30,8 @@ const router = createRouter({
           component: () => import('@/views/RelationsView.vue'), props: true },
         { path: 'play/:id/chronicle', name: 'chronicle',
           component: () => import('@/views/ChronicleView.vue'), props: true },
+        { path: 'play/:id/screenplay', name: 'screenplay',
+          component: () => import('@/views/ScreenplayView.vue'), props: true },
         { path: 'help', name: 'help', component: () => import('@/views/HelpView.vue') },
       ],
     },
