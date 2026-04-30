@@ -68,6 +68,8 @@ class Message(Base):
     tokens_in: Mapped[int] = mapped_column(default=0)
     tokens_out: Mapped[int] = mapped_column(default=0)
     summarized: Mapped[bool] = mapped_column(default=False)
+    events_json: Mapped[str] = mapped_column(Text, default="[]")  # v0.10: dice/state/npc events of this turn
+    parts_json: Mapped[str] = mapped_column(Text, default="[]")  # v0.10: speaker-tagged narrative parts
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
@@ -168,3 +170,23 @@ class PCGoal(Base):
     introduced_turn: Mapped[int] = mapped_column(default=0)
     completed_turn: Mapped[int | None] = mapped_column(nullable=True)
     completion_note: Mapped[str] = mapped_column(Text, default="")
+
+
+class HiddenEvent(Base):
+    """v0.10 — Implicit story state with a fuse. GM-emitted via <hidden_event>:
+    things the player shouldn't see explicitly but the GM must remember and
+    let evolve over turns (bleeding wound, slow poison, deadline, secret).
+    Re-injected into key_facts every turn under "暗中状态(GM only)"."""
+    __tablename__ = "hidden_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    subject: Mapped[str] = mapped_column(String(120), default="")  # who/what it applies to
+    kind: Mapped[str] = mapped_column(String(60))  # injury/poison/deadline/secret/curse/...
+    severity: Mapped[int] = mapped_column(default=2)  # 1=mild, 2=moderate, 3=severe
+    description: Mapped[str] = mapped_column(Text, default="")
+    consequence: Mapped[str] = mapped_column(Text, default="")  # GM-readable text describing how it evolves
+    introduced_turn: Mapped[int] = mapped_column(default=0)
+    trigger_turn: Mapped[int | None] = mapped_column(nullable=True)  # estimated turn for consequence (advisory)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active/resolved/triggered
+    resolution: Mapped[str] = mapped_column(Text, default="")
+    resolved_turn: Mapped[int | None] = mapped_column(nullable=True)
