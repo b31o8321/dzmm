@@ -2,7 +2,13 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'node:path'
-import pkg from './package.json' with { type: 'json' }
+import { readFileSync } from 'node:fs'
+
+// Read package.json via fs to avoid Node-version-specific JSON import attribute
+// syntax (`with { type: 'json' }` requires Node 20.10+; CI sometimes pulls earlier).
+const pkg = JSON.parse(
+  readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'),
+) as { version: string }
 
 export default defineConfig({
   plugins: [vue()],

@@ -18,16 +18,20 @@ export default defineConfig({
       command: 'python e2e/mock_backend.py',
       port: 8765,
       reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
+      timeout: 60_000,
       env: {
         PYTHONPATH: '../backend/src',
       },
+      stdout: 'pipe',
+      stderr: 'pipe',
     },
     {
       command: 'npm run dev',
       port: 5173,
       reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
+      timeout: 60_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
     },
   ],
   projects: [
