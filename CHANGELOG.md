@@ -2,6 +2,35 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.13] - 2026-04-30
+
+**主题：实玩反馈第三波 — SSE 流式回归 + 推进义务加狠 + plot 去重加严**
+
+### 修复
+- **SSE 流式渲染回归（v0.10 引入的 P0 bug）** —— GameView 模板在 GM emit 第一个 `<say>`/`<pc_action>` 后切换到 `parseParts(rawContent)`，但 rawContent 不含 narrative 文本 → 整段消失等回合结束才出现。修复：`displayParts(t)` 总是先展示 `t.narrative`（流式累加），再展示 rawContent 中的 say/pc_action 部分（跳过 narrative 部分避免重复）
+- **plot_event 去重失效** —— v0.12 阈值 0.7 在某些场景下没拦住。改造：
+  - normalize 后比较（全角→半角空格、CJK 标点→ASCII、lowercase）
+  - 完全相同短路命中
+  - 阈值降到 0.6
+  - 覆盖所有创建 thread 的 type（new_quest / hook_introduced / major_event / location_entered）
+- **关键信息推进义务（铁律 22 加狠）** —— v0.12 不够具体，GM 仍反复反问。改写：
+  - 5 类问句明确要求字面答案（问名字 → 2-4 字汉字专有名词；问地点 → 具体地名；问时间 → 具体时间；问数量 → 具体数字）
+  - 禁止句式黑名单：「他可能告诉你...」「等你决定再说」「时机未到」「以后会知道」
+  - NPC 反问 PC 同一问题超过 1 次 = 失败
+  - 「重复问题 = 重复给答案」铁律
+  - few_shot 加正例（陈子轩/九龙黑街/清风茶寮 全名地点直接给）+ 反例（拒绝拖延循环）
+- **铁律 23 加狠** —— choices 与上回合 ≥80% 重合 = 失败；同一 choice 被点 ≥2 次必须有不同结果
+
+### 新增
+- **后端版本对比警告** —— SidebarNav 拉 `/health.version` 与前端 `__APP_VERSION__` 对比，不一致时红字 ⚠️ 提示「请重打包：python packaging/build.py」
+- **`/export` 路由注册防御测试** —— 用真实 ASGI client 测试 `GET /sessions/{id}/export?format=json` 返回 200，防止 main.py 重构时丢路由
+
+### 测试
+- 后端 204 → 217（+13）
+- 前端 build 通过
+
+---
+
 ## [v0.12] - 2026-04-30
 
 **主题：实玩反馈第二波 — 姓名漂移根治 + 推进义务 + 帮助页**
