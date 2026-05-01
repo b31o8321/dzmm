@@ -27,6 +27,7 @@ from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
 from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.gm_template import build_gm_messages
 from dzmm.service.activity_log import log_event
+from dzmm.service.npc_initiative import find_initiative_npc, _COOLDOWN_TURNS
 from dzmm.service.state_apply import apply_tags
 from dzmm.service.state_apply.dice_monitor import (
     build_stuck_warning,
@@ -241,6 +242,21 @@ async def run_turn(
 
     sess.turn_count = next_turn
     sess.last_played = datetime.now(UTC).replace(tzinfo=None)
+
+    # v0.2.7 — NPC initiative check. After this turn completes, find if any
+    # NPC is eligible to proactively contact PC. If yes, yield a synthetic
+    # npc_initiative tag event; frontend will auto-trigger a /npc_tick call.
+    initiative_npc = await find_initiative_npc(session, session_id, next_turn)
+    if initiative_npc is not None:
+        initiative_npc.last_initiative_turn = next_turn
+        yield TagComplete(
+            name="npc_initiative",
+            attrs={"npc": initiative_npc.name},
+            content="",
+        )
+        log.info(
+            "npc_initiative scheduled: %s (turn %d)", initiative_npc.name, next_turn
+        )
 
 
 def _extract_pc_hooks(profile_md: str) -> dict[str, list[str]]:
