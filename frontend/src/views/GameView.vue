@@ -217,6 +217,30 @@ function quick(act: string) {
   action.value = act
 }
 
+// v0.2.3 P2.3: 主推按钮——剧本当前章节下一个 [pending] main_event 作为 hint
+const nextMainEvent = computed(() => {
+  if (!screenplay.value) return null
+  const chapters = screenplay.value.chapters
+  const cur = chapters[screenplay.value.current_chapter - 1]
+  if (!cur) return null
+  const completed = screenplay.value.completed_events
+  for (let i = 0; i < cur.main_events.length; i++) {
+    const isDone = completed.some(
+      (c) =>
+        c.chapter === screenplay.value!.current_chapter &&
+        c.event_idx === i &&
+        c.type === 'main',
+    )
+    if (!isDone) return cur.main_events[i]
+  }
+  return null // all main events done
+})
+
+// 把 event 描述塞 input，让玩家审阅／编辑后再发送（不直接 send）
+function applyEventHint(event: string) {
+  action.value = `（推进剧情）${event}`
+}
+
 // Extract narrative text from a stored assistant message (which contains
 // raw <narrative>...</narrative> tags interleaved with state tags).
 //
@@ -367,6 +391,23 @@ onMounted(async () => {
   }
 
   await refreshGoals()
+
+  // v0.2.3 P2.1: 新 session 自动开局——turn_count=0 且无任何 turn 时，
+  // 自动派发首个 action 让 GM 输出开局描写。screenplay.opening_hook 是
+  // wizard 生成的引子，作为隐式起手 prompt。双重检查 turns.value.length === 0
+  // 防止已 hydrate 出消息时重复开局。
+  if (turnCount.value === 0 && turns.value.length === 0 && !sending.value) {
+    let opener = '(开始游戏 — 描写场景，让我代入)'
+    const hook = screenplay.value?.opening_hook
+    if (hook) {
+      opener = `(开始游戏。开篇引子: ${hook.slice(0, 200)})`
+    }
+    try {
+      await sendAction(opener)
+    } catch {
+      /* ignore — 玩家可手动输入 */
+    }
+  }
 })
 
 onUnmounted(() => audio.stopBgm())
@@ -471,7 +512,18 @@ onUnmounted(() => audio.stopBgm())
       </div>
 
       <footer class="border-t bg-white p-4 space-y-2">
-        <div class="flex flex-wrap gap-2">
+        <!-- v0.2.3 P2.3: 主推剧本下一个 main_event，点击仅塞 input 让玩家审阅 -->
+        <div v-if="nextMainEvent">
+          <el-button
+            type="primary"
+            plain
+            class="w-full"
+            :disabled="sending"
+            @click="applyEventHint(nextMainEvent)"
+          >⚡ 推进剧情：{{ nextMainEvent }}</el-button>
+        </div>
+        <!-- 通用 fallback：自由探索 -->
+        <div class="flex flex-wrap gap-1">
           <el-button
             v-for="a in quickActions"
             :key="a"
