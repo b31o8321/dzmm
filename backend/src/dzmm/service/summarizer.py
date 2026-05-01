@@ -18,6 +18,16 @@ from dzmm.prompts.summarizer_template import (
 
 
 SUMMARIZE_AFTER_TURNS = 10
+# v0.2.1 — long-context fix. Trigger every 10 turns of new material (the old
+# constant happened to be 10 already, but keep the alias spelled out so the
+# intent is explicit and tests can pin to either name).
+SUMMARIZE_TRIGGER_TURNS = 10
+# Number of recent turns to leave un-summarized so the GM keeps verbatim
+# context for the immediate scene. (Implementation note: actual recency
+# windowing happens in service.messages._load_recent_messages; this constant
+# documents the intended overlap so future maintainers can tune both knobs in
+# concert.)
+SUMMARIZE_KEEP_RECENT = 6
 SUMMARY_MAX_TOKENS = 1000
 COMPRESSION_TRIGGER_CHARS = 3000  # ~1500 tokens for Chinese
 COMPRESSED_TARGET_TOKENS = 600
@@ -55,7 +65,7 @@ async def maybe_summarize(
 ) -> bool:
     """Run a summarization pass if conditions are met. Returns True if executed."""
     sess = await session.get(GameSession, session_id)
-    if sess is None or sess.turn_count < SUMMARIZE_AFTER_TURNS:
+    if sess is None or sess.turn_count < SUMMARIZE_TRIGGER_TURNS:
         return False
 
     summary_row = (
@@ -73,7 +83,11 @@ async def maybe_summarize(
             .order_by(MessageRow.id)
         )
     ).scalars().all()
-    if len(new_msgs) < SUMMARIZE_AFTER_TURNS * 2:
+    # v0.2.1 — trigger every SUMMARIZE_TRIGGER_TURNS turns of new material
+    # (each turn is one user + one assistant message → 2 rows). Previously the
+    # threshold was 20 messages which meant in practice nothing got compressed
+    # until turn 20+; long-context play tests at turn 30+ saw replies degrade.
+    if len(new_msgs) < SUMMARIZE_TRIGGER_TURNS * 2:
         return False
 
     new_text = "\n\n".join(

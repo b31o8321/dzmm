@@ -9,7 +9,12 @@ from dzmm.db.models import (
     Session as GameSession, StorySummary, World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
-from dzmm.service.summarizer import maybe_summarize, SUMMARIZE_AFTER_TURNS
+from dzmm.service.summarizer import (
+    maybe_summarize,
+    SUMMARIZE_AFTER_TURNS,
+    SUMMARIZE_KEEP_RECENT,
+    SUMMARIZE_TRIGGER_TURNS,
+)
 
 
 class FakeSummarizer(ModelClient):
@@ -161,3 +166,64 @@ async def test_summary_compression_triggers_above_threshold(seeded_with_messages
         texts = [t.event_text for t in tl]
         assert any("阿山" in t for t in texts)
         assert any("小雨" in t for t in texts)
+
+
+# ----------------------------------------------------------------------------
+# v0.2.1 — long-context fix: summarizer should trigger every 10 turns of new
+# material, not wait for 20+ messages to accumulate.
+# ----------------------------------------------------------------------------
+
+
+def test_summarize_trigger_constants_present():
+    """The v0.2.1 knobs must be exposed for callers (and for messages.py to
+    keep its retention window in concert)."""
+    assert SUMMARIZE_TRIGGER_TURNS == 10
+    assert SUMMARIZE_KEEP_RECENT == 6
+    # Old name kept as alias so external code keeps importing.
+    assert SUMMARIZE_AFTER_TURNS == 10
+
+
+async def test_summarize_triggers_at_10_turns(seeded_with_messages):
+    """Seeded fixture creates exactly 10 turns (20 messages) — that's the new
+    minimum threshold. maybe_summarize should fire."""
+    engine, SessionMaker, sid = seeded_with_messages
+    client = FakeSummarizer("摘要：玩家完成了 10 回合冒险。")
+    async with SessionMaker() as s:
+        result = await maybe_summarize(s, sid, client)
+        await s.commit()
+    assert result is True
+    assert client.called_with is not None  # LLM actually invoked
+
+
+async def test_summarize_skips_at_9_turns(tmp_path):
+    """One turn below threshold → must NOT fire (avoid wasteful summarizer
+    calls when the story has barely started)."""
+    engine = get_engine(f"sqlite+aiosqlite:///{tmp_path}/t9.db")
+    await init_db(engine)
+    SessionMaker = async_session(engine)
+    async with SessionMaker() as s:
+        world = World(name="W", content_md="x", style="dark")
+        char = Character(world=world, name="C", profile_md="y", base_stats_json="{}")
+        cfg = ModelConfig(name="m", type="ollama",
+                          base_url="http://localhost:11434", model_name="q")
+        s.add_all([world, char, cfg])
+        await s.flush()
+        sess = GameSession(name="r", world_id=world.id, character_id=char.id,
+                           gm_model_config_id=cfg.id, summarizer_model_config_id=cfg.id,
+                           turn_count=9)
+        s.add(sess)
+        await s.flush()
+        for t in range(1, 10):
+            s.add(MessageRow(session_id=sess.id, role="user", content=f"a{t}", turn=t))
+            s.add(MessageRow(session_id=sess.id, role="assistant", content=f"r{t}", turn=t))
+        await s.commit()
+        sid = sess.id
+
+    client = FakeSummarizer("should not be called")
+    async with SessionMaker() as s:
+        result = await maybe_summarize(s, sid, client)
+        await s.commit()
+
+    assert result is False
+    assert client.called_with is None
+    await engine.dispose()

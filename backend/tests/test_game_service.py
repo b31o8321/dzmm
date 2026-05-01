@@ -11,7 +11,14 @@ from dzmm.db.models import (
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, TagComplete
-from dzmm.service.game import run_turn
+from dzmm.service.game import (
+    RECENT_WINDOW_DEFAULT,
+    RECENT_WINDOW_LONG_GAME,
+    RECENT_WINDOW_VERY_LONG,
+    _recent_window_for,
+    _rough_token_count,
+    run_turn,
+)
 
 
 class FakeClient(ModelClient):
@@ -791,3 +798,76 @@ async def test_key_facts_omits_screenplay_when_none(seeded):
     assert "GM 严格遵守主线，分支由 PC 探索触发" not in sys_msg
     assert "本章主线（必须演完才能推进下章）" not in sys_msg
     assert "（推进规则：主线 [pending]" not in sys_msg
+
+
+# ----------------------------------------------------------------------------
+# v0.2.1 — long-context fix: recent_messages window shrinks for long games,
+# and prompt-token rough estimator is exposed for the activity log warning.
+# ----------------------------------------------------------------------------
+
+
+def test_recent_window_constants_distinct():
+    """Three distinct bands so we can tell which kicked in just from the size."""
+    assert RECENT_WINDOW_DEFAULT == 12
+    assert RECENT_WINDOW_LONG_GAME == 8
+    assert RECENT_WINDOW_VERY_LONG == 6
+
+
+def test_recent_window_for_short_game():
+    assert _recent_window_for(0) == RECENT_WINDOW_DEFAULT
+    assert _recent_window_for(15) == RECENT_WINDOW_DEFAULT
+    assert _recent_window_for(30) == RECENT_WINDOW_DEFAULT  # boundary stays default
+
+
+def test_recent_window_shrinks_for_long_games():
+    """At 35 turns we drop to the long-game window; at 65 to very-long."""
+    assert _recent_window_for(31) == RECENT_WINDOW_LONG_GAME
+    assert _recent_window_for(35) == RECENT_WINDOW_LONG_GAME
+    assert _recent_window_for(60) == RECENT_WINDOW_LONG_GAME  # boundary
+    assert _recent_window_for(61) == RECENT_WINDOW_VERY_LONG
+    assert _recent_window_for(65) == RECENT_WINDOW_VERY_LONG
+    assert _recent_window_for(120) == RECENT_WINDOW_VERY_LONG
+
+
+async def test_recent_window_actually_applied_at_run_turn(seeded):
+    """End-to-end: bump turn_count to 65, run a turn, and verify the prompt
+    only carries the last 6 historical messages (very-long band)."""
+    engine, SessionMaker, sid = seeded
+
+    # Seed 20 historical message rows (more than any window) and bump turn_count.
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        for t in range(1, 11):
+            s.add(MessageRow(session_id=sid, role="user",
+                             content=f"动作{t}", turn=t))
+            s.add(MessageRow(session_id=sid, role="assistant",
+                             content=f"<narrative>结果{t}</narrative>", turn=t))
+        sess.turn_count = 65
+        await s.commit()
+
+    client = FakeClient("<narrative>新一回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "新动作", client):
+            pass
+        await s.commit()
+
+    # Of the messages passed to the LLM, only the system prompt + recent
+    # window + current_action should be present. The very-long window is 6,
+    # so we expect at most 6 historical message contents to slip into the
+    # context (plus the current "新动作"). Concretely "动作1"/"动作2" must NOT
+    # appear because they sit outside the 6-message tail.
+    contents = [m.content for m in client.last_messages]
+    flat = "\n".join(contents)
+    assert "动作1\n" not in flat and "动作1\"" not in flat  # too old
+    assert "动作10" in flat or "结果10" in flat  # newest window contents survive
+    assert contents[-1] == "新动作"
+
+
+def test_rough_token_count_cjk_vs_ascii():
+    """Rough estimator: CJK ~1.5 chars/tok, ASCII ~4 chars/tok."""
+    msgs_cjk = [Message(role="user", content="一二三四五六")]   # 6 CJK
+    msgs_ascii = [Message(role="user", content="abcdefgh")]     # 8 ASCII
+    # 6 / 1.5 = 4 tokens for CJK; 8 / 4 = 2 tokens for ASCII
+    assert _rough_token_count(msgs_cjk) == 4
+    assert _rough_token_count(msgs_ascii) == 2
+    assert _rough_token_count([]) == 0
