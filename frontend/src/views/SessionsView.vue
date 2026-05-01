@@ -18,6 +18,12 @@ const modelsStore = useModelConfigsStore()
 
 const dialogOpen = ref(false)
 const submitting = ref(false)
+const createMode = ref<'wizard' | 'quick'>('wizard')
+
+function goWizard() {
+  dialogOpen.value = false
+  router.push({ name: 'session-wizard' })
+}
 
 const form = reactive<SessionIn>({
   name: '',
@@ -195,58 +201,87 @@ onMounted(async () => {
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogOpen" title="新开一局" width="560px">
-      <el-form :model="form" label-width="100px">
-        <el-form-item label="存档名称" required>
-          <el-input v-model="form.name" placeholder="例如：赛博朋克 第一夜" />
-        </el-form-item>
-        <el-form-item label="世界观" required>
-          <el-select v-model="form.world_id" @change="form.character_id = 0">
-            <el-option
-              v-for="w in worldsStore.items"
-              :key="w.id"
-              :label="w.name"
-              :value="w.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="角色" required>
-          <el-select v-model="form.character_id" :disabled="!form.world_id">
-            <el-option
-              v-for="c in charsForWorld"
-              :key="c.id"
-              :label="c.name"
-              :value="c.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="GM 模型" required>
-          <el-select v-model="form.gm_model_config_id">
-            <el-option
-              v-for="m in modelsStore.items"
-              :key="m.id"
-              :label="`${m.name} (${m.model_name})`"
-              :value="m.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="摘要模型" required>
-          <el-select v-model="form.summarizer_model_config_id">
-            <el-option
-              v-for="m in modelsStore.items"
-              :key="m.id"
-              :label="`${m.name} (${m.model_name})`"
-              :value="m.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="故事类型" required>
-          <GenreSelector v-model="genreForm" />
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="dialogOpen" title="新开一局" width="640px">
+      <el-tabs v-model="createMode" type="card">
+        <el-tab-pane label="🪄 向导式（推荐）" name="wizard">
+          <div class="space-y-3 p-2">
+            <div class="text-sm text-slate-700 leading-relaxed">
+              分 6 步引导你创建独有的世界、主角、剧本。每一步都可以审阅、
+              编辑、重新生成。本地 12B+ 模型也能生成有质感的世界观。
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800 leading-relaxed">
+              💡 向导耗时较长（每步 30-90s × 6 步 ≈ 5-10 分钟）。
+              如果用本地小模型容易卡，建议切到云端模型（满血推荐）。
+            </div>
+            <el-button type="primary" size="large" @click="goWizard">
+              📜 进入向导
+            </el-button>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="⚡ 快速创建（预设）" name="quick">
+          <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-3 leading-relaxed">
+            💡 一键生成大纲后即可开始。本地 7-8B 模型够用；
+            想要更精致的世界观推荐用「向导式」。
+          </div>
+          <el-form :model="form" label-width="100px">
+            <el-form-item label="存档名称" required>
+              <el-input v-model="form.name" placeholder="例如：赛博朋克 第一夜" />
+            </el-form-item>
+            <el-form-item label="世界观" required>
+              <el-select v-model="form.world_id" @change="form.character_id = 0">
+                <el-option
+                  v-for="w in worldsStore.items"
+                  :key="w.id"
+                  :label="w.name"
+                  :value="w.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="角色" required>
+              <el-select v-model="form.character_id" :disabled="!form.world_id">
+                <el-option
+                  v-for="c in charsForWorld"
+                  :key="c.id"
+                  :label="c.name"
+                  :value="c.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="GM 模型" required>
+              <el-select v-model="form.gm_model_config_id">
+                <el-option
+                  v-for="m in modelsStore.items"
+                  :key="m.id"
+                  :label="`${m.name} (${m.model_name})`"
+                  :value="m.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="摘要模型" required>
+              <el-select v-model="form.summarizer_model_config_id">
+                <el-option
+                  v-for="m in modelsStore.items"
+                  :key="m.id"
+                  :label="`${m.name} (${m.model_name})`"
+                  :value="m.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="故事类型" required>
+              <GenreSelector v-model="genreForm" />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
       <template #footer>
         <el-button @click="dialogOpen = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="onCreate">
+        <el-button
+          v-if="createMode === 'quick'"
+          type="primary"
+          :loading="submitting"
+          @click="onCreate"
+        >
           开始跑团
         </el-button>
       </template>
