@@ -35,6 +35,24 @@ def test_user_message_is_current_action():
     assert "上前搭话" in last.content
 
 
+def test_dice_rule_emphasizes_randomness():
+    """v0.1.9: dice section in the GM prompt must contain explicit guidance
+    against the 'always d20=9' pattern observed in real play."""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_text = msgs[0].content
+    assert "<dice" in sys_text and "d20" in sys_text
+    # At least one explicit randomness-cue must appear in the dice block.
+    cues = ["随机", "每次不同", "常量"]
+    assert any(c in sys_text for c in cues), (
+        f"dice block must explicitly call out randomness; got: {sys_text!r}"
+    )
+
+
 def test_recent_messages_inserted_between_system_and_action():
     history = [
         Message(role="user", content="开门"),

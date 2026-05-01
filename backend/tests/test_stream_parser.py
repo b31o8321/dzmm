@@ -90,6 +90,25 @@ def test_unclosed_buffered_tag_emits_error():
     assert "state_change" in errors[0].message
 
 
+def test_finish_unclosed_buffered_tag_emits_partial_tag_complete():
+    """v0.1.9: when stream ends mid-tag (e.g. token cap hit inside <choices>),
+    finish() now also emits a synthetic TagComplete with the partial buffer
+    so callers can apply what they got instead of dropping it entirely.
+    Fixes 'Unclosed tag <choices>' real-play feedback."""
+    p = StreamingTagParser()
+    list(p.feed("<choices>\n- A\n- B"))  # never closed
+    events = list(p.finish())
+
+    errors = [e for e in events if isinstance(e, ParseError)]
+    assert any("choices" in e.message for e in errors), (
+        "ParseError warning still emitted on unclosed buffered tag"
+    )
+    completes = [e for e in events if isinstance(e, TagComplete)]
+    assert len(completes) == 1, "synthetic TagComplete now emitted"
+    assert completes[0].name == "choices"
+    assert "A" in completes[0].content and "B" in completes[0].content
+
+
 def test_unclosed_narrative_flushes_on_finish():
     p = StreamingTagParser()
     p.feed("<narrative>partial output")

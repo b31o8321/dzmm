@@ -212,15 +212,33 @@ class StreamingTagParser:
         return events
 
     def finish(self) -> list[ParseEvent]:
+        """Called when the LLM stream ends. Drains any state still open.
+
+        - IN_STREAMING (e.g. <narrative>...) → emit residual as NarrativeDelta
+        - IN_BUFFERED (e.g. <choices> or <state_change> truncated by the
+          token cap mid-tag) → emit a ParseError warning *and* a synthetic
+          TagComplete using the partial buffer. v0.1.9: the TagComplete is
+          new — previously the partial tag was dropped, which was the
+          reported "Unclosed tag <choices>" failure mode (the GM hit the
+          token limit mid <choices> list and the parser threw away the
+          half-emitted choices). Caller (run_turn) treats partial-better-
+          than-nothing.
+        """
         events: list[ParseEvent] = []
         if self._state == "IN_STREAMING":
             residual = self._tag_buf + self._buf
             if residual:
                 events.append(NarrativeDelta(residual))
         elif self._state == "IN_BUFFERED":
+            partial = (self._tag_buf + self._buf).strip()
             events.append(ParseError(
                 message=f"Unclosed tag <{self._current_tag}>",
                 raw=self._tag_buf + self._buf,
+            ))
+            events.append(TagComplete(
+                name=self._current_tag or "",
+                attrs=dict(self._current_attrs),
+                content=partial,
             ))
         self._buf = ""
         self._state = "OUTSIDE"

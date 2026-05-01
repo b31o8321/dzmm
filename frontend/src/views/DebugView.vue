@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElSelect, ElOption, ElTabs, ElTabPane, ElTag, ElEmpty, ElButton } from 'element-plus'
+import {
+  ElSelect, ElOption, ElTabs, ElTabPane, ElTag, ElEmpty, ElButton,
+  ElMessage, ElMessageBox,
+} from 'element-plus'
 import {
   sessionsApi,
   type Npc,
@@ -45,6 +48,29 @@ onMounted(async () => {
     errMsg.value = `加载存档列表失败：${e?.message ?? e}`
   }
 })
+
+// v0.1.9: bulk-delete every NER-fallback stub NPC (description = "（GM 未补全）")
+// for the current session. Used to clean up historical false positives picked
+// up by older / looser NER thresholds.
+async function cleanupAutoCreated() {
+  if (!selectedSid.value) return
+  try {
+    await ElMessageBox.confirm(
+      '将删除所有 description 为「（GM 未补全）」的 NPC（NER fallback 自动建的 stub）。已被 GM 通过 npc_update 补全的 NPC 不会被删。',
+      '清理 NER 自动创建的 NPC',
+      { type: 'warning', confirmButtonText: '确认清理', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  try {
+    await sessionsApi.deleteAutoCreatedNpcs(selectedSid.value)
+    ElMessage.success('清理完成')
+    npcs.value = await sessionsApi.npcs(selectedSid.value)
+  } catch (e: any) {
+    ElMessage.error(e?.message ?? '清理失败')
+  }
+}
 
 watch(selectedSid, async (sid) => {
   if (sid == null) return
@@ -196,6 +222,11 @@ watch(selectedSid, async (sid) => {
       <el-tab-pane :label="`👥 NPC 全字段 (${npcs.length})`">
         <el-empty v-if="!npcs.length" description="无 NPC" />
         <div v-else class="space-y-2">
+          <div class="flex justify-end">
+            <el-button size="small" type="warning" plain @click="cleanupAutoCreated">
+              🧹 清理 NER 自动创建的 NPC
+            </el-button>
+          </div>
           <div v-for="n in npcs" :key="n.name" class="bg-white border border-slate-200 rounded p-3">
             <div class="flex items-center gap-2">
               <strong>{{ n.name }}</strong>

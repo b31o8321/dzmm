@@ -607,11 +607,61 @@ async def test_hidden_event_payload_in_body_json(session_with_state):
     assert ev.subject == "小菱"
 
 
+async def test_hidden_event_dedup_same_subject_and_kind(session_with_state):
+    """v0.1.9: emitting the same (subject, kind) twice while the first row is
+    still active must update the existing row, not insert a second copy.
+    Fixes real-play GM looping the same hidden_event 6× in one playthrough."""
+    s, sid = session_with_state
+
+    first = TagComplete(
+        name="hidden_event",
+        attrs={
+            "subject": "小菱",
+            "kind": "injury",
+            "severity": "2",
+            "description": "first description",
+            "consequence": "first consequence",
+        },
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=3, tags=[first])
+    await s.commit()
+
+    second = TagComplete(
+        name="hidden_event",
+        attrs={
+            "subject": "小菱",
+            "kind": "injury",
+            "severity": "2",
+            "description": "updated description",
+            "consequence": "updated consequence",
+        },
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=4, tags=[second])
+    await s.commit()
+
+    rows = (await s.execute(
+        select(HiddenEvent).where(
+            HiddenEvent.session_id == sid,
+            HiddenEvent.status == "active",
+        )
+    )).scalars().all()
+    assert len(rows) == 1, "dedup must collapse same (subject,kind) into one row"
+    assert rows[0].description == "updated description"
+    assert rows[0].consequence == "updated consequence"
+    # introduced_turn is the original create turn — not bumped on update.
+    assert rows[0].introduced_turn == 3
+
+
 async def test_npc_ner_fallback_creates_stub(session_with_state):
     """Narrative text mentioning a name without <npc_update> creates a stub NPC."""
     s, sid = session_with_state
-    # 小菱 appears 2x, satisfying the frequency >= 2 signal.
-    narrative = "小菱颤抖着说话。她抬头时，小菱的眼角还挂着泪。"
+    # v0.1.9: 小菱 must appear ≥ 3x to satisfy the bumped freq threshold.
+    narrative = (
+        "小菱颤抖着说话。她抬头时，小菱的眼角还挂着泪。"
+        "片刻后，小菱深吸一口气。"
+    )
     await apply_tags(
         s, sid, current_turn=1, tags=[], narrative_text=narrative
     )
@@ -638,7 +688,10 @@ async def test_npc_ner_skips_existing(session_with_state):
     ))
     await s.commit()
 
-    narrative = "小菱颤抖着说话。小菱低声重复了一遍。"
+    narrative = (
+        "小菱颤抖着说话。小菱低声重复了一遍。"
+        "片刻后，小菱抬头望向月光。"
+    )
     await apply_tags(
         s, sid, current_turn=5, tags=[], narrative_text=narrative
     )
@@ -659,7 +712,10 @@ async def test_npc_ner_skips_when_explicit_npc_update(session_with_state):
         name="npc_update",
         content='{"name":"小菱","description":"少女剑客","state":"警觉"}',
     )
-    narrative = "小菱颤抖着说话。小菱握紧了剑柄。"
+    narrative = (
+        "小菱颤抖着说话。小菱握紧了剑柄。"
+        "随即，小菱深吸一口气。"
+    )
     await apply_tags(
         s, sid, current_turn=1, tags=[npc_tag], narrative_text=narrative
     )
@@ -686,6 +742,58 @@ async def test_npc_ner_filters_stopwords(session_with_state):
 
     npcs = (await s.execute(select(NPC).where(NPC.session_id == sid))).scalars().all()
     assert npcs == []
+
+
+async def test_npc_ner_rejects_known_stopwords_v019(session_with_state):
+    """v0.1.9 strictness: real-play junk like 修道院 / 大门 / 然后 /
+    雨水 / 离开 must never be created as NPC stubs even at high frequency."""
+    s, sid = session_with_state
+    narrative = (
+        "修道院的大门吱呀打开。修道院的钟声响起。修道院的廊柱阴森。"
+        "然后管理人员走出来。然后他点了点头。然后他离开了。"
+        "雨水拍打着大门。雨水滴落在屋檐。雨水浸透了石阶。"
+        "离开是唯一的办法。离开吧。离开这里。"
+    )
+    await apply_tags(
+        s, sid, current_turn=1, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    npcs = (await s.execute(select(NPC).where(NPC.session_id == sid))).scalars().all()
+    names = {n.name for n in npcs}
+    for junk in ("修道院", "大门", "然后", "雨水", "离开"):
+        assert junk not in names, (
+            f"NER must reject stopword/junk '{junk}', got {names}"
+        )
+
+
+async def test_npc_ner_requires_min_freq_three(session_with_state):
+    """v0.1.9: a 2-char hanzi token must appear ≥ 3× to be registered.
+    Two appearances no longer suffice (was the previous threshold)."""
+    s, sid = session_with_state
+    # 李华 appears exactly 2× — below new threshold of 3.
+    narrative = "李华看见远处。后来李华离开了。"
+    await apply_tags(
+        s, sid, current_turn=1, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    npcs2 = (
+        await s.execute(select(NPC).where(NPC.session_id == sid, NPC.name == "李华"))
+    ).scalars().all()
+    assert npcs2 == [], "freq=2 must NOT register"
+
+    # Now 3× — should register.
+    narrative3 = "李华看见远处。李华低声开口。李华缓缓离开。"
+    await apply_tags(
+        s, sid, current_turn=2, tags=[], narrative_text=narrative3
+    )
+    await s.commit()
+
+    npcs3 = (
+        await s.execute(select(NPC).where(NPC.session_id == sid, NPC.name == "李华"))
+    ).scalars().all()
+    assert len(npcs3) == 1, "freq=3 must register"
 
 
 async def test_npc_create_auto_reveals_provided_fields(session_with_state):
