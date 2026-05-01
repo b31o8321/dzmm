@@ -37,6 +37,21 @@ def _screenplay_dict(sp: Screenplay) -> dict:
     }
 
 
+# Outliner generation is a single ~2k-token LLM call. Local 7B models often
+# need 90-180s; cfg.timeout (60-120s default) is too short. Override.
+_OUTLINER_TIMEOUT_SECONDS = 600.0
+
+
+def _build_outliner_client(cfg: ModelConfig):
+    """Like build_client(cfg) but with a longer HTTP timeout suitable for
+    multi-minute single-shot outline generation. Mutates a fresh client; the
+    cfg row in the DB is unchanged."""
+    client = build_client(cfg)
+    if hasattr(client, "timeout"):
+        client.timeout = max(getattr(client, "timeout", 0.0), _OUTLINER_TIMEOUT_SECONDS)
+    return client
+
+
 @router.post("/{session_id}/screenplay/generate")
 async def generate(
     session_id: int,
@@ -49,7 +64,7 @@ async def generate(
     cfg = await s.get(ModelConfig, sess.gm_model_config_id)
     if cfg is None:
         raise HTTPException(400, "GM model config missing")
-    client = build_client(cfg)
+    client = _build_outliner_client(cfg)
     genre = (payload.get("genre") or "悬疑探案").strip()
     custom = (payload.get("custom_prompt") or "").strip()
     sp = await generate_screenplay(s, session_id, genre, custom, client)
@@ -114,7 +129,7 @@ async def continue_to_next(
     cfg = await s.get(ModelConfig, sess.gm_model_config_id)
     if cfg is None:
         raise HTTPException(400, "GM model config missing")
-    client = build_client(cfg)
+    client = _build_outliner_client(cfg)
     sp = await generate_screenplay(
         s, session_id, prev.genre, prev.custom_prompt, client,
         parent_screenplay_id=prev.id,

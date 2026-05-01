@@ -79,13 +79,33 @@ async def generate_screenplay(
         custom_prompt=user_extra,
     )
 
-    raw_chunks: list[str] = []
-    async for chunk in client.stream(messages, GenerationParams(max_tokens=2000, temperature=0.7)):
-        if chunk.delta:
-            raw_chunks.append(chunk.delta)
-    raw = "".join(raw_chunks)
+    from dzmm.service.activity_log import log_event
+    import time as _time
 
-    data = _parse_outline_json(raw)
+    log_event(session_id, "screenplay_generate_start", genre=genre,
+              parent_screenplay_id=parent_screenplay_id)
+    start = _time.monotonic()
+
+    raw_chunks: list[str] = []
+    try:
+        async for chunk in client.stream(messages, GenerationParams(max_tokens=2000, temperature=0.7)):
+            if chunk.delta:
+                raw_chunks.append(chunk.delta)
+    except Exception as e:
+        log_event(session_id, "screenplay_generate_error",
+                  duration_ms=int((_time.monotonic() - start) * 1000),
+                  error=str(e)[:200])
+        raise
+    raw = "".join(raw_chunks)
+    duration_ms = int((_time.monotonic() - start) * 1000)
+
+    try:
+        data = _parse_outline_json(raw)
+    except ValueError as e:
+        log_event(session_id, "screenplay_generate_error",
+                  duration_ms=duration_ms, raw_chars=len(raw),
+                  error=f"parse: {e}"[:200])
+        raise
 
     sp = Screenplay(
         session_id=session_id,
@@ -105,9 +125,13 @@ async def generate_screenplay(
     session.add(sp)
     await session.flush()
     log.info(
-        "generated screenplay %d for session %d (%d chapters, genre=%s)",
-        sp.id, session_id, len(data["chapters"]), genre,
+        "generated screenplay %d for session %d (%d chapters, genre=%s, %dms, %d chars)",
+        sp.id, session_id, len(data["chapters"]), genre, duration_ms, len(raw),
     )
+    log_event(session_id, "screenplay_generate_end",
+              duration_ms=duration_ms, raw_chars=len(raw),
+              num_chapters=len(data["chapters"]),
+              num_main_characters=len(data["main_characters"]))
     return sp
 
 

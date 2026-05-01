@@ -98,14 +98,21 @@ function backToSessions() {
       <div class="text-sm text-slate-500 min-h-[2.5rem]">
         {{ tips[tipIdx] }}
       </div>
-      <div class="text-xs text-slate-400">已用 {{ elapsed }}s</div>
+      <div class="text-xs text-slate-400">
+        已用 {{ elapsed }}s
+        <span class="text-slate-300">·</span>
+        <span class="text-slate-500">通常本地模型 30-180s，云模型 10-30s</span>
+      </div>
       <el-progress
-        :percentage="Math.min(elapsed * 3, 95)"
+        :percentage="Math.min(elapsed * 1.5, 95)"
         :show-text="false"
-        :indeterminate="elapsed > 30"
+        :indeterminate="elapsed > 60"
       />
-      <div v-if="elapsed > 60" class="text-xs text-amber-600">
-        这个模型可能比较慢，下次可以换一个云模型试试
+      <div v-if="elapsed > 90" class="text-xs text-amber-600">
+        模型生成中，最长等待 10 分钟。如果总是卡住，建议在「⚙️ 设置」切到云模型试试。
+      </div>
+      <div v-if="elapsed > 240" class="text-xs text-red-600">
+        已 4 分钟，但还在等。如果你觉得卡死了，可以「返回存档」 → 「🗑️ 删除」这条 → 重新创建。
       </div>
     </div>
 

@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { reactive, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { sessionsApi, type MessageEvent } from '@/api/sessions'
@@ -73,13 +73,18 @@ export function useGameTurn(
     if (!userAction || sending.value) return
     sending.value = true
 
-    const turn: Turn = {
+    // IMPORTANT: wrap in `reactive()` so subsequent `turn.narrative += text`
+    // mutations go through the Vue reactivity proxy (not just the raw object
+    // reference). Without this, streaming text updates the underlying object
+    // but Vue doesn't notice because the local `turn` var bypasses the proxy
+    // — leading to blank narrative until a refresh re-reads from the DB.
+    const turn: Turn = reactive({
       action: userAction,
       narrative: '',
       choices: [],
       events: [],
       turn: turnCount.value + 1,
-    }
+    })
     currentTurn.value = turn
     // Clear previous turn's choices — they're stale once the user sends.
     for (const t of turns.value) t.choices = []

@@ -39,9 +39,13 @@ export interface Screenplay {
 }
 
 export const screenplayApi = {
+  // Outliner generation is a long single-shot LLM call (typically 30-90s,
+  // can be 5+ min on slower local models). Override axios's 30s default.
   generate: (id: number, body: { genre: string; custom_prompt?: string }) =>
     api
-      .post<Screenplay>(`/sessions/${id}/screenplay/generate`, body)
+      .post<Screenplay>(`/sessions/${id}/screenplay/generate`, body, {
+        timeout: 600_000,
+      })
       .then((r) => r.data),
   getActive: (id: number) =>
     api.get<Screenplay>(`/sessions/${id}/screenplay`).then((r) => r.data),
@@ -51,7 +55,9 @@ export const screenplayApi = {
       .then((r) => r.data),
   continueNext: (id: number) =>
     api
-      .post<Screenplay>(`/sessions/${id}/screenplay/continue`, {})
+      .post<Screenplay>(`/sessions/${id}/screenplay/continue`, {}, {
+        timeout: 600_000,
+      })
       .then((r) => r.data),
   revisions: (id: number) =>
     api.get(`/sessions/${id}/screenplay/revisions`).then((r) => r.data),

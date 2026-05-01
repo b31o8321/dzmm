@@ -11,6 +11,24 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.7] - 2026-05-01
+
+**修复 + 新增**
+
+### 修复
+- **SSE 流式回归（v0.1.6 重构引入的 P0 bug）** —— `useGameTurn` 里的 `Turn` 对象是 plain 对象，`turn.narrative += text` 走的是局部变量引用，绕过 Vue reactive proxy → 模板不重渲染 → narrative 流式过程中空白，刷新页面才显示。修复：用 `reactive()` 包 turn 对象，让 mutations 走代理。
+- **剧本生成超时** —— outliner 默认 60s 超时（继承 ModelConfig.timeout），本地 7B 模型生成 2000 token 经常 90-180s 超时挂掉。修复：
+  - `routes_screenplay._build_outliner_client` 强制把 client.timeout 拉到 600s
+  - `screenplayApi.generate` axios timeout 30s → 600_000ms
+  - `SessionGenerateView` loading 文案改成「通常本地模型 30-180s，云模型 10-30s」+ >90s 提示切云模型 + >240s 提示删档重建
+
+### 新增
+- **`service/activity_log.py`** —— 结构化 JSONL 活动日志，写到 `~/.dzmm/activity.jsonl`（5MB rotation）。`log_event(session_id, kind, **payload)` 一行一事件，便于 grep / debug
+- 已接入 `screenplay.generate_screenplay`：emit `screenplay_generate_start` / `screenplay_generate_end`（含 duration_ms + raw_chars + chapter 数）/ `screenplay_generate_error`（含解析错误或 LLM 异常）
+- v0.1.8 会接入 run_turn / state_apply / parser，并加 `GET /sessions/{id}/activity` 端点 + DebugView 展示
+
+---
+
 ## [v0.1.6] - 2026-05-01
 
 **主题：项目结构重构（行为零变更）**
