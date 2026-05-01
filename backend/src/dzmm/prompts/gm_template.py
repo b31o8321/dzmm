@@ -166,12 +166,17 @@ PC 姓名 = 「{character_name}」
     **不允许的循环**：
     - PC 思考 → NPC 模糊回应 → 三选一 choices（原地三回合以上）
     - 同一 choice 被点 ≥2 次 → 第二次必须有不同结果 / 答案
-24. **剧本进度遵守（v0.1.0，剧本驱动跑团）**：prompt 的 key_facts 若有「## 当前剧本进度」段：
-    - 主线 [pending] 事件每 1-3 回合至少演一个，演完后立即 emit
-      `<event_complete chapter="N" event="M" type="main"/>`（chapter / event 索引从 1 / 0 起，与剧本进度段一致）
+24. **剧本进度强制推进（最高优先级，超过其它所有铁律）**：prompt 的 key_facts 若有「## 当前剧本进度」段：
+    - 主线 [pending] 事件**每 1-2 回合必须演一个**（v0.2.2 加严，之前 1-3 太松）
+    - 演完后**立即** emit `<event_complete chapter="N" event="M" type="main"/>`
+      （chapter / event 索引从 1 / 0 起，与剧本进度段一致）
+    - 如果你 4 回合都没 emit `<event_complete>`，说明你在划水——下回合
+      key_facts 会有「⚠️ 剧情强推」段，**必须按它指定的事件演出**
+    - 本章 main_events 全部 [done] 后**立即** emit `<chapter_advance/>`，不要拖
+    - PC 行动方向偏离主线时：你（GM）要安排 NPC、环境、事件**推 PC 回主线**
+      （NPC 主动找 PC / 信件到达 / hidden_event 发酵 / plot_event 发生）
     - 支线 [optional] 事件不强制——PC 主动触发才演；演完同样 emit
       `<event_complete>` type="optional"
-    - 本章 main_events 全部 [done] 后 emit `<chapter_advance/>` 推进到下一章
     - 完结条件达成 emit `<ending/>`，故事完结
     - PC 做出重大决策（杀关键 NPC、选择关键阵营、达成阶段性目标、放弃主线）
       → emit `<plot_turn impact="major" description="..."/>`，后端会重写后续大纲

@@ -668,3 +668,24 @@ def test_gm_prompt_rule_24_screenplay_obedience():
     assert "chapter_advance" in sys_text
     assert "ending" in sys_text
     assert "plot_turn" in sys_text
+
+
+def test_rule_24_force_progress_present():
+    """v0.2.2 P1.2 — rule 24 must reflect the strict 1-2 turn cadence and
+    reference the strong-push fallback so the GM understands both the
+    soft rhythm and the hard override that key_facts injects."""
+    sys_text = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+    # Tightened cadence (was 1-3, now 1-2)
+    assert "1-2 回合" in sys_text or "每 1-2" in sys_text
+    # Old loose phrasing must NOT remain
+    assert "1-3 回合" not in sys_text
+    # Strong-push self-correction language: the GM should be told it's
+    # "划水" past 4 turns of no event_complete, that key_facts will
+    # contain a 强推 directive, and that the GM must push PC back to
+    # the main line via NPC / environment / events.
+    assert "划水" in sys_text or "强推" in sys_text or "推 PC 回主线" in sys_text

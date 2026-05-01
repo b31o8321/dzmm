@@ -87,8 +87,25 @@ async def _apply_event_complete(
     if not isinstance(completed, list):
         completed = []
 
-    rec = {"chapter": chapter, "event_idx": event_idx, "type": type_}
-    if rec not in completed:
+    # Idempotency key matches on (chapter, event_idx, type) only — turn is
+    # metadata for v0.2.2 P1.2 progress-stuck detection (key_facts uses the
+    # max turn among completed events of the current chapter to estimate
+    # turns_since_progress). Re-emit of the same triple is still a no-op
+    # so we don't bump the recorded turn artificially.
+    already = any(
+        isinstance(c, dict)
+        and c.get("chapter") == chapter
+        and c.get("event_idx") == event_idx
+        and (c.get("type") or "main") == type_
+        for c in completed
+    )
+    if not already:
+        rec = {
+            "chapter": chapter,
+            "event_idx": event_idx,
+            "type": type_,
+            "turn": current_turn,
+        }
         completed.append(rec)
         sp.completed_events_json = json.dumps(completed, ensure_ascii=False)
 

@@ -1444,7 +1444,9 @@ async def test_chapter_advance_at_last_chapter_no_op(session_with_state):
 
 async def test_event_complete_marks_event_done(session_with_state):
     """<event_complete chapter=1 event=0 type=main/> → completed_events_json
-    grows by one record with int-typed chapter / event_idx."""
+    grows by one record with int-typed chapter / event_idx and a recorded
+    turn (v0.2.2 P1.2 — turn metadata powers the strong-push detector in
+    _build_key_facts)."""
     s, sid = session_with_state
     sp = await _seed_screenplay(s, sid)
     await s.commit()
@@ -1459,7 +1461,35 @@ async def test_event_complete_marks_event_done(session_with_state):
 
     sp_reloaded = await s.get(Screenplay, sp.id)
     completed = json.loads(sp_reloaded.completed_events_json)
-    assert completed == [{"chapter": 1, "event_idx": 0, "type": "main"}]
+    assert completed == [
+        {"chapter": 1, "event_idx": 0, "type": "main", "turn": 2}
+    ]
+
+
+async def test_event_complete_records_turn(session_with_state):
+    """v0.2.2 P1.2 — every newly-recorded event_complete must carry a `turn`
+    field equal to the current_turn at apply time. This is what
+    _build_key_facts uses to compute turns_since_progress and decide whether
+    to inject the 「⚠️ 剧情强推」 section."""
+    s, sid = session_with_state
+    sp = await _seed_screenplay(s, sid)
+    await s.commit()
+
+    tag = TagComplete(
+        name="event_complete",
+        attrs={"chapter": "1", "event": "0", "type": "main"},
+        content="",
+    )
+    await apply_tags(s, sid, current_turn=7, tags=[tag])
+    await s.commit()
+
+    sp_reloaded = await s.get(Screenplay, sp.id)
+    completed = json.loads(sp_reloaded.completed_events_json)
+    assert len(completed) == 1
+    assert completed[0]["turn"] == 7
+    assert completed[0]["chapter"] == 1
+    assert completed[0]["event_idx"] == 0
+    assert completed[0]["type"] == "main"
 
 
 async def test_event_complete_idempotent(session_with_state):
