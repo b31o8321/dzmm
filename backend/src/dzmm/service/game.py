@@ -183,7 +183,12 @@ async def run_turn(
 
     narrative_text = "".join(narrative_parts)
     await apply_tags(
-        session, session_id, next_turn, completed_tags, narrative_text=narrative_text
+        session,
+        session_id,
+        next_turn,
+        completed_tags,
+        narrative_text=narrative_text,
+        character_name=(char.name if char is not None else ""),
     )
 
     sess.turn_count = next_turn

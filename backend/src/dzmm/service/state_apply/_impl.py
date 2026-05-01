@@ -61,12 +61,18 @@ async def apply_tags(
     current_turn: int,
     tags: list[TagComplete],
     narrative_text: str = "",
+    *,
+    character_name: str = "",
 ) -> None:
     """Mutate CharState and NPC rows based on parsed tags. Caller commits.
 
     `narrative_text` is the raw narrative (concatenated from streamed
     NarrativeDelta events). It's used by the lightweight NPC NER fallback to
     register stub NPCs the GM mentions but forgets to declare via <npc_update>.
+
+    `character_name` is the PC's name. The NER fallback uses it to suppress
+    stubs whose name is a substring of the PC's own name (e.g. "塞巴" /
+    "奥斯特" must not become NPCs when PC is "塞巴斯蒂安·冯·奥斯特").
     """
     for tag in tags:
         if tag.name == "state_change":
@@ -110,5 +116,10 @@ async def apply_tags(
     if narrative_text and narrative_text.strip():
         explicit_names = _explicit_npc_names_from_tags(tags)
         await _register_npc_ner_fallback(
-            session, session_id, current_turn, narrative_text, explicit_names
+            session,
+            session_id,
+            current_turn,
+            narrative_text,
+            explicit_names,
+            character_name=character_name,
         )
