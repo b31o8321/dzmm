@@ -130,6 +130,7 @@ const {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
     refreshLocations()  // pick up <location_enter> updates
+    refreshNpcLocations()  // pick up <npc_update location="..."> changes
     refreshSuggestions()
   },
 })
@@ -140,6 +141,17 @@ const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
 const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
+
+async function refreshNpcLocations() {
+  try {
+    const fullNpcs = await sessionsApi.npcs(sessionId)
+    const npcMap = new Map(fullNpcs.map((n) => [n.name, n]))
+    for (const n of npcs.value) {
+      const full = npcMap.get(n.name)
+      if (full) (n as any).current_location = full.current_location ?? null
+    }
+  } catch { /* ignore */ }
+}
 
 async function refreshLocations() {
   try {
