@@ -160,6 +160,28 @@ export const sessionsApi = {
 
   locations: (id: number) =>
     api.get<LocationItem[]>(`/sessions/${id}/locations`).then((r) => r.data),
+
+  async updateGmModel(sessionId: number, gmModelConfigId: number): Promise<void> {
+    await api.patch(`/sessions/${sessionId}/gm_model`, {
+      gm_model_config_id: gmModelConfigId,
+    })
+  },
+
+  async suggestActions(
+    sessionId: number,
+    narrative: string,
+    goals: string[] = [],
+  ): Promise<string[]> {
+    try {
+      const r = await api.post<{ suggestions: string[] }>(
+        `/sessions/${sessionId}/suggest_actions`,
+        { narrative, goals },
+      )
+      return r.data.suggestions ?? []
+    } catch {
+      return []
+    }
+  },
 }
 
 export interface FeedbackItem {

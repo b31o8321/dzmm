@@ -231,14 +231,11 @@ async def run_turn(
         events_json=json.dumps(events_payload, ensure_ascii=False),
     ))
 
-    narrative_text = "".join(narrative_parts)
     await apply_tags(
         session,
         session_id,
         next_turn,
         completed_tags,
-        narrative_text=narrative_text,
-        character_name=(char.name if char is not None else ""),
     )
 
     sess.turn_count = next_turn
@@ -654,14 +651,22 @@ async def _build_key_facts(
                         last_progress_turn = 0
                     turns_since_progress = current_turn - last_progress_turn
 
-                    if turns_since_progress >= 5:
+                    if turns_since_progress >= 3:
                         next_idx, next_event = pending_main_pairs[0]
+                        emit_tag = (
+                            f'<event_complete chapter="{sp.current_chapter}" '
+                            f'event="{next_idx}" type="main"/>'
+                        )
+                        urgency = "❗❗ 极度紧急" if turns_since_progress >= 6 else "⚠️ 剧情强推"
                         parts.append(
-                            f"## ⚠️ 剧情强推（已 {turns_since_progress} 回合无主线进展）\n"
-                            f"本回合**必须**演出主线事件「{next_event}」。\n"
-                            f"如果 PC 当前行动与该事件无关，主动安排 NPC / 环境推动 PC 走向。\n"
-                            f"演完后立即 emit `<event_complete chapter=\"{sp.current_chapter}\""
-                            f" event=\"{next_idx}\" type=\"main\"/>`。"
+                            f"## {urgency}（已 {turns_since_progress} 回合无主线进展）\n"
+                            f"**本回合必须完成主线事件**：「{next_event}」\n\n"
+                            f"操作步骤：\n"
+                            f"1. 无论 PC 当前在做什么，立刻安排 NPC 或环境将 PC 引向该事件\n"
+                            f"2. 在 narrative 中演出该事件的核心场景（不超过 200 字）\n"
+                            f"3. 演完后立即在输出末尾 emit 以下 tag（原样复制，勿修改）：\n"
+                            f"```\n{emit_tag}\n```\n"
+                            f"**如不 emit 该 tag，系统将认为事件未完成，下回合继续强推。**"
                         )
 
     # Hidden events — GM-only state with a fuse. Re-inject every turn so the

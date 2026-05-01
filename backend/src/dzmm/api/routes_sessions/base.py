@@ -3,6 +3,7 @@
 DELETE cascades through every per-session table since SQLite FKs aren't
 enabled on this schema."""
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ from dzmm.db.models import (
     Feedback,
     HiddenEvent,
     Message as MessageRow,
+    ModelConfig,
     NPC,
     NpcRelation,
     PCGoal,
@@ -24,6 +26,27 @@ from dzmm.db.models import (
 )
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+
+class PatchGmModelRequest(BaseModel):
+    gm_model_config_id: int
+
+
+@router.patch("/{session_id}/gm_model")
+async def patch_session_gm_model(
+    session_id: int,
+    body: PatchGmModelRequest,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    cfg = await s.get(ModelConfig, body.gm_model_config_id)
+    if cfg is None:
+        raise HTTPException(404, "model config not found")
+    sess.gm_model_config_id = body.gm_model_config_id
+    await s.commit()
+    return {"id": sess.id, "gm_model_config_id": sess.gm_model_config_id}
 
 
 @router.post("", response_model=SessionOut)

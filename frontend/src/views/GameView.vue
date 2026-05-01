@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
+import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
@@ -28,6 +29,7 @@ const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
 const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
+const modelsStore = useModelConfigsStore()
 const audio = useAudio()
 const version = __APP_VERSION__
 
@@ -109,6 +111,7 @@ const {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
     refreshLocations()  // pick up <location_enter> updates
+    refreshSuggestions()
   },
 })
 
@@ -126,6 +129,20 @@ async function refreshLocations() {
     currentLocation.value = cur ? { name: cur.name, description: cur.description } : null
   } catch {
     /* ignore */
+  }
+}
+
+const modelSwitchOpen = ref(false)
+const switchModelId = ref<number | null>(null)
+
+async function applyModelSwitch() {
+  if (!switchModelId.value) return
+  try {
+    await sessionsApi.updateGmModel(sessionId, switchModelId.value)
+    ElMessage.success('模型已切换，下一回合生效')
+    modelSwitchOpen.value = false
+  } catch (e: any) {
+    ElMessage.error(e?.message ?? '切换失败')
   }
 }
 
@@ -223,7 +240,7 @@ async function editPrev() {
   await refreshTokens()
 }
 
-const quickActions = ['环顾四周', '探索', '搭话', '潜行', '战斗', '使用物品']
+const suggestions = ref<string[]>([])
 
 function quick(act: string) {
   action.value = act
@@ -251,6 +268,17 @@ const nextMainEvent = computed(() => {
 // 把 event 描述塞 input，让玩家审阅／编辑后再发送（不直接 send）
 function applyEventHint(event: string) {
   action.value = `（推进剧情）${event}`
+}
+
+async function refreshSuggestions() {
+  const lastTurn = turns.value[turns.value.length - 1]
+  if (!lastTurn) return
+  const narrative = (lastTurn.narrative ?? '').slice(0, 400)
+  const activeGoals = goals.value
+    .filter((g: any) => g.status === 'active')
+    .map((g: any) => g.description)
+    .slice(0, 3)
+  suggestions.value = await sessionsApi.suggestActions(sessionId, narrative, activeGoals)
 }
 
 // Extract narrative text from a stored assistant message (which contains
@@ -302,6 +330,9 @@ function extractDiceFromHistory(messages: MessageRow[]) {
 onMounted(async () => {
   // Fire-and-forget GM model warmup so the first turn isn't cold.
   sessionsApi.warmup(sessionId).catch(() => { /* ignore */ })
+
+  // Load model configs for the model-switch dialog.
+  if (modelsStore.items.length === 0) await modelsStore.refresh()
 
   // v0.2.1 P0.4: hydrate side-panel state (esp. inventory) FIRST so the
   // character-card drawer and StatePanel show items immediately, even if
@@ -488,6 +519,12 @@ onUnmounted(() => audio.stopBgm())
             class="text-sm text-slate-500 hover:text-slate-800"
             @click="feedbackOpen = true"
           >💬 反馈</button>
+          <button
+            type="button"
+            class="text-xs text-slate-400 hover:text-slate-600 shrink-0"
+            @click="modelSwitchOpen = true"
+            title="切换 GM 模型"
+          >⚙️ 模型</button>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
           </router-link>
@@ -538,12 +575,12 @@ onUnmounted(() => audio.stopBgm())
         <!-- 通用 fallback：自由探索 -->
         <div class="flex flex-wrap gap-1">
           <el-button
-            v-for="a in quickActions"
-            :key="a"
+            v-for="s in (suggestions.length ? suggestions : ['环顾四周', '探索', '搭话'])"
+            :key="s"
             size="small"
-            @click="quick(a)"
+            @click="quick(s)"
             :disabled="sending"
-          >{{ a }}</el-button>
+          >{{ s }}</el-button>
         </div>
         <div class="flex gap-2">
           <el-input
@@ -628,5 +665,20 @@ onUnmounted(() => audio.stopBgm())
       :events="eventsDialogEvents"
       :turn="eventsDialogTurn"
     />
+
+    <el-dialog v-model="modelSwitchOpen" title="切换 GM 模型" width="360px">
+      <el-select v-model="switchModelId" placeholder="选择新模型" class="w-full">
+        <el-option
+          v-for="m in modelsStore.items"
+          :key="m.id"
+          :label="`${m.name} (${m.model_name})`"
+          :value="m.id"
+        />
+      </el-select>
+      <template #footer>
+        <el-button @click="modelSwitchOpen = false">取消</el-button>
+        <el-button type="primary" @click="applyModelSwitch">确认切换</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>

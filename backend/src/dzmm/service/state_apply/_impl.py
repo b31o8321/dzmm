@@ -13,16 +13,10 @@ from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply.character_xp import _apply_character_xp
 from dzmm.service.state_apply.hidden_event import _apply_hidden_event
 from dzmm.service.state_apply.npc import (
-    _NER_CONTEXT_CUES,
-    _NER_STOPWORDS,
     _NPC_REVEALABLE_FIELDS,
     _apply_npc_update,
     _auto_reveal_for_create,
-    _explicit_npc_names_from_tags,
-    _hanzi_ngrams,
-    _ner_extract_candidate_names,
     _parse_reveal_attr,
-    _register_npc_ner_fallback,
 )
 from dzmm.service.state_apply.npc_relation import _apply_npc_relation
 from dzmm.service.state_apply.pc_goal import _apply_pc_goal
@@ -41,16 +35,10 @@ from dzmm.service.state_apply.state_change import _apply_state_change
 # Re-export for callers that imported these names from `_impl` directly
 # (e.g. via the `from _impl import *` wildcard in __init__.py).
 __all__ = [
-    "_NER_CONTEXT_CUES",
-    "_NER_STOPWORDS",
     "_NPC_REVEALABLE_FIELDS",
     "_apply_npc_update",
     "_auto_reveal_for_create",
-    "_explicit_npc_names_from_tags",
-    "_hanzi_ngrams",
-    "_ner_extract_candidate_names",
     "_parse_reveal_attr",
-    "_register_npc_ner_fallback",
     "apply_tags",
 ]
 
@@ -60,20 +48,8 @@ async def apply_tags(
     session_id: int,
     current_turn: int,
     tags: list[TagComplete],
-    narrative_text: str = "",
-    *,
-    character_name: str = "",
 ) -> None:
-    """Mutate CharState and NPC rows based on parsed tags. Caller commits.
-
-    `narrative_text` is the raw narrative (concatenated from streamed
-    NarrativeDelta events). It's used by the lightweight NPC NER fallback to
-    register stub NPCs the GM mentions but forgets to declare via <npc_update>.
-
-    `character_name` is the PC's name. The NER fallback uses it to suppress
-    stubs whose name is a substring of the PC's own name (e.g. "塞巴" /
-    "奥斯特" must not become NPCs when PC is "塞巴斯蒂安·冯·奥斯特").
-    """
+    """Mutate CharState and NPC rows based on parsed tags. Caller commits."""
     for tag in tags:
         if tag.name == "state_change":
             await _apply_state_change(session, session_id, tag.content)
@@ -109,17 +85,3 @@ async def apply_tags(
             await _apply_ending(session, session_id, tag.attrs, current_turn)
         elif tag.name == "location_enter":
             await _apply_location_enter(session, session_id, current_turn, tag.attrs, tag.content)
-
-    # Light NER fallback: if narrative mentions names the GM forgot to register
-    # via <npc_update>, register them as stubs so the next prompt's NPC list
-    # at least surfaces the name (even if details are missing).
-    if narrative_text and narrative_text.strip():
-        explicit_names = _explicit_npc_names_from_tags(tags)
-        await _register_npc_ner_fallback(
-            session,
-            session_id,
-            current_turn,
-            narrative_text,
-            explicit_names,
-            character_name=character_name,
-        )
