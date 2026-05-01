@@ -28,13 +28,13 @@ from dzmm.db.models import (
     World,
 )
 
-from dzmm.api.routes_sessions._impl import (
+from dzmm.api.routes_sessions._common import (
     _npc_to_dict,
     _parse_events_json,
     get_session_dep,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 def _redact_portrait(p: str | None) -> str:
