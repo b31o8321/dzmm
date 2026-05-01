@@ -56,6 +56,13 @@ const versionMismatch = computed(() => {
         <span class="mr-2">🐛</span>调试
       </RouterLink>
       <RouterLink
+        to="/settings"
+        class="block px-3 py-2 rounded text-sm text-slate-300 hover:bg-slate-700 transition"
+        active-class="bg-slate-700"
+      >
+        <span class="mr-2">⚙️</span>设置
+      </RouterLink>
+      <RouterLink
         to="/help"
         class="block px-3 py-2 rounded text-sm text-slate-300 hover:bg-slate-700 transition"
         active-class="bg-slate-700"
@@ -95,6 +102,13 @@ const versionMismatch = computed(() => {
       active-class="bg-slate-700"
     >
       <span class="mr-1">🐛</span>调试
+    </RouterLink>
+    <RouterLink
+      to="/settings"
+      class="px-3 py-2 rounded hover:bg-slate-700 transition shrink-0 text-sm whitespace-nowrap"
+      active-class="bg-slate-700"
+    >
+      <span class="mr-1">⚙️</span>设置
     </RouterLink>
     <RouterLink
       to="/help"

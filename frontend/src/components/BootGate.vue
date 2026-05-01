@@ -79,7 +79,7 @@ async function bootAfterBackendStarted() {
       checkForUpdates().then((info) => {
         if (info.available) {
           ElMessage({
-            message: `🆕 新版本 v${info.version} 可用！点击设置中的"检查更新"安装。`,
+            message: `🆕 新版本 v${info.version} 可用！打开侧栏的「⚙️ 设置」点「检查更新」安装。`,
             type: 'info',
             duration: 8000,
           })
