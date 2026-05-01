@@ -203,6 +203,9 @@ PC 姓名 = 「{character_name}」
     - 时间失控（场景被打断 / 错过机会 / 被迫撤退）
     大失败（d20=1）必须强烈，2-3 项叠加。
     成功反过来给奖励：dice ≥ DC+5 时 emit character_xp +20 起。
+28. **当前场所登记**：首次进入新地点（室内场景/街区/建筑/地牢房间等）时，
+    用 `<location_enter name="地点名" description="一句话描述"/>` 登记。
+    同一地点多次到访不重复登记，tag 会自动更新"最近到访回合"。
 
 # 反应性原则（让世界真的"在乎"玩家做的事）
 
@@ -371,6 +374,11 @@ NPC 的对白用此标签包，引语用「」。可连续多个 <say> 表现来
 某事物的截止时间。**你（GM）必须在后续回合按 consequence 描述把后果演出来**。
 玩家若处理（包扎/解毒/救援），emit <hidden_event resolve subject="..."/> 关闭它。
 **不要把 hidden_event 内容直接写进 narrative 让玩家看到**——这是给后台记的。
+
+<location_enter name="地点名" description="一句话描述"/>
+首次进入新地点时输出此自闭合标签，登记地点名称与描述。系统会追踪"当前场所"，
+并在玩家侧边栏显示。同一地点多次到访时重复 emit，tag 会更新"最近到访回合"，
+不会重复创建记录。地点类型不限：室内、街区、建筑、地牢房间等均可。
 
 <chapter_advance/>
 本章 main_events 全部演完后输出此自闭合标签，推进到下一章。系统会把 Screenplay.current_chapter +1。

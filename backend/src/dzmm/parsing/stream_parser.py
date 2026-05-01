@@ -25,6 +25,8 @@ KNOWN_TAGS: set[str] = {
     "event_complete",
     "plot_turn",
     "ending",
+    # v0.2.3 — location tracking
+    "location_enter",
 }
 STREAMING_TAGS: set[str] = {"narrative"}
 

@@ -224,6 +224,19 @@ class Feedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
+class Location(Base):
+    """v0.2.3 — Locations visited by the PC. GM emits <location_enter> to register.
+    is_current tracks which location the PC is currently in."""
+    __tablename__ = "locations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text, default="")
+    first_visited_turn: Mapped[int] = mapped_column(default=0)
+    last_visited_turn: Mapped[int] = mapped_column(default=0)
+    is_current: Mapped[bool] = mapped_column(default=False)
+
+
 class HiddenEvent(Base):
     """v0.10 — Implicit story state with a fuse. GM-emitted via <hidden_event>:
     things the player shouldn't see explicitly but the GM must remember and

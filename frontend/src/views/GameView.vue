@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { sessionsApi, type MessageRow, type Npc } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
@@ -108,6 +108,7 @@ const {
   onTurnDone: () => {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
+    refreshLocations()  // pick up <location_enter> updates
   },
 })
 
@@ -116,6 +117,17 @@ const selectedNpc = ref<Npc | null>(null)
 const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
+const currentLocation = ref<{ name: string; description: string } | null>(null)
+
+async function refreshLocations() {
+  try {
+    const locs = await sessionsApi.locations(sessionId)
+    const cur = locs.find((l) => l.is_current) ?? null
+    currentLocation.value = cur ? { name: cur.name, description: cur.description } : null
+  } catch {
+    /* ignore */
+  }
+}
 
 async function openNpcDetail(name: string) {
   try {
@@ -367,6 +379,7 @@ onMounted(async () => {
   }
 
   await refreshGoals()
+  await refreshLocations()
 })
 
 onUnmounted(() => audio.stopBgm())
@@ -424,6 +437,10 @@ onUnmounted(() => audio.stopBgm())
           <router-link :to="`/play/${sessionId}/relations`"
                        class="text-sm text-slate-500 hover:text-slate-800">
             🔗 关系
+          </router-link>
+          <router-link :to="`/play/${sessionId}/locations`"
+                       class="text-sm text-slate-500 hover:text-slate-800">
+            📍 场所
           </router-link>
           <router-link :to="`/play/${sessionId}/chronicle`"
                        class="text-sm text-slate-500 hover:text-slate-800">
@@ -501,6 +518,7 @@ onUnmounted(() => audio.stopBgm())
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
+                  :current-location="currentLocation"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
     </div>
@@ -532,6 +550,7 @@ onUnmounted(() => audio.stopBgm())
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
+                  :current-location="currentLocation"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
     </div>

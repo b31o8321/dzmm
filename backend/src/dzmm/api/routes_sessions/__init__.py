@@ -25,6 +25,7 @@ from dzmm.api.routes_sessions._common import (  # noqa: F401 — backward compat
     _to_out,
 )
 from dzmm.api.routes_sessions.base import router as _base_router
+from dzmm.api.routes_sessions.locations import router as _locations_router
 from dzmm.api.routes_sessions.export import router as _export_router
 from dzmm.api.routes_sessions.feedback import router as _feedback_router
 from dzmm.api.routes_sessions.goals import router as _goals_router
@@ -45,6 +46,7 @@ for _sub in (
     _hidden_events_router,
     _feedback_router,
     _export_router,
+    _locations_router,
 ):
     router.include_router(_sub)
 
@@ -71,6 +73,7 @@ _SUBMODULES = (
     "dzmm.api.routes_sessions.npcs",
     "dzmm.api.routes_sessions.threads",
     "dzmm.api.routes_sessions.turn",
+    "dzmm.api.routes_sessions.locations",
 )
 
 
