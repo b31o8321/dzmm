@@ -17,6 +17,11 @@ from dzmm.api.routes_sessions._impl import (  # noqa
 # so this name must be importable on the package level.
 from dzmm.api.routes_sessions._impl import build_client  # noqa
 
+# Merge sub-routers carved out from _impl.py back into the main router so
+# main.py only needs to mount `router` once.
+from dzmm.api.routes_sessions.export import router as _export_router  # noqa
+router.include_router(_export_router)
+
 
 # Tests monkeypatch attributes here at the package level (e.g.
 # `dzmm.api.routes_sessions.build_client`). Because the actual route handlers
