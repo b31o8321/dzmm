@@ -9,6 +9,7 @@ defineProps<{
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
   pcMood?: Record<string, number>
+  currentLocation?: { name: string; description: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -41,6 +42,11 @@ function tooltipFor(key: string): string {
 
 <template>
   <aside class="w-80 bg-white border-l p-4 flex flex-col gap-4 overflow-auto">
+    <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm">
+      <span class="text-slate-500 text-xs">当前场所</span>
+      <div class="font-bold text-blue-800">📍 {{ currentLocation.name }}</div>
+      <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5">{{ currentLocation.description }}</div>
+    </div>
     <section>
       <h3 class="font-bold text-slate-700 mb-2">角色状态</h3>
       <div class="space-y-1 text-sm">

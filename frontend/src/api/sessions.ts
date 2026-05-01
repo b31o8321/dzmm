@@ -157,6 +157,9 @@ export const sessionsApi = {
 
   listFeedback: (id: number) =>
     api.get<FeedbackItem[]>(`/sessions/${id}/feedback`).then((r) => r.data),
+
+  locations: (id: number) =>
+    api.get<LocationItem[]>(`/sessions/${id}/locations`).then((r) => r.data),
 }
 
 export interface FeedbackItem {
@@ -177,4 +180,13 @@ export interface HiddenEventItem {
   consequence: string
   introduced_turn: number
   status: string
+}
+
+export interface LocationItem {
+  id: number
+  name: string
+  description: string
+  first_visited_turn: number
+  last_visited_turn: number
+  is_current: boolean
 }
