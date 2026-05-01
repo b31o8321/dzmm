@@ -668,3 +668,54 @@ def test_gm_prompt_rule_24_screenplay_obedience():
     assert "chapter_advance" in sys_text
     assert "ending" in sys_text
     assert "plot_turn" in sys_text
+
+
+def _build_default_sys() -> str:
+    return build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )[0].content
+
+
+def test_rule_25_ordering_present():
+    """v0.2.2 P1.1 — iron rule 25: information ordering must follow story
+    timeline; `say` should immediately follow the `pc_action` that triggered it."""
+    sys_text = _build_default_sys()
+    assert "25." in sys_text
+    assert "顺序" in sys_text
+    assert "say" in sys_text and "pc_action" in sys_text
+    # Ironclad rule should reference the story-timeline / 发生顺序 phrasing.
+    assert "发生顺序" in sys_text or "故事时间线" in sys_text
+
+
+def test_rule_26_npc_proactive_present():
+    """v0.2.2 P1.3 — iron rule 26: at least one NPC must take a proactive
+    action every 2-3 turns rather than waiting for PC to trigger them."""
+    sys_text = _build_default_sys()
+    assert "26." in sys_text
+    assert "NPC 每" in sys_text or "主动" in sys_text
+    assert "2-3 回合" in sys_text or "2 回合" in sys_text
+    # No "dead scene" phrasing
+    assert "死场景" in sys_text or "禁止" in sys_text
+
+
+def test_rule_27_dice_failure_consequences():
+    """v0.2.2 P1.4 — iron rule 27: dice failure must produce negative
+    consequences; can't be 'nothing happens'. Critical success rewards XP."""
+    sys_text = _build_default_sys()
+    assert "27." in sys_text
+    assert "失败" in sys_text and "负面后果" in sys_text
+    # At least one of the example consequence categories should be named
+    assert "关系恶化" in sys_text or "线索错失" in sys_text
+    # Big-success reward path is also documented in this rule
+    assert "character_xp" in sys_text
+
+
+def test_few_shot_demonstrates_ordering():
+    """The few-shot block should now contain a concrete ordering demonstration
+    so the model has both a rule (25) AND an example to imitate."""
+    sys_text = _build_default_sys()
+    # Demonstration 3 from gm_few_shot — story-timeline ordering example
+    assert "信息顺序" in sys_text or "示范3" in sys_text or "故事时间线" in sys_text

@@ -280,11 +280,15 @@ async def test_finalize_wizard_creates_all_rows(empty_db):
         assert len(npcs) == 2
         names = {n.name for n in npcs}
         assert names == {"陈子轩", "苍井博士"}
-        # All pinned NPCs should be fully revealed.
+        # v0.2.2: pinned NPCs only reveal `name` initially; GM unveils
+        # description/purpose/archetype progressively via npc_update.
         for n in npcs:
             assert n.pinned is True
             rev = json.loads(n.revealed_json)
-            assert rev.get("name") and rev.get("description") and rev.get("purpose")
+            assert rev.get("name") is True
+            assert not rev.get("description")
+            assert not rev.get("purpose")
+            assert not rev.get("archetype")
         assert len(sps) == 1 and sps[0].status == "active"
         assert sps[0].current_chapter == 1
         chapters = json.loads(sps[0].chapters_json)

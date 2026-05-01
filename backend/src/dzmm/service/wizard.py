@@ -198,10 +198,12 @@ async def finalize_wizard(
     session.add(sess)
     await session.flush()
 
-    # 4. Pinned NPCs (player has already reviewed all fields → reveal everything)
-    revealed_full = json.dumps(
-        {"name": True, "description": True, "purpose": True, "archetype": True}
-    )
+    # 4. Pinned NPCs (v0.2.2: only `name` is revealed by default — GM should
+    # progressively reveal description/purpose/archetype via <npc_update> as
+    # the story unfolds. Previously we revealed everything here, which made
+    # the opening feel "spoiler-loaded" — players saw all archetypes and
+    # motivations before they ever met the NPC.)
+    revealed_name_only = json.dumps({"name": True})
     for npc_data in (bundle.get("pinned_npcs") or []):
         if not isinstance(npc_data, dict):
             continue
@@ -215,7 +217,7 @@ async def finalize_wizard(
             purpose=str(npc_data.get("motivation") or npc_data.get("purpose") or "")[:1000],
             archetype=str(npc_data.get("role") or npc_data.get("archetype") or "")[:120],
             pinned=True,
-            revealed_json=revealed_full,
+            revealed_json=revealed_name_only,
         )
         session.add(npc)
 
