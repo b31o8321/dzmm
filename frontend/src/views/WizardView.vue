@@ -66,6 +66,8 @@ interface State {
   pinned_npc_names: string[]
   // step 5
   screenplay: WizardScreenplay | null
+  // debug
+  raw_outputs: Record<string, string>
 }
 
 const state = reactive<State>({
@@ -84,10 +86,13 @@ const state = reactive<State>({
   npcs: [],
   pinned_npc_names: [],
   screenplay: null,
+  raw_outputs: {},
 })
 
 // 0..6 (7 stages: setup + 5 LLM-driven steps + review)
 const step = ref(0)
+
+const showRawKey = ref<string | null>(null)
 
 const DRAFT_KEY = 'dzmm_wizard_draft'
 
@@ -203,6 +208,7 @@ async function generateBrief() {
       genre: effectiveGenre.value,
       theme: state.theme.trim(),
     })
+    state.raw_outputs['world_brief'] = state.world_brief?.raw_md ?? ''
     saveDraft()
     editing.brief = false
   } catch (e: any) {
@@ -242,6 +248,7 @@ async function generateWorldDetails() {
       brief_md: state.world_brief.raw_md,
     })
     state.world_md = r.world_md
+    state.raw_outputs['world_details'] = r.world_md
     saveDraft()
     editing.world = false
   } catch (e: any) {
@@ -279,6 +286,7 @@ async function generateCharacter() {
     })
     state.character_name = r.name
     state.character_md = r.profile_md
+    state.raw_outputs['character'] = r.profile_md
     saveDraft()
     editing.character = false
   } catch (e: any) {
@@ -310,6 +318,7 @@ async function generateNpcs() {
     })
     state.npcs = r.npcs
     state.pinned_npc_names = r.npcs.map((n) => n.name) // pin all by default
+    state.raw_outputs['npcs'] = JSON.stringify(r.npcs, null, 2)
     saveDraft()
     editing.npcs = false
   } catch (e: any) {
@@ -418,6 +427,7 @@ async function generateScreenplay() {
       npcs: state.npcs.filter((n) => isPinned(n.name)),
       genre: effectiveGenre.value,
     })
+    state.raw_outputs['screenplay'] = JSON.stringify(state.screenplay, null, 2)
     saveDraft()
     editing.screenplay = false
   } catch (e: any) {
@@ -735,6 +745,16 @@ onBeforeUnmount(() => {
             <MarkdownView :source="state.world_brief.conflict" />
           </div>
         </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['world_brief']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'world_brief' ? null : 'world_brief'"
+          >
+            🐛 原始输出 {{ showRawKey === 'world_brief' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'world_brief'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['world_brief'] }}</pre>
+        </div>
       </WizardStep>
 
       <!-- ====== Step 2: world details ====== -->
@@ -756,6 +776,16 @@ onBeforeUnmount(() => {
         @retry="generateWorldDetails"
       >
         <MarkdownView :source="state.world_md" />
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['world_details']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'world_details' ? null : 'world_details'"
+          >
+            🐛 原始输出 {{ showRawKey === 'world_details' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'world_details'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['world_details'] }}</pre>
+        </div>
       </WizardStep>
 
       <!-- ====== Step 3: character ====== -->
@@ -807,6 +837,16 @@ onBeforeUnmount(() => {
             <div class="text-lg font-bold text-slate-800">{{ state.character_name }}</div>
           </div>
           <MarkdownView :source="state.character_md" />
+        </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['character']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'character' ? null : 'character'"
+          >
+            🐛 原始输出 {{ showRawKey === 'character' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'character'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['character'] }}</pre>
         </div>
       </WizardStep>
 
@@ -861,6 +901,16 @@ onBeforeUnmount(() => {
             <el-button size="small" @click="npcHintDialog = true" :loading="npcGenerating">✨ AI 生成一个</el-button>
             <el-button size="small" @click="addBlankNpc">📝 手动添加</el-button>
           </div>
+        </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['npcs']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'npcs' ? null : 'npcs'"
+          >
+            🐛 原始输出 {{ showRawKey === 'npcs' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'npcs'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['npcs'] }}</pre>
         </div>
       </WizardStep>
 
@@ -978,6 +1028,16 @@ onBeforeUnmount(() => {
               <MarkdownView :source="state.screenplay.ending_md || state.screenplay.ending || ''" />
             </div>
           </div>
+        </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['screenplay']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'screenplay' ? null : 'screenplay'"
+          >
+            🐛 原始输出 {{ showRawKey === 'screenplay' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'screenplay'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['screenplay'] }}</pre>
         </div>
       </WizardStep>
 
