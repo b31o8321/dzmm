@@ -26,12 +26,46 @@ from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsag
 from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
 from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.gm_template import build_gm_messages
+from dzmm.service.activity_log import log_event
 from dzmm.service.state_apply import apply_tags
 
 
 log = logging.getLogger(__name__)
 
-RECENT_WINDOW = 12
+# Recent verbatim turn window used when assembling the GM prompt. v0.2.1 — the
+# window shrinks once the session is long enough that summary + key_facts
+# already carry the load; this prevents the prompt from growing unboundedly
+# as turn_count climbs (live play at turn 70+ saw the GM reciting
+# few-shot examples, a textbook long-context collapse symptom).
+RECENT_WINDOW_DEFAULT = 12       # < 30 turns
+RECENT_WINDOW_LONG_GAME = 8      # 30-60 turns
+RECENT_WINDOW_VERY_LONG = 6      # > 60 turns
+
+# Backwards-compat alias kept so external code / tests that imported the old
+# name keep working. Treat as deprecated.
+RECENT_WINDOW = RECENT_WINDOW_DEFAULT
+
+
+def _recent_window_for(turn_count: int) -> int:
+    """Adaptive verbatim window — see module-level constants for the bands."""
+    if turn_count > 60:
+        return RECENT_WINDOW_VERY_LONG
+    if turn_count > 30:
+        return RECENT_WINDOW_LONG_GAME
+    return RECENT_WINDOW_DEFAULT
+
+
+def _rough_token_count(messages: list[Message]) -> int:
+    """Rough token estimate without spinning up tiktoken: roughly 1 token per
+    1.5 CJK chars and 1 token per 4 ASCII chars. Used only for the long-context
+    warning event in activity_log; precision is not required."""
+    total = 0
+    for m in messages:
+        text = m.content or ""
+        cjk = sum(1 for c in text if "一" <= c <= "鿿")
+        ascii_count = len(text) - cjk
+        total += int(cjk / 1.5) + int(ascii_count / 4)
+    return total
 
 _THINK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.DOTALL | re.IGNORECASE)
 
@@ -103,6 +137,18 @@ async def run_turn(
         recent_messages=recent,
         current_action=user_action,
     )
+
+    # v0.2.1 — long-context observability. Estimate prompt token cost and
+    # emit a warning event when the total crosses ~12k (most local 7B models
+    # start truncating recent context and reciting few-shot examples beyond
+    # this size). Non-fatal — purely advisory for the activity log UI.
+    prompt_tokens = _rough_token_count(msgs)
+    log_event(session_id, "turn_prompt_size",
+              tokens=prompt_tokens, msgs=len(msgs))
+    if prompt_tokens > 12000:
+        log_event(session_id, "turn_prompt_warning",
+                  tokens=prompt_tokens,
+                  msg="prompt > 12k tokens, model may struggle with long context")
 
     parser = StreamingTagParser()
     full_output_parts: list[str] = []
@@ -251,6 +297,10 @@ async def _load_recent_messages(
     session_id: int,
     summary_row: StorySummary | None,
 ) -> list[Message]:
+    sess = await session.get(GameSession, session_id)
+    turn_count = sess.turn_count if sess is not None else 0
+    window = _recent_window_for(turn_count)
+
     high_water = summary_row.last_summarized_msg_id if summary_row else 0
     rows = (
         await session.execute(
@@ -258,7 +308,7 @@ async def _load_recent_messages(
             .where(MessageRow.session_id == session_id)
             .where(MessageRow.id > high_water)
             .order_by(MessageRow.id.desc())
-            .limit(RECENT_WINDOW)
+            .limit(window)
         )
     ).scalars().all()
     rows = list(reversed(rows))
