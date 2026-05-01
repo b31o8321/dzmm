@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
@@ -133,6 +133,7 @@ const {
     refreshNpcLocations()  // pick up <npc_update location="..."> changes
     refreshSuggestions()
   },
+  onNpcInitiative: (npcName) => onInitiativeTrigger(npcName),
 })
 
 const npcDialogOpen = ref(false)
@@ -277,6 +278,55 @@ const suggestions = ref<string[]>([])
 
 function quick(act: string) {
   action.value = act
+}
+
+// NPC initiative
+const initiativeNpc = ref<string | null>(null)
+let initiativeTimer: ReturnType<typeof setTimeout> | null = null
+
+function onInitiativeTrigger(npcName: string) {
+  if (!npcName) return
+  initiativeNpc.value = npcName
+  if (initiativeTimer) clearTimeout(initiativeTimer)
+  initiativeTimer = setTimeout(() => triggerInitiative(), 4000)
+}
+
+async function triggerInitiative() {
+  const npcName = initiativeNpc.value
+  initiativeNpc.value = null
+  if (initiativeTimer) { clearTimeout(initiativeTimer); initiativeTimer = null }
+  if (!npcName) return
+
+  const newTurn = reactive<Turn>({ action: `【${npcName}主动】`, narrative: '', choices: [], events: [], turn: 0 })
+  turns.value.push(newTurn)
+  sending.value = true
+
+  await sessionsApi.npcTick(
+    sessionId,
+    npcName,
+    {
+      onNarrative: (text) => { newTurn.narrative += text },
+      onTag: (name, attrs, content) => {
+        if (name === 'choices') {
+          newTurn.choices = content.split('\n').map((s: string) => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+        }
+        newTurn.events = [...(newTurn.events ?? []), { type: name, payload: attrs, content }]
+      },
+      onDone: () => {
+        sending.value = false
+        refreshCharacter()
+        refreshGoals()
+        refreshLocations()
+        refreshNpcLocations()
+        refreshSuggestions()
+      },
+    },
+  )
+}
+
+function dismissInitiative() {
+  initiativeNpc.value = null
+  if (initiativeTimer) { clearTimeout(initiativeTimer); initiativeTimer = null }
 }
 
 // v0.2.3 P2.3: 主推按钮——剧本当前章节下一个 [pending] main_event 作为 hint
@@ -597,6 +647,12 @@ onUnmounted(() => audio.stopBgm())
         </el-button>
       </div>
 
+      <div v-if="initiativeNpc" class="initiative-banner">
+        <span class="initiative-label">{{ initiativeNpc }} 正在寻找你...</span>
+        <el-button size="small" type="primary" @click="triggerInitiative">立即触发</el-button>
+        <el-button size="small" @click="dismissInitiative">忽略</el-button>
+      </div>
+
       <MessageList
         :turns="turns"
         :character-name="character?.name"
@@ -734,3 +790,21 @@ onUnmounted(() => audio.stopBgm())
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.initiative-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(64, 158, 255, 0.1);
+  border: 1px solid rgba(64, 158, 255, 0.3);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.initiative-label {
+  flex: 1;
+  color: #409eff;
+}
+</style>

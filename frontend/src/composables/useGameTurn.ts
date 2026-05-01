@@ -54,6 +54,8 @@ export interface UseGameTurnHooks {
   onScroll?: () => void
   /** Called inside onDone, after turn finalisation. */
   onTurnDone?: () => void
+  /** Called when the backend signals that an NPC wants to take initiative. */
+  onNpcInitiative?: (npcName: string) => void
 }
 
 export function useGameTurn(
@@ -167,6 +169,9 @@ export function useGameTurn(
               description: content.trim(),
               importance,
             })
+          }
+          else if (name === 'npc_initiative') {
+            hooks.onNpcInitiative?.(attrs.npc ?? '')
           }
         },
         onError: (msg) => {
