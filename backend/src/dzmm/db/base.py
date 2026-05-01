@@ -71,6 +71,10 @@ _V025_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V027_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "npcs": [("last_initiative_turn", "last_initiative_turn INTEGER NOT NULL DEFAULT 0")],
+}
+
 
 def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) -> None:
     """SQLite-friendly column-add migration. Idempotent: skips columns that
@@ -98,4 +102,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V11_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V025_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V027_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
