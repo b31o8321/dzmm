@@ -606,7 +606,7 @@ async def _build_key_facts(
                 sp_lines.append(f"完结条件：{ending_md}")
 
             sp_lines.append(
-                "（推进规则：主线 [pending] 事件每 1-3 回合至少演一个；"
+                "（推进规则：主线 [pending] 事件每 1-2 回合至少演一个；"
                 "支线 [optional] 等 PC 触发；演完后 emit "
                 "<event_complete chapter=N event=M type=main/optional/>。"
                 "本章主线全部 [done] 后 emit <chapter_advance/>。"
@@ -615,6 +615,65 @@ async def _build_key_facts(
                 " emit <plot_turn impact=\"major\" description=\"...\"/>）"
             )
             parts.append("\n".join(sp_lines))
+
+            # v0.2.2 P1.2 — 剧情强推:detect when the GM has gone several
+            # turns without completing a main event in the current chapter
+            # and inject a hard-priority directive naming the next pending
+            # main event. Real play (72 turns stuck on chapter 1 of 3)
+            # showed rule 24 alone wasn't enough; this section is read by
+            # the GM each turn and effectively overrides the soft "1-2 回合"
+            # rhythm with a concrete "演这一个，立刻 emit" instruction.
+            if isinstance(main_events, list) and main_events:
+                done_main_idxs = {
+                    c.get("event_idx")
+                    for c in completed
+                    if isinstance(c, dict)
+                    and c.get("chapter") == sp.current_chapter
+                    and (c.get("type") or "main") == "main"
+                    and isinstance(c.get("event_idx"), int)
+                }
+                pending_main_pairs = [
+                    (i, ev) for i, ev in enumerate(main_events)
+                    if i not in done_main_idxs
+                ]
+                if pending_main_pairs:
+                    # Estimate how long ago we last completed a main event in
+                    # this chapter. Prefer the recorded `turn` field on the
+                    # most-recent completion; fall back to a coarse estimate
+                    # for legacy rows that predate the turn field
+                    # (current_turn - 3 * already-completed-main-count).
+                    turns_recorded = [
+                        c.get("turn")
+                        for c in completed
+                        if isinstance(c, dict)
+                        and c.get("chapter") == sp.current_chapter
+                        and (c.get("type") or "main") == "main"
+                        and isinstance(c.get("turn"), int)
+                    ]
+                    if turns_recorded:
+                        last_progress_turn = max(turns_recorded)
+                    else:
+                        # No turn metadata — legacy completed_events_json
+                        # rows predating v0.2.2. We can't recover the real
+                        # turn so we treat the last progress as turn 0,
+                        # which means turns_since_progress == current_turn.
+                        # This is conservative but correct: if a session has
+                        # been alive for many turns and only recently been
+                        # upgraded to v0.2.2, it almost certainly is stuck
+                        # (matches the 72-turn-stuck real-play scenario that
+                        # motivated this feature).
+                        last_progress_turn = 0
+                    turns_since_progress = current_turn - last_progress_turn
+
+                    if turns_since_progress >= 5:
+                        next_idx, next_event = pending_main_pairs[0]
+                        parts.append(
+                            f"## ⚠️ 剧情强推（已 {turns_since_progress} 回合无主线进展）\n"
+                            f"本回合**必须**演出主线事件「{next_event}」。\n"
+                            f"如果 PC 当前行动与该事件无关，主动安排 NPC / 环境推动 PC 走向。\n"
+                            f"演完后立即 emit `<event_complete chapter=\"{sp.current_chapter}\""
+                            f" event=\"{next_idx}\" type=\"main\"/>`。"
+                        )
 
     # Hidden events — GM-only state with a fuse. Re-inject every turn so the
     # GM remembers an injury is still bleeding, a poison is still spreading,

@@ -800,6 +800,152 @@ async def test_key_facts_omits_screenplay_when_none(seeded):
     assert "（推进规则：主线 [pending]" not in sys_msg
 
 
+# ---------------------------------------------------------------------------
+# v0.2.2 P1.2 — 剧情强推: key_facts must inject a hard-priority directive when
+# the GM has gone too long without completing a main event in the current
+# chapter. Real play (72 turns stuck on chapter 1 of 3) showed rule 24 alone
+# isn't enough; this section overrides with a concrete next-event directive.
+# ---------------------------------------------------------------------------
+
+
+async def test_key_facts_force_progress_after_5_turns_stuck(seeded):
+    """Active screenplay with no completed events + session.turn_count high
+    enough that turns_since_progress >= 5 → key_facts must contain the
+    「⚠️ 剧情强推」 header and name the next pending main event."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(Screenplay(
+            session_id=sid,
+            version=1,
+            outline_md="x",
+            chapters_json=json.dumps([
+                {
+                    "title": "第一章",
+                    "main_events": ["进入修道院", "找到密信"],
+                    "optional_events": [],
+                },
+                {"title": "第二章", "main_events": ["对峙"]},
+            ], ensure_ascii=False),
+            main_characters_json="[]",
+            ending_md="",
+            current_chapter=1,
+            completed_events_json="[]",
+            status="active",
+        ))
+        # Push turn_count high enough so that current_turn (8) is well past
+        # the 5-turn threshold. We bump it directly because the turn_count
+        # increment happens inside run_turn — we need it pre-set so the
+        # _build_key_facts call inside this turn sees current_turn >= 5.
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 7  # next turn will be 8
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续探索", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # Use a header signature unique to the *injected* block — rule 24 in the
+    # static template merely references the name 「⚠️ 剧情强推」 in prose,
+    # so we anchor on the parenthesised "已 N 回合无主线进展" subtitle which
+    # only appears in the injection.
+    assert "## ⚠️ 剧情强推（已" in sys_msg
+    assert "回合无主线进展）" in sys_msg
+    # Next pending event (idx 0) must be named
+    assert "进入修道院" in sys_msg
+    # The injected directive points at chapter=1 event=0 type=main
+    assert 'chapter="1"' in sys_msg and 'event="0"' in sys_msg
+
+
+async def test_key_facts_no_force_when_recent_progress(seeded):
+    """If completed_events_json has a turn within the last 5 turns the
+    strong-push block must NOT appear — the GM has been making progress
+    and shouldn't be nagged."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(Screenplay(
+            session_id=sid,
+            version=1,
+            outline_md="x",
+            chapters_json=json.dumps([
+                {
+                    "title": "第一章",
+                    "main_events": ["A", "B", "C"],
+                    "optional_events": [],
+                },
+            ], ensure_ascii=False),
+            main_characters_json="[]",
+            ending_md="",
+            current_chapter=1,
+            completed_events_json=json.dumps(
+                [{"chapter": 1, "event_idx": 0, "type": "main", "turn": 7}],
+                ensure_ascii=False,
+            ),
+            status="active",
+        ))
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 7  # next turn is 8 — only 1 turn since progress
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # Anchor on the *injected* header signature — rule 24 in the static
+    # template references 「⚠️ 剧情强推」 in prose, so a bare substring
+    # check would falsely fire. The unique signature is the parenthesised
+    # turn-count subtitle which only the injection emits.
+    assert "## ⚠️ 剧情强推（已" not in sys_msg
+
+
+async def test_key_facts_force_progress_uses_legacy_estimate(seeded):
+    """Legacy completed_events_json rows (predating v0.2.2) lack the `turn`
+    field. _build_key_facts must fall back to a coarse estimate so old
+    sessions still benefit from strong-push without a migration."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(Screenplay(
+            session_id=sid,
+            version=1,
+            outline_md="x",
+            chapters_json=json.dumps([
+                {
+                    "title": "第一章",
+                    "main_events": ["事件零", "事件一", "事件二"],
+                    "optional_events": [],
+                },
+            ], ensure_ascii=False),
+            main_characters_json="[]",
+            ending_md="",
+            current_chapter=1,
+            # Legacy shape — no `turn` field on the record.
+            completed_events_json=json.dumps(
+                [{"chapter": 1, "event_idx": 0, "type": "main"}],
+                ensure_ascii=False,
+            ),
+            status="active",
+        ))
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 71  # turn 72 — definitely stuck (matches real-play)
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    assert "## ⚠️ 剧情强推（已" in sys_msg
+    # Pending events name the next one (event_idx=1, "事件一")
+    assert "事件一" in sys_msg
+
+
 # ----------------------------------------------------------------------------
 # v0.2.1 — long-context fix: recent_messages window shrinks for long games,
 # and prompt-token rough estimator is exposed for the activity log warning.

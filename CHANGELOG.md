@@ -11,6 +11,30 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.2.2] - 2026-05-01
+
+**P1 GM/Prompt 改进**
+
+针对实玩 72 回合发现的剧情卡顿、NPC 被动、dice 重复值等 GM 行为问题，加 4 条铁律 + dice 监控 + wizard NPC reveal 调整。
+
+### 新增
+- **铁律 24 加严**（剧情强制推进）：1-3 回合 → **1-2 回合**；4 回合不 emit `event_complete` = 划水；GM 应主动用 NPC/环境/hidden_event/plot_event 推 PC 回主线
+- **`_build_key_facts` 注入「⚠️ 剧情强推」段**：检测当前章节 5+ 回合无 main_event 完成 → 注入下一个 pending event 名 + 强制 emit 指令；老 completed_events_json 无 turn 字段时按 turn=0 fallback（72 回合卡顿场景立即触发）
+- **`_apply_event_complete` 记录完成 turn**（之前只记 chapter/event_idx/type）
+- **铁律 25 单轮内信息顺序**：narrative / pc_action / say 严格按故事时间线；`say` 紧跟引发它的 pc_action / narrative；few_shot 加示范 3 演示
+- **铁律 26 NPC 每 2-3 回合主动行动**：除响应 PC 外，至少一个 NPC（pinned 或 emotion ≥ 50）主动搭话 / 与其它 NPC 互动 / 推自己的 plot_thread；禁「PC 不动 NPC 也不动」死场景
+- **铁律 27 dice 失败必产生负面后果**：5 类范例（关系恶化 / 物品损耗 / 线索错失 / 敌意 NPC 出现 / 时间失控）；大失败 d20=1 必须 2-3 项叠加；成功 ≥ DC+5 emit `character_xp +20`
+- **dice 监控**（`service/state_apply/dice_monitor.py`）：检测最近 5 条 message 连续 3 次相同 d20 → key_facts 末尾注入「⚠️ Dice 警告（仅 GM 看）」段提示 GM 必须不同（治实玩 d20 总是 9）
+- **wizard NPC reveal 默认改**：`finalize_wizard` pinned NPC 创建时只 reveal `name`（之前默认 reveal name + description + purpose + archetype），让 GM 在游戏中通过 npc_update reveal 字段逐步揭示
+
+### 测试
+- 后端 301 → 328（+27）
+
+### 待办（v0.2.3 P2 UX）
+- 自动开局 / 编年史完全删 / 默认行动改剧本导向 / 场所记录 / 同世界续作 + 选择性 NPC 复制 / 剧情线点击查看总结
+
+---
+
 ## [v0.2.1] - 2026-05-01
 
 **实玩 72 回合 P0 紧急修复**
