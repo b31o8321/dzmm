@@ -170,6 +170,14 @@ export function useGameTurn(
           }
         },
         onError: (msg) => {
+          // v0.2.1 P0.5: backend parser.finish() (added in v0.1.9) already
+          // recovers unclosed tags, so the toast for "Unclosed tag <X>" is
+          // pure noise to the player. Swallow it to console; surface anything
+          // else as a non-blocking warning rather than red error.
+          if (/unclosed/i.test(msg)) {
+            console.debug('[parser]', msg)
+            return
+          }
           ElMessage.warning(msg)
         },
         onDone: () => {
