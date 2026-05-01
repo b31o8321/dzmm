@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { sessionsApi, type MessageRow, type MessageEvent, type Npc, type PCGoalItem } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type MessageEvent, type Npc } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
+import { useGameState, MAX_DICE } from '@/composables/useGameState'
 import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
@@ -103,29 +104,22 @@ async function refreshTokens() {
   } catch { /* ignore */ }
 }
 
-const stats = reactive<Record<string, number>>({})
-const inventory = ref<string[]>([])
-const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean }[]>([])
-const dice = ref<{ skill: string; target: string; result: string }[]>([])
-const threads = ref<{ type: string; description: string; importance: number }[]>([])
-const pcMood = ref<Record<string, number>>({})
-
-const goals = ref<PCGoalItem[]>([])
-
-async function refreshGoals() {
-  try {
-    goals.value = await sessionsApi.goals(sessionId)
-  } catch { /* ignore */ }
-}
-
-async function updateGoal(goalId: number, status: 'active' | 'completed' | 'abandoned') {
-  try {
-    await sessionsApi.updateGoalStatus(sessionId, goalId, status)
-    await refreshGoals()
-  } catch (e: any) {
-    ElMessage.error(e.message ?? '更新失败')
-  }
-}
+const gs = useGameState()
+const {
+  stats,
+  inventory,
+  npcs,
+  dice,
+  threads,
+  pcMood,
+  goals,
+  applyStateChange,
+  applyNpcUpdate,
+  applyPcMood,
+} = gs
+const refreshGoals = () => gs.refreshGoals(sessionId)
+const updateGoal = (goalId: number, status: 'active' | 'completed' | 'abandoned') =>
+  gs.updateGoal(sessionId, goalId, status)
 
 const npcDialogOpen = ref(false)
 const selectedNpc = ref<Npc | null>(null)
@@ -152,68 +146,10 @@ function onNpcUpdated(updated: Npc) {
   selectedNpc.value = updated
 }
 
-const MAX_DICE = 8
-
 const logEl = ref<HTMLElement | null>(null)
 async function scrollToBottom() {
   await nextTick()
   if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
-}
-
-function applyStateChange(content: string) {
-  try {
-    const obj = JSON.parse(content)
-    for (const [k, v] of Object.entries(obj)) {
-      if (k === 'inventory_add' && Array.isArray(v)) {
-        inventory.value.push(...(v as string[]))
-      } else if (k === 'inventory_remove' && Array.isArray(v)) {
-        for (const item of v as string[]) {
-          const idx = inventory.value.indexOf(item)
-          if (idx >= 0) inventory.value.splice(idx, 1)
-        }
-      } else if (typeof v === 'number') {
-        stats[k] = (stats[k] ?? 0) + v
-      }
-    }
-  } catch {
-    /* ignore malformed */
-  }
-}
-
-function applyNpcUpdate(content: string) {
-  try {
-    const obj = JSON.parse(content)
-    if (!obj.name) return
-    const existing = npcs.value.find((n) => n.name === obj.name)
-    if (existing) {
-      if (typeof obj.favor_delta === 'number') existing.favor += obj.favor_delta
-      if (obj.state) existing.state = obj.state
-    } else {
-      npcs.value.push({
-        name: obj.name,
-        favor: obj.favor_delta ?? 0,
-        state: obj.state ?? '未知',
-      })
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-function applyPcMood(content: string) {
-  try {
-    const obj = JSON.parse(content)
-    if (!obj || typeof obj !== 'object') return
-    const next = { ...pcMood.value }
-    for (const [k, v] of Object.entries(obj)) {
-      if (typeof v !== 'number') continue
-      const cur = next[k] ?? 0
-      next[k] = Math.max(0, Math.min(100, cur + v))
-    }
-    pcMood.value = next
-  } catch {
-    /* ignore */
-  }
 }
 
 async function send() {
@@ -375,12 +311,11 @@ async function sendAction(userAction: string) {
         }
         else if (name === 'dice') {
           audio.playSfx('dice')
-          dice.value.unshift({
+          gs.pushDice({
             skill: attrs.skill ?? '判定',
             target: attrs.target ?? '?',
             result: content.trim() || '?',
           })
-          if (dice.value.length > MAX_DICE) dice.value.length = MAX_DICE
         }
         else if (name === 'plot_event') {
           let importance = 2
