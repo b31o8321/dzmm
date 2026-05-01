@@ -1313,3 +1313,69 @@ async def test_ending_marks_screenplay_concluded(session_with_state):
     sp_reloaded = await s.get(Screenplay, sp.id)
     assert sp_reloaded.status == "concluded"
     assert sp_reloaded.concluded_at is not None
+
+
+# ---------------------------------------------------------------------------
+# v0.2.6 fixtures — lightweight session for schema-only tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def db_session(tmp_path):
+    """Yield a bare AsyncSession backed by a fresh in-memory DB."""
+    engine = get_engine(f"sqlite+aiosqlite:///{tmp_path}/schema.db")
+    await init_db(engine)
+    SessionMaker = async_session(engine)
+    async with SessionMaker() as s:
+        yield s
+    await engine.dispose()
+
+
+@pytest.fixture
+async def session_id(db_session):
+    """Seed the minimal rows needed to satisfy FK constraints, return session PK."""
+    world = World(name="W", content_md="x", style="dark")
+    char = Character(world=world, name="C", profile_md="y",
+                     base_stats_json='{"hp":20}')
+    cfg = ModelConfig(name="m", type="ollama",
+                      base_url="http://localhost:11434", model_name="qwen")
+    db_session.add_all([world, char, cfg])
+    await db_session.flush()
+    from dzmm.db.models import Session as GameSession
+    sess = GameSession(name="run", world_id=world.id, character_id=char.id,
+                       gm_model_config_id=cfg.id, summarizer_model_config_id=cfg.id)
+    db_session.add(sess)
+    await db_session.flush()
+    await db_session.commit()
+    return sess.id
+
+
+async def test_npc_location_field_persists(db_session, session_id):
+    """NPC.current_location stores and clears correctly."""
+    from dzmm.db.models import NPC
+    npc = NPC(session_id=session_id, name="镜中人", description="", favor=0,
+              state="被困", last_seen_turn=1, notes_json="[]", purpose="",
+              archetype="", affinity_json="{}", pinned=False,
+              revealed_json='{"name":true}', current_location="书房")
+    db_session.add(npc)
+    await db_session.commit()
+    await db_session.refresh(npc)
+    assert npc.current_location == "书房"
+    npc.current_location = None
+    await db_session.commit()
+    await db_session.refresh(npc)
+    assert npc.current_location is None
+
+
+async def test_location_items_json_persists(db_session, session_id):
+    """Location.items_json stores JSON array."""
+    import json
+    from dzmm.db.models import Location
+    loc = Location(session_id=session_id, name="书房", description="",
+                   first_visited_turn=1, last_visited_turn=1, is_current=True,
+                   items_json='[{"name":"戒指","description":""}]')
+    db_session.add(loc)
+    await db_session.commit()
+    await db_session.refresh(loc)
+    items = json.loads(loc.items_json)
+    assert items[0]["name"] == "戒指"

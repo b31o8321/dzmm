@@ -106,6 +106,7 @@ class NPC(Base):
     pinned: Mapped[bool] = mapped_column(default=False)
     emotion_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
     revealed_json: Mapped[str] = mapped_column(Text, default='{"name": true}')  # v0.11 progressive reveal: field→bool
+    current_location: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)  # v0.2.6 scene binding
 
 
 class PlotThread(Base):
@@ -210,6 +211,7 @@ class Location(Base):
     first_visited_turn: Mapped[int] = mapped_column(default=0)
     last_visited_turn: Mapped[int] = mapped_column(default=0)
     is_current: Mapped[bool] = mapped_column(default=False)
+    items_json: Mapped[str] = mapped_column(Text, default="[]")  # v0.2.6 scene items: [{"name":str,"description":str}]
 
 
 class HiddenEvent(Base):

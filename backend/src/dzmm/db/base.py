@@ -62,6 +62,15 @@ _V11_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
 # v0.13.1 — Player feedback table is created via Base.metadata.create_all.
 # Nothing to migrate column-wise.
 
+_V025_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "npcs": [
+        ("current_location", "current_location VARCHAR(120)"),  # nullable, no DEFAULT
+    ],
+    "locations": [
+        ("items_json", "items_json TEXT NOT NULL DEFAULT '[]'"),
+    ],
+}
+
 
 def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) -> None:
     """SQLite-friendly column-add migration. Idempotent: skips columns that
@@ -87,4 +96,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V10_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V11_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V025_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
