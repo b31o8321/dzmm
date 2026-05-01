@@ -7,7 +7,7 @@ from dzmm.api.routes_sessions._common import build_client, get_session_dep
 from dzmm.db.models import ModelConfig, Session as GameSession
 from dzmm.models.client import GenerationParams
 
-router = APIRouter()
+router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 class SuggestRequest(BaseModel):
@@ -26,7 +26,7 @@ async def suggest_actions(
         raise HTTPException(404, "session not found")
     cfg = await s.get(ModelConfig, sess.gm_model_config_id)
     if cfg is None:
-        raise HTTPException(422, "model config not found")
+        raise HTTPException(404, "model config not found")
 
     client = build_client(cfg)
     narrative_snippet = body.narrative[:400] if body.narrative else ""

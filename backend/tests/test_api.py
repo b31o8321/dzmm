@@ -1314,6 +1314,32 @@ async def test_patch_session_gm_model_invalid(http):
     assert r.status_code == 404
 
 
+async def test_suggest_actions_returns_suggestions(http, monkeypatch):
+    """POST /sessions/{id}/suggest_actions returns up to 3 suggestion strings."""
+    sid = await _make_session(http)
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.suggest.build_client",
+        lambda cfg: StubGM("向前走\n询问守卫\n查看地图"),
+    )
+    r = await http.post(
+        f"/sessions/{sid}/suggest_actions",
+        json={"narrative": "你站在城门前", "goals": ["进城"]},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert "suggestions" in data
+    assert len(data["suggestions"]) == 3
+
+
+async def test_suggest_actions_unknown_session_returns_404(http):
+    """POST with unknown session_id returns 404."""
+    r = await http.post(
+        "/sessions/99999/suggest_actions",
+        json={"narrative": "test", "goals": []},
+    )
+    assert r.status_code == 404
+
+
 async def test_export_with_cjk_session_name_does_not_500(http, app):
     """User-reported: a session named「修女」(CJK) caused all exports to 500
     because Python's str.isalnum() returns True for CJK, so _safe_filename
