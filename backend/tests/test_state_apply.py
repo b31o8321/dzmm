@@ -1379,3 +1379,96 @@ async def test_location_items_json_persists(db_session, session_id):
     await db_session.refresh(loc)
     items = json.loads(loc.items_json)
     assert items[0]["name"] == "戒指"
+
+
+async def test_npc_update_sets_location(db_session, session_id):
+    """<npc_update location="书房"> sets npc.current_location."""
+    from dzmm.service.state_apply.npc import _apply_npc_update
+    from dzmm.db.models import NPC
+    npc = NPC(session_id=session_id, name="镜中人", description="", favor=0,
+              state="未知", last_seen_turn=1, notes_json="[]", purpose="",
+              archetype="", affinity_json="{}", pinned=False,
+              revealed_json='{"name":true}')
+    db_session.add(npc)
+    await db_session.commit()
+
+    await _apply_npc_update(db_session, session_id, 2,
+                            {"name": "镜中人", "location": "书房"}, "")
+    await db_session.commit()
+    await db_session.refresh(npc)
+    assert npc.current_location == "书房"
+
+
+async def test_npc_update_clears_location(db_session, session_id):
+    """<npc_update location=""> clears npc.current_location."""
+    from dzmm.service.state_apply.npc import _apply_npc_update
+    from dzmm.db.models import NPC
+    npc = NPC(session_id=session_id, name="镜中人", description="", favor=0,
+              state="未知", last_seen_turn=1, notes_json="[]", purpose="",
+              archetype="", affinity_json="{}", pinned=False,
+              revealed_json='{"name":true}', current_location="书房")
+    db_session.add(npc)
+    await db_session.commit()
+
+    await _apply_npc_update(db_session, session_id, 3,
+                            {"name": "镜中人", "location": ""}, "")
+    await db_session.commit()
+    await db_session.refresh(npc)
+    assert npc.current_location is None
+
+
+async def test_location_item_add(db_session, session_id):
+    """<location_item action="add"> adds item to current location."""
+    import json
+    from sqlalchemy import select
+    from dzmm.db.models import Location
+    from dzmm.service.state_apply.location_item import _apply_location_item
+    loc = Location(session_id=session_id, name="书房", description="",
+                   first_visited_turn=1, last_visited_turn=1, is_current=True,
+                   items_json="[]")
+    db_session.add(loc)
+    await db_session.commit()
+
+    await _apply_location_item(db_session, session_id, 2,
+                               {"name": "戒指", "description": "一枚金戒指", "action": "add"}, "")
+    await db_session.commit()
+    await db_session.refresh(loc)
+    items = json.loads(loc.items_json)
+    assert len(items) == 1
+    assert items[0]["name"] == "戒指"
+
+
+async def test_location_item_remove(db_session, session_id):
+    """<location_item action="remove"> removes item from current location."""
+    import json
+    from dzmm.db.models import Location
+    from dzmm.service.state_apply.location_item import _apply_location_item
+    loc = Location(session_id=session_id, name="书房", description="",
+                   first_visited_turn=1, last_visited_turn=1, is_current=True,
+                   items_json='[{"name":"戒指","description":"一枚金戒指"}]')
+    db_session.add(loc)
+    await db_session.commit()
+
+    await _apply_location_item(db_session, session_id, 3,
+                               {"name": "戒指", "action": "remove"}, "")
+    await db_session.commit()
+    await db_session.refresh(loc)
+    items = json.loads(loc.items_json)
+    assert len(items) == 0
+
+
+async def test_location_enter_with_items(db_session, session_id):
+    """<location_enter items="一把剑,一面盾"> stores items in items_json."""
+    import json
+    from sqlalchemy import select
+    from dzmm.db.models import Location
+    from dzmm.service.state_apply.location import _apply_location_enter
+    await _apply_location_enter(db_session, session_id, 1,
+                                {"name": "武器库", "description": "满是武器", "items": "一把剑,一面盾"}, "")
+    loc = (await db_session.execute(
+        select(Location).where(Location.session_id == session_id, Location.name == "武器库")
+    )).scalar_one()
+    items = json.loads(loc.items_json)
+    assert len(items) == 2
+    assert items[0]["name"] == "一把剑"
+    assert items[1]["name"] == "一面盾"
