@@ -193,6 +193,7 @@ function setupValid(): boolean {
 async function generateBrief() {
   const mid = ensureWizardModel()
   if (!mid) return
+  state.world_brief = null
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -231,6 +232,7 @@ async function generateWorldDetails() {
     ElMessage.error('基础设定为空，无法扩展')
     return
   }
+  state.world_md = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -264,6 +266,8 @@ async function generateCharacter() {
     ElMessage.error('请输入角色原型')
     return
   }
+  state.character_md = ''
+  state.character_name = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -294,6 +298,7 @@ function handwriteCharacter() {
 async function generateNpcs() {
   const mid = ensureWizardModel()
   if (!mid) return
+  state.npcs = []
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -353,6 +358,7 @@ function isPinned(name: string): boolean {
 async function generateScreenplay() {
   const mid = ensureWizardModel()
   if (!mid) return
+  state.screenplay = null
   loading.value = true
   errorMsg.value = ''
   startTimer()
