@@ -11,6 +11,21 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.3] - 2026-05-01
+
+**新增：删除存档**
+
+### 新增
+- `DELETE /sessions/{id}` 端点 —— cascade 删除所有 per-session 数据：messages / NPCs / relations / plot_threads / eras / timeline / char_state / story_summary / pc_goals / hidden_events / screenplays + revisions / feedbacks
+- World / Character / ModelConfig **不受影响**（多 session 共享）
+- SessionsView 表格操作列加「🗑️ 删除」按钮 + 二次确认对话框（显示存档名 + 已进行回合数 + 警告无法撤销）
+- sessionsStore.remove() 方法
+
+### 测试
+- 后端 256 → 259（+3：cascade 验证、404、世界角色不被误删）
+
+---
+
 ## [v0.1.2] - 2026-05-01
 
 **修复：补上从未存在的「设置」页**

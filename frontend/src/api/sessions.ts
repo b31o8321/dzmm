@@ -99,6 +99,7 @@ export interface PCGoalItem {
 export const sessionsApi = {
   list: () => api.get<GameSession[]>('/sessions').then((r) => r.data),
   get: (id: number) => api.get<GameSession>(`/sessions/${id}`).then((r) => r.data),
+  delete: (id: number) => api.delete(`/sessions/${id}`).then(() => undefined),
   create: (body: SessionIn) =>
     api.post<GameSession>('/sessions', body).then((r) => r.data),
   messages: (id: number) =>

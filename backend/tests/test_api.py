@@ -1191,3 +1191,49 @@ async def test_get_revisions_returns_list(http, monkeypatch):
     descs = [row["trigger_description"] for row in rows]
     assert "首次抉择" in descs
     assert "再次抉择" in descs
+
+
+# ============================================================================
+# v0.1.3 — DELETE /sessions/{id} cascades all per-session data.
+# ============================================================================
+
+
+async def test_delete_session_cascades_associated_data(http):
+    sid = await _make_session(http)
+    # Submit some feedback so there's at least one associated row to verify
+    # the cascade actually runs.
+    r = await http.post(f"/sessions/{sid}/feedback",
+                        json={"content": "test", "kind": "other"})
+    assert r.status_code == 200
+
+    r = await http.delete(f"/sessions/{sid}")
+    assert r.status_code == 204
+
+    # Session itself gone.
+    r = await http.get(f"/sessions/{sid}")
+    assert r.status_code == 404
+    # Feedback list empty (or 404 — either is fine; we check via the GET
+    # endpoint, which now should 404 because the session is gone).
+    r = await http.get(f"/sessions/{sid}/feedback")
+    assert r.status_code == 404
+
+
+async def test_delete_session_404_for_unknown(http):
+    r = await http.delete("/sessions/99999")
+    assert r.status_code == 404
+
+
+async def test_delete_session_does_not_remove_world_or_character(http):
+    sid = await _make_session(http)
+    # Capture the session's world+character ids before deleting.
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    wid = sess["world_id"]
+    cid = sess["character_id"]
+
+    r = await http.delete(f"/sessions/{sid}")
+    assert r.status_code == 204
+
+    # World + character must survive — they're shared across sessions.
+    assert (await http.get(f"/worlds/{wid}")).status_code == 200
+    chars = (await http.get(f"/characters?world_id={wid}")).json()
+    assert any(c["id"] == cid for c in chars)

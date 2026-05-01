@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.schemas import SessionIn, SessionOut, TurnRequest
@@ -980,6 +980,51 @@ async def warmup_model(
 
     _asyncio.create_task(_do_warmup())
     return {"status": "started"}
+
+
+@router.delete("/{session_id}", status_code=204)
+async def delete_session(
+    session_id: int, s: AsyncSession = Depends(get_session_dep)
+):
+    """Delete a session and all of its associated rows: messages, NPCs, NPC
+    relations, plot threads, eras, timeline events, char_state, story_summary,
+    pc_goals, hidden_events, screenplays + revisions, feedbacks. The world,
+    character, and model_configs are NOT touched (shared across sessions)."""
+    from dzmm.db.models import (
+        Feedback, Screenplay, ScreenplayRevision,
+    )
+
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+
+    # Order matters: revisions reference screenplay; everything else just
+    # references session. SQLite FK cascade isn't enabled on this schema, so
+    # we wipe each table explicitly.
+    sp_ids = (await s.execute(
+        select(Screenplay.id).where(Screenplay.session_id == session_id)
+    )).scalars().all()
+    if sp_ids:
+        await s.execute(
+            delete(ScreenplayRevision).where(
+                ScreenplayRevision.screenplay_id.in_(sp_ids)
+            )
+        )
+        await s.execute(
+            delete(Screenplay).where(Screenplay.session_id == session_id)
+        )
+
+    for model in (
+        MessageRow, NPC, NpcRelation, PlotThread, Era, Timeline,
+        CharState, StorySummary, PCGoal, HiddenEvent, Feedback,
+    ):
+        await s.execute(
+            delete(model).where(model.session_id == session_id)
+        )
+
+    await s.delete(sess)
+    await s.commit()
+    return
 
 
 @router.delete("/{session_id}/last_turn", status_code=204)

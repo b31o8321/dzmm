@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { useCharactersStore } from '@/stores/characters'
@@ -67,6 +67,31 @@ async function exportSession(id: number, format: 'json' | 'md') {
     URL.revokeObjectURL(url)
   } catch (e: any) {
     ElMessage.error(e.message ?? '导出失败')
+  }
+}
+
+async function onDelete(row: { id: number; name: string; turn_count: number }) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除存档「${row.name}」吗？\n\n该操作会一并清除：消息历史、NPC、关系、` +
+      `剧情线、编年史、目标、暗中状态、剧本、玩家反馈等。\n` +
+      `世界观和角色卡不会被删（共享给其它存档使用）。\n\n此操作无法撤销。`,
+      `删除存档（已进行 ${row.turn_count} 回合）`,
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+  } catch {
+    return  // user cancelled
+  }
+  try {
+    await sessionsStore.remove(row.id)
+    ElMessage.success(`已删除「${row.name}」`)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '删除失败')
   }
 }
 
@@ -137,7 +162,7 @@ onMounted(async () => {
         <template #default="{ row }">{{ charNameById.get(row.character_id) }}</template>
       </el-table-column>
       <el-table-column prop="turn_count" label="回合数" width="100" />
-      <el-table-column label="操作" width="220">
+      <el-table-column label="操作" width="290">
         <template #default="{ row }">
           <el-button size="small" type="primary" @click="router.push(`/play/${row.id}`)">
             继续
@@ -159,6 +184,13 @@ onMounted(async () => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <el-button
+            class="ml-2"
+            size="small"
+            type="danger"
+            plain
+            @click="onDelete(row)"
+          >🗑️ 删除</el-button>
         </template>
       </el-table-column>
     </el-table>

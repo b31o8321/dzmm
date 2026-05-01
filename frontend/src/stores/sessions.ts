@@ -26,5 +26,10 @@ export const useSessionsStore = defineStore('sessions', () => {
     return sessionsApi.get(id)
   }
 
-  return { items, loading, refresh, create, get }
+  async function remove(id: number) {
+    await sessionsApi.delete(id)
+    items.value = items.value.filter((s) => s.id !== id)
+  }
+
+  return { items, loading, refresh, create, get, remove }
 })
