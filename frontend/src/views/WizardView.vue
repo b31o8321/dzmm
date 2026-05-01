@@ -307,6 +307,7 @@ async function generateNpcs() {
   const mid = ensureWizardModel()
   if (!mid) return
   state.npcs = []
+  state.screenplay = null
   loading.value = true
   errorMsg.value = ''
   startTimer()

@@ -140,7 +140,7 @@ async def npc_single(
             client=client,
         )
     except ValueError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(502, f"NPC generation parse failed: {e}")
 
 
 @router.post("/finalize")
