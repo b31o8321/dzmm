@@ -6,7 +6,7 @@ Called by the frontend after receiving a `npc_initiative` event. Accepts
 import json
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,10 +44,12 @@ async def npc_tick(
         async with session_maker() as s:
             sess = await s.get(GameSession, session_id)
             if sess is None:
-                raise HTTPException(404, "session not found")
+                yield {"event": "error", "data": json.dumps({"message": "session not found"})}
+                return
             cfg = await s.get(ModelConfig, sess.gm_model_config_id)
             if cfg is None:
-                raise HTTPException(404, "model config not found")
+                yield {"event": "error", "data": json.dumps({"message": "model config not found"})}
+                return
             client = build_client(cfg)
 
             action = _NPC_TICK_TEMPLATE.format(npc_name=body.npc_name.strip())
