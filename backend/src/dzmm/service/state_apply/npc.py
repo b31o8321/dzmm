@@ -266,7 +266,29 @@ _NER_STOPWORDS = frozenset({
     "什么", "怎么", "为何", "哪里", "哪边", "哪儿",
     # generic abstract
     "事情", "东西", "声音", "气息", "气味", "目光", "眼神", "表情",
+    # v0.1.9 — extra real-game junk picked up by the freq-2 heuristic.
+    # Buildings / locations
+    "修道院", "教堂", "酒吧", "广场", "桌子", "椅子", "墙壁", "屋顶",
+    "窗台", "大门", "窗户",
+    # Nature / weather / scene atmosphere
+    "雨水", "雪花", "夕阳", "月光", "星空", "海风", "沙漠", "森林",
+    # Connectives / sequence markers
+    "然后", "于是", "接着", "随后", "起初", "最后", "终于",
+    # Verb-led fragments that NER mistakes for names
+    "细的", "他不", "她不", "我不", "她说", "他说", "我说", "你说",
+    "离开", "回来", "走过", "走来", "看见", "听见", "感觉", "心想",
+    "起来", "下去", "过来", "过去", "出去", "进来",
+    # Quantity / scope
+    "全部", "所有", "好多", "许多", "一些",
 })
+
+# v0.1.9 — characters that are overwhelmingly verbs / function words at the
+# start of a 2-char run; if a candidate starts with one of these, require a
+# longer prefix (>= 3 chars when frequency-derived, >= 4 chars before we even
+# consider a context-cue extraction). Names rarely start with these.
+_NER_VERBAL_HEAD_CHARS = frozenset(
+    "然后因所但并而起离进出走来去上下看听想说是不"
+)
 
 # Context cues that strongly precede a name. Match form: <cue><name>
 _NER_CONTEXT_CUES = (
@@ -324,7 +346,8 @@ def _ner_extract_candidate_names(text: str) -> set[str]:
     clause boundaries far more often than verb/object words do.
 
     Two signals (any one passes):
-      A) frequency >= 2 across run-start positions
+      A) frequency >= 3 across run-start positions (v0.1.9: was >= 2 before;
+         bumped to cut down on real-play false positives like 修道院/大门/然后)
       B) follows a context cue (那女子, 听到, 走来, …) OR is the speaker
          right before a Chinese quote 「
 
@@ -351,13 +374,13 @@ def _ner_extract_candidate_names(text: str) -> set[str]:
 
     candidates: set[str] = set()
 
-    # Signal A: run-start frequency >= 2. Prefer the 3-char prefix when both
-    # the 2-char and 3-char show up — but only if the 3-char isn't an obvious
-    # verbal phrase. Simpler heuristic: keep 2-char results unless a 3-char
-    # superset has ≥ 2 occurrences AND the 2-char count is the same (i.e.
-    # they always co-occur — meaning the 3rd char is part of the name).
+    # Signal A: run-start frequency >= 3 (v0.1.9 strictness bump). Prefer the
+    # 3-char prefix when both the 2-char and 3-char show up at the same count,
+    # i.e. they always co-occur — meaning the 3rd char is part of the name.
+    # Verb-led 2-grams (started by 然/后/起/离/进/出/走/来/去/上/下/看/听/想/说/是/不/etc)
+    # require the 3-char extension; bare 2-char verb-leds are dropped.
     for tok2, c2 in freq2.items():
-        if c2 < 2:
+        if c2 < 3:
             continue
         # Look for a 3-char extension that occurs as often.
         ext = None
@@ -365,6 +388,10 @@ def _ner_extract_candidate_names(text: str) -> set[str]:
             if tok3.startswith(tok2) and c3 == c2:
                 ext = tok3
                 break
+        if tok2[0] in _NER_VERBAL_HEAD_CHARS and ext is None:
+            # Verb-led 2-char with no equally-frequent 3-char extension —
+            # almost certainly a verbal phrase, not a name. Drop.
+            continue
         candidates.add(ext or tok2)
 
     # Signal B: follows a context cue. Take the next 2 hanzi (a 3-char name
@@ -381,7 +408,12 @@ def _ner_extract_candidate_names(text: str) -> set[str]:
             m = re.match(r"[一-龥]{2}", tail)
             if m:
                 tok = m.group(0)
-                if tok not in _NER_STOPWORDS:
+                # v0.1.9: skip verb-led tokens via context cue too; they're
+                # almost always "看见/听见/走来 + verb" pattern.
+                if (
+                    tok not in _NER_STOPWORDS
+                    and tok[0] not in _NER_VERBAL_HEAD_CHARS
+                ):
                     candidates.add(tok)
             idx = i + len(cue)
 
@@ -396,7 +428,10 @@ def _ner_extract_candidate_names(text: str) -> set[str]:
         m = re.search(r"[一-龥]{2}$", snippet)
         if m:
             tok = m.group(0)
-            if tok not in _NER_STOPWORDS:
+            if (
+                tok not in _NER_STOPWORDS
+                and tok[0] not in _NER_VERBAL_HEAD_CHARS
+            ):
                 candidates.add(tok)
 
     return candidates

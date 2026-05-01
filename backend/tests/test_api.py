@@ -470,6 +470,45 @@ async def test_get_npcs_returns_all_fields(http, app):
     assert isinstance(n["notes"], list) and n["notes"][0]["text"] == "分享了童年阴影"
 
 
+async def test_delete_auto_created_npcs(http, app):
+    """v0.1.9 cleanup endpoint: removes only NPCs whose description is the
+    NER fallback sentinel ('（GM 未补全）'). NPCs with any other description
+    must survive even if the GM later sets it back to a similar string."""
+    sid = await _make_session(http)
+    from dzmm.db.models import NPC
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add(NPC(
+            session_id=sid, name="路人A",
+            description="（GM 未补全）",
+            last_seen_turn=1,
+        ))
+        s.add(NPC(
+            session_id=sid, name="路人B",
+            description="（GM 未补全）",
+            last_seen_turn=2,
+        ))
+        s.add(NPC(
+            session_id=sid, name="陈子轩",
+            description="线人",
+            last_seen_turn=3,
+        ))
+        await s.commit()
+
+    r = await http.delete(f"/sessions/{sid}/npcs/auto_created")
+    assert r.status_code == 204
+
+    npcs = (await http.get(f"/sessions/{sid}/npcs")).json()
+    assert len(npcs) == 1
+    assert npcs[0]["name"] == "陈子轩"
+
+
+async def test_delete_auto_created_npcs_404_for_missing_session(http):
+    """Cleanup endpoint must 404 for unknown session id."""
+    r = await http.delete("/sessions/999999/npcs/auto_created")
+    assert r.status_code == 404
+
+
 async def test_pin_toggle(http, app):
     sid = await _make_session(http)
     from dzmm.db.models import NPC

@@ -1,10 +1,14 @@
 """<hidden_event> handler — implicit story state with a fuse."""
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import HiddenEvent
 from dzmm.parsing.repair import parse_loose_json
+
+log = logging.getLogger(__name__)
 
 
 async def _apply_hidden_event(
@@ -67,13 +71,40 @@ async def _apply_hidden_event(
         severity = 2
     severity = max(1, min(3, severity))
 
+    subject = str(payload.get("subject", "")).strip()[:120]
+    kind = kind[:60]
+    description = str(payload.get("description", ""))[:1000]
+    consequence = str(payload.get("consequence", ""))[:1000]
+
+    # v0.1.9 dedup: same (subject, kind) already active → update instead of
+    # inserting a new row. Fixes GM repeating the same hidden_event 6 times in a
+    # single playthrough and polluting the implicit-state injection list.
+    existing = (await session.execute(
+        select(HiddenEvent).where(
+            HiddenEvent.session_id == session_id,
+            HiddenEvent.subject == subject,
+            HiddenEvent.kind == kind,
+            HiddenEvent.status == "active",
+        )
+    )).scalars().first()
+    if existing is not None:
+        if description:
+            existing.description = description
+        if consequence:
+            existing.consequence = consequence
+        log.info(
+            "hidden_event dedup: updating existing #%d (%s/%s) instead of inserting",
+            existing.id, subject, kind,
+        )
+        return
+
     ev = HiddenEvent(
         session_id=session_id,
-        subject=str(payload.get("subject", "")).strip()[:120],
-        kind=kind[:60],
+        subject=subject,
+        kind=kind,
         severity=severity,
-        description=str(payload.get("description", ""))[:1000],
-        consequence=str(payload.get("consequence", ""))[:1000],
+        description=description,
+        consequence=consequence,
         introduced_turn=current_turn,
         status="active",
     )

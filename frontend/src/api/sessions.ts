@@ -112,6 +112,8 @@ export const sessionsApi = {
     api.get<Npc[]>(`/sessions/${id}/npcs`).then((r) => r.data),
   pinNpc: (sid: number, npcId: number, pinned: boolean) =>
     api.put<Npc>(`/sessions/${sid}/npcs/${npcId}/pin`, { pinned }).then((r) => r.data),
+  deleteAutoCreatedNpcs: (sid: number) =>
+    api.delete(`/sessions/${sid}/npcs/auto_created`).then(() => undefined),
   goals: (id: number) =>
     api.get<PCGoalItem[]>(`/sessions/${id}/goals`).then((r) => r.data),
   updateGoalStatus: (
