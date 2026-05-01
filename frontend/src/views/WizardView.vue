@@ -1,0 +1,964 @@
+<script setup lang="ts">
+//
+// v0.2.0 Wizard — 6-step session creation flow.
+//
+//   step 0: setup           (no LLM)
+//   step 1: world brief     -> POST /wizard/world_brief
+//   step 2: world details   -> POST /wizard/world_details
+//   step 3: PC character    -> POST /wizard/character
+//   step 4: pinned NPCs     -> POST /wizard/npcs
+//   step 5: screenplay      -> POST /wizard/screenplay
+//   step 6: review + create -> POST /wizard/finalize  -> /play/:id
+//
+// State is in-memory only (reactive). Refreshing the page restarts the wizard.
+// Each step has 4 actions: ✏️ 编辑 / 🔄 重新生成 / ✏️ 我自己写 / ⏩ 接受
+//
+import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  ElSteps,
+  ElStep,
+  ElButton,
+  ElInput,
+  ElSelect,
+  ElOption,
+  ElCard,
+  ElTag,
+  ElCheckbox,
+  ElDialog,
+  ElMessage,
+} from 'element-plus'
+import {
+  wizardApi,
+  type WorldBrief,
+  type WizardNPC,
+  type WizardScreenplay,
+} from '@/api/wizard'
+import { KNOWN_GENRES } from '@/api/screenplay'
+import { useModelConfigsStore } from '@/stores/modelConfigs'
+import MarkdownView from '@/components/MarkdownView.vue'
+import WizardStep from '@/components/wizard/WizardStep.vue'
+
+const router = useRouter()
+const modelsStore = useModelConfigsStore()
+
+// ---- shared state (in-memory only) ----
+
+interface State {
+  // step 0
+  wizard_model_config_id: number | null
+  gm_model_config_id: number | null
+  summarizer_model_config_id: number | null
+  genre: string
+  custom_genre: string
+  theme: string
+  session_name: string
+  // step 1
+  world_brief: WorldBrief | null
+  // step 2
+  world_md: string
+  // step 3
+  archetype: string
+  character_name: string
+  character_md: string
+  // step 4
+  npcs: WizardNPC[]
+  pinned_npc_names: string[]
+  // step 5
+  screenplay: WizardScreenplay | null
+}
+
+const state = reactive<State>({
+  wizard_model_config_id: null,
+  gm_model_config_id: null,
+  summarizer_model_config_id: null,
+  genre: '悬疑探案',
+  custom_genre: '',
+  theme: '',
+  session_name: '',
+  world_brief: null,
+  world_md: '',
+  archetype: '',
+  character_name: '',
+  character_md: '',
+  npcs: [],
+  pinned_npc_names: [],
+  screenplay: null,
+})
+
+// 0..6 (7 stages: setup + 5 LLM-driven steps + review)
+const step = ref(0)
+const loading = ref(false)
+const errorMsg = ref('')
+
+// edit-mode toggles per step (only used by step 1..5)
+const editing = reactive({
+  brief: false,
+  world: false,
+  character: false,
+  npcs: false,
+  screenplay: false,
+})
+
+// ---- timer (reused across loading states) ----
+
+const elapsed = ref(0)
+const tipIdx = ref(0)
+const tips = [
+  '世界观的「冲突」是最重要的，所有故事都从冲突里长出来',
+  '主角的「动机」决定 GM 怎么编排剧情',
+  '钉住的 NPC 会出现在剧本里反复出场',
+  '剧本是大纲，GM 跑团时会即兴发挥不偏离主线',
+  '本地模型慢一点，云模型快但需要 API key',
+  '每一步都可以「✏️ 我自己写」绕过 LLM',
+]
+let timer: number | null = null
+
+function clearTimer() {
+  if (timer !== null) {
+    window.clearInterval(timer)
+    timer = null
+  }
+}
+
+function startTimer() {
+  elapsed.value = 0
+  tipIdx.value = 0
+  clearTimer()
+  timer = window.setInterval(() => {
+    elapsed.value += 1
+    if (elapsed.value % 3 === 0) {
+      tipIdx.value = (tipIdx.value + 1) % tips.length
+    }
+  }, 1000)
+}
+
+const currentTip = computed(() => tips[tipIdx.value])
+
+// ---- helpers ----
+
+const effectiveGenre = computed(() =>
+  state.genre === '自定义' && state.custom_genre.trim()
+    ? state.custom_genre.trim()
+    : state.genre,
+)
+
+function ensureWizardModel(): number | null {
+  if (!state.wizard_model_config_id) {
+    ElMessage.error('请先选择「向导用模型」')
+    return null
+  }
+  return state.wizard_model_config_id
+}
+
+function setupValid(): boolean {
+  return !!(
+    state.wizard_model_config_id &&
+    state.gm_model_config_id &&
+    state.summarizer_model_config_id &&
+    state.theme.trim() &&
+    state.session_name.trim()
+  )
+}
+
+// ---- step 1: world brief ----
+
+async function generateBrief() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  loading.value = true
+  errorMsg.value = ''
+  startTimer()
+  try {
+    state.world_brief = await wizardApi.worldBrief({
+      model_config_id: mid,
+      genre: effectiveGenre.value,
+      theme: state.theme.trim(),
+    })
+    editing.brief = false
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? String(e)
+  } finally {
+    clearTimer()
+    loading.value = false
+  }
+}
+
+function handwriteBrief() {
+  state.world_brief = {
+    name: '',
+    setting: '',
+    conflict: '',
+    raw_md: '',
+  }
+  editing.brief = true
+}
+
+// ---- step 2: world details ----
+
+async function generateWorldDetails() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  if (!state.world_brief?.raw_md.trim()) {
+    ElMessage.error('基础设定为空，无法扩展')
+    return
+  }
+  loading.value = true
+  errorMsg.value = ''
+  startTimer()
+  try {
+    const r = await wizardApi.worldDetails({
+      model_config_id: mid,
+      brief_md: state.world_brief.raw_md,
+    })
+    state.world_md = r.world_md
+    editing.world = false
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? String(e)
+  } finally {
+    clearTimer()
+    loading.value = false
+  }
+}
+
+function handwriteWorld() {
+  state.world_md = state.world_md || ''
+  editing.world = true
+}
+
+// ---- step 3: character ----
+
+async function generateCharacter() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  if (!state.archetype.trim()) {
+    ElMessage.error('请输入角色原型')
+    return
+  }
+  loading.value = true
+  errorMsg.value = ''
+  startTimer()
+  try {
+    const r = await wizardApi.character({
+      model_config_id: mid,
+      world_md: state.world_md,
+      archetype: state.archetype.trim(),
+    })
+    state.character_name = r.name
+    state.character_md = r.profile_md
+    editing.character = false
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? String(e)
+  } finally {
+    clearTimer()
+    loading.value = false
+  }
+}
+
+function handwriteCharacter() {
+  editing.character = true
+}
+
+// ---- step 4: NPCs ----
+
+async function generateNpcs() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  loading.value = true
+  errorMsg.value = ''
+  startTimer()
+  try {
+    const r = await wizardApi.npcs({
+      model_config_id: mid,
+      world_md: state.world_md,
+      character_md: state.character_md,
+    })
+    state.npcs = r.npcs
+    state.pinned_npc_names = r.npcs.map((n) => n.name) // pin all by default
+    editing.npcs = false
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? String(e)
+  } finally {
+    clearTimer()
+    loading.value = false
+  }
+}
+
+const npcEditDialog = reactive<{ open: boolean; idx: number; draft: WizardNPC }>(
+  {
+    open: false,
+    idx: -1,
+    draft: { name: '', role: '', description: '', motivation: '' },
+  },
+)
+
+function openNpcEdit(i: number) {
+  const n = state.npcs[i]
+  if (!n) return
+  npcEditDialog.idx = i
+  npcEditDialog.draft = { ...n }
+  npcEditDialog.open = true
+}
+
+function saveNpcEdit() {
+  if (npcEditDialog.idx >= 0) {
+    state.npcs[npcEditDialog.idx] = { ...npcEditDialog.draft }
+  }
+  npcEditDialog.open = false
+}
+
+function togglePinNpc(name: string) {
+  const i = state.pinned_npc_names.indexOf(name)
+  if (i >= 0) state.pinned_npc_names.splice(i, 1)
+  else state.pinned_npc_names.push(name)
+}
+
+function isPinned(name: string): boolean {
+  return state.pinned_npc_names.includes(name)
+}
+
+// ---- step 5: screenplay ----
+
+async function generateScreenplay() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  loading.value = true
+  errorMsg.value = ''
+  startTimer()
+  try {
+    state.screenplay = await wizardApi.screenplay({
+      model_config_id: mid,
+      world_md: state.world_md,
+      character_md: state.character_md,
+      npcs: state.npcs.filter((n) => isPinned(n.name)),
+      genre: effectiveGenre.value,
+    })
+    editing.screenplay = false
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? String(e)
+  } finally {
+    clearTimer()
+    loading.value = false
+  }
+}
+
+const screenplayDraft = computed({
+  get: () => JSON.stringify(state.screenplay ?? {}, null, 2),
+  set: (v: string) => {
+    try {
+      state.screenplay = JSON.parse(v)
+    } catch {
+      // ignore parse errors while user is typing
+    }
+  },
+})
+
+function handwriteScreenplay() {
+  if (!state.screenplay) {
+    state.screenplay = {
+      chapters: [],
+      main_characters: [],
+      ending_md: '',
+      opening_hook: '',
+    }
+  }
+  editing.screenplay = true
+}
+
+// ---- step 6: finalize ----
+
+const finalizing = ref(false)
+const finalizeError = ref('')
+
+async function doFinalize() {
+  if (!state.world_brief || !state.character_md || !state.screenplay) {
+    ElMessage.error('数据不完整，请回到对应步骤')
+    return
+  }
+  finalizing.value = true
+  finalizeError.value = ''
+  try {
+    const pinned = state.npcs.filter((n) => isPinned(n.name))
+    const r = await wizardApi.finalize({
+      world: {
+        name: state.world_brief.name || state.session_name,
+        content_md: state.world_md,
+      },
+      character: {
+        name: state.character_name || '主角',
+        profile_md: state.character_md,
+      },
+      pinned_npcs: pinned,
+      screenplay: state.screenplay,
+      session_name: state.session_name.trim(),
+      gm_model_config_id: state.gm_model_config_id!,
+      summarizer_model_config_id: state.summarizer_model_config_id!,
+      genre: effectiveGenre.value,
+    })
+    router.push(`/play/${r.session_id}`)
+  } catch (e: any) {
+    finalizeError.value = e?.message ?? String(e)
+  } finally {
+    finalizing.value = false
+  }
+}
+
+// ---- nav helpers ----
+
+function gotoStep(n: number) {
+  errorMsg.value = ''
+  step.value = n
+}
+
+async function startStep1() {
+  if (!setupValid()) {
+    ElMessage.error('请先填齐设置项')
+    return
+  }
+  gotoStep(1)
+  await generateBrief()
+}
+
+async function acceptBriefAndNext() {
+  if (!state.world_brief?.raw_md.trim()) {
+    ElMessage.error('基础设定不能为空')
+    return
+  }
+  gotoStep(2)
+  if (!state.world_md) await generateWorldDetails()
+}
+
+async function acceptWorldAndNext() {
+  if (!state.world_md.trim()) {
+    ElMessage.error('世界观不能为空')
+    return
+  }
+  gotoStep(3)
+}
+
+async function acceptCharacterAndNext() {
+  if (!state.character_md.trim()) {
+    ElMessage.error('角色卡不能为空')
+    return
+  }
+  gotoStep(4)
+  if (state.npcs.length === 0) await generateNpcs()
+}
+
+async function acceptNpcsAndNext() {
+  gotoStep(5)
+  if (!state.screenplay) await generateScreenplay()
+}
+
+function acceptScreenplayAndNext() {
+  if (!state.screenplay) {
+    ElMessage.error('剧本不能为空')
+    return
+  }
+  gotoStep(6)
+}
+
+// ---- mount ----
+
+onMounted(async () => {
+  if (modelsStore.items.length === 0) {
+    await modelsStore.refresh()
+  }
+  // pre-fill defaults if available
+  if (modelsStore.items.length > 0) {
+    state.wizard_model_config_id = modelsStore.items[0].id
+    state.gm_model_config_id = modelsStore.items[0].id
+    state.summarizer_model_config_id = modelsStore.items[0].id
+  }
+})
+
+onBeforeUnmount(() => {
+  clearTimer()
+})
+</script>
+
+<template>
+  <div class="h-full overflow-auto bg-slate-50">
+    <div class="max-w-3xl mx-auto p-6 space-y-6">
+      <div>
+        <div class="text-2xl font-bold text-slate-800">📜 创建新存档（向导）</div>
+        <div class="text-sm text-slate-500 mt-1">
+          一步一步生成世界、角色、NPC、剧本，最后开始跑团。每步都可以编辑或重新生成。
+        </div>
+      </div>
+
+      <el-steps :active="step" finish-status="success" align-center>
+        <el-step title="设置" />
+        <el-step title="基础设定" />
+        <el-step title="世界扩展" />
+        <el-step title="主角" />
+        <el-step title="主要 NPC" />
+        <el-step title="剧本" />
+        <el-step title="审阅" />
+      </el-steps>
+
+      <!-- ====== Step 0: setup ====== -->
+      <div v-if="step === 0" class="space-y-4 bg-white border border-slate-200 rounded p-6">
+        <div class="text-xl font-bold text-slate-800">⚙️ 设置</div>
+
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">向导用模型</div>
+          <el-select
+            v-model="state.wizard_model_config_id"
+            placeholder="选择向导生成用的模型"
+            class="w-full"
+          >
+            <el-option
+              v-for="m in modelsStore.items"
+              :key="m.id"
+              :label="`${m.name} (${m.model_name})`"
+              :value="m.id"
+            />
+          </el-select>
+          <div class="text-xs text-slate-500 mt-1">
+            💡 推荐：12B+ 思考型模型（qwen2.5:14b / deepseek-r1:7b）/ 云端 gpt-4o / claude-haiku。
+            创建只跑一次，慢一点没事，质量优先。
+          </div>
+        </div>
+
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">跑团 GM 模型</div>
+          <el-select
+            v-model="state.gm_model_config_id"
+            placeholder="选择跑团时 GM 用的模型"
+            class="w-full"
+          >
+            <el-option
+              v-for="m in modelsStore.items"
+              :key="m.id"
+              :label="`${m.name} (${m.model_name})`"
+              :value="m.id"
+            />
+          </el-select>
+          <div class="text-xs text-slate-500 mt-1">
+            💡 推荐：7-8B 快速型（qwen2.5:7b / llama3.1:8b）够用；满血体验用云端 gpt-4o-mini / claude-haiku。
+            跑团每回合都要调，速度优先。
+          </div>
+        </div>
+
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">摘要模型</div>
+          <el-select
+            v-model="state.summarizer_model_config_id"
+            placeholder="选择摘要 / 编年史用的模型"
+            class="w-full"
+          >
+            <el-option
+              v-for="m in modelsStore.items"
+              :key="m.id"
+              :label="`${m.name} (${m.model_name})`"
+              :value="m.id"
+            />
+          </el-select>
+          <div class="text-xs text-slate-500 mt-1">
+            💡 一般跟 GM 同一个就行。摘要任务比较轻。
+          </div>
+        </div>
+
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">题材</div>
+          <el-select v-model="state.genre" class="w-full">
+            <el-option
+              v-for="g in KNOWN_GENRES"
+              :key="g.key"
+              :label="g.label"
+              :value="g.key"
+            />
+          </el-select>
+          <el-input
+            v-if="state.genre === '自定义'"
+            v-model="state.custom_genre"
+            class="mt-2"
+            placeholder="例如：赛博朋克、武侠、克苏鲁..."
+          />
+        </div>
+
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">主题（一句话）</div>
+          <el-input
+            v-model="state.theme"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            placeholder="例如：一座被永夜笼罩的港口，一个寻找妹妹的赏金猎人"
+            maxlength="500"
+            show-word-limit
+          />
+        </div>
+
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">存档名</div>
+          <el-input
+            v-model="state.session_name"
+            placeholder="给这个存档起个名字"
+            maxlength="60"
+            show-word-limit
+          />
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <el-button @click="router.push('/sessions')">取消</el-button>
+          <div class="flex-1" />
+          <el-button type="primary" :disabled="!setupValid()" @click="startStep1">
+            ⏩ 开始生成 →
+          </el-button>
+        </div>
+      </div>
+
+      <!-- ====== Step 1: world brief ====== -->
+      <WizardStep
+        v-if="step === 1"
+        title="🌍 第 1 步 / 基础设定"
+        :loading="loading"
+        :elapsed="elapsed"
+        :tip="currentTip"
+        :error="errorMsg"
+        :editing="editing.brief"
+        :content="state.world_brief?.raw_md ?? ''"
+        @update:content="(v) => state.world_brief && (state.world_brief.raw_md = v)"
+        @edit="editing.brief = true"
+        @regenerate="generateBrief"
+        @handwrite="handwriteBrief"
+        @accept="acceptBriefAndNext"
+        @back="gotoStep(0)"
+        @retry="generateBrief"
+      >
+        <div v-if="state.world_brief" class="space-y-3">
+          <div>
+            <div class="text-xs text-slate-500">世界名</div>
+            <div class="text-lg font-bold text-slate-800">{{ state.world_brief.name }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500">设定</div>
+            <div class="text-sm text-slate-700 whitespace-pre-line">
+              {{ state.world_brief.setting }}
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500">核心冲突</div>
+            <div class="text-sm text-slate-700 whitespace-pre-line">
+              {{ state.world_brief.conflict }}
+            </div>
+          </div>
+        </div>
+      </WizardStep>
+
+      <!-- ====== Step 2: world details ====== -->
+      <WizardStep
+        v-if="step === 2"
+        title="🗺️ 第 2 步 / 世界扩展"
+        :loading="loading"
+        :elapsed="elapsed"
+        :tip="currentTip"
+        :error="errorMsg"
+        :editing="editing.world"
+        :content="state.world_md"
+        @update:content="(v) => (state.world_md = v)"
+        @edit="editing.world = true"
+        @regenerate="generateWorldDetails"
+        @handwrite="handwriteWorld"
+        @accept="acceptWorldAndNext"
+        @back="gotoStep(1)"
+        @retry="generateWorldDetails"
+      >
+        <MarkdownView :source="state.world_md" />
+      </WizardStep>
+
+      <!-- ====== Step 3: character ====== -->
+      <div v-if="step === 3 && !state.character_md && !loading && !errorMsg" class="space-y-4 bg-white border border-slate-200 rounded p-6">
+        <div class="text-xl font-bold text-slate-800">🎭 第 3 步 / 主角设定</div>
+        <div class="text-sm text-slate-600">
+          先告诉 GM 你想演什么样的角色，然后让向导生成一份完整角色卡。
+        </div>
+        <div>
+          <div class="text-sm font-medium text-slate-700 mb-1">角色原型</div>
+          <el-input
+            v-model="state.archetype"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            placeholder="例如：外冷内热的赏金猎人 / 失忆的前王国骑士 / 想找回弟弟的小镇医生"
+            maxlength="200"
+            show-word-limit
+          />
+        </div>
+        <div class="flex gap-2">
+          <el-button @click="gotoStep(2)">⬅ 返回</el-button>
+          <div class="flex-1" />
+          <el-button type="primary" :disabled="!state.archetype.trim()" @click="generateCharacter">
+            ⏩ 生成角色卡
+          </el-button>
+        </div>
+      </div>
+
+      <WizardStep
+        v-else-if="step === 3"
+        title="🎭 第 3 步 / 主角"
+        :loading="loading"
+        :elapsed="elapsed"
+        :tip="currentTip"
+        :error="errorMsg"
+        :editing="editing.character"
+        :content="state.character_md"
+        @update:content="(v) => (state.character_md = v)"
+        @edit="editing.character = true"
+        @regenerate="generateCharacter"
+        @handwrite="handwriteCharacter"
+        @accept="acceptCharacterAndNext"
+        @back="gotoStep(2)"
+        @retry="generateCharacter"
+      >
+        <div class="space-y-3">
+          <div v-if="state.character_name">
+            <div class="text-xs text-slate-500">角色名</div>
+            <div class="text-lg font-bold text-slate-800">{{ state.character_name }}</div>
+          </div>
+          <MarkdownView :source="state.character_md" />
+        </div>
+      </WizardStep>
+
+      <!-- ====== Step 4: NPCs ====== -->
+      <WizardStep
+        v-if="step === 4"
+        title="🎭 第 4 步 / 主要 NPC"
+        :loading="loading"
+        :elapsed="elapsed"
+        :tip="currentTip"
+        :error="errorMsg"
+        :editing="false"
+        :can-edit="false"
+        :can-handwrite="false"
+        @regenerate="generateNpcs"
+        @accept="acceptNpcsAndNext"
+        @back="gotoStep(3)"
+        @retry="generateNpcs"
+      >
+        <div class="space-y-3">
+          <div class="text-sm text-slate-600">
+            勾选「📌 钉住」的 NPC 会写入剧本（默认全选）。点单个 NPC 旁的 ✏️ 可以改详情。
+          </div>
+          <el-card
+            v-for="(npc, i) in state.npcs"
+            :key="`${npc.name}-${i}`"
+            shadow="never"
+            class="!border-slate-200"
+          >
+            <div class="flex items-start gap-3">
+              <el-checkbox
+                :model-value="isPinned(npc.name)"
+                @change="togglePinNpc(npc.name)"
+              />
+              <div class="flex-1 space-y-1">
+                <div class="flex items-center gap-2">
+                  <div class="font-bold text-slate-800">{{ npc.name }}</div>
+                  <el-tag size="small" type="info">{{ npc.role }}</el-tag>
+                </div>
+                <div class="text-sm text-slate-700">{{ npc.description }}</div>
+                <div class="text-xs text-slate-500">动机：{{ npc.motivation }}</div>
+              </div>
+              <el-button size="small" @click="openNpcEdit(i)">✏️</el-button>
+            </div>
+          </el-card>
+          <div v-if="state.npcs.length === 0" class="text-sm text-slate-500">
+            （还没生成 NPC）
+          </div>
+        </div>
+      </WizardStep>
+
+      <!-- NPC edit dialog -->
+      <el-dialog v-model="npcEditDialog.open" title="编辑 NPC" width="500px">
+        <div class="space-y-3">
+          <div>
+            <div class="text-xs text-slate-500 mb-1">名字</div>
+            <el-input v-model="npcEditDialog.draft.name" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-1">角色（如：盟友、对手、引路人）</div>
+            <el-input v-model="npcEditDialog.draft.role" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-1">描述</div>
+            <el-input
+              v-model="npcEditDialog.draft.description"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 6 }"
+            />
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-1">动机</div>
+            <el-input
+              v-model="npcEditDialog.draft.motivation"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+            />
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="npcEditDialog.open = false">取消</el-button>
+          <el-button type="primary" @click="saveNpcEdit">保存</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- ====== Step 5: screenplay ====== -->
+      <WizardStep
+        v-if="step === 5"
+        title="📜 第 5 步 / 剧本大纲"
+        :loading="loading"
+        :elapsed="elapsed"
+        :tip="currentTip"
+        :error="errorMsg"
+        :editing="editing.screenplay"
+        :content="screenplayDraft"
+        @update:content="(v) => (screenplayDraft = v)"
+        @edit="editing.screenplay = true"
+        @regenerate="generateScreenplay"
+        @handwrite="handwriteScreenplay"
+        @accept="acceptScreenplayAndNext"
+        @back="gotoStep(4)"
+        @retry="generateScreenplay"
+      >
+        <div v-if="state.screenplay" class="space-y-4">
+          <div>
+            <div class="text-xs text-slate-500">开场钩子</div>
+            <div class="bg-slate-50 border border-slate-200 rounded p-3 mt-1">
+              <MarkdownView :source="state.screenplay.opening_hook" />
+            </div>
+          </div>
+
+          <div>
+            <div class="text-xs text-slate-500 mb-1">章节（{{ state.screenplay.chapters.length }} 章）</div>
+            <div class="space-y-2">
+              <el-card
+                v-for="(ch, i) in state.screenplay.chapters"
+                :key="i"
+                shadow="never"
+                class="!border-slate-200"
+              >
+                <div class="font-bold text-slate-800">
+                  第 {{ i + 1 }} 章：{{ ch.title || '（未命名）' }}
+                </div>
+                <div class="text-sm text-slate-600 mt-1">{{ ch.summary }}</div>
+                <div v-if="ch.main_events?.length" class="text-xs text-slate-500 mt-2">
+                  主线：{{ (ch.main_events || []).join(' / ') }}
+                </div>
+                <div v-if="ch.optional_events?.length" class="text-xs text-slate-400 mt-1">
+                  支线：{{ (ch.optional_events || []).join(' / ') }}
+                </div>
+              </el-card>
+            </div>
+          </div>
+
+          <div v-if="state.screenplay.main_characters?.length">
+            <div class="text-xs text-slate-500 mb-1">出场角色</div>
+            <div class="flex flex-wrap gap-1">
+              <el-tag
+                v-for="(c, i) in state.screenplay.main_characters"
+                :key="i"
+                size="small"
+              >
+                {{ c.name }}<span v-if="c.role"> · {{ c.role }}</span>
+              </el-tag>
+            </div>
+          </div>
+
+          <div v-if="state.screenplay.ending_md || state.screenplay.ending">
+            <div class="text-xs text-slate-500">结局</div>
+            <div class="bg-slate-50 border border-slate-200 rounded p-3 mt-1">
+              <MarkdownView :source="state.screenplay.ending_md || state.screenplay.ending || ''" />
+            </div>
+          </div>
+        </div>
+      </WizardStep>
+
+      <!-- ====== Step 6: review + finalize ====== -->
+      <div v-if="step === 6" class="space-y-4">
+        <div class="text-xl font-bold text-slate-800">✅ 第 6 步 / 审阅 + 创建</div>
+        <div class="text-sm text-slate-600">
+          这次创建会落地：1 个 World + 1 个 Character +
+          {{ state.npcs.filter((n) => isPinned(n.name)).length }} 个 NPC + 1 个
+          Session + 1 个 Screenplay。
+        </div>
+
+        <el-card shadow="never" class="!border-slate-200">
+          <template #header>
+            <div class="font-bold">🌍 世界 · {{ state.world_brief?.name || '（未命名）' }}</div>
+          </template>
+          <div class="text-sm text-slate-700 max-h-40 overflow-y-auto">
+            <MarkdownView :source="state.world_md.slice(0, 800) + (state.world_md.length > 800 ? '...' : '')" />
+          </div>
+        </el-card>
+
+        <el-card shadow="never" class="!border-slate-200">
+          <template #header>
+            <div class="font-bold">🎭 主角 · {{ state.character_name }}</div>
+          </template>
+          <div class="text-sm text-slate-700 max-h-40 overflow-y-auto">
+            <MarkdownView :source="state.character_md.slice(0, 600) + (state.character_md.length > 600 ? '...' : '')" />
+          </div>
+        </el-card>
+
+        <el-card shadow="never" class="!border-slate-200">
+          <template #header>
+            <div class="font-bold">
+              📌 钉住的 NPC ·
+              {{ state.npcs.filter((n) => isPinned(n.name)).length }}
+              / {{ state.npcs.length }}
+            </div>
+          </template>
+          <div class="space-y-2">
+            <div
+              v-for="npc in state.npcs.filter((n) => isPinned(n.name))"
+              :key="npc.name"
+              class="text-sm"
+            >
+              <span class="font-bold text-slate-800">{{ npc.name }}</span>
+              <el-tag size="small" type="info" class="ml-2">{{ npc.role }}</el-tag>
+              <span class="text-slate-600 ml-2">{{ npc.description }}</span>
+            </div>
+            <div v-if="state.npcs.filter((n) => isPinned(n.name)).length === 0" class="text-xs text-slate-400">
+              （没有钉住任何 NPC）
+            </div>
+          </div>
+        </el-card>
+
+        <el-card shadow="never" class="!border-slate-200">
+          <template #header>
+            <div class="font-bold">
+              📜 剧本 · {{ state.screenplay?.chapters?.length ?? 0 }} 章
+            </div>
+          </template>
+          <div class="text-sm text-slate-700">
+            <div v-if="state.screenplay?.opening_hook" class="bg-slate-50 border border-slate-200 rounded p-2 mb-2 text-xs">
+              开场：{{ state.screenplay.opening_hook.slice(0, 200) }}{{ state.screenplay.opening_hook.length > 200 ? '...' : '' }}
+            </div>
+            <ul class="list-decimal list-inside space-y-1">
+              <li v-for="(ch, i) in state.screenplay?.chapters ?? []" :key="i">
+                {{ ch.title || `第 ${i + 1} 章` }}
+              </li>
+            </ul>
+          </div>
+        </el-card>
+
+        <div v-if="finalizeError" class="text-sm text-red-600 break-words">
+          {{ finalizeError }}
+        </div>
+
+        <div class="flex gap-2">
+          <el-button :disabled="finalizing" @click="gotoStep(5)">⬅ 返回</el-button>
+          <div class="flex-1" />
+          <el-button
+            type="primary"
+            size="large"
+            :loading="finalizing"
+            @click="doFinalize"
+          >
+            📜 创建并开始跑团
+          </el-button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
