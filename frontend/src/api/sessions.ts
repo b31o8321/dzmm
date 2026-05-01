@@ -158,6 +158,12 @@ export const sessionsApi = {
   listFeedback: (id: number) =>
     api.get<FeedbackItem[]>(`/sessions/${id}/feedback`).then((r) => r.data),
 
+  async updateGmModel(sessionId: number, gmModelConfigId: number): Promise<void> {
+    await api.patch(`/sessions/${sessionId}/gm_model`, {
+      gm_model_config_id: gmModelConfigId,
+    })
+  },
+
   async suggestActions(
     sessionId: number,
     narrative: string,

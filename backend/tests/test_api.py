@@ -1285,6 +1285,35 @@ async def test_delete_session_does_not_remove_world_or_character(http):
 # ============================================================================
 
 
+async def test_patch_session_gm_model(http):
+    """PATCH /sessions/{id}/gm_model updates gm_model_config_id."""
+    sid = await _make_session(http)
+    # Create a new model config to switch to.
+    r = await http.post("/model_configs", json={
+        "name": "new-model", "type": "ollama",
+        "base_url": "http://localhost:11434", "model_name": "llama3:8b",
+    })
+    assert r.status_code == 200
+    new_mcid = r.json()["id"]
+
+    r = await http.patch(
+        f"/sessions/{sid}/gm_model",
+        json={"gm_model_config_id": new_mcid},
+    )
+    assert r.status_code == 200
+    assert r.json()["gm_model_config_id"] == new_mcid
+
+
+async def test_patch_session_gm_model_invalid(http):
+    """PATCH with non-existent model_config_id returns 404."""
+    sid = await _make_session(http)
+    r = await http.patch(
+        f"/sessions/{sid}/gm_model",
+        json={"gm_model_config_id": 99999},
+    )
+    assert r.status_code == 404
+
+
 async def test_export_with_cjk_session_name_does_not_500(http, app):
     """User-reported: a session named「修女」(CJK) caused all exports to 500
     because Python's str.isalnum() returns True for CJK, so _safe_filename
