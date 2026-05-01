@@ -26,6 +26,7 @@ from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsag
 from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
 from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.gm_template import build_gm_messages
+from dzmm.prompts.outliner_template import build_outliner_messages
 from dzmm.service.activity_log import log_event
 from dzmm.service.npc_initiative import find_initiative_npc, _COOLDOWN_TURNS
 from dzmm.service.state_apply import apply_tags
@@ -37,6 +38,15 @@ from dzmm.service.state_apply.dice_monitor import (
 
 
 log = logging.getLogger(__name__)
+
+_STYLE_TO_GENRE: dict[str, str] = {
+    "dark": "悬疑探案",
+    "horror": "灾难求生",
+    "healing": "恋爱攻略",
+    "comedy": "英雄成长",
+    "realistic": "英雄成长",
+}
+_DEFAULT_GENRE = "英雄成长"
 
 # Recent verbatim turn window used when assembling the GM prompt. v0.2.1 — the
 # window shrinks once the session is long enough that summary + key_facts
@@ -91,6 +101,68 @@ from dzmm.service.name_repair import (
 )
 
 
+async def _auto_generate_screenplay(
+    session: AsyncSession,
+    sess: GameSession,
+    world: World,
+    char: Character,
+    client: ModelClient,
+) -> None:
+    """Generate and persist a Screenplay outline on the first turn.
+
+    Non-fatal: if LLM output can't be parsed as JSON, logs and returns.
+    """
+    genre = _STYLE_TO_GENRE.get(world.style or "", _DEFAULT_GENRE)
+    char_name = char.name or "PC"
+
+    msgs = build_outliner_messages(
+        world_name=world.name or "",
+        world_md=world.content_md or "",
+        character_name=char_name,
+        character_md=_format_character_card(char),
+        genre=genre,
+    )
+
+    buf: list[str] = []
+    async for chunk in client.stream(msgs, GenerationParams(max_tokens=2000, temperature=0.7)):
+        if chunk.delta:
+            buf.append(chunk.delta)
+
+    raw = "".join(buf).strip()
+    # Strip optional markdown code fences the model sometimes adds
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1]
+    if raw.endswith("```"):
+        raw = raw.rsplit("\n", 1)[0]
+
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        log.warning("auto_screenplay: JSON parse failed — proceeding without outline")
+        return
+
+    chapters = data.get("chapters", [])
+    main_characters = data.get("main_characters", [])
+
+    session.add(Screenplay(
+        session_id=sess.id,
+        version=1,
+        genre=genre,
+        chapters_json=json.dumps(chapters, ensure_ascii=False),
+        main_characters_json=json.dumps(main_characters, ensure_ascii=False),
+        ending_md=data.get("ending", ""),
+        opening_hook=data.get("opening_hook", ""),
+        current_chapter=1,
+        completed_events_json="[]",
+        status="active",
+    ))
+    await session.flush()
+    log.info(
+        "auto_screenplay: created for session %d (genre: %s, chapters: %d)",
+        sess.id, genre, len(chapters),
+    )
+
+
 async def run_turn(
     session: AsyncSession,
     session_id: int,
@@ -123,6 +195,17 @@ async def run_turn(
         )
     ).scalar_one_or_none()
     story_summary = summary_row.summary_text if summary_row else ""
+
+    # v0.2.7 — auto-generate screenplay on first turn if none exists
+    if sess.turn_count == 0:
+        existing_sp = (await session.execute(
+            select(Screenplay).where(
+                Screenplay.session_id == session_id,
+                Screenplay.status == "active",
+            )
+        )).scalar_one_or_none()
+        if existing_sp is None:
+            await _auto_generate_screenplay(session, sess, world, char, client)
 
     key_facts = await _build_key_facts(session, session_id, sess.turn_count, char)
 
