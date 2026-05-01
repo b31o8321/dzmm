@@ -141,7 +141,8 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 
 最近几版（按 SemVer：MAJOR.MINOR.PATCH，0=测试期 / 1=正式）：
 
-- **v0.1.5（最新）** —— 启动日志面板：Tauri 后端 stdout/stderr 实时回传 webview，启动卡死可点开看具体错。
+- **v0.1.6（最新）** —— 项目结构重构：state_apply / routes_sessions / GameView 三个超大文件按职责拆成包；新增 ARCHITECTURE.md。行为零变更。
+- **v0.1.5** —— 启动日志面板：Tauri 后端 stdout/stderr 实时回传 webview，启动卡死可点开看具体错。
 - **v0.1.4** —— LM Studio 本地模型支持。
 - **v0.1.3** —— 删除存档 + cascade。
 - **v0.1.0 - v0.1.2** —— 剧本驱动跑团（首个 MINOR）+ 调试模式 + 设置页 + e2e CI 修复。

@@ -11,6 +11,41 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.6] - 2026-05-01
+
+**主题：项目结构重构（行为零变更）**
+
+把累积下来的几个超大文件按职责拆成包，便于维护。所有重构都有 260 个测试做回归保护。
+
+### 后端
+- **`service/state_apply.py` 1091 行 → 包**：12 个文件
+  - `state_apply/__init__.py` re-export 公开 API
+  - `state_apply/_impl.py` (~114 行) — apply_tags dispatcher + import 各 handler
+  - 11 个独立 handler 模块：`state_change` / `npc` / `npc_relation` / `plot_event` / `era` / `character_xp` / `pc_goal` / `pc_mood` / `hidden_event` / `screenplay` / `recall`
+- **`api/routes_sessions.py` 1134 行 → 包**：10 个文件
+  - `__init__.py` aggregator + `__setattr__` proxy（让测试 monkeypatch `routes_sessions.build_client` 仍能镜像到子模块）
+  - `_common.py` — DI deps + 共用 helper
+  - 9 个端点模块：`base` / `messages` / `turn` / `threads` / `npcs` / `goals` / `hidden_events` / `feedback` / `export`
+- **`service/game.py` 818 → ~620 行**：抽出 `name_repair.py` + `npc_dossier.py`
+- **`prompts/gm_template.py` 542 → ~470 行**：抽出 `gm_few_shot.py`（保 byte-equal）
+
+### 前端
+- **`views/GameView.vue` 853 → ~530 行**：拆 composable + 子组件
+  - `composables/useGameState.ts` (113 行) — reactive state 集合 + applyXXX 函数
+  - `composables/useGameTurn.ts` (224 行) — sendAction + 流式 onTag/onNarrative/onDone
+  - `components/game/MessageList.vue` (128 行) — 消息列表渲染（SpeakerBubble + parseParts/displayParts + events 按钮 + choices）
+
+### 文档
+- 新增 `docs/ARCHITECTURE.md`（~270 行）—— 顶层结构 / 后端 / 前端目录约定 / 跑团一回合数据流图 / DB schema / 6 个关键设计模式
+- 老 plans v0.1 ~ v0.8 归档到 `docs/superpowers/plans/archive/`（保留 roadmap + v0.1.0 现役 plan）
+- README 路线图：13 个版本逐行 → 最近 4 版 + 老版本折叠 + 显式指向 CHANGELOG / ARCHITECTURE
+
+### 测试
+- 后端 260/260 全过（行为零变更）
+- 前端 build 全过
+
+---
+
 ## [v0.1.5] - 2026-05-01
 
 **新增：启动日志面板**
