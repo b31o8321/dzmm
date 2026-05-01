@@ -32,6 +32,21 @@ def test_build_ollama_client():
     assert c.model == "qwen2.5:7b"
 
 
+def test_build_lm_studio_client_no_api_key():
+    """v0.1.4: lm_studio type uses OpenAICompatClient with empty api_key
+    (LM Studio's local server doesn't authenticate)."""
+    cfg = ModelConfig(
+        name="lm-local", type="lm_studio",
+        base_url="http://localhost:1234/v1",
+        model_name="Qwen2.5-7B-Instruct", api_key_ref=None, timeout=60.0,
+    )
+    c = build_client(cfg)
+    assert isinstance(c, OpenAICompatClient)
+    assert c.api_key == ""
+    assert c.base_url == "http://localhost:1234/v1"
+    assert c.model == "Qwen2.5-7B-Instruct"
+
+
 def test_build_unknown_type_raises():
     cfg = ModelConfig(
         name="x", type="madeup",

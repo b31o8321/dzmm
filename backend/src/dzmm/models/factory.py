@@ -15,6 +15,17 @@ def build_client(cfg: ModelConfig) -> ModelClient:
             model=cfg.model_name,
             timeout=cfg.timeout,
         )
+    if cfg.type == "lm_studio":
+        # LM Studio exposes an OpenAI-compatible /v1/chat/completions endpoint
+        # locally (default http://localhost:1234/v1). No API key required —
+        # OpenAICompatClient with empty key omits the Authorization header.
+        return OpenAICompatClient(
+            name=cfg.name,
+            base_url=cfg.base_url,
+            api_key="",
+            model=cfg.model_name,
+            timeout=cfg.timeout,
+        )
     if cfg.type == "ollama":
         return OllamaClient(
             name=cfg.name,

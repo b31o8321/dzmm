@@ -11,6 +11,25 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.4] - 2026-05-01
+
+**新增：LM Studio 本地模型支持**
+
+### 新增
+- 模型类型新增 `lm_studio`（LM Studio 暴露的 OpenAI 兼容 `/v1/chat/completions` 端点）
+- ModelsView 新建 / 编辑对话类型选择器加「LM Studio 本地」
+- 切换类型时自动填默认 base_url：
+  - Ollama → `http://localhost:11434`
+  - LM Studio → `http://localhost:1234/v1`
+  - OpenAI 兼容 → `https://api.openai.com/v1`
+- LM Studio 不需要 API Key（OpenAICompatClient 在 api_key 为空时不发送 Authorization header，避免本地服务被空 Bearer 困扰）
+- model_name 字段按类型显示对应 placeholder
+
+### 测试
+- 后端 259 → 260（+1：lm_studio factory 路径）
+
+---
+
 ## [v0.1.3] - 2026-05-01
 
 **新增：删除存档**

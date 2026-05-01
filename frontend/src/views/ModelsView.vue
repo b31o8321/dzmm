@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import type { ModelConfig, ModelConfigIn } from '@/api/types'
@@ -29,6 +29,31 @@ function resetForm() {
     api_key: '',
     timeout: 60,
   })
+}
+
+const TYPE_DEFAULTS: Record<string, { base_url: string; model_placeholder: string }> = {
+  ollama: { base_url: 'http://localhost:11434', model_placeholder: '例如：qwen2.5:7b' },
+  lm_studio: { base_url: 'http://localhost:1234/v1', model_placeholder: '例如：Qwen2.5-7B-Instruct（LM Studio 中加载的模型 id）' },
+  openai_compat: { base_url: 'https://api.openai.com/v1', model_placeholder: '例如：gpt-4o-mini' },
+}
+
+const modelPlaceholder = computed(
+  () => TYPE_DEFAULTS[form.type]?.model_placeholder ?? '',
+)
+
+function onTypeChange(t: string) {
+  // Auto-fill base_url with the type's default — but only if user hasn't
+  // typed a custom URL or is leaving an empty form.
+  const defaults = TYPE_DEFAULTS[t]
+  if (!defaults) return
+  const isDefaultUrl = Object.values(TYPE_DEFAULTS).some((d) => d.base_url === form.base_url)
+  if (!form.base_url || isDefaultUrl) {
+    form.base_url = defaults.base_url
+  }
+  // Clear api_key when switching to a local type (not used).
+  if (t !== 'openai_compat') {
+    form.api_key = ''
+  }
 }
 
 function openCreate() {
@@ -166,8 +191,9 @@ onMounted(() => store.refresh())
           <el-input v-model="form.name" placeholder="例如：本地 qwen" />
         </el-form-item>
         <el-form-item label="类型" required>
-          <el-select v-model="form.type">
+          <el-select v-model="form.type" @change="onTypeChange">
             <el-option label="Ollama 本地" value="ollama" />
+            <el-option label="LM Studio 本地" value="lm_studio" />
             <el-option label="OpenAI 兼容（云端）" value="openai_compat" />
           </el-select>
         </el-form-item>
@@ -175,7 +201,10 @@ onMounted(() => store.refresh())
           <el-input v-model="form.base_url" />
         </el-form-item>
         <el-form-item label="模型" required>
-          <el-input v-model="form.model_name" placeholder="例如：qwen2.5:7b" />
+          <el-input
+            v-model="form.model_name"
+            :placeholder="modelPlaceholder"
+          />
         </el-form-item>
         <el-form-item label="API Key" v-if="form.type === 'openai_compat'">
           <el-input

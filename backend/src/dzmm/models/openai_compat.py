@@ -47,10 +47,11 @@ class OpenAICompatClient(ModelClient):
         if params.stop:
             payload["stop"] = params.stop
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Content-Type": "application/json"}
+        # LM Studio (and some local servers) accept any / no Authorization
+        # header. Only include it when the user has actually configured a key.
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream(
