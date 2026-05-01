@@ -808,9 +808,9 @@ async def test_key_facts_omits_screenplay_when_none(seeded):
 # ---------------------------------------------------------------------------
 
 
-async def test_key_facts_force_progress_after_5_turns_stuck(seeded):
+async def test_key_facts_force_progress_after_3_turns_stuck(seeded):
     """Active screenplay with no completed events + session.turn_count high
-    enough that turns_since_progress >= 5 → key_facts must contain the
+    enough that turns_since_progress >= 3 → key_facts must contain the
     「⚠️ 剧情强推」 header and name the next pending main event."""
     engine, SessionMaker, sid = seeded
     async with SessionMaker() as s:
@@ -832,12 +832,12 @@ async def test_key_facts_force_progress_after_5_turns_stuck(seeded):
             completed_events_json="[]",
             status="active",
         ))
-        # Push turn_count high enough so that current_turn (8) is well past
-        # the 5-turn threshold. We bump it directly because the turn_count
+        # Push turn_count high enough so that current_turn (4) is past
+        # the 3-turn threshold. We bump it directly because the turn_count
         # increment happens inside run_turn — we need it pre-set so the
-        # _build_key_facts call inside this turn sees current_turn >= 5.
+        # _build_key_facts call inside this turn sees current_turn >= 3.
         sess = await s.get(GameSession, sid)
-        sess.turn_count = 7  # next turn will be 8
+        sess.turn_count = 3  # next turn will be 4
         await s.commit()
 
     captured = FakeClient("<narrative>x</narrative>")
@@ -941,9 +941,48 @@ async def test_key_facts_force_progress_uses_legacy_estimate(seeded):
         await s.commit()
 
     sys_msg = captured.last_messages[0].content
-    assert "## ⚠️ 剧情强推（已" in sys_msg
+    # At turn 72 (>= 6) urgency escalates to ❗❗ 极度紧急; the shared subtitle
+    # "已 N 回合无主线进展" uniquely identifies the injected block regardless.
+    assert "回合无主线进展）" in sys_msg
     # Pending events name the next one (event_idx=1, "事件一")
     assert "事件一" in sys_msg
+
+
+async def test_force_advance_includes_emit_tag(seeded):
+    """Force-advance message includes a copy-paste event_complete tag."""
+    engine, SessionMaker, sid = seeded
+    async with SessionMaker() as s:
+        s.add(Screenplay(
+            session_id=sid,
+            version=1,
+            outline_md="x",
+            chapters_json=json.dumps([
+                {
+                    "title": "第一章",
+                    "main_events": ["进入修道院", "找到密信"],
+                    "optional_events": [],
+                },
+            ], ensure_ascii=False),
+            main_characters_json="[]",
+            ending_md="",
+            current_chapter=1,
+            completed_events_json="[]",
+            status="active",
+        ))
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 3  # next turn will be 4, so turns_since_progress >= 3
+        await s.commit()
+
+    captured = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续探索", captured):
+            pass
+        await s.commit()
+
+    sys_msg = captured.last_messages[0].content
+    # The force-advance block must include the event_complete emit tag
+    assert "event_complete" in sys_msg
+    assert 'chapter="1"' in sys_msg
 
 
 # ----------------------------------------------------------------------------

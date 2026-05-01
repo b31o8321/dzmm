@@ -2,8 +2,6 @@
 
 Carved out of `_impl.py` in r3-a. Covers:
   - <npc_update> handler + progressive-reveal bookkeeping
-  - Lightweight regex-only NER fallback that registers stub NPCs the GM
-    mentions in narrative but forgets to declare via <npc_update>.
 
 The dispatcher (`apply_tags` in `_impl.py`) imports the handlers below;
 shared helpers (e.g. `_normalize_for_dedup`) remain in `_impl.py`.
@@ -17,7 +15,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import NPC
-from dzmm.parsing.events import TagComplete
 from dzmm.parsing.repair import parse_loose_json
 
 log = logging.getLogger(__name__)
