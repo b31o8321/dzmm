@@ -674,15 +674,11 @@ onBeforeUnmount(() => {
           </div>
           <div>
             <div class="text-xs text-slate-500">设定</div>
-            <div class="text-sm text-slate-700 whitespace-pre-line">
-              {{ state.world_brief.setting }}
-            </div>
+            <MarkdownView :source="state.world_brief.setting" />
           </div>
           <div>
             <div class="text-xs text-slate-500">核心冲突</div>
-            <div class="text-sm text-slate-700 whitespace-pre-line">
-              {{ state.world_brief.conflict }}
-            </div>
+            <MarkdownView :source="state.world_brief.conflict" />
           </div>
         </div>
       </WizardStep>
