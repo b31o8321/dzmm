@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { streamTurn } from '@/composables/useTurnStream'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { sessionsApi, type MessageRow, type MessageEvent, type Npc } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type Npc } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
 import { useGameState, MAX_DICE } from '@/composables/useGameState'
+import {
+  useGameTurn,
+  cleanNarrative,
+  extractChoices,
+  type Turn,
+} from '@/composables/useGameTurn'
 import StatePanel from '@/components/StatePanel.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
@@ -27,25 +32,11 @@ const worldsStore = useWorldsStore()
 const audio = useAudio()
 const version = __APP_VERSION__
 
-interface Turn {
-  action: string
-  narrative: string
-  choices: string[]
-  events: MessageEvent[]
-  turn: number
-  rawContent?: string
-}
-const turns = ref<Turn[]>([])
-const currentTurn = ref<Turn | null>(null)
 const action = ref('')
-const sending = ref(false)
 const composing = ref(false)
 const eventsDialogOpen = ref(false)
-const eventsDialogEvents = ref<MessageEvent[]>([])
+const eventsDialogEvents = ref<Turn['events']>([])
 const eventsDialogTurn = ref(0)
-const turnCount = ref(0)
-const tokensIn = ref(0)
-const tokensOut = ref(0)
 const panelOpen = ref(false)
 const character = ref<Character | null>(null)
 const levelUpDialogOpen = ref(false)
@@ -89,21 +80,6 @@ function onLeveled(updated: Character) {
   character.value = updated
 }
 
-async function refreshTokens() {
-  try {
-    const msgs = await sessionsApi.messages(sessionId)
-    let ti = 0, to = 0
-    for (const m of msgs) {
-      if (m.role === 'assistant') {
-        ti += m.tokens_in
-        to += m.tokens_out
-      }
-    }
-    tokensIn.value = ti
-    tokensOut.value = to
-  } catch { /* ignore */ }
-}
-
 const gs = useGameState()
 const {
   stats,
@@ -113,13 +89,29 @@ const {
   threads,
   pcMood,
   goals,
-  applyStateChange,
-  applyNpcUpdate,
-  applyPcMood,
 } = gs
 const refreshGoals = () => gs.refreshGoals(sessionId)
 const updateGoal = (goalId: number, status: 'active' | 'completed' | 'abandoned') =>
   gs.updateGoal(sessionId, goalId, status)
+
+// Streaming + per-turn state lives in the composable now. Hooks let it call
+// back into the view for log scrolling and post-turn refreshes (XP / goals).
+const {
+  turns,
+  currentTurn,
+  turnCount,
+  tokensIn,
+  tokensOut,
+  sending,
+  sendAction,
+  refreshTokens,
+} = useGameTurn(sessionId, gs, {
+  onScroll: () => scrollToBottom(),
+  onTurnDone: () => {
+    refreshCharacter()  // pick up XP gains from <character_xp>
+    refreshGoals()  // pick up <pc_goal> add/complete
+  },
+})
 
 const npcDialogOpen = ref(false)
 const selectedNpc = ref<Npc | null>(null)
@@ -234,133 +226,6 @@ function displayParts(t: Turn): Part[] {
   return parts
 }
 
-async function sendAction(userAction: string) {
-  sending.value = true
-
-  const turn: Turn = {
-    action: userAction,
-    narrative: '',
-    choices: [],
-    events: [],
-    turn: turnCount.value + 1,
-  }
-  currentTurn.value = turn
-  // Clear previous turn's choices — they're stale once the user sends.
-  for (const t of turns.value) t.choices = []
-  turns.value.push(turn)
-  await scrollToBottom()
-
-  try {
-    await streamTurn(sessionId, userAction, {
-      onNarrative: (text) => {
-        turn.narrative += text
-        scrollToBottom()
-      },
-      onTag: (name, attrs, content) => {
-        // Build a running rawContent so parseParts() can reconstruct speaker
-        // bubbles after the turn finishes (and on the live frame for non-
-        // streaming say/pc_action tags).
-        if (name === 'say') {
-          const speakerAttr = attrs.speaker ? ` speaker="${attrs.speaker}"` : ''
-          turn.rawContent =
-            (turn.rawContent ?? '') + `<say${speakerAttr}>${content}</say>`
-        } else if (name === 'pc_action') {
-          turn.rawContent = (turn.rawContent ?? '') + `<pc_action>${content}</pc_action>`
-        }
-        // Record any structured tag (besides `narrative`/`say`/`pc_action`/`choices`)
-        // as an event so it shows up in the per-message events dialog.
-        const skipForEvents = new Set(['narrative', 'narriative', 'say', 'pc_action', 'choices'])
-        if (!skipForEvents.has(name)) {
-          let payload: Record<string, any> = { ...attrs }
-          const trimmed = content.trim()
-          if (trimmed) {
-            try {
-              const parsed = JSON.parse(trimmed)
-              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                payload = { ...payload, ...parsed }
-              } else {
-                payload = { ...payload, value: parsed }
-              }
-            } catch {
-              payload = { ...payload, content: trimmed }
-            }
-          }
-          turn.events.push({ type: name, payload, content: trimmed || undefined })
-        }
-        if (name === 'state_change') {
-          try {
-            const obj = JSON.parse(content)
-            let totalDelta = 0
-            for (const [, v] of Object.entries(obj)) {
-              if (typeof v === 'number') totalDelta += v
-            }
-            if (totalDelta < 0) audio.playSfx('state_down')
-            else if (totalDelta > 0) audio.playSfx('state_up')
-          } catch { /* ignore */ }
-          applyStateChange(content)
-        }
-        else if (name === 'npc_update') applyNpcUpdate(content)
-        else if (name === 'pc_mood') applyPcMood(content)
-        else if (name === 'choices') {
-          const opts: string[] = []
-          for (const line of content.split('\n')) {
-            const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')
-            if (trimmed) opts.push(trimmed)
-          }
-          turn.choices = opts
-        }
-        else if (name === 'dice') {
-          audio.playSfx('dice')
-          gs.pushDice({
-            skill: attrs.skill ?? '判定',
-            target: attrs.target ?? '?',
-            result: content.trim() || '?',
-          })
-        }
-        else if (name === 'plot_event') {
-          let importance = 2
-          const parsed = parseInt(attrs.importance ?? '2', 10)
-          if (!isNaN(parsed)) importance = Math.max(1, Math.min(3, parsed))
-          threads.value.push({
-            type: attrs.type ?? 'major_event',
-            description: content.trim(),
-            importance,
-          })
-        }
-      },
-      onError: (msg) => {
-        ElMessage.warning(msg)
-      },
-      onDone: () => {
-        turnCount.value += 1
-        // GM may have forgotten </narrative> and embedded choices into the
-        // streamed narrative buffer; recover them here.
-        if (!turn.choices.length) {
-          const leaked = extractChoices(turn.narrative)
-          if (leaked.length) turn.choices = leaked
-        }
-        turn.narrative = cleanNarrative(turn.narrative)
-        // Synthesize a rawContent that parseParts can chew on. We always
-        // prepend the cleaned narrative (wrapped) so backwards-compat is
-        // preserved when GM didn't emit any speaker tags at all.
-        if (turn.narrative) {
-          turn.rawContent =
-            `<narrative>${turn.narrative}</narrative>` + (turn.rawContent ?? '')
-        }
-        refreshTokens()  // fire-and-forget
-        refreshCharacter()  // pick up XP gains from <character_xp>
-        refreshGoals()  // pick up <pc_goal> add/complete
-      },
-    })
-  } catch (e: any) {
-    ElMessage.error(e.message ?? '请求失败')
-    turn.narrative += `\n\n[出错：${e.message ?? '未知错误'}]`
-  } finally {
-    sending.value = false
-    currentTurn.value = null
-  }
-}
-
 async function regenerate() {
   if (!turns.value.length || sending.value) return
   const last = turns.value[turns.value.length - 1]
@@ -407,18 +272,8 @@ function quick(act: string) {
 // child tags from the narrative content so options/state/dice blocks don't
 // leak into the chat log.
 const NARRATIVE_RE = /<narrative\b[^>]*>([\s\S]*?)(?:<\/narrative>|(?=<(?:choices|state_change|npc_update|plot_event|dice)\b))/g
-const CHOICES_RE = /<choices\b[^>]*>([\s\S]*?)<\/choices>/g
 const DICE_RE = /<dice\s+([^>]*)>([\s\S]*?)<\/dice>/g
 const ATTR_RE = /(\w+)="([^"]*)"/g
-const ANY_KNOWN_CHILD_RE = /<(?:choices|state_change|npc_update|plot_event|dice)\b[^>]*>[\s\S]*?(?:<\/(?:choices|state_change|npc_update|plot_event|dice)>|$)/g
-
-function cleanNarrative(raw: string): string {
-  return raw
-    .replace(ANY_KNOWN_CHILD_RE, '')   // any embedded child tag block
-    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
-    .replace(/<\/?\w+\b[^>]*>/g, '')   // any stray tag fragment
-    .trim()
-}
 
 function extractNarrative(content: string): string {
   const parts: string[] = []
@@ -430,19 +285,6 @@ function extractNarrative(content: string): string {
     return cleanNarrative(content)
   }
   return parts.filter((p) => p).join('\n\n')
-}
-
-function extractChoices(content: string): string[] {
-  const out: string[] = []
-  let m: RegExpExecArray | null
-  CHOICES_RE.lastIndex = 0
-  while ((m = CHOICES_RE.exec(content))) {
-    for (const line of m[1].split('\n')) {
-      const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')
-      if (trimmed) out.push(trimmed)
-    }
-  }
-  return out
 }
 
 function extractDiceFromHistory(messages: MessageRow[]) {
