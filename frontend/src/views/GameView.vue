@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
@@ -159,10 +159,25 @@ function onKey(e: KeyboardEvent) {
 }
 
 function openEvents(t: Turn) {
-  eventsDialogEvents.value = t.events ?? []
+  // v0.2.1 P0.3: deep-copy events so the dialog never holds a reactive ref
+  // back into the turn (which could mutate while the dialog is open and show
+  // last turn's NPC/state). Combined with the close-watcher below, each open
+  // gets a frozen snapshot of the requested turn.
+  eventsDialogEvents.value = JSON.parse(JSON.stringify(t.events ?? []))
   eventsDialogTurn.value = t.turn
   eventsDialogOpen.value = true
 }
+
+// v0.2.1 P0.3: clear events on close so the next open never flashes a stale
+// frame from the previous turn before the new payload lands.
+watch(eventsDialogOpen, (open) => {
+  if (!open) {
+    nextTick(() => {
+      eventsDialogEvents.value = []
+      eventsDialogTurn.value = 0
+    })
+  }
+})
 
 async function regenerate() {
   if (!turns.value.length || sending.value) return
@@ -251,6 +266,23 @@ function extractDiceFromHistory(messages: MessageRow[]) {
 onMounted(async () => {
   // Fire-and-forget GM model warmup so the first turn isn't cold.
   sessionsApi.warmup(sessionId).catch(() => { /* ignore */ })
+
+  // v0.2.1 P0.4: hydrate side-panel state (esp. inventory) FIRST so the
+  // character-card drawer and StatePanel show items immediately, even if
+  // later init steps (messages rehydrate, BGM, etc.) hang or throw. The
+  // second pass at the end of onMounted re-applies on top to pick up any
+  // state writes that landed during init.
+  try {
+    const st = await sessionsApi.state(sessionId)
+    Object.keys(stats).forEach((k) => delete stats[k])
+    Object.assign(stats, st.stats)
+    inventory.value = st.inventory
+    npcs.value = st.npcs.map((n) => ({ ...n }))
+    threads.value = st.threads
+    pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
+  } catch {
+    /* ignore — fall through to the end-of-mount rehydrate below */
+  }
 
   // Pull screenplay state (legacy sessions without one are fine).
   try {
