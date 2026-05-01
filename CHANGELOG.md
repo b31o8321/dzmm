@@ -11,6 +11,44 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.2.0] - 2026-05-01
+
+**主题：Vibe Coding 风格向导式创建 + v0.1.9 修复打包**
+
+针对**本地 12B 模型**优化，把一次性 outline 调用改成 6 步引导式生成。每一步玩家审阅 / 编辑 / 重新生成 / 接受。每步独立 LLM 短 prompt，本地模型也能稳定产出有质感的世界 + 角色 + 剧本。
+
+### 新增（向导式创建）
+- **6 步骤 wizard**（路由 `/sessions/wizard`）：
+  1. 设置（选 wizard 模型 / GM 模型 / summarizer 模型 + genre + 主题）
+  2. 基础设定（200-300 字名字/年代/核心冲突）
+  3. 世界扩展（600-1200 字 world_md）
+  4. PC 角色卡（profile_md：基本信息/性格/背景/能力/物品/弱点）
+  5. 主要 NPC（3-5 个 + 玩家选钉住）
+  6. 剧本大纲（chapters/main_characters/ending/opening_hook）
+  + 审阅 + 创建（atomic 写 World + Character + Session + 钉住 NPC + Screenplay）
+- 每步 4 个动作：✏️ 编辑 / 🔄 重新生成 / ✏️ 我自己写 / ⏩ 接受继续
+- 模型可分开选：wizard 用 12B+ think 模型（创建慢但质优），GM 用 7-8B 快速模型
+- 后端：`api/routes_wizard.py` 6 个端点 + `service/wizard.py` 6 个函数 + `prompts/wizard_*.py` 5 个 prompt 模板（每个聚焦短 prompt）
+- 前端：新页面 `WizardView.vue`（964 行 inline state 共享）+ `api/wizard.ts` + `components/wizard/WizardStep.vue` 通用步骤组件
+- SessionsView「+ 新开一局」改 2 tab：🪄 **向导式（推荐，默认）** / ⚡ 快速创建（预设）
+
+### v0.1.9 修复（打入此版本）
+- **hidden_event dedup**：同 (subject, kind) 已 active 时更新而非新建（治实玩 6 次重复 emit）
+- **NPC NER 严格化**：频率门槛 2→3 + 扩充停用词表（修道院/大门/然后/雨水/离开 等高频误判词）+ 首字动词/虚词时要求 ≥4 字（治实玩抓出 7 个垃圾 NPC）
+- **parser flush 强制闭合**：stream 结束时未闭合 tag emit `ParseError` + 合成 `TagComplete` 用截断内容（治「Unclosed tag <choices>」反馈）
+- **dice 随机性 prompt**：dice 标签字典加显式「必须真实随机！d20 1-20 每次不同」+ 简单兜底建议（治实玩 dice 总是 d20=9 的问题）
+- **NER 清理按钮**：`DELETE /sessions/{id}/npcs/auto_created` + DebugView NPC tab 加「🧹 清理 NER 自动创建」按钮（让玩家清掉历史误抓的 stub）
+
+### 数据库
+无 schema 变化（向导只是创建已有表的 row）
+
+### 测试
+- 后端 265 → 290（+25：18 wizard + 7 v0.1.9 fixes）
+- 前端 build 通过
+- 新组件：`WizardView.vue` / `WizardStep.vue`
+
+---
+
 ## [v0.1.8] - 2026-05-01
 
 **实玩反馈热修：导出 500 + PC 名漂移成 #**

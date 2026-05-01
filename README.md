@@ -141,7 +141,8 @@ Pushing a `v*` tag (e.g. `v0.7`) triggers `.github/workflows/release.yml` which 
 
 最近几版（按 SemVer：MAJOR.MINOR.PATCH，0=测试期 / 1=正式）：
 
-- **v0.1.6（最新）** —— 项目结构重构：state_apply / routes_sessions / GameView 三个超大文件按职责拆成包；新增 ARCHITECTURE.md。行为零变更。
+- **v0.2.0（最新，首个 MINOR 升级）** —— 向导式（vibe coding）创建：6 步引导生成世界/角色/剧本，本地 12B 模型友好。打入 v0.1.9 修复（hidden_event dedup / NER 严格 / parser flush / dice 随机 / NER 清理按钮）。
+- **v0.1.6 - v0.1.8** —— 项目结构重构 + 启动日志 + SSE 流式回归修复 + CJK 导出 500 修复 + PC 名 # 漂移修复。
 - **v0.1.5** —— 启动日志面板：Tauri 后端 stdout/stderr 实时回传 webview，启动卡死可点开看具体错。
 - **v0.1.4** —— LM Studio 本地模型支持。
 - **v0.1.3** —— 删除存档 + cascade。
