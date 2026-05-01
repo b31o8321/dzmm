@@ -11,6 +11,38 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.2.1] - 2026-05-01
+
+**实玩 72 回合 P0 紧急修复**
+
+实玩存档观察：24 NPC 表中 20 个是 NER 误抓垃圾、71+ 回合 GM 输出抄 prompt few_shot 段、events dialog 显示上一轮数据等 5 个 P0 bug。
+
+### 修复
+- **P0.1 NER 终极加严** —— v0.1.9 频率 ≥3 仍不够。本次：
+  - 最少 3 字（不再允许 2 字，全删 2-char 路径）
+  - skip PC 名子串（「塞巴/塞巴斯/奥斯特」是 PC 名片段，不再被抓）
+  - 扩停用词表 70+ 词（「了你/我从/她轻/个叫/的一/的那/一丝/印着/标签」等实玩具体垃圾）
+  - 首字门槛：「了/的/着/我/她/他/一/这/那/有/被/把/给/为/之/从」开头要求 ≥4 字
+  - 加 3 个回归测试覆盖实玩 14 个具体垃圾词
+- **P0.2 长上下文崩溃** —— GM 在 71+ 回合抄 prompt 里 few_shot 段是典型长上下文模型崩溃信号
+  - 摘要器触发 20 → 10 回合（每 10 回合压一次）
+  - recent_messages window 自适应：默认 12 / 30+回合 8 / 60+回合 6（防 prompt 无限膨胀）
+  - few_shot 改写：`# 输出范例 / # 关键信息推进示范 / # 错误示范` 标题 → `--- xxx ---` 分隔符（避免 GM 抄成自己输出格式）；缩减 24.5%
+  - activity_log 加 `turn_prompt_size` / `turn_prompt_warning` 事件（>12k token 警告）
+- **P0.3 events dialog stale** —— openEvents 改 JSON deep copy + onClose nextTick 清空，修「日志艾琳娜显示院长」类不一致
+- **P0.4 inventory 不显示** —— GameView onMounted 第一时间 hydrate state（含 inventory），不依赖延迟初始化
+- **P0.5 parser unclosed warning 降级** —— `/unclosed/` 类错误 console.debug 不弹 toast（v0.1.9 后端 parser.finish() 已兜底）
+
+### 测试
+- 后端 290 → 301（+11：3 NER 实玩回归 + 8 长上下文 / window / token 估算）
+- 前端 build 通过
+
+### 待办（v0.2.2 + v0.2.3）
+- P1 GM/Prompt 改进：剧情强推 / NPC 主动 / dice 失败反转 / dice 监控 / 信息顺序
+- P2 UX：自动开局 / 编年史删除 / 默认行动改剧本导向 / 场所记录 / 同世界续作（含 NPC 选择性复制）/ 剧情线点击查看总结
+
+---
+
 ## [v0.2.0] - 2026-05-01
 
 **主题：Vibe Coding 风格向导式创建 + v0.1.9 修复打包**
