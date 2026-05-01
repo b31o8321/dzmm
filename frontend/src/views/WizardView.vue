@@ -88,6 +88,33 @@ const state = reactive<State>({
 
 // 0..6 (7 stages: setup + 5 LLM-driven steps + review)
 const step = ref(0)
+
+const DRAFT_KEY = 'dzmm_wizard_draft'
+
+function saveDraft() {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ step: step.value, state }))
+  } catch { /* ignore quota errors */ }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
+
+function loadDraft(): boolean {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return false
+    const { step: savedStep, state: savedState } = JSON.parse(raw)
+    Object.assign(state, savedState)
+    step.value = savedStep
+    return true
+  } catch {
+    clearDraft()
+    return false
+  }
+}
+
 const loading = ref(false)
 const errorMsg = ref('')
 
@@ -175,6 +202,7 @@ async function generateBrief() {
       genre: effectiveGenre.value,
       theme: state.theme.trim(),
     })
+    saveDraft()
     editing.brief = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -212,6 +240,7 @@ async function generateWorldDetails() {
       brief_md: state.world_brief.raw_md,
     })
     state.world_md = r.world_md
+    saveDraft()
     editing.world = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -246,6 +275,7 @@ async function generateCharacter() {
     })
     state.character_name = r.name
     state.character_md = r.profile_md
+    saveDraft()
     editing.character = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -275,6 +305,7 @@ async function generateNpcs() {
     })
     state.npcs = r.npcs
     state.pinned_npc_names = r.npcs.map((n) => n.name) // pin all by default
+    saveDraft()
     editing.npcs = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -333,6 +364,7 @@ async function generateScreenplay() {
       npcs: state.npcs.filter((n) => isPinned(n.name)),
       genre: effectiveGenre.value,
     })
+    saveDraft()
     editing.screenplay = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -395,6 +427,7 @@ async function doFinalize() {
       summarizer_model_config_id: state.summarizer_model_config_id!,
       genre: effectiveGenre.value,
     })
+    clearDraft()
     router.push(`/play/${r.session_id}`)
   } catch (e: any) {
     finalizeError.value = e?.message ?? String(e)
@@ -424,6 +457,7 @@ async function acceptBriefAndNext() {
     ElMessage.error('基础设定不能为空')
     return
   }
+  saveDraft()
   gotoStep(2)
   if (!state.world_md) await generateWorldDetails()
 }
@@ -433,6 +467,7 @@ async function acceptWorldAndNext() {
     ElMessage.error('世界观不能为空')
     return
   }
+  saveDraft()
   gotoStep(3)
 }
 
@@ -441,6 +476,7 @@ async function acceptCharacterAndNext() {
     ElMessage.error('角色卡不能为空')
     return
   }
+  saveDraft()
   gotoStep(4)
   if (state.npcs.length === 0) await generateNpcs()
 }
@@ -461,11 +497,15 @@ function acceptScreenplayAndNext() {
 // ---- mount ----
 
 onMounted(async () => {
+  const restored = loadDraft()
+  if (restored) {
+    ElMessage.info('已恢复上次未完成的向导草稿。如需重新开始请刷新页面。')
+  }
   if (modelsStore.items.length === 0) {
     await modelsStore.refresh()
   }
   // pre-fill defaults if available
-  if (modelsStore.items.length > 0) {
+  if (!restored && modelsStore.items.length > 0) {
     state.wizard_model_config_id = modelsStore.items[0].id
     state.gm_model_config_id = modelsStore.items[0].id
     state.summarizer_model_config_id = modelsStore.items[0].id
