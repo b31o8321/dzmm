@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
@@ -15,14 +15,13 @@ import {
   type Turn,
 } from '@/composables/useGameTurn'
 import StatePanel from '@/components/StatePanel.vue'
-import MarkdownView from '@/components/MarkdownView.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
 import LevelUpDialog from '@/components/LevelUpDialog.vue'
 import NpcDetailDialog from '@/components/NpcDetailDialog.vue'
 import CharacterCardDrawer from '@/components/CharacterCardDrawer.vue'
-import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
+import MessageList from '@/components/game/MessageList.vue'
 import { screenplayApi, type Screenplay } from '@/api/screenplay'
 
 const props = defineProps<{ id: string }>()
@@ -106,7 +105,6 @@ const {
   sendAction,
   refreshTokens,
 } = useGameTurn(sessionId, gs, {
-  onScroll: () => scrollToBottom(),
   onTurnDone: () => {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
@@ -138,17 +136,16 @@ function onNpcUpdated(updated: Npc) {
   selectedNpc.value = updated
 }
 
-const logEl = ref<HTMLElement | null>(null)
-async function scrollToBottom() {
-  await nextTick()
-  if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
-}
-
 async function send() {
   const userAction = action.value.trim()
   if (!userAction || sending.value) return
   action.value = ''
   await sendAction(userAction)
+}
+
+async function sendActionDirect(choice: string) {
+  if (!choice || sending.value) return
+  await sendAction(choice)
 }
 
 function onKey(e: KeyboardEvent) {
@@ -165,65 +162,6 @@ function openEvents(t: Turn) {
   eventsDialogEvents.value = t.events ?? []
   eventsDialogTurn.value = t.turn
   eventsDialogOpen.value = true
-}
-
-// Parse <narrative>, <say speaker="..">, <pc_action> tags from raw GM content
-// into an ordered list of parts. Falls back to a single narration block when
-// no tags are found, so legacy messages still render.
-const PARTS_TAG_RE =
-  /<(narrative|narriative|say|pc_action)\b([^>]*)>([\s\S]*?)<\/(?:narrative|narriative|say|pc_action)>/gi
-const SPEAKER_ATTR_RE = /speaker="([^"]*)"/i
-
-function parseParts(content: string): Part[] {
-  const parts: Part[] = []
-  PARTS_TAG_RE.lastIndex = 0
-  let m: RegExpExecArray | null
-  while ((m = PARTS_TAG_RE.exec(content)) !== null) {
-    const tag = m[1].toLowerCase()
-    const attrs = m[2] ?? ''
-    const text = (m[3] ?? '').trim()
-    if (!text) continue
-    if (tag === 'narrative' || tag === 'narriative') {
-      parts.push({ type: 'narration', text })
-    } else if (tag === 'say') {
-      const sm = SPEAKER_ATTR_RE.exec(attrs)
-      parts.push({ type: 'dialogue', speaker: sm?.[1], text })
-    } else if (tag === 'pc_action') {
-      parts.push({ type: 'pc_action', text })
-    }
-  }
-  if (parts.length === 0) {
-    // Backwards-compat: messages predating the new tags fall through here, as
-    // do any messages where every tag is empty. Render the whole thing as a
-    // narration so nothing is lost.
-    const cleaned = content.trim()
-    if (cleaned) parts.push({ type: 'narration', text: cleaned })
-  }
-  return parts
-}
-
-// Compose what the chat bubble actually renders. Two states must coexist:
-//   - Streaming: t.narrative grows token-by-token via onNarrative; once GM
-//     emits the first <say>/<pc_action> close, onTag populates t.rawContent
-//     (which does NOT contain narrative). We must keep showing t.narrative
-//     so the live text doesn't vanish mid-stream.
-//   - Rehydrated history (onMounted) / post-onDone: rawContent holds the full
-//     payload including <narrative>...</narrative>. parseParts handles it; we
-//     skip its narration parts when t.narrative is already non-empty to avoid
-//     double-rendering.
-function displayParts(t: Turn): Part[] {
-  const parts: Part[] = []
-  const liveNarrative = t.narrative && t.narrative.trim()
-  if (liveNarrative) {
-    parts.push({ type: 'narration', text: t.narrative })
-  }
-  if (t.rawContent) {
-    for (const p of parseParts(t.rawContent)) {
-      if (liveNarrative && p.type === 'narration') continue
-      parts.push(p)
-    }
-  }
-  return parts
 }
 
 async function regenerate() {
@@ -397,8 +335,6 @@ onMounted(async () => {
   }
 
   await refreshGoals()
-
-  await scrollToBottom()
 })
 
 onUnmounted(() => audio.stopBgm())
@@ -487,52 +423,19 @@ onUnmounted(() => audio.stopBgm())
         </el-button>
       </div>
 
-      <div ref="logEl" class="flex-1 overflow-auto px-6 py-4 space-y-6">
-        <div v-if="!turns.length" class="text-slate-400 italic">
-          输入第一个行动开始跑团（例如：「(开始游戏)」让 GM 给你开局描写）
-        </div>
-        <article v-for="(t, i) in turns" :key="i" class="space-y-2">
-          <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
-          <div class="relative bg-white rounded shadow-sm p-4">
-            <template v-if="displayParts(t).length">
-              <SpeakerBubble
-                v-for="(part, pi) in displayParts(t)"
-                :key="pi"
-                :part="part"
-                :pc-name="character?.name"
-              />
-            </template>
-            <MarkdownView v-else :source="t.narrative" />
-            <el-button
-              v-if="t.events && t.events.length > 0"
-              size="small"
-              link
-              class="!absolute bottom-1 right-1 text-xs"
-              @click="openEvents(t)"
-            >
-              🎲 {{ t.events.length }}
-            </el-button>
-          </div>
-          <div v-if="t.choices.length" class="flex flex-col gap-2 ml-4">
-            <button
-              v-for="(c, ci) in t.choices"
-              :key="ci"
-              type="button"
-              class="text-left bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200 rounded px-3 py-2 text-sm text-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="sending"
-              @click="quick(c)"
-            >
-              <span class="font-mono text-amber-600 mr-2">{{ ci + 1 }}.</span>{{ c }}
-            </button>
-          </div>
-          <div v-if="i === turns.length - 1 && !sending"
-               class="flex gap-3 text-xs text-slate-500 pt-1">
-            <button type="button" class="hover:text-slate-800 underline"
-                    @click="regenerate">🔄 重新生成</button>
-            <button type="button" class="hover:text-slate-800 underline"
-                    @click="editPrev">✏️ 编辑上一动作</button>
-          </div>
-        </article>
+      <MessageList
+        :turns="turns"
+        :character-name="character?.name"
+        @choose="(c: string) => sendActionDirect(c)"
+        @open-events="(t: Turn) => openEvents(t)"
+      />
+
+      <div v-if="turns.length && !sending"
+           class="px-6 pb-2 flex gap-3 text-xs text-slate-500">
+        <button type="button" class="hover:text-slate-800 underline"
+                @click="regenerate">🔄 重新生成</button>
+        <button type="button" class="hover:text-slate-800 underline"
+                @click="editPrev">✏️ 编辑上一动作</button>
       </div>
 
       <footer class="border-t bg-white p-4 space-y-2">

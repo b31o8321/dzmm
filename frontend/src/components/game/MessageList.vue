@@ -1,0 +1,128 @@
+<script setup lang="ts">
+import { watch, nextTick, ref } from 'vue'
+import { ElButton } from 'element-plus'
+import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
+import MarkdownView from '@/components/MarkdownView.vue'
+import type { Turn } from '@/composables/useGameTurn'
+
+const props = defineProps<{
+  turns: Turn[]
+  characterName?: string
+}>()
+
+const emit = defineEmits<{
+  (e: 'choose', choice: string): void
+  (e: 'open-events', turn: Turn): void
+}>()
+
+const logEl = ref<HTMLElement | null>(null)
+
+// Parse <narrative>, <say speaker="..">, <pc_action> tags from raw GM content
+// into an ordered list of parts. Falls back to a single narration block when
+// no tags are found, so legacy messages still render.
+const PARTS_TAG_RE =
+  /<(narrative|narriative|say|pc_action)\b([^>]*)>([\s\S]*?)<\/(?:narrative|narriative|say|pc_action)>/gi
+const SPEAKER_ATTR_RE = /speaker="([^"]*)"/i
+
+function parseParts(content: string): Part[] {
+  const parts: Part[] = []
+  PARTS_TAG_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = PARTS_TAG_RE.exec(content)) !== null) {
+    const tag = m[1].toLowerCase()
+    const attrs = m[2] ?? ''
+    const text = (m[3] ?? '').trim()
+    if (!text) continue
+    if (tag === 'narrative' || tag === 'narriative') {
+      parts.push({ type: 'narration', text })
+    } else if (tag === 'say') {
+      const sm = SPEAKER_ATTR_RE.exec(attrs)
+      parts.push({ type: 'dialogue', speaker: sm?.[1], text })
+    } else if (tag === 'pc_action') {
+      parts.push({ type: 'pc_action', text })
+    }
+  }
+  if (parts.length === 0) {
+    const cleaned = content.trim()
+    if (cleaned) parts.push({ type: 'narration', text: cleaned })
+  }
+  return parts
+}
+
+// Compose what the chat bubble actually renders. Two states must coexist:
+//   - Streaming: t.narrative grows token-by-token via onNarrative; once GM
+//     emits the first <say>/<pc_action> close, onTag populates t.rawContent
+//     (which does NOT contain narrative). We must keep showing t.narrative
+//     so the live text doesn't vanish mid-stream.
+//   - Rehydrated history (onMounted) / post-onDone: rawContent holds the full
+//     payload including <narrative>...</narrative>. parseParts handles it; we
+//     skip its narration parts when t.narrative is already non-empty to avoid
+//     double-rendering.
+function displayParts(t: Turn): Part[] {
+  const parts: Part[] = []
+  const liveNarrative = t.narrative && t.narrative.trim()
+  if (liveNarrative) {
+    parts.push({ type: 'narration', text: t.narrative })
+  }
+  if (t.rawContent) {
+    for (const p of parseParts(t.rawContent)) {
+      if (liveNarrative && p.type === 'narration') continue
+      parts.push(p)
+    }
+  }
+  return parts
+}
+
+// Auto-scroll to bottom whenever a new turn appears.
+watch(
+  () => props.turns.length,
+  async () => {
+    await nextTick()
+    if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
+  },
+)
+
+defineExpose({ logEl })
+</script>
+
+<template>
+  <div ref="logEl" class="flex-1 overflow-auto px-6 py-4 space-y-6">
+    <div v-if="!turns.length" class="text-slate-400 italic">
+      输入第一个行动开始跑团（例如：「(开始游戏)」让 GM 给你开局描写）
+    </div>
+    <article v-for="(t, i) in turns" :key="i" class="space-y-2">
+      <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
+      <div class="relative bg-white rounded shadow-sm p-4">
+        <template v-if="displayParts(t).length">
+          <SpeakerBubble
+            v-for="(part, pi) in displayParts(t)"
+            :key="pi"
+            :part="part"
+            :pc-name="characterName"
+          />
+        </template>
+        <MarkdownView v-else :source="t.narrative" />
+        <el-button
+          v-if="t.events && t.events.length > 0"
+          size="small"
+          link
+          class="!absolute bottom-1 right-1 text-xs"
+          @click="emit('open-events', t)"
+        >
+          🎲 {{ t.events.length }}
+        </el-button>
+      </div>
+      <div v-if="t.choices.length && i === turns.length - 1" class="space-y-1">
+        <button
+          v-for="(c, ci) in t.choices"
+          :key="ci"
+          type="button"
+          class="block w-full text-left bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded px-3 py-2 text-sm text-slate-700 transition"
+          @click="emit('choose', c)"
+        >
+          ▶ {{ c }}
+        </button>
+      </div>
+    </article>
+  </div>
+</template>
