@@ -242,7 +242,7 @@ async def _apply_npc_update(
 # Names matching these are obvious false positives (place words, pronouns,
 # generic person nouns, scene words). Better to drop legit names than to
 # pollute the NPC table with junk.
-_NER_STOPWORDS = frozenset({
+_NER_STOPWORDS: frozenset[str] = frozenset({
     # pronouns / common subjects
     "你", "我", "他", "她", "它", "我们", "你们", "他们", "她们", "它们",
     "自己", "对方", "大家", "众人", "众位", "诸位", "彼此", "互相",
@@ -282,6 +282,49 @@ _NER_STOPWORDS = frozenset({
     "全部", "所有", "好多", "许多", "一些",
 })
 
+# v0.2.1 — playtest 72 turns produced 24 NPCs in the table; 20 were NER junk
+# (里面/写着/塞巴/奥斯特 etc). Bumping freq + min 3 chars wasn't enough. This
+# extends _NER_STOPWORDS with 70+ high-frequency junk fragments observed in
+# real play. Categories: status/position words, verb+particle 2-char fragments,
+# 「的 X」combos, qty/qty-marker pairs, common verbs, time/sequence markers.
+_PLAYTEST_STOPWORDS_V0_2_1: frozenset[str] = frozenset({
+    # exact garbage observed in playtest
+    "里面", "写着", "印着", "面对", "标签",
+    # verb + particle pairs (verb + 了/我/他/她/它)
+    "了你", "了我", "了他", "了她", "了它", "了一",
+    "我从", "她从", "他从",
+    "她轻", "她说", "她来", "她去", "她想",
+    "他说", "他来", "他去", "他想",
+    "我说", "我想", "我来", "我去",
+    # 「的 X」 combinations
+    "的一", "的那", "的黑", "的白", "的红", "的人", "的事", "的话",
+    "的手", "的眼",
+    # adjectives + classifiers / numerals
+    "一丝", "一缕", "一阵", "一瞬", "一时", "一片", "一切",
+    "几个", "好几", "许多", "很多", "若干", "一些", "全部", "所有",
+    # verbs commonly captured at run-start
+    "个叫", "远叫", "走过", "走来", "走出", "走进", "走到", "走去",
+    "看见", "看到", "听见", "听到", "感觉", "感受",
+    "想到", "想着", "认为", "知道", "明白", "了解",
+    "起来", "下去", "过来", "过去", "出去", "进来",
+    # time / sequence markers
+    "然后", "于是", "接着", "随后", "之后", "起初", "最后", "终于",
+    "现在", "刚才", "马上", "立刻", "瞬间", "片刻",
+})
+
+# Merge into a single set used at filter time. _NER_STOPWORDS is re-bound
+# above as a set to preserve the original public symbol but include v0.2.1
+# additions.
+_NER_STOPWORDS = frozenset(_NER_STOPWORDS | _PLAYTEST_STOPWORDS_V0_2_1)
+
+# v0.2.1 P0.1 (4): when a candidate's first char is one of these high-frequency
+# verb / particle / connector starters, require length >= 4 chars. Names that
+# start with these are extremely rare; almost all 2-3 char hits are verb
+# phrases or connective fragments.
+_FIRST_CHAR_NEEDS_LONGER: frozenset[str] = frozenset(
+    "了的着我她他一这那有被把给为之从"
+)
+
 # v0.1.9 — characters that are overwhelmingly verbs / function words at the
 # start of a 2-char run; if a candidate starts with one of these, require a
 # longer prefix (>= 3 chars when frequency-derived, >= 4 chars before we even
@@ -298,8 +341,42 @@ _NER_CONTEXT_CUES = (
     "上前", "回头", "转身",
 )
 
-_HANZI_NAME_RE = re.compile(r"[一-龥]{2,4}")
+# v0.2.1: bumped min length from 2 → 3. Real-play 2-char hits are
+# overwhelmingly verb/particle fragments (了你/我从/她轻/印着/写着/...) rather
+# than independent names. Genuine 2-char Chinese names (李华/小菱) now have to
+# be picked up via context cue + at least one extra cue char, or be declared
+# explicitly via <npc_update>. Trade-off: lose a few legit short names; gain
+# a much cleaner NPC table.
+_HANZI_NAME_RE = re.compile(r"[一-龥]{3,}")
 _HANZI_RUN_RE = re.compile(r"[一-龥]+")
+
+
+def _pc_name_substrings(character_name: str, min_len: int = 2) -> frozenset[str]:
+    """Compute every contiguous substring (length >= min_len, capped at 4
+    chars) of a PC name. Used to suppress NER hits that are subsets of the PC's
+    own name — e.g. "塞巴" / "塞巴斯" / "奥斯特" must never become NPCs when the
+    PC is "塞巴斯蒂安·冯·奥斯特".
+
+    Splits on whitespace, mid-dot/Bopomofo dot/hyphen/underscore, and strips
+    parenthesised glosses ("(英雄人物)"), then takes substrings of each
+    surviving token. Output capped at 4-char substrings — longer than that
+    and the candidate would never be a legit short-NPC NER hit anyway.
+    """
+    if not character_name:
+        return frozenset()
+    # Drop parenthesised glosses (both half-width and full-width parens).
+    cleaned = re.sub(r"[（(].*?[)）]", "", character_name).strip()
+    out: set[str] = set()
+    for token in re.split(r"[\s·•．\-—_]+", cleaned):
+        if len(token) < min_len:
+            continue
+        L = len(token)
+        for i in range(L):
+            for j in range(i + min_len, min(i + 5, L + 1)):
+                sub = token[i:j]
+                if len(sub) >= min_len:
+                    out.add(sub)
+    return frozenset(out)
 
 
 def _hanzi_ngrams(text: str, n_min: int = 2, n_max: int = 4) -> list[str]:
@@ -337,100 +414,138 @@ def _explicit_npc_names_from_tags(tags: list[TagComplete]) -> set[str]:
     return names
 
 
-def _ner_extract_candidate_names(text: str) -> set[str]:
+def _passes_first_char_threshold(name: str) -> bool:
+    """v0.2.1 (4): if a candidate starts with one of the verb/particle/
+    connector chars in _FIRST_CHAR_NEEDS_LONGER (了/的/着/我/她/他/一/这/那/有
+    /被/把/给/为/之/从), require >= 4 chars before accepting. Names beginning
+    with these are extremely rare; almost all 2-3 char hits are verb phrases
+    or function-word fragments (了你 / 我从 / 她轻 / 个叫)."""
+    if not name:
+        return False
+    if name[0] in _FIRST_CHAR_NEEDS_LONGER and len(name) < 4:
+        return False
+    return True
+
+
+def _ner_extract_candidate_names(
+    text: str,
+    *,
+    pc_substrings: frozenset[str] = frozenset(),
+) -> set[str]:
     """Extract candidate NPC names from narrative text using cheap heuristics.
 
-    Strategy: candidates are 2- or 3-char hanzi tokens that appear at the
-    *start* of a hanzi run (i.e. right after punctuation, line break, or
-    document start). This is a poor man's tokenizer — Chinese names sit at
-    clause boundaries far more often than verb/object words do.
+    Strategy: candidates are 3+ char hanzi tokens at the *start* of a hanzi
+    run (right after punctuation, line break, or document start). This is a
+    poor man's tokenizer — Chinese names sit at clause boundaries far more
+    often than verb/object words do.
+
+    v0.2.1 — playtest-driven strictness bump:
+      • min length raised 2 → 3 chars (kills 里面/写着/塞巴/了你 etc.)
+      • PC name substrings always rejected (塞巴/奥斯特 from PC 塞巴斯蒂安·冯·
+        奥斯特 must not become independent NPCs)
+      • first-char threshold: 了/的/着/我/她/他/一/this/that/有/被/把/给/为/之/
+        从 require >= 4 chars
+      • _NER_STOPWORDS expanded with 70+ playtest-observed junk fragments
 
     Two signals (any one passes):
-      A) frequency >= 3 across run-start positions (v0.1.9: was >= 2 before;
-         bumped to cut down on real-play false positives like 修道院/大门/然后)
+      A) frequency >= 3 across run-start positions (v0.1.9 threshold)
       B) follows a context cue (那女子, 听到, 走来, …) OR is the speaker
          right before a Chinese quote 「
 
-    All candidates are filtered through _NER_STOPWORDS.
+    All candidates pass through _NER_STOPWORDS, _passes_first_char_threshold,
+    and the PC-substring filter.
     """
     if not text:
         return set()
 
-    # Pass 1: count run-start 2-char and 3-char tokens. We do NOT use 4-char
-    # tokens because Chinese names are overwhelmingly 2-3 characters; allowing
-    # 4 picks up too many false positives like "小菱颤抖" being read as a name.
-    freq2: dict[str, int] = {}
+    def _accept(tok: str) -> bool:
+        """Combined post-extraction filter."""
+        if not tok or len(tok) < 3:
+            return False
+        if tok in _NER_STOPWORDS:
+            return False
+        if tok in pc_substrings:
+            return False
+        if not _passes_first_char_threshold(tok):
+            return False
+        return True
+
+    # Pass 1: count run-start 3-char and 4-char tokens. v0.2.1 dropped 2-char
+    # entirely — too noisy in real play. 4-char captures slightly longer names
+    # (赵铁柱兄 etc) but more importantly lets the first-char-threshold rule
+    # accept a "了..."/"她..." 4-char run where the first char belongs to the
+    # name (rare but real, e.g. 「了空大师」).
     freq3: dict[str, int] = {}
+    freq4: dict[str, int] = {}
     for m in _HANZI_RUN_RE.finditer(text):
         run = m.group(0)
-        if len(run) >= 2:
-            tok = run[:2]
-            if tok not in _NER_STOPWORDS:
-                freq2[tok] = freq2.get(tok, 0) + 1
         if len(run) >= 3:
             tok = run[:3]
             if tok not in _NER_STOPWORDS:
                 freq3[tok] = freq3.get(tok, 0) + 1
+        if len(run) >= 4:
+            tok = run[:4]
+            if tok not in _NER_STOPWORDS:
+                freq4[tok] = freq4.get(tok, 0) + 1
 
     candidates: set[str] = set()
 
-    # Signal A: run-start frequency >= 3 (v0.1.9 strictness bump). Prefer the
-    # 3-char prefix when both the 2-char and 3-char show up at the same count,
-    # i.e. they always co-occur — meaning the 3rd char is part of the name.
-    # Verb-led 2-grams (started by 然/后/起/离/进/出/走/来/去/上/下/看/听/想/说/是/不/etc)
-    # require the 3-char extension; bare 2-char verb-leds are dropped.
-    for tok2, c2 in freq2.items():
-        if c2 < 3:
+    # Signal A: run-start frequency >= 3. Prefer the 4-char prefix when both
+    # the 3-char and 4-char show up at the same count (they always co-occur
+    # → the 4th char is part of the name).
+    for tok3, c3 in freq3.items():
+        if c3 < 3:
             continue
-        # Look for a 3-char extension that occurs as often.
+        # Look for a 4-char extension that occurs as often.
         ext = None
-        for tok3, c3 in freq3.items():
-            if tok3.startswith(tok2) and c3 == c2:
-                ext = tok3
+        for tok4, c4 in freq4.items():
+            if tok4.startswith(tok3) and c4 == c3:
+                ext = tok4
                 break
-        if tok2[0] in _NER_VERBAL_HEAD_CHARS and ext is None:
-            # Verb-led 2-char with no equally-frequent 3-char extension —
+        if tok3[0] in _NER_VERBAL_HEAD_CHARS and ext is None:
+            # Verb-led 3-char with no equally-frequent 4-char extension —
             # almost certainly a verbal phrase, not a name. Drop.
             continue
-        candidates.add(ext or tok2)
+        candidate = ext or tok3
+        if _accept(candidate):
+            candidates.add(candidate)
 
-    # Signal B: follows a context cue. Take the next 2 hanzi (a 3-char name
-    # gets picked up by the frequency signal once it appears more than once).
-    # We don't try 3-char here because name + adjacent verb char is a common
-    # false-positive ("小菱沉" from "...小菱沉默了").
+    # Signal B: follows a context cue. Take the next 3 hanzi (v0.2.1 raised
+    # 2 → 3 to match the new minimum). 4-char names get picked up by the
+    # frequency signal when they appear more than once.
     for cue in _NER_CONTEXT_CUES:
         idx = 0
         while True:
             i = text.find(cue, idx)
             if i < 0:
                 break
-            tail = text[i + len(cue) : i + len(cue) + 2]
-            m = re.match(r"[一-龥]{2}", tail)
+            tail = text[i + len(cue) : i + len(cue) + 3]
+            m = re.match(r"[一-龥]{3}", tail)
             if m:
                 tok = m.group(0)
                 # v0.1.9: skip verb-led tokens via context cue too; they're
                 # almost always "看见/听见/走来 + verb" pattern.
                 if (
-                    tok not in _NER_STOPWORDS
-                    and tok[0] not in _NER_VERBAL_HEAD_CHARS
+                    tok[0] not in _NER_VERBAL_HEAD_CHARS
+                    and _accept(tok)
                 ):
                     candidates.add(tok)
             idx = i + len(cue)
 
     # Speaker pattern: <name>「...」 — the chars right before 「 are likely a
-    # speaker. Look back 2 hanzi only (frequency signal handles 3-char names).
+    # speaker. v0.2.1: look back 3 hanzi (was 2; now matches the 3-char min).
     for i, ch in enumerate(text):
         if ch != "「":
             continue
         end = i
-        start = max(0, i - 2)
+        start = max(0, i - 3)
         snippet = text[start:end]
-        m = re.search(r"[一-龥]{2}$", snippet)
+        m = re.search(r"[一-龥]{3}$", snippet)
         if m:
             tok = m.group(0)
             if (
-                tok not in _NER_STOPWORDS
-                and tok[0] not in _NER_VERBAL_HEAD_CHARS
+                tok[0] not in _NER_VERBAL_HEAD_CHARS
+                and _accept(tok)
             ):
                 candidates.add(tok)
 
@@ -443,10 +558,21 @@ async def _register_npc_ner_fallback(
     current_turn: int,
     narrative_text: str,
     explicit_names: set[str],
+    *,
+    character_name: str = "",
 ) -> None:
     """Register stub NPCs for names mentioned in narrative but not declared
-    via <npc_update>. Conservative — see module-level comment."""
-    candidates = _ner_extract_candidate_names(narrative_text)
+    via <npc_update>. Conservative — see module-level comment.
+
+    `character_name` is the PC's name; any candidate that is a substring of
+    the PC name (e.g. "塞巴" / "奥斯特" when PC is "塞巴斯蒂安·冯·奥斯特") is
+    dropped to avoid creating ghost NPCs that share fragments of the player's
+    own name.
+    """
+    pc_subs = _pc_name_substrings(character_name) if character_name else frozenset()
+    candidates = _ner_extract_candidate_names(
+        narrative_text, pc_substrings=pc_subs
+    )
     if not candidates:
         return
 

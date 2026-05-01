@@ -657,10 +657,11 @@ async def test_hidden_event_dedup_same_subject_and_kind(session_with_state):
 async def test_npc_ner_fallback_creates_stub(session_with_state):
     """Narrative text mentioning a name without <npc_update> creates a stub NPC."""
     s, sid = session_with_state
-    # v0.1.9: 小菱 must appear ≥ 3x to satisfy the bumped freq threshold.
+    # v0.2.1: NER min length is now 3 chars; use a 3-char name (林婉儿) so the
+    # heuristic can pick it up. 林婉儿 must appear ≥ 3x to satisfy freq.
     narrative = (
-        "小菱颤抖着说话。她抬头时，小菱的眼角还挂着泪。"
-        "片刻后，小菱深吸一口气。"
+        "林婉儿颤抖着说话。她抬头时，林婉儿的眼角还挂着泪。"
+        "片刻后，林婉儿深吸一口气。"
     )
     await apply_tags(
         s, sid, current_turn=1, tags=[], narrative_text=narrative
@@ -668,7 +669,7 @@ async def test_npc_ner_fallback_creates_stub(session_with_state):
     await s.commit()
 
     npcs = (await s.execute(
-        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+        select(NPC).where(NPC.session_id == sid, NPC.name == "林婉儿")
     )).scalars().all()
     assert len(npcs) == 1
     assert npcs[0].description == "（GM 未补全）"
@@ -680,7 +681,7 @@ async def test_npc_ner_skips_existing(session_with_state):
     s, sid = session_with_state
     s.add(NPC(
         session_id=sid,
-        name="小菱",
+        name="林婉儿",
         description="原本就登记好的",
         favor=2,
         state="平静",
@@ -688,9 +689,10 @@ async def test_npc_ner_skips_existing(session_with_state):
     ))
     await s.commit()
 
+    # v0.2.1: 3-char name (林婉儿) needed since NER min length is now 3.
     narrative = (
-        "小菱颤抖着说话。小菱低声重复了一遍。"
-        "片刻后，小菱抬头望向月光。"
+        "林婉儿颤抖着说话。林婉儿低声重复了一遍。"
+        "片刻后，林婉儿抬头望向月光。"
     )
     await apply_tags(
         s, sid, current_turn=5, tags=[], narrative_text=narrative
@@ -698,7 +700,7 @@ async def test_npc_ner_skips_existing(session_with_state):
     await s.commit()
 
     npcs = (await s.execute(
-        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+        select(NPC).where(NPC.session_id == sid, NPC.name == "林婉儿")
     )).scalars().all()
     # Still exactly one row — original kept.
     assert len(npcs) == 1
@@ -710,11 +712,12 @@ async def test_npc_ner_skips_when_explicit_npc_update(session_with_state):
     s, sid = session_with_state
     npc_tag = TagComplete(
         name="npc_update",
-        content='{"name":"小菱","description":"少女剑客","state":"警觉"}',
+        content='{"name":"林婉儿","description":"少女剑客","state":"警觉"}',
     )
+    # v0.2.1: 3-char name (林婉儿) — 2-char no longer registers via NER.
     narrative = (
-        "小菱颤抖着说话。小菱握紧了剑柄。"
-        "随即，小菱深吸一口气。"
+        "林婉儿颤抖着说话。林婉儿握紧了剑柄。"
+        "随即，林婉儿深吸一口气。"
     )
     await apply_tags(
         s, sid, current_turn=1, tags=[npc_tag], narrative_text=narrative
@@ -722,7 +725,7 @@ async def test_npc_ner_skips_when_explicit_npc_update(session_with_state):
     await s.commit()
 
     npcs = (await s.execute(
-        select(NPC).where(NPC.session_id == sid, NPC.name == "小菱")
+        select(NPC).where(NPC.session_id == sid, NPC.name == "林婉儿")
     )).scalars().all()
     assert len(npcs) == 1
     # The explicit npc_update wins — description is the GM-supplied one,
@@ -768,32 +771,131 @@ async def test_npc_ner_rejects_known_stopwords_v019(session_with_state):
 
 
 async def test_npc_ner_requires_min_freq_three(session_with_state):
-    """v0.1.9: a 2-char hanzi token must appear ≥ 3× to be registered.
-    Two appearances no longer suffice (was the previous threshold)."""
+    """v0.1.9: a hanzi token must appear ≥ 3× to be registered.
+    Two appearances no longer suffice (was the previous threshold).
+
+    v0.2.1: min length raised 2 → 3 chars; using 张三丰 (3 chars) here so the
+    test exercises freq alone, not the length rule."""
     s, sid = session_with_state
-    # 李华 appears exactly 2× — below new threshold of 3.
-    narrative = "李华看见远处。后来李华离开了。"
+    # 张三丰 appears exactly 2× — below threshold of 3.
+    narrative = "张三丰看见远处。后来张三丰离开了。"
     await apply_tags(
         s, sid, current_turn=1, tags=[], narrative_text=narrative
     )
     await s.commit()
 
     npcs2 = (
-        await s.execute(select(NPC).where(NPC.session_id == sid, NPC.name == "李华"))
+        await s.execute(select(NPC).where(NPC.session_id == sid, NPC.name == "张三丰"))
     ).scalars().all()
     assert npcs2 == [], "freq=2 must NOT register"
 
     # Now 3× — should register.
-    narrative3 = "李华看见远处。李华低声开口。李华缓缓离开。"
+    narrative3 = "张三丰看见远处。张三丰低声开口。张三丰缓缓离开。"
     await apply_tags(
         s, sid, current_turn=2, tags=[], narrative_text=narrative3
     )
     await s.commit()
 
     npcs3 = (
-        await s.execute(select(NPC).where(NPC.session_id == sid, NPC.name == "李华"))
+        await s.execute(select(NPC).where(NPC.session_id == sid, NPC.name == "张三丰"))
     ).scalars().all()
     assert len(npcs3) == 1, "freq=3 must register"
+
+
+async def test_ner_rejects_all_v0_2_1_garbage_names(session_with_state):
+    """v0.2.1 P0.1: real-play 72 turns produced 24 NPCs; 20 were NER junk.
+    Each garbage name appears 5× in narrative — well above the freq=3 floor —
+    yet none of them must end up in the NPC table after our 4 strictness
+    measures (min 3 chars / PC substring / extended stopwords / first-char
+    threshold)."""
+    s, sid = session_with_state
+    # Subset of the 20 garbage names that are 2-char or 3-char fragments.
+    # 2-char ones (里面/写着/了你/我从/...) are killed by the min-length rule.
+    # 3-char ones (any in this list) are killed by the stopword / first-char
+    # threshold rules.
+    garbage = [
+        "里面", "写着", "印着", "面对", "标签",
+        "了你", "我从", "她轻", "个叫", "远叫",
+        "的一", "的那", "的黑", "一丝",
+    ]
+    # Each garbage word repeats 5 times — guaranteed past freq=3 floor.
+    narrative = "。".join(g * 5 for g in garbage)
+    await apply_tags(
+        s, sid, current_turn=1, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    rows = (
+        await s.execute(select(NPC).where(NPC.session_id == sid))
+    ).scalars().all()
+    names = {n.name for n in rows}
+    for junk in garbage:
+        assert junk not in names, (
+            f"v0.2.1: NER must reject playtest junk '{junk}', got NPC table {names}"
+        )
+
+
+async def test_ner_rejects_pc_name_substrings(session_with_state):
+    """v0.2.1 P0.1 (2): substrings of the PC name must never be created as
+    independent NPC stubs. PC '塞巴斯蒂安·冯·奥斯特' must not produce stubs for
+    '塞巴' / '塞巴斯' / '奥斯特' / '巴斯蒂' even at high frequency."""
+    s, sid = session_with_state
+    pc_name = "塞巴斯蒂安·冯·奥斯特"
+    # All four substrings appear 4-5 times each — past freq=3 — and have
+    # no verb-led head char, so the only thing that should reject them is
+    # the PC-substring filter.
+    narrative = (
+        "塞巴来到广场。塞巴看见月光。塞巴沉默了。塞巴又一次看到。"
+        "塞巴斯走过长廊。塞巴斯抬起头。塞巴斯听见钟声。"
+        "奥斯特的影子拉长。奥斯特低语。奥斯特沉吟。奥斯特走开。"
+        "巴斯蒂转身。巴斯蒂低头。巴斯蒂沉默。巴斯蒂离开。"
+    )
+    await apply_tags(
+        s,
+        sid,
+        current_turn=1,
+        tags=[],
+        narrative_text=narrative,
+        character_name=pc_name,
+    )
+    await s.commit()
+
+    rows = (
+        await s.execute(select(NPC).where(NPC.session_id == sid))
+    ).scalars().all()
+    names = {n.name for n in rows}
+    for sub in ("塞巴", "塞巴斯", "奥斯特", "巴斯蒂"):
+        assert sub not in names, (
+            f"v0.2.1: PC-name substring '{sub}' must not become an NPC; "
+            f"got {names}"
+        )
+
+
+async def test_ner_first_char_threshold(session_with_state):
+    """v0.2.1 P0.1 (4): candidates whose first char is one of
+    了/的/着/我/她/他/一/这/那/有/被/把/给/为/之/从 require length >= 4. A 3-char
+    hit like '了一段' must be rejected; a 4-char hit like '了空大师' is fine."""
+    s, sid = session_with_state
+    # '了一段' starts with '了' — must NOT register at len=3 even at freq=5.
+    # Add an unrelated 4-char name that does NOT start with a threshold char
+    # so the same run also produces a positive control. We use 赵铁柱叔 (4
+    # chars, starts with 赵 which is not in _FIRST_CHAR_NEEDS_LONGER).
+    narrative = (
+        "了一段。了一段。了一段。了一段。了一段。"
+        "赵铁柱叔走来。赵铁柱叔点头。赵铁柱叔离去。"
+    )
+    await apply_tags(
+        s, sid, current_turn=1, tags=[], narrative_text=narrative
+    )
+    await s.commit()
+
+    rows = (
+        await s.execute(select(NPC).where(NPC.session_id == sid))
+    ).scalars().all()
+    names = {n.name for n in rows}
+    assert "了一段" not in names, (
+        f"3-char candidate starting with '了' must be rejected, got {names}"
+    )
 
 
 async def test_npc_create_auto_reveals_provided_fields(session_with_state):
