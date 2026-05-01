@@ -33,6 +33,25 @@ const modelsStore = useModelConfigsStore()
 const audio = useAudio()
 const version = __APP_VERSION__
 
+const FONT_SIZE_KEY = 'dzmm_game_font_size'
+const FONT_FAMILY_KEY = 'dzmm_game_font_family'
+const FONT_FAMILIES = [
+  { label: '默认', value: 'system-ui, sans-serif' },
+  { label: '衬线', value: 'Georgia, serif' },
+  { label: '等宽', value: "'Courier New', monospace" },
+]
+const fontSize = ref(parseInt(localStorage.getItem(FONT_SIZE_KEY) ?? '15'))
+const fontFamilyIdx = ref(parseInt(localStorage.getItem(FONT_FAMILY_KEY) ?? '0'))
+const fontFamily = computed(() => FONT_FAMILIES[fontFamilyIdx.value]?.value ?? FONT_FAMILIES[0].value)
+function changeFontSize(delta: number) {
+  fontSize.value = Math.min(24, Math.max(12, fontSize.value + delta))
+  localStorage.setItem(FONT_SIZE_KEY, String(fontSize.value))
+}
+function cycleFontFamily() {
+  fontFamilyIdx.value = (fontFamilyIdx.value + 1) % FONT_FAMILIES.length
+  localStorage.setItem(FONT_FAMILY_KEY, String(fontFamilyIdx.value))
+}
+
 const action = ref('')
 const composing = ref(false)
 const eventsDialogOpen = ref(false)
@@ -525,6 +544,18 @@ onUnmounted(() => audio.stopBgm())
             @click="modelSwitchOpen = true"
             title="切换 GM 模型"
           >⚙️ 模型</button>
+          <span class="flex items-center gap-0.5">
+            <button type="button"
+              class="text-xs w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded"
+              title="缩小字号" @click="changeFontSize(-1)">A-</button>
+            <span class="text-xs text-slate-400 w-6 text-center select-none">{{ fontSize }}</span>
+            <button type="button"
+              class="text-xs w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded"
+              title="放大字号" @click="changeFontSize(1)">A+</button>
+            <button type="button"
+              class="text-xs px-1.5 h-5 flex items-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded ml-0.5"
+              title="切换字体" @click="cycleFontFamily()">{{ FONT_FAMILIES[fontFamilyIdx].label }}</button>
+          </span>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
           </router-link>
@@ -549,6 +580,7 @@ onUnmounted(() => audio.stopBgm())
       <MessageList
         :turns="turns"
         :character-name="character?.name"
+        :style="{ fontSize: fontSize + 'px', fontFamily }"
         @choose="(c: string) => sendActionDirect(c)"
         @open-events="(t: Turn) => openEvents(t)"
       />
