@@ -60,6 +60,8 @@ export interface Npc {
   // Optional for backwards-compat: if missing (legacy backend / mock), the
   // UI treats every field as revealed.
   revealed?: Record<string, boolean>
+  // v0.2.6: which location the NPC is currently in (null = unknown / not set)
+  current_location?: string | null
 }
 
 export interface RelationItem {
@@ -211,4 +213,6 @@ export interface LocationItem {
   first_visited_turn: number
   last_visited_turn: number
   is_current: boolean
+  // v0.2.6: items present in this location
+  items: { name: string; description: string }[]
 }
