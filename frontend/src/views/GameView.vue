@@ -543,7 +543,10 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(() => audio.stopBgm())
+onUnmounted(() => {
+  audio.stopBgm()
+  if (initiativeTimer) clearTimeout(initiativeTimer)
+})
 </script>
 
 <template>
