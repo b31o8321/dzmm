@@ -723,3 +723,16 @@ def test_few_shot_demonstrates_ordering():
     sys_text = _build_default_sys()
     # Demonstration 3 from gm_few_shot — story-timeline ordering example
     assert "信息顺序" in sys_text or "示范3" in sys_text or "故事时间线" in sys_text
+
+
+def test_iron_law_16_requires_sensory_detail():
+    from dzmm.prompts.gm_template import _SYSTEM_TEMPLATE
+    assert "感官细节" in _SYSTEM_TEMPLATE
+    assert "对白" in _SYSTEM_TEMPLATE
+
+
+def test_few_shot_has_location_example():
+    from dzmm.prompts.gm_few_shot import FEW_SHOT_EXAMPLE
+    assert "location_enter" in FEW_SHOT_EXAMPLE
+    assert "location_item" in FEW_SHOT_EXAMPLE
+    assert 'location=""' in FEW_SHOT_EXAMPLE
