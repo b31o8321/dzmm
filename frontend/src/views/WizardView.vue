@@ -328,6 +328,10 @@ const npcEditDialog = reactive<{ open: boolean; idx: number; draft: WizardNPC }>
   },
 )
 
+const npcHintDialog = ref(false)
+const npcHint = ref('')
+const npcGenerating = ref(false)
+
 function openNpcEdit(i: number) {
   const n = state.npcs[i]
   if (!n) return
@@ -351,6 +355,50 @@ function togglePinNpc(name: string) {
 
 function isPinned(name: string): boolean {
   return state.pinned_npc_names.includes(name)
+}
+
+function deleteNpc(idx: number) {
+  const name = state.npcs[idx]?.name
+  state.npcs.splice(idx, 1)
+  if (name) {
+    const i = state.pinned_npc_names.indexOf(name)
+    if (i >= 0) state.pinned_npc_names.splice(i, 1)
+  }
+  saveDraft()
+}
+
+function addBlankNpc() {
+  state.npcs.push({ name: '', role: '', description: '', motivation: '' })
+  openNpcEdit(state.npcs.length - 1)
+}
+
+async function aiGenerateSingleNpc() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  npcGenerating.value = true
+  try {
+    const r = await wizardApi.generateSingleNpc({
+      model_config_id: mid,
+      world_md: state.world_md,
+      character_md: state.character_md,
+      hint: npcHint.value,
+    })
+    const npc: WizardNPC = {
+      name: r.name,
+      description: r.description,
+      role: r.archetype || '',
+      motivation: r.purpose || '',
+    }
+    state.npcs.push(npc)
+    state.pinned_npc_names.push(npc.name)
+    npcHintDialog.value = false
+    npcHint.value = ''
+    saveDraft()
+  } catch (e: any) {
+    ElMessage.error(e?.message ?? '生成失败')
+  } finally {
+    npcGenerating.value = false
+  }
 }
 
 // ---- step 5: screenplay ----
@@ -802,13 +850,31 @@ onBeforeUnmount(() => {
                 <div class="text-xs text-slate-500">动机：{{ npc.motivation }}</div>
               </div>
               <el-button size="small" @click="openNpcEdit(i)">✏️</el-button>
+              <el-button size="small" type="danger" @click="deleteNpc(i)">🗑️</el-button>
             </div>
           </el-card>
           <div v-if="state.npcs.length === 0" class="text-sm text-slate-500">
             （还没生成 NPC）
           </div>
+          <!-- Add NPC actions -->
+          <div class="flex gap-2 mt-3">
+            <el-button size="small" @click="npcHintDialog = true" :loading="npcGenerating">✨ AI 生成一个</el-button>
+            <el-button size="small" @click="addBlankNpc">📝 手动添加</el-button>
+          </div>
         </div>
       </WizardStep>
+
+      <!-- AI generate single NPC dialog -->
+      <el-dialog v-model="npcHintDialog" title="AI 生成 NPC" width="400px">
+        <el-input
+          v-model="npcHint"
+          placeholder="描述这个 NPC（如：一个神秘的黑市商人）"
+        />
+        <template #footer>
+          <el-button @click="npcHintDialog = false">取消</el-button>
+          <el-button type="primary" :loading="npcGenerating" @click="aiGenerateSingleNpc">生成</el-button>
+        </template>
+      </el-dialog>
 
       <!-- NPC edit dialog -->
       <el-dialog v-model="npcEditDialog.open" title="编辑 NPC" width="500px">
