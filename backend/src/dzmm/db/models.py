@@ -107,6 +107,7 @@ class NPC(Base):
     emotion_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
     revealed_json: Mapped[str] = mapped_column(Text, default='{"name": true}')  # v0.11 progressive reveal: field→bool
     current_location: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)  # v0.2.6 scene binding
+    last_initiative_turn: Mapped[int] = mapped_column(default=0)  # v0.2.7 NPC initiative: last turn this NPC self-initiated contact
 
 
 class PlotThread(Base):

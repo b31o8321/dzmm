@@ -184,6 +184,41 @@ export const sessionsApi = {
       return []
     }
   },
+
+  async npcTick(
+    sessionId: number,
+    npcName: string,
+    handlers: {
+      onNarrative?: (text: string) => void
+      onTag?: (name: string, attrs: Record<string, string>, content: string) => void
+      onDone?: () => void
+    },
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { backendOrigin } = await import('@/api/client')
+    const resp = await fetch(`${backendOrigin}/sessions/${sessionId}/npc_tick`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({ npc_name: npcName }),
+      signal,
+    })
+    if (!resp.ok || !resp.body) return
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buf = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+      let nl: number
+      while ((nl = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, nl)
+        buf = buf.slice(nl + 2)
+        _dispatchBlock(block, handlers)
+      }
+    }
+    if (buf.trim()) _dispatchBlock(buf, handlers)
+  },
 }
 
 export interface FeedbackItem {
@@ -215,4 +250,22 @@ export interface LocationItem {
   is_current: boolean
   // v0.2.6: items present in this location
   items: { name: string; description: string }[]
+}
+
+function _dispatchBlock(
+  block: string,
+  h: { onNarrative?: (t: string) => void; onTag?: (n: string, a: Record<string, string>, c: string) => void; onDone?: () => void },
+) {
+  let event = 'message'
+  let data = ''
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event: ')) event = line.slice(7).trim()
+    else if (line.startsWith('data: ')) data += line.slice(6)
+  }
+  if (!data) return
+  let parsed: any
+  try { parsed = JSON.parse(data) } catch { return }
+  if (event === 'narrative') h.onNarrative?.(parsed.text ?? '')
+  else if (event === 'tag') h.onTag?.(parsed.name, parsed.attrs ?? {}, parsed.content ?? '')
+  else if (event === 'done') h.onDone?.()
 }

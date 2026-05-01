@@ -1146,3 +1146,55 @@ async def test_key_facts_includes_current_location(seeded):
     assert "书房" in result
     assert "镜中人" in result
     assert "戒指" in result
+
+
+# ============================================================================
+# v0.2.7 T6 — auto-generate screenplay on first turn
+# ============================================================================
+
+
+async def test_auto_generates_screenplay_on_first_turn(seeded):
+    """First turn (turn_count=0) with no screenplay → Screenplay row created."""
+    engine, SessionMaker, sid = seeded
+    from dzmm.db.models import Screenplay
+    from sqlalchemy import select as sql_select
+
+    outline_json = json.dumps({
+        "chapters": [{"title": "第一章", "summary": "开始", "main_events": ["事件A"],
+                      "optional_events": [], "main_npcs": ["小菱"]}],
+        "main_characters": [{"name": "小菱", "role": "盟友", "description": "神秘少女",
+                              "intro_chapter": 1}],
+        "ending": "找到真相",
+        "opening_hook": "Riku 发现了一封信",
+    })
+
+    call_count = 0
+
+    class TwoPhaseClient(FakeClient):
+        async def stream(self, messages, params):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # Outliner call — returns JSON
+                for ch in outline_json:
+                    yield StreamChunk(delta=ch)
+                yield StreamChunk(delta="", finish_reason="stop", usage=self.usage)
+            else:
+                # GM call — normal fake
+                async for chunk in super().stream(messages, params):
+                    yield chunk
+
+    client = TwoPhaseClient("<narrative>开始了。</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "开始", client):
+            pass
+        await s.commit()
+
+    async with SessionMaker() as s:
+        sp = (await s.execute(
+            sql_select(Screenplay).where(Screenplay.session_id == sid)
+        )).scalar_one_or_none()
+    assert sp is not None
+    assert "第一章" in sp.chapters_json
+    assert sp.status == "active"
+    assert call_count == 2  # outliner + gm
