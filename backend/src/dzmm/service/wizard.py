@@ -135,6 +135,40 @@ async def generate_npcs(
     return await _with_retry(_attempt)
 
 
+async def generate_single_npc(
+    world_md: str,
+    character_md: str,
+    hint: str,
+    client: ModelClient,
+) -> dict:
+    """Generate one NPC based on a player-provided hint (archetype / role / name)."""
+    hint_text = hint.strip() or "（根据世界观自由发挥）"
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"世界观：\n{world_md}\n\n主角：\n{character_md}\n\n"
+                "你是世界观设计师。根据以下提示，生成**1个**主要 NPC，输出纯 JSON（无 markdown fence）。\n"
+                "格式：{\"name\":\"...\",\"description\":\"...\",\"archetype\":\"...\",\"purpose\":\"...\"}"
+            ),
+        },
+        {"role": "user", "content": f"NPC 提示：{hint_text}"},
+    ]
+
+    async def _attempt():
+        raw = await _stream_text(client, messages, max_tokens=400)
+        cleaned = _strip_fence(raw)
+        try:
+            npc = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"single NPC JSON error: {e}; raw={raw[:200]!r}") from e
+        if not isinstance(npc, dict) or not npc.get("name"):
+            raise ValueError(f"invalid NPC shape: {npc!r}")
+        return npc
+
+    return await _with_retry(_attempt)
+
+
 async def generate_screenplay_from_wizard(
     world_md: str,
     character_md: str,

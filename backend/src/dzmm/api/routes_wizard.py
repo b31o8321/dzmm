@@ -19,6 +19,7 @@ from dzmm.service.wizard import (
     generate_character,
     generate_npcs,
     generate_screenplay_from_wizard,
+    generate_single_npc,
     generate_world_brief,
     generate_world_details,
 )
@@ -123,6 +124,23 @@ async def screenplay(
         )
     except ValueError as e:
         raise HTTPException(502, f"screenplay generation parse failed: {e}") from e
+
+
+@router.post("/npc/single")
+async def npc_single(
+    payload: dict,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    try:
+        return await generate_single_npc(
+            world_md=str(payload.get("world_md") or ""),
+            character_md=str(payload.get("character_md") or ""),
+            hint=str(payload.get("hint") or ""),
+            client=client,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e))
 
 
 @router.post("/finalize")
