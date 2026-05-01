@@ -301,27 +301,31 @@ async function triggerInitiative() {
   turns.value.push(newTurn)
   sending.value = true
 
-  await sessionsApi.npcTick(
-    sessionId,
-    npcName,
-    {
-      onNarrative: (text) => { newTurn.narrative += text },
-      onTag: (name, attrs, content) => {
-        if (name === 'choices') {
-          newTurn.choices = content.split('\n').map((s: string) => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
-        }
-        newTurn.events = [...(newTurn.events ?? []), { type: name, payload: attrs, content }]
+  try {
+    await sessionsApi.npcTick(
+      sessionId,
+      npcName,
+      {
+        onNarrative: (text) => { newTurn.narrative += text },
+        onTag: (name, attrs, content) => {
+          if (name === 'choices') {
+            newTurn.choices = content.split('\n').map((s: string) => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+          }
+          newTurn.events = [...(newTurn.events ?? []), { type: name, payload: attrs, content }]
+        },
+        onDone: () => {
+          sending.value = false
+          refreshCharacter()
+          refreshGoals()
+          refreshLocations()
+          refreshNpcLocations()
+          refreshSuggestions()
+        },
       },
-      onDone: () => {
-        sending.value = false
-        refreshCharacter()
-        refreshGoals()
-        refreshLocations()
-        refreshNpcLocations()
-        refreshSuggestions()
-      },
-    },
-  )
+    )
+  } finally {
+    sending.value = false
+  }
 }
 
 function dismissInitiative() {

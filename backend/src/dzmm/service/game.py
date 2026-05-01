@@ -28,7 +28,7 @@ from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.gm_template import build_gm_messages
 from dzmm.prompts.outliner_template import build_outliner_messages
 from dzmm.service.activity_log import log_event
-from dzmm.service.npc_initiative import find_initiative_npc, _COOLDOWN_TURNS
+from dzmm.service.npc_initiative import find_initiative_npc
 from dzmm.service.state_apply import apply_tags
 from dzmm.service.state_apply.dice_monitor import (
     build_stuck_warning,
