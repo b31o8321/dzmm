@@ -11,6 +11,34 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.5] - 2026-05-01
+
+**新增：启动日志面板**
+
+为了诊断「正在启动后端」卡死的情况，给每个启动阶段都加了日志查看入口。
+
+### 前端
+- `BootGate.vue` 各启动阶段（choose_mode / backend / ollama_starting / ollama_missing）加「📋 启动日志」按钮
+- 弹 dialog 显示 timestamped 日志条目，颜色区分（红=错误/stderr、黄=警告、绿=stdout、灰=system）
+- 「📋 复制全部」按钮把日志复制到剪贴板，方便贴给开发者
+- 前端记录：BootGate 挂载、模式选择、start_backend 调用、/health ping 进度、/system/status 查询、Ollama 启动 / 轮询、错误等
+
+### Tauri 后端
+- `lib.rs` `spawn_backend` 改 `Stdio::piped()`（之前是 `null`，stdout/stderr 被吞掉）
+- 起两个 thread 用 BufReader 逐行读 stdout / stderr
+- 用 `tauri::Emitter::emit` 发 `backend-log` 事件给 webview，含 stream / line / 时间戳
+- 前端 `@tauri-apps/api/event` 监听 `backend-log` 事件 push 到日志数组
+
+### 用户能看到什么
+- Tauri spawn backend 时打印 `spawned: <path>`
+- 后端 PyInstaller 启动错误（找不到 DLL / 端口被占等）会作为 stderr 行出现
+- 后端 uvicorn / FastAPI 的启动日志（init_db、seed_data 等）作为 stdout 出现
+- 前端 ping /health 失败次数、超时时长
+
+启动卡死时，点开日志直接看 backend 在哪一步死了或为什么 spawn 失败。
+
+---
+
 ## [v0.1.4] - 2026-05-01
 
 **新增：LM Studio 本地模型支持**

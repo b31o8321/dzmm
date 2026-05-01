@@ -1,11 +1,58 @@
+use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::thread;
 
-use tauri::Manager;
+use serde::Serialize;
+use tauri::{Emitter, Manager};
 
 #[derive(Default)]
 struct BackendState {
     child: Mutex<Option<Child>>,
+}
+
+#[derive(Serialize, Clone)]
+struct BackendLogEntry {
+    stream: String,  // "stdout" | "stderr" | "system"
+    line: String,
+    ts_ms: u64,
+}
+
+fn now_ms() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn pump<R: std::io::Read + Send + 'static>(
+    app: tauri::AppHandle,
+    reader: R,
+    stream: &'static str,
+) {
+    thread::spawn(move || {
+        let buf = BufReader::new(reader);
+        for line in buf.lines() {
+            match line {
+                Ok(line) => {
+                    let _ = app.emit("backend-log", BackendLogEntry {
+                        stream: stream.into(),
+                        line,
+                        ts_ms: now_ms(),
+                    });
+                }
+                Err(e) => {
+                    let _ = app.emit("backend-log", BackendLogEntry {
+                        stream: "system".into(),
+                        line: format!("[{} read error] {}", stream, e),
+                        ts_ms: now_ms(),
+                    });
+                    break;
+                }
+            }
+        }
+    });
 }
 
 fn spawn_backend(
@@ -47,9 +94,24 @@ fn spawn_backend(
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
 
-    cmd.stdout(Stdio::null()).stderr(Stdio::null()).stdin(Stdio::null());
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
 
-    cmd.spawn().map_err(|e| format!("spawn failed: {}", e))
+    let mut child = cmd.spawn().map_err(|e| format!("spawn failed: {}", e))?;
+
+    let _ = app.emit("backend-log", BackendLogEntry {
+        stream: "system".into(),
+        line: format!("spawned: {}", exe.display()),
+        ts_ms: now_ms(),
+    });
+
+    if let Some(stdout) = child.stdout.take() {
+        pump(app.clone(), stdout, "stdout");
+    }
+    if let Some(stderr) = child.stderr.take() {
+        pump(app.clone(), stderr, "stderr");
+    }
+
+    Ok(child)
 }
 
 fn kill_existing(state: &tauri::State<'_, BackendState>) {
