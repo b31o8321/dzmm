@@ -66,6 +66,8 @@ interface State {
   pinned_npc_names: string[]
   // step 5
   screenplay: WizardScreenplay | null
+  // debug
+  raw_outputs: Record<string, string>
 }
 
 const state = reactive<State>({
@@ -84,10 +86,40 @@ const state = reactive<State>({
   npcs: [],
   pinned_npc_names: [],
   screenplay: null,
+  raw_outputs: {},
 })
 
 // 0..6 (7 stages: setup + 5 LLM-driven steps + review)
 const step = ref(0)
+
+const showRawKey = ref<string | null>(null)
+
+const DRAFT_KEY = 'dzmm_wizard_draft'
+
+function saveDraft() {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ step: step.value, state }))
+  } catch { /* ignore quota errors */ }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
+
+function loadDraft(): boolean {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return false
+    const { step: savedStep, state: savedState } = JSON.parse(raw)
+    Object.assign(state, savedState)
+    step.value = savedStep
+    return true
+  } catch {
+    clearDraft()
+    return false
+  }
+}
+
 const loading = ref(false)
 const errorMsg = ref('')
 
@@ -166,6 +198,7 @@ function setupValid(): boolean {
 async function generateBrief() {
   const mid = ensureWizardModel()
   if (!mid) return
+  state.world_brief = null
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -175,6 +208,8 @@ async function generateBrief() {
       genre: effectiveGenre.value,
       theme: state.theme.trim(),
     })
+    state.raw_outputs['world_brief'] = state.world_brief?.raw_md ?? ''
+    saveDraft()
     editing.brief = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -203,6 +238,7 @@ async function generateWorldDetails() {
     ElMessage.error('基础设定为空，无法扩展')
     return
   }
+  state.world_md = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -212,6 +248,8 @@ async function generateWorldDetails() {
       brief_md: state.world_brief.raw_md,
     })
     state.world_md = r.world_md
+    state.raw_outputs['world_details'] = r.world_md
+    saveDraft()
     editing.world = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -235,6 +273,8 @@ async function generateCharacter() {
     ElMessage.error('请输入角色原型')
     return
   }
+  state.character_md = ''
+  state.character_name = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -246,6 +286,8 @@ async function generateCharacter() {
     })
     state.character_name = r.name
     state.character_md = r.profile_md
+    state.raw_outputs['character'] = r.profile_md
+    saveDraft()
     editing.character = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -264,6 +306,8 @@ function handwriteCharacter() {
 async function generateNpcs() {
   const mid = ensureWizardModel()
   if (!mid) return
+  state.npcs = []
+  state.screenplay = null
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -275,6 +319,8 @@ async function generateNpcs() {
     })
     state.npcs = r.npcs
     state.pinned_npc_names = r.npcs.map((n) => n.name) // pin all by default
+    state.raw_outputs['npcs'] = JSON.stringify(r.npcs, null, 2)
+    saveDraft()
     editing.npcs = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -291,6 +337,10 @@ const npcEditDialog = reactive<{ open: boolean; idx: number; draft: WizardNPC }>
     draft: { name: '', role: '', description: '', motivation: '' },
   },
 )
+
+const npcHintDialog = ref(false)
+const npcHint = ref('')
+const npcGenerating = ref(false)
 
 function openNpcEdit(i: number) {
   const n = state.npcs[i]
@@ -317,11 +367,56 @@ function isPinned(name: string): boolean {
   return state.pinned_npc_names.includes(name)
 }
 
+function deleteNpc(idx: number) {
+  const name = state.npcs[idx]?.name
+  state.npcs.splice(idx, 1)
+  if (name) {
+    const i = state.pinned_npc_names.indexOf(name)
+    if (i >= 0) state.pinned_npc_names.splice(i, 1)
+  }
+  saveDraft()
+}
+
+function addBlankNpc() {
+  state.npcs.push({ name: '', role: '', description: '', motivation: '' })
+  openNpcEdit(state.npcs.length - 1)
+}
+
+async function aiGenerateSingleNpc() {
+  const mid = ensureWizardModel()
+  if (!mid) return
+  npcGenerating.value = true
+  try {
+    const r = await wizardApi.generateSingleNpc({
+      model_config_id: mid,
+      world_md: state.world_md,
+      character_md: state.character_md,
+      hint: npcHint.value,
+    })
+    const npc: WizardNPC = {
+      name: r.name,
+      description: r.description,
+      role: r.archetype || '',
+      motivation: r.purpose || '',
+    }
+    state.npcs.push(npc)
+    state.pinned_npc_names.push(npc.name)
+    npcHintDialog.value = false
+    npcHint.value = ''
+    saveDraft()
+  } catch (e: any) {
+    ElMessage.error(e?.message ?? '生成失败')
+  } finally {
+    npcGenerating.value = false
+  }
+}
+
 // ---- step 5: screenplay ----
 
 async function generateScreenplay() {
   const mid = ensureWizardModel()
   if (!mid) return
+  state.screenplay = null
   loading.value = true
   errorMsg.value = ''
   startTimer()
@@ -333,6 +428,8 @@ async function generateScreenplay() {
       npcs: state.npcs.filter((n) => isPinned(n.name)),
       genre: effectiveGenre.value,
     })
+    state.raw_outputs['screenplay'] = JSON.stringify(state.screenplay, null, 2)
+    saveDraft()
     editing.screenplay = false
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
@@ -395,6 +492,7 @@ async function doFinalize() {
       summarizer_model_config_id: state.summarizer_model_config_id!,
       genre: effectiveGenre.value,
     })
+    clearDraft()
     router.push(`/play/${r.session_id}`)
   } catch (e: any) {
     finalizeError.value = e?.message ?? String(e)
@@ -424,6 +522,7 @@ async function acceptBriefAndNext() {
     ElMessage.error('基础设定不能为空')
     return
   }
+  saveDraft()
   gotoStep(2)
   if (!state.world_md) await generateWorldDetails()
 }
@@ -433,6 +532,7 @@ async function acceptWorldAndNext() {
     ElMessage.error('世界观不能为空')
     return
   }
+  saveDraft()
   gotoStep(3)
 }
 
@@ -441,6 +541,7 @@ async function acceptCharacterAndNext() {
     ElMessage.error('角色卡不能为空')
     return
   }
+  saveDraft()
   gotoStep(4)
   if (state.npcs.length === 0) await generateNpcs()
 }
@@ -461,11 +562,15 @@ function acceptScreenplayAndNext() {
 // ---- mount ----
 
 onMounted(async () => {
+  const restored = loadDraft()
+  if (restored) {
+    ElMessage.info('已恢复上次未完成的向导草稿。如需重新开始请刷新页面。')
+  }
   if (modelsStore.items.length === 0) {
     await modelsStore.refresh()
   }
   // pre-fill defaults if available
-  if (modelsStore.items.length > 0) {
+  if (!restored && modelsStore.items.length > 0) {
     state.wizard_model_config_id = modelsStore.items[0].id
     state.gm_model_config_id = modelsStore.items[0].id
     state.summarizer_model_config_id = modelsStore.items[0].id
@@ -634,16 +739,22 @@ onBeforeUnmount(() => {
           </div>
           <div>
             <div class="text-xs text-slate-500">设定</div>
-            <div class="text-sm text-slate-700 whitespace-pre-line">
-              {{ state.world_brief.setting }}
-            </div>
+            <MarkdownView :source="state.world_brief.setting" />
           </div>
           <div>
             <div class="text-xs text-slate-500">核心冲突</div>
-            <div class="text-sm text-slate-700 whitespace-pre-line">
-              {{ state.world_brief.conflict }}
-            </div>
+            <MarkdownView :source="state.world_brief.conflict" />
           </div>
+        </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['world_brief']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'world_brief' ? null : 'world_brief'"
+          >
+            🐛 原始输出 {{ showRawKey === 'world_brief' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'world_brief'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['world_brief'] }}</pre>
         </div>
       </WizardStep>
 
@@ -666,6 +777,16 @@ onBeforeUnmount(() => {
         @retry="generateWorldDetails"
       >
         <MarkdownView :source="state.world_md" />
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['world_details']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'world_details' ? null : 'world_details'"
+          >
+            🐛 原始输出 {{ showRawKey === 'world_details' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'world_details'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['world_details'] }}</pre>
+        </div>
       </WizardStep>
 
       <!-- ====== Step 3: character ====== -->
@@ -718,6 +839,16 @@ onBeforeUnmount(() => {
           </div>
           <MarkdownView :source="state.character_md" />
         </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['character']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'character' ? null : 'character'"
+          >
+            🐛 原始输出 {{ showRawKey === 'character' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'character'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['character'] }}</pre>
+        </div>
       </WizardStep>
 
       <!-- ====== Step 4: NPCs ====== -->
@@ -760,13 +891,41 @@ onBeforeUnmount(() => {
                 <div class="text-xs text-slate-500">动机：{{ npc.motivation }}</div>
               </div>
               <el-button size="small" @click="openNpcEdit(i)">✏️</el-button>
+              <el-button size="small" type="danger" @click="deleteNpc(i)">🗑️</el-button>
             </div>
           </el-card>
           <div v-if="state.npcs.length === 0" class="text-sm text-slate-500">
             （还没生成 NPC）
           </div>
+          <!-- Add NPC actions -->
+          <div class="flex gap-2 mt-3">
+            <el-button size="small" @click="npcHintDialog = true" :loading="npcGenerating">✨ AI 生成一个</el-button>
+            <el-button size="small" @click="addBlankNpc">📝 手动添加</el-button>
+          </div>
+        </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['npcs']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'npcs' ? null : 'npcs'"
+          >
+            🐛 原始输出 {{ showRawKey === 'npcs' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'npcs'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['npcs'] }}</pre>
         </div>
       </WizardStep>
+
+      <!-- AI generate single NPC dialog -->
+      <el-dialog v-model="npcHintDialog" title="AI 生成 NPC" width="400px">
+        <el-input
+          v-model="npcHint"
+          placeholder="描述这个 NPC（如：一个神秘的黑市商人）"
+        />
+        <template #footer>
+          <el-button @click="npcHintDialog = false">取消</el-button>
+          <el-button type="primary" :loading="npcGenerating" @click="aiGenerateSingleNpc">生成</el-button>
+        </template>
+      </el-dialog>
 
       <!-- NPC edit dialog -->
       <el-dialog v-model="npcEditDialog.open" title="编辑 NPC" width="500px">
@@ -870,6 +1029,16 @@ onBeforeUnmount(() => {
               <MarkdownView :source="state.screenplay.ending_md || state.screenplay.ending || ''" />
             </div>
           </div>
+        </div>
+        <!-- Debug: raw LLM output toggle -->
+        <div v-if="state.raw_outputs['screenplay']" class="mt-3 border-t pt-2">
+          <button
+            class="text-xs text-slate-400 hover:text-slate-600"
+            @click="showRawKey = showRawKey === 'screenplay' ? null : 'screenplay'"
+          >
+            🐛 原始输出 {{ showRawKey === 'screenplay' ? '▲' : '▼' }}
+          </button>
+          <pre v-if="showRawKey === 'screenplay'" class="mt-2 text-xs bg-slate-100 p-2 rounded overflow-auto max-h-48 whitespace-pre-wrap">{{ state.raw_outputs['screenplay'] }}</pre>
         </div>
       </WizardStep>
 

@@ -12,6 +12,8 @@ Six functions:
 """
 import json
 import re
+from typing import TypeVar, Callable, Awaitable
+_T = TypeVar("_T")
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,16 +62,34 @@ async def _stream_text(client: ModelClient, messages, max_tokens: int) -> str:
     return "".join(chunks).strip()
 
 
+async def _with_retry(
+    fn: Callable[[], Awaitable[_T]],
+    max_attempts: int = 3,
+) -> _T:
+    last_err: Exception = RuntimeError("no attempts made")
+    for _ in range(max_attempts):
+        try:
+            return await fn()
+        except (ValueError, json.JSONDecodeError) as e:
+            last_err = e
+    raise last_err
+
+
 async def generate_world_brief(genre: str, theme: str, client: ModelClient) -> dict:
-    raw = await _stream_text(
-        client, build_world_brief_messages(genre, theme), max_tokens=600
-    )
-    return {
-        "name": _parse_section(raw, "名字"),
-        "setting": _parse_section(raw, "年代与地点"),
-        "conflict": _parse_section(raw, "核心冲突"),
-        "raw_md": raw,
-    }
+    async def _attempt():
+        raw = await _stream_text(
+            client, build_world_brief_messages(genre, theme), max_tokens=600
+        )
+        name = _parse_section(raw, "名字") or _parse_section(raw, "世界名") or _parse_section(raw, "世界名字")
+        setting = _parse_section(raw, "年代与地点") or _parse_section(raw, "年代") or _parse_section(raw, "地点")
+        conflict = _parse_section(raw, "核心冲突") or _parse_section(raw, "冲突")
+        return {
+            "name": name,
+            "setting": setting,
+            "conflict": conflict,
+            "raw_md": raw,
+        }
+    return await _with_retry(_attempt)
 
 
 async def generate_world_details(brief_md: str, client: ModelClient) -> dict:
@@ -82,34 +102,71 @@ async def generate_world_details(brief_md: str, client: ModelClient) -> dict:
 async def generate_character(
     world_md: str, archetype: str, client: ModelClient
 ) -> dict:
-    profile = await _stream_text(
-        client, build_character_messages(world_md, archetype), max_tokens=1500
-    )
-    info = _parse_section(profile, "基本信息")
-    name_match = re.search(r"姓名[:：]\s*([^\s\n]+)", info)
-    if name_match is None:
-        # Fallback: scan whole profile for a 姓名: line.
-        name_match = re.search(r"姓名[:：]\s*([^\s\n]+)", profile)
-    name = name_match.group(1).strip("*` ") if name_match else "(未命名)"
-    return {"name": name, "profile_md": profile}
+    effective_archetype = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
+    async def _attempt():
+        profile = await _stream_text(
+            client, build_character_messages(world_md, effective_archetype), max_tokens=1500
+        )
+        info = _parse_section(profile, "基本信息")
+        name_match = re.search(r"姓名[:：]\s*([^\s\n]+)", info)
+        if name_match is None:
+            name_match = re.search(r"姓名[:：]\s*([^\s\n]+)", profile)
+        name = name_match.group(1).strip("*` ") if name_match else "(未命名)"
+        return {"name": name, "profile_md": profile}
+    return await _with_retry(_attempt)
 
 
 async def generate_npcs(
     world_md: str, character_md: str, client: ModelClient
 ) -> dict:
-    raw = await _stream_text(
-        client, build_npcs_messages(world_md, character_md), max_tokens=1500
-    )
-    cleaned = _strip_fence(raw)
-    try:
-        npcs = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"NPCs JSON parse error: {e}; raw={raw[:200]!r}") from e
-    if not isinstance(npcs, list):
-        raise ValueError(f"NPCs JSON must be a list, got {type(npcs).__name__}")
-    # Light validation — drop non-dict entries silently.
-    npcs = [n for n in npcs if isinstance(n, dict) and n.get("name")]
-    return {"npcs": npcs}
+    async def _attempt():
+        raw = await _stream_text(
+            client, build_npcs_messages(world_md, character_md), max_tokens=1500
+        )
+        cleaned = _strip_fence(raw)
+        try:
+            npcs = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"NPCs JSON parse error: {e}; raw={raw[:200]!r}") from e
+        if not isinstance(npcs, list):
+            raise ValueError(f"NPCs JSON must be a list, got {type(npcs).__name__}")
+        npcs = [n for n in npcs if isinstance(n, dict) and n.get("name")]
+        return {"npcs": npcs}
+    return await _with_retry(_attempt)
+
+
+async def generate_single_npc(
+    world_md: str,
+    character_md: str,
+    hint: str,
+    client: ModelClient,
+) -> dict:
+    """Generate one NPC based on a player-provided hint (archetype / role / name)."""
+    hint_text = hint.strip() or "（根据世界观自由发挥）"
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"世界观：\n{world_md}\n\n主角：\n{character_md}\n\n"
+                "你是世界观设计师。根据以下提示，生成**1个**主要 NPC，输出纯 JSON（无 markdown fence）。\n"
+                "格式：{\"name\":\"...\",\"description\":\"...\",\"archetype\":\"...\",\"purpose\":\"...\"}"
+            ),
+        },
+        {"role": "user", "content": f"NPC 提示：{hint_text}"},
+    ]
+
+    async def _attempt():
+        raw = await _stream_text(client, messages, max_tokens=400)
+        cleaned = _strip_fence(raw)
+        try:
+            npc = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"single NPC JSON error: {e}; raw={raw[:200]!r}") from e
+        if not isinstance(npc, dict) or not npc.get("name"):
+            raise ValueError(f"invalid NPC shape: {npc!r}")
+        return npc
+
+    return await _with_retry(_attempt)
 
 
 async def generate_screenplay_from_wizard(
@@ -119,26 +176,28 @@ async def generate_screenplay_from_wizard(
     genre: str,
     client: ModelClient,
 ) -> dict:
-    raw = await _stream_text(
-        client,
-        build_wizard_screenplay_messages(
-            world_md=world_md,
-            character_md=character_md,
-            npcs=list(npcs or []),
-            genre=genre,
-        ),
-        max_tokens=2500,
-    )
-    cleaned = _strip_fence(raw)
-    try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        raise ValueError(
-            f"screenplay JSON parse error: {e}; raw={raw[:200]!r}"
-        ) from e
-    if not isinstance(data, dict):
-        raise ValueError("screenplay JSON root must be an object")
-    return data
+    async def _attempt():
+        raw = await _stream_text(
+            client,
+            build_wizard_screenplay_messages(
+                world_md=world_md,
+                character_md=character_md,
+                npcs=list(npcs or []),
+                genre=genre,
+            ),
+            max_tokens=2500,
+        )
+        cleaned = _strip_fence(raw)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"screenplay JSON parse error: {e}; raw={raw[:200]!r}"
+            ) from e
+        if not isinstance(data, dict):
+            raise ValueError("screenplay JSON root must be an object")
+        return data
+    return await _with_retry(_attempt)
 
 
 async def finalize_wizard(

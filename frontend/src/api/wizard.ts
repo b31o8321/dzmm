@@ -41,6 +41,13 @@ export interface WizardScreenplay {
   opening_hook: string
 }
 
+export interface SingleNpcResponse {
+  name: string
+  description: string
+  archetype: string
+  purpose: string
+}
+
 export interface WizardCharacter {
   name: string
   profile_md: string
@@ -92,6 +99,16 @@ export const wizardApi = {
   }) =>
     api
       .post<{ npcs: WizardNPC[] }>('/wizard/npcs', b, { timeout: 600_000 })
+      .then((r) => r.data),
+
+  generateSingleNpc: (b: {
+    model_config_id: number
+    world_md: string
+    character_md: string
+    hint: string
+  }) =>
+    api
+      .post<SingleNpcResponse>('/wizard/npc/single', b, { timeout: 600_000 })
       .then((r) => r.data),
 
   screenplay: (b: {
