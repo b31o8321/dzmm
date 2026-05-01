@@ -108,6 +108,7 @@ const {
   onTurnDone: () => {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
+    refreshSuggestions()
   },
 })
 
@@ -211,10 +212,21 @@ async function editPrev() {
   await refreshTokens()
 }
 
-const quickActions = ['环顾四周', '探索', '搭话', '潜行', '战斗', '使用物品']
+const suggestions = ref<string[]>([])
 
 function quick(act: string) {
   action.value = act
+}
+
+async function refreshSuggestions() {
+  const lastTurn = turns.value[turns.value.length - 1]
+  if (!lastTurn) return
+  const narrative = (lastTurn.narrative ?? '').slice(0, 400)
+  const activeGoals = goals.value
+    .filter((g: any) => g.status === 'active')
+    .map((g: any) => g.description)
+    .slice(0, 3)
+  suggestions.value = await sessionsApi.suggestActions(sessionId, narrative, activeGoals)
 }
 
 // Extract narrative text from a stored assistant message (which contains
@@ -473,12 +485,12 @@ onUnmounted(() => audio.stopBgm())
       <footer class="border-t bg-white p-4 space-y-2">
         <div class="flex flex-wrap gap-2">
           <el-button
-            v-for="a in quickActions"
-            :key="a"
+            v-for="s in (suggestions.length ? suggestions : ['环顾四周', '探索', '搭话'])"
+            :key="s"
             size="small"
-            @click="quick(a)"
+            @click="quick(s)"
             :disabled="sending"
-          >{{ a }}</el-button>
+          >{{ s }}</el-button>
         </div>
         <div class="flex gap-2">
           <el-input

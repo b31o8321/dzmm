@@ -157,6 +157,22 @@ export const sessionsApi = {
 
   listFeedback: (id: number) =>
     api.get<FeedbackItem[]>(`/sessions/${id}/feedback`).then((r) => r.data),
+
+  async suggestActions(
+    sessionId: number,
+    narrative: string,
+    goals: string[] = [],
+  ): Promise<string[]> {
+    try {
+      const r = await api.post<{ suggestions: string[] }>(
+        `/sessions/${sessionId}/suggest_actions`,
+        { narrative, goals },
+      )
+      return r.data.suggestions ?? []
+    } catch {
+      return []
+    }
+  },
 }
 
 export interface FeedbackItem {

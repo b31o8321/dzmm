@@ -32,6 +32,7 @@ from dzmm.api.routes_sessions.hidden_events import router as _hidden_events_rout
 from dzmm.api.routes_sessions.messages import router as _messages_router
 from dzmm.api.routes_sessions.npcs import router as _npcs_router
 from dzmm.api.routes_sessions.threads import router as _threads_router
+from dzmm.api.routes_sessions.suggest import router as _suggest_router
 from dzmm.api.routes_sessions.turn import router as _turn_router
 
 router = APIRouter()
@@ -45,6 +46,7 @@ for _sub in (
     _hidden_events_router,
     _feedback_router,
     _export_router,
+    _suggest_router,
 ):
     router.include_router(_sub)
 
@@ -71,6 +73,7 @@ _SUBMODULES = (
     "dzmm.api.routes_sessions.npcs",
     "dzmm.api.routes_sessions.threads",
     "dzmm.api.routes_sessions.turn",
+    "dzmm.api.routes_sessions.suggest",
 )
 
 
