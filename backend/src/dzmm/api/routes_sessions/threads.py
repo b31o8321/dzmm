@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.api.routes_sessions._common import get_session_dep
 from dzmm.db.models import (
     Era,
+    Message,
     NpcRelation,
     PlotThread,
     Session as GameSession,
@@ -42,6 +43,44 @@ async def get_threads(session_id: int, s: AsyncSession = Depends(get_session_dep
         }
         for t in rows
     ]
+
+
+@router.get("/{session_id}/threads/{thread_id}")
+async def get_thread_detail(
+    session_id: int,
+    thread_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    """Return one plot thread's details."""
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    thread = await s.get(PlotThread, thread_id)
+    if thread is None or thread.session_id != session_id:
+        raise HTTPException(404, "thread not found")
+
+    # Find messages around the thread's introduced_turn (±2 turns)
+    lo = max(0, thread.introduced_turn - 1)
+    hi = thread.introduced_turn + 2
+    msgs = (await s.execute(
+        select(Message)
+        .where(Message.session_id == session_id, Message.turn >= lo, Message.turn <= hi)
+        .order_by(Message.turn, Message.id)
+    )).scalars().all()
+
+    return {
+        "id": thread.id,
+        "type": thread.type,
+        "description": thread.description,
+        "importance": thread.importance,
+        "status": thread.status,
+        "introduced_turn": thread.introduced_turn,
+        "resolution": thread.resolution,
+        "context_messages": [
+            {"role": m.role, "content": m.content[:500], "turn": m.turn}
+            for m in msgs
+        ],
+    }
 
 
 @router.get("/{session_id}/timeline")
