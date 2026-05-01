@@ -871,3 +871,90 @@ def test_rough_token_count_cjk_vs_ascii():
     assert _rough_token_count(msgs_cjk) == 4
     assert _rough_token_count(msgs_ascii) == 2
     assert _rough_token_count([]) == 0
+
+
+# ============================================================================
+# v0.2.2 P1.6 — dice randomness monitor
+# ============================================================================
+
+async def test_key_facts_warns_on_stuck_d20(seeded):
+    """When the last 3 assistant turns all rolled the same d20 value, the next
+    prompt's key_facts should include a `## ⚠️ Dice 警告` block telling the GM
+    to vary the value."""
+    _, SessionMaker, sid = seeded
+
+    # Seed 3 assistant turns whose events_json each carries a d20=9 dice tag.
+    async with SessionMaker() as s:
+        for t in range(1, 4):
+            events = [{
+                "type": "dice",
+                "payload": {"skill": "洞察", "target": "12"},
+                "content": "d20=9，失败",
+            }]
+            s.add(MessageRow(
+                session_id=sid, role="assistant",
+                content=f"<dice skill=\"洞察\" target=\"12\">d20=9，失败</dice>",
+                turn=t,
+                events_json=json.dumps(events, ensure_ascii=False),
+            ))
+        await s.commit()
+
+    client = FakeClient("<narrative>下一回合</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", client):
+            pass
+        await s.commit()
+
+    sys_msg = client.last_messages[0].content
+    assert "Dice 警告" in sys_msg
+    assert "d20=9" in sys_msg
+
+
+async def test_key_facts_no_dice_warning_when_varied(seeded):
+    """Varied d20 values must NOT trigger the warning."""
+    _, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        for t, val in zip(range(1, 4), (9, 14, 7)):
+            events = [{"type": "dice", "payload": {}, "content": f"d20={val}"}]
+            s.add(MessageRow(
+                session_id=sid, role="assistant",
+                content=f"<dice>d20={val}</dice>",
+                turn=t,
+                events_json=json.dumps(events, ensure_ascii=False),
+            ))
+        await s.commit()
+
+    client = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", client):
+            pass
+        await s.commit()
+
+    sys_msg = client.last_messages[0].content
+    assert "Dice 警告" not in sys_msg
+
+
+async def test_key_facts_no_dice_warning_when_only_two_same(seeded):
+    """Need ≥3 same in a row (min_streak default = 2) to trigger."""
+    _, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        for t, val in zip(range(1, 3), (9, 9)):
+            events = [{"type": "dice", "payload": {}, "content": f"d20={val}"}]
+            s.add(MessageRow(
+                session_id=sid, role="assistant",
+                content=f"<dice>d20={val}</dice>",
+                turn=t,
+                events_json=json.dumps(events, ensure_ascii=False),
+            ))
+        await s.commit()
+
+    client = FakeClient("<narrative>x</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "继续", client):
+            pass
+        await s.commit()
+
+    sys_msg = client.last_messages[0].content
+    assert "Dice 警告" not in sys_msg

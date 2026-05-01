@@ -77,6 +77,24 @@ FEW_SHOT_EXAMPLE = """
 
 错误原因：PC 已问具体问题（是谁、在哪），NPC 却没给名字也没给地点，choices 还在让 PC 重复同样的问题——被禁止的拖延循环。
 
+--- 示范3：信息顺序（按故事时间线排列，say 紧跟引发它的动作）---
+
+玩家「上前对店主搭话」正确输出（按发生顺序：场景 → PC 动作 → NPC 回应 → 余韵）：
+
+<narrative>柜台后铜灯昏黄，店主低头数着银钱。</narrative>
+
+<pc_action>{character_name}走到柜台前，轻敲了一下木面。</pc_action>
+
+<say speaker="店主">「客官有何指教？」</say>
+
+<narrative>店主抬眼，眉间一皱，铜灯映出他眼底的疲惫。</narrative>
+
+错误顺序（绝对不要）：
+<say speaker="店主">「客官有何指教？」</say>
+<pc_action>{character_name}走到柜台前。</pc_action>
+<narrative>店主抬眼。</narrative>
+错误原因：把 say 放到了 pc_action 之前——NPC 在 PC 动作之前就开口，时序倒置。
+
 /* 以上仅为示例。实际输出必须从 <narrative> 开头，不要包含
 「输出范例」「示范」「错误示范」这类元文字，也不要把示例里的
 人名（陈子轩 / 老学者 / 年轻卫兵）抄到无关场景。 */

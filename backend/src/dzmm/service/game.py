@@ -28,6 +28,11 @@ from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.gm_template import build_gm_messages
 from dzmm.service.activity_log import log_event
 from dzmm.service.state_apply import apply_tags
+from dzmm.service.state_apply.dice_monitor import (
+    build_stuck_warning,
+    detect_stuck_dice,
+    extract_d20_values_from_messages,
+)
 
 
 log = logging.getLogger(__name__)
@@ -703,5 +708,26 @@ async def _build_key_facts(
                 "（dice 检定的 DC 应基于属性合理设置；物品要在 narrative 显式引用；等级影响 NPC 态度。）"
             )
             parts.append("\n".join(num_lines))
+
+    # v0.2.2 — dice monitoring. Pull recent assistant messages, extract any
+    # d20 values from their events_json dice tags, and if the last 3+ are the
+    # same value, surface a GM-only warning. Live play observed d20=9 repeated
+    # 8 turns in a row, a textbook sign the model latched onto a constant.
+    recent_msgs = (
+        await session.execute(
+            select(MessageRow)
+            .where(
+                MessageRow.session_id == session_id,
+                MessageRow.role == "assistant",
+            )
+            .order_by(MessageRow.id.desc())
+            .limit(5)
+        )
+    ).scalars().all()
+    recent_msgs = list(reversed(recent_msgs))
+    d20_values = extract_d20_values_from_messages(recent_msgs)
+    stuck = detect_stuck_dice(d20_values, min_streak=2)
+    if stuck is not None:
+        parts.append(build_stuck_warning(d20_values, stuck))
 
     return "\n".join(parts)
