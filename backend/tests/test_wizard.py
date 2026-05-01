@@ -23,6 +23,7 @@ from dzmm.models.client import (
     TokenUsage,
 )
 from dzmm.service.wizard import (
+    _with_retry,
     finalize_wizard,
     generate_character,
     generate_npcs,
@@ -464,3 +465,61 @@ async def test_world_brief_404_when_model_missing(http, monkeypatch):
         "model_config_id": 99999, "genre": "x", "theme": "y",
     })
     assert r.status_code == 404
+
+
+# ============================================================================
+# _with_retry + fallback / default archetype (v0.2.4 T1)
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_with_retry_succeeds_on_first():
+    calls = []
+    async def fn():
+        calls.append(1)
+        return "ok"
+    result = await _with_retry(fn, max_attempts=3)
+    assert result == "ok"
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_with_retry_retries_on_value_error():
+    calls = []
+    async def fn():
+        calls.append(1)
+        if len(calls) < 3:
+            raise ValueError("bad format")
+        return "ok"
+    result = await _with_retry(fn, max_attempts=3)
+    assert result == "ok"
+    assert len(calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_with_retry_raises_after_max():
+    async def fn():
+        raise ValueError("always bad")
+    with pytest.raises(ValueError, match="always bad"):
+        await _with_retry(fn, max_attempts=3)
+
+
+@pytest.mark.asyncio
+async def test_generate_world_brief_fallback_when_parse_fails():
+    """If _parse_section finds no matching headers, raw_md is always populated."""
+    raw = "The world has no proper headers, just freeform text about the world."
+    client = StubLLM(raw)
+    result = await generate_world_brief("悬疑", "侦探题材", client)
+    assert result["raw_md"] == raw
+    assert isinstance(result["name"], str)
+    assert isinstance(result["setting"], str)
+    assert isinstance(result["conflict"], str)
+
+
+@pytest.mark.asyncio
+async def test_generate_character_uses_default_archetype_when_empty():
+    """Empty archetype → uses fallback string, does not raise."""
+    profile = "## 基本信息\n姓名：张三\n\n## 背景\n平凡侦探"
+    client = StubLLM(profile)
+    result = await generate_character("赛博朋克世界", "", client)
+    assert result["name"] == "张三"
+    assert "基本信息" in result["profile_md"]
