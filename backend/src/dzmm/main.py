@@ -13,6 +13,7 @@ from dzmm.api import (
     routes_screenplay,
     routes_sessions,
     routes_system,
+    routes_wizard,
     routes_worlds,
 )
 from dzmm.db.base import async_session, get_engine, init_db
@@ -47,6 +48,7 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
         routes_models,
         routes_sessions,
         routes_screenplay,
+        routes_wizard,
     ):
         # routes_screenplay reuses routes_sessions.get_session_dep (same function
         # object), so the override applied while iterating routes_sessions also
