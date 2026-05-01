@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply.character_xp import _apply_character_xp
-from dzmm.service.state_apply.era import _apply_era_begin
 from dzmm.service.state_apply.hidden_event import _apply_hidden_event
 from dzmm.service.state_apply.npc import (
     _NER_CONTEXT_CUES,
@@ -87,8 +86,6 @@ async def apply_tags(
             await _apply_character_xp(session, session_id, tag.attrs, tag.content)
         elif tag.name == "recall":
             await _apply_recall(session, session_id, tag.attrs, tag.content)
-        elif tag.name == "era_begin":
-            await _apply_era_begin(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "pc_goal":
             await _apply_pc_goal(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "pc_mood":

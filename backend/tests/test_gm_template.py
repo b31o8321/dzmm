@@ -171,18 +171,6 @@ def test_character_xp_documented():
     assert "经验值" in sys
 
 
-def test_era_begin_documented():
-    msgs = build_gm_messages(
-        world_md="x", character_md="y", live_state={},
-        rules_mode="light", style="dark",
-        story_summary="", key_facts="",
-        recent_messages=[], current_action="x",
-    )
-    sys = msgs[0].content
-    assert "<era_begin" in sys
-    assert "章节切换" in sys
-
-
 def test_pc_goal_documented():
     msgs = build_gm_messages(
         world_md="x", character_md="y", live_state={},
@@ -659,8 +647,8 @@ def test_gm_prompt_rule_24_screenplay_obedience():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    # Rule 24 mentions screenplay + advance behavior
-    assert "24." in sys_text
+    # Rule 23 mentions screenplay + advance behavior
+    assert "23." in sys_text
     assert "剧本进度" in sys_text
     assert "主线" in sys_text and "推进" in sys_text
     # Concrete tag references in the rule body — these are the GM's emit cues
@@ -696,10 +684,10 @@ def test_rule_24_force_progress_present():
 
 
 def test_rule_25_ordering_present():
-    """v0.2.2 P1.1 — iron rule 25: information ordering must follow story
+    """v0.2.2 P1.1 — iron rule 24: information ordering must follow story
     timeline; `say` should immediately follow the `pc_action` that triggered it."""
     sys_text = _build_default_sys()
-    assert "25." in sys_text
+    assert "24." in sys_text
     assert "顺序" in sys_text
     assert "say" in sys_text and "pc_action" in sys_text
     # Ironclad rule should reference the story-timeline / 发生顺序 phrasing.
@@ -707,10 +695,10 @@ def test_rule_25_ordering_present():
 
 
 def test_rule_26_npc_proactive_present():
-    """v0.2.2 P1.3 — iron rule 26: at least one NPC must take a proactive
+    """v0.2.2 P1.3 — iron rule 25: at least one NPC must take a proactive
     action every 2-3 turns rather than waiting for PC to trigger them."""
     sys_text = _build_default_sys()
-    assert "26." in sys_text
+    assert "25." in sys_text
     assert "NPC 每" in sys_text or "主动" in sys_text
     assert "2-3 回合" in sys_text or "2 回合" in sys_text
     # No "dead scene" phrasing
@@ -718,10 +706,10 @@ def test_rule_26_npc_proactive_present():
 
 
 def test_rule_27_dice_failure_consequences():
-    """v0.2.2 P1.4 — iron rule 27: dice failure must produce negative
+    """v0.2.2 P1.4 — iron rule 26: dice failure must produce negative
     consequences; can't be 'nothing happens'. Critical success rewards XP."""
     sys_text = _build_default_sys()
-    assert "27." in sys_text
+    assert "26." in sys_text
     assert "失败" in sys_text and "负面后果" in sys_text
     # At least one of the example consequence categories should be named
     assert "关系恶化" in sys_text or "线索错失" in sys_text

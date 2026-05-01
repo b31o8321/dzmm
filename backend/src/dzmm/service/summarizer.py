@@ -8,7 +8,6 @@ from dzmm.db.models import (
     Message as MessageRow,
     Session as GameSession,
     StorySummary,
-    Timeline,
 )
 from dzmm.models.client import GenerationParams, ModelClient
 from dzmm.prompts.summarizer_template import (
@@ -117,14 +116,5 @@ async def maybe_summarize(
     summary_row.last_summarized_msg_id = new_msgs[-1].id
     summary_row.summary_tokens = usage.output_tokens
     summary_row.updated_at = datetime.now(UTC).replace(tzinfo=None)
-
-    for ev in events_to_persist:
-        if ev["importance"] >= 2 and ev["text"]:
-            session.add(Timeline(
-                session_id=session_id,
-                turn=sess.turn_count,
-                event_text=ev["text"],
-                importance=ev["importance"],
-            ))
 
     return True

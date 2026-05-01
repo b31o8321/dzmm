@@ -120,31 +120,6 @@ class PlotThread(Base):
     resolution: Mapped[str] = mapped_column(Text, default="")
 
 
-class Timeline(Base):
-    """Long-term key events extracted during recursive summary compression.
-    Not injected into prompts (would defeat the compression); used for
-    explicit user retrieval ("when did I first meet X?")."""
-    __tablename__ = "timeline"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
-    turn: Mapped[int] = mapped_column(default=0)
-    event_text: Mapped[str] = mapped_column(Text)
-    importance: Mapped[int] = mapped_column(default=2)  # 1-3
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
-
-
-class Era(Base):
-    """Story 'chapter' / 'arc' marker. GM emits <era_begin> to signal a
-    significant narrative phase shift — used to group Timeline events in the
-    Chronicle view."""
-    __tablename__ = "eras"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
-    name: Mapped[str] = mapped_column(String(120))
-    started_turn: Mapped[int] = mapped_column(default=0)
-    description: Mapped[str] = mapped_column(Text, default="")
-
-
 class NpcRelation(Base):
     """关系记录两个 NPC 之间的关系。By name not FK to avoid cascade complexity
     when GM mentions an NPC before formally creating them via <npc_update>."""

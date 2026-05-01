@@ -575,20 +575,6 @@ async def test_warmup_endpoint_returns_202(http, monkeypatch):
     assert r.json()["status"] == "started"
 
 
-async def test_timeline_endpoint_empty(http):
-    sid = await _make_session(http)
-    r = await http.get(f"/sessions/{sid}/timeline")
-    assert r.status_code == 200
-    assert r.json() == []
-
-
-async def test_eras_endpoint_empty(http):
-    sid = await _make_session(http)
-    r = await http.get(f"/sessions/{sid}/eras")
-    assert r.status_code == 200
-    assert r.json() == []
-
-
 async def test_goals_endpoint_empty(http):
     sid = await _make_session(http)
     r = await http.get(f"/sessions/{sid}/goals")
@@ -816,7 +802,7 @@ async def test_export_json_full_structure(http, app):
     sid = await _make_session(http)
     from dzmm.db.models import (
         HiddenEvent, Message as MessageRow, NPC, NpcRelation,
-        PCGoal, PlotThread, Era, Timeline,
+        PCGoal, PlotThread,
     )
     SessionMaker = app.state.session_maker
     async with SessionMaker() as s:
@@ -834,9 +820,6 @@ async def test_export_json_full_structure(http, app):
                          importance=3, status="active"))
         s.add(PCGoal(session_id=sid, description="找到出路", priority="high",
                      status="active", introduced_turn=1))
-        s.add(Era(session_id=sid, name="序章", started_turn=1,
-                  description="新生活"))
-        s.add(Timeline(session_id=sid, turn=1, event_text="出发", importance=2))
         s.add(HiddenEvent(session_id=sid, kind="injury", subject="主角",
                           severity=2, description="脚扭伤",
                           introduced_turn=1, status="active"))
@@ -848,7 +831,7 @@ async def test_export_json_full_structure(http, app):
     expected_keys = {
         "version", "exported_at", "session", "world", "character",
         "messages", "story_summary", "char_state", "npcs", "npc_relations",
-        "plot_threads", "pc_goals", "eras", "timeline", "hidden_events",
+        "plot_threads", "pc_goals", "hidden_events",
     }
     assert expected_keys.issubset(set(body.keys()))
     assert body["session"]["id"] == sid
@@ -864,8 +847,6 @@ async def test_export_json_full_structure(http, app):
     assert len(body["npc_relations"]) == 1
     assert len(body["plot_threads"]) == 1
     assert len(body["pc_goals"]) == 1
-    assert len(body["eras"]) == 1
-    assert len(body["timeline"]) == 1
     assert len(body["hidden_events"]) == 1
 
 
@@ -907,25 +888,6 @@ async def test_export_invalid_format_rejected(http):
     sid = await _make_session(http)
     r = await http.get(f"/sessions/{sid}/export?format=pdf")
     assert r.status_code == 400
-
-
-async def test_timeline_returns_seeded_rows(http, app):
-    """Insert Timeline row directly via session_maker, verify endpoint reflects it."""
-    sid = await _make_session(http)
-    from dzmm.db.models import Timeline
-    SessionMaker = app.state.session_maker
-    async with SessionMaker() as s:
-        s.add(Timeline(session_id=sid, turn=5, event_text="重要转折",
-                       importance=3))
-        await s.commit()
-
-    r = await http.get(f"/sessions/{sid}/timeline")
-    assert r.status_code == 200
-    items = r.json()
-    assert len(items) == 1
-    assert items[0]["event_text"] == "重要转折"
-    assert items[0]["importance"] == 3
-    assert items[0]["turn"] == 5
 
 
 # ============================================================================

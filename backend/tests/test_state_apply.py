@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, Era, HiddenEvent, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Screenplay, ScreenplayRevision, Session as GameSession, World,
+    Character, CharState, HiddenEvent, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Screenplay, ScreenplayRevision, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply import apply_tags
@@ -281,33 +281,6 @@ async def test_character_xp_tag_floors_at_zero(session_with_state):
     sess = await s.get(GameSession, sid)
     char = await s.get(Character, sess.character_id)
     assert char.xp == 0
-
-
-async def test_era_begin_creates_row(session_with_state):
-    s, sid = session_with_state
-    tag = TagComplete(
-        name="era_begin",
-        attrs={"name": "第二章：九龙黑街"},
-        content="经过霓虹猫酒馆的事件，故事进入新阶段。",
-    )
-    await apply_tags(s, sid, current_turn=5, tags=[tag])
-    await s.commit()
-
-    eras = (await s.execute(select(Era).where(Era.session_id == sid))).scalars().all()
-    assert len(eras) == 1
-    assert eras[0].name == "第二章：九龙黑街"
-    assert eras[0].started_turn == 5
-    assert "霓虹猫" in eras[0].description
-
-
-async def test_era_begin_without_name_skipped(session_with_state):
-    s, sid = session_with_state
-    tag = TagComplete(name="era_begin", attrs={}, content="无名章节")
-    await apply_tags(s, sid, current_turn=1, tags=[tag])
-    await s.commit()
-
-    eras = (await s.execute(select(Era).where(Era.session_id == sid))).scalars().all()
-    assert len(eras) == 0
 
 
 async def test_pc_goal_add_creates_row(session_with_state):

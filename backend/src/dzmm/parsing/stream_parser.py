@@ -12,7 +12,6 @@ KNOWN_TAGS: set[str] = {
     "choices",
     "character_xp",
     "recall",
-    "era_begin",
     "pc_goal",
     "pc_mood",
     "npc_relation",

@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.db.models import (
     Character,
     CharState,
-    Era,
     HiddenEvent,
     Message as MessageRow,
     NPC,
@@ -410,13 +409,6 @@ async def _build_key_facts(
         )
     ).scalars().all()
 
-    current_era = (
-        await session.execute(
-            select(Era).where(Era.session_id == session_id)
-            .order_by(Era.started_turn.desc()).limit(1)
-        )
-    ).scalar_one_or_none()
-
     parts: list[str] = []
 
     # PC identity lock — top priority, prevents the GM drifting to a different
@@ -437,9 +429,6 @@ async def _build_key_facts(
             "无论后文如何，PC 的姓名必须始终是上面这个，不得改名、不得替换、不得简称为别的名字。"
         )
         parts.append("\n".join(identity_lines))
-
-    if current_era:
-        parts.append(f"当前章节：{current_era.name}（自第 {current_era.started_turn} 回合起）")
 
     if pinned_npcs:
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")

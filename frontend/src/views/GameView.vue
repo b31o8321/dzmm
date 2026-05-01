@@ -466,10 +466,6 @@ onUnmounted(() => audio.stopBgm())
                        class="text-sm text-slate-500 hover:text-slate-800">
             🔗 关系
           </router-link>
-          <router-link :to="`/play/${sessionId}/chronicle`"
-                       class="text-sm text-slate-500 hover:text-slate-800">
-            📜 编年史
-          </router-link>
           <button
             type="button"
             class="text-sm text-slate-500 hover:text-slate-800"

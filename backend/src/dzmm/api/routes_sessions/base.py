@@ -10,7 +10,6 @@ from dzmm.api.routes_sessions._common import _to_out, get_session_dep
 from dzmm.api.schemas import SessionIn, SessionOut
 from dzmm.db.models import (
     CharState,
-    Era,
     Feedback,
     HiddenEvent,
     Message as MessageRow,
@@ -22,7 +21,6 @@ from dzmm.db.models import (
     ScreenplayRevision,
     Session as GameSession,
     StorySummary,
-    Timeline,
 )
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -60,7 +58,7 @@ async def delete_session(
     session_id: int, s: AsyncSession = Depends(get_session_dep)
 ):
     """Delete a session and all of its associated rows: messages, NPCs, NPC
-    relations, plot threads, eras, timeline events, char_state, story_summary,
+    relations, plot threads, char_state, story_summary,
     pc_goals, hidden_events, screenplays + revisions, feedbacks. The world,
     character, and model_configs are NOT touched (shared across sessions)."""
     sess = await s.get(GameSession, session_id)
@@ -84,7 +82,7 @@ async def delete_session(
         )
 
     for model in (
-        MessageRow, NPC, NpcRelation, PlotThread, Era, Timeline,
+        MessageRow, NPC, NpcRelation, PlotThread,
         CharState, StorySummary, PCGoal, HiddenEvent, Feedback,
     ):
         await s.execute(
