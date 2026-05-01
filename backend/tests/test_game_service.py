@@ -1115,3 +1115,34 @@ async def test_key_facts_no_dice_warning_when_only_two_same(seeded):
 
     sys_msg = client.last_messages[0].content
     assert "Dice 警告" not in sys_msg
+
+
+# ============================================================================
+# v0.2.6 T3 — GM prompt 注入当前场地
+# ============================================================================
+
+async def test_key_facts_includes_current_location(seeded):
+    """_build_key_facts includes current location name, in-scene NPCs, and items."""
+    from dzmm.db.models import Location
+    from dzmm.service.game import _build_key_facts
+
+    _, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        loc = Location(session_id=sid, name="书房", description="摆满书架的房间",
+                       first_visited_turn=1, last_visited_turn=1, is_current=True,
+                       items_json=json.dumps([{"name": "戒指", "description": "一枚金戒指"}]))
+        s.add(loc)
+
+        npc = NPC(session_id=sid, name="镜中人", description="", favor=0,
+                  state="被困", last_seen_turn=1, notes_json="[]", purpose="",
+                  archetype="", affinity_json="{}", pinned=False,
+                  revealed_json='{"name":true}', current_location="书房")
+        s.add(npc)
+        await s.commit()
+
+    async with SessionMaker() as s:
+        result = await _build_key_facts(s, sid, 2)
+    assert "书房" in result
+    assert "镜中人" in result
+    assert "戒指" in result

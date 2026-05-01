@@ -96,4 +96,5 @@ def _npc_to_dict(n: NPC) -> dict:
         "pinned": bool(n.pinned),
         "notes": notes,
         "revealed": revealed,
+        "current_location": n.current_location,
     }

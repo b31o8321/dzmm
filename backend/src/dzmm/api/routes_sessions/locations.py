@@ -1,4 +1,5 @@
 """GET /sessions/{id}/locations — list of visited locations."""
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,14 +19,21 @@ async def get_locations(session_id: int, s: AsyncSession = Depends(get_session_d
         select(Location).where(Location.session_id == session_id)
         .order_by(Location.first_visited_turn, Location.id)
     )).scalars().all()
-    return [
-        {
+    result = []
+    for r in rows:
+        try:
+            items = json.loads(r.items_json or "[]")
+            if not isinstance(items, list):
+                items = []
+        except (TypeError, ValueError):
+            items = []
+        result.append({
             "id": r.id,
             "name": r.name,
             "description": r.description,
             "first_visited_turn": r.first_visited_turn,
             "last_visited_turn": r.last_visited_turn,
             "is_current": r.is_current,
-        }
-        for r in rows
-    ]
+            "items": items,
+        })
+    return result

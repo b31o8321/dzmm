@@ -1,16 +1,31 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PCGoalItem } from '@/api/sessions'
 
-defineProps<{
+const props = defineProps<{
   stats: Record<string, number>
   inventory: string[]
-  npcs: { name: string; favor: number; state: string; pinned?: boolean }[]
+  npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null }[]
   dice: { skill: string; target: string; result: string }[]
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
   pcMood?: Record<string, number>
-  currentLocation?: { name: string; description: string } | null
+  currentLocation?: {
+    name: string
+    description: string
+    items?: { name: string; description: string }[]
+  } | null
 }>()
+
+const presentNpcs = computed(() =>
+  props.currentLocation
+    ? props.npcs.filter(
+        (n) =>
+          n.current_location &&
+          n.current_location.toLowerCase() === props.currentLocation!.name.toLowerCase(),
+      )
+    : [],
+)
 
 const emit = defineEmits<{
   (e: 'select-npc', name: string): void
@@ -42,10 +57,18 @@ function tooltipFor(key: string): string {
 
 <template>
   <aside class="w-80 bg-white border-l p-4 flex flex-col gap-4 overflow-auto">
-    <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm">
+    <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm mb-2">
       <span class="text-slate-500 text-xs">当前场所</span>
       <div class="font-bold text-blue-800">📍 {{ currentLocation.name }}</div>
-      <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5">{{ currentLocation.description }}</div>
+      <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5">
+        {{ currentLocation.description }}
+      </div>
+      <div v-if="presentNpcs.length" class="text-xs text-slate-600 mt-1">
+        在场：{{ presentNpcs.map((n) => n.name).join('、') }}
+      </div>
+      <div v-if="currentLocation.items?.length" class="text-xs text-slate-500 mt-1">
+        <span class="font-medium">物品：</span>{{ currentLocation.items.map((i) => i.name).join('、') }}
+      </div>
     </div>
     <section>
       <h3 class="font-bold text-slate-700 mb-2">角色状态</h3>

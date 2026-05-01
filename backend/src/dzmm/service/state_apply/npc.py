@@ -175,6 +175,14 @@ async def _apply_npc_update(
             emotions[axis] = max(0, min(100, new_val))
         npc.emotion_json = json.dumps(emotions, ensure_ascii=False)
 
+    # v0.2.6: scene binding — sets or clears NPC's current location.
+    if "location" in payload:
+        loc_val = payload["location"]
+        if isinstance(loc_val, str):
+            npc.current_location = loc_val.strip() or None
+        else:
+            npc.current_location = None
+
     note = payload.get("note")
     if note:
         notes = json.loads(npc.notes_json or "[]")

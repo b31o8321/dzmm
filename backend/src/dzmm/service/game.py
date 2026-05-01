@@ -11,6 +11,7 @@ from dzmm.db.models import (
     Character,
     CharState,
     HiddenEvent,
+    Location,
     Message as MessageRow,
     NPC,
     NpcRelation,
@@ -462,6 +463,57 @@ async def _build_key_facts(
         for g in active_goals:
             prio_mark = {"high": "★★★", "normal": "★★", "low": "★"}.get(g.priority, "★★")
             parts.append(f"- [id={g.id}] {prio_mark} {g.description}")
+
+    # v0.2.6 — current scene context (location + in-scene NPCs + items).
+    current_loc = (
+        await session.execute(
+            select(Location).where(
+                Location.session_id == session_id,
+                Location.is_current == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if current_loc is not None:
+        loc_lines = [f"\n## 当前场地：{current_loc.name}"]
+        if current_loc.description:
+            loc_lines.append(f"描述：{current_loc.description}")
+
+        # NPCs physically present in this location (from all three NPC lists)
+        all_collected_npcs = list(pinned_npcs) + list(recent_filtered) + list(recalled_npcs)
+        scene_npcs = [
+            n for n in all_collected_npcs
+            if (n.current_location or "").lower() == current_loc.name.lower()
+        ]
+        if scene_npcs:
+            loc_lines.append("在场 NPC：" + "、".join(n.name for n in scene_npcs))
+        else:
+            loc_lines.append("在场 NPC：无")
+
+        # Items in this location
+        try:
+            items = json.loads(current_loc.items_json or "[]")
+            if not isinstance(items, list):
+                items = []
+        except (TypeError, ValueError):
+            items = []
+        if items:
+            item_strs = []
+            for i in items:
+                item_name = i.get("name", "")
+                if not item_name:
+                    continue
+                item_desc = i.get("description", "")
+                item_strs.append(f"{item_name}（{item_desc}）" if item_desc else item_name)
+            if item_strs:
+                loc_lines.append("关键物品：" + "、".join(item_strs))
+
+        loc_lines.append(
+            "（NPC 离开此地时 emit `<npc_update name=\"X\" location=\"\"/>`；"
+            "进入新地点时 emit `<npc_update name=\"X\" location=\"新地名\"/>`；"
+            "引入新物品 emit `<location_item name=\"物品\" description=\"描述\" action=\"add\"/>`；"
+            "物品被取走/消耗 emit `<location_item name=\"物品\" action=\"remove\"/>`）"
+        )
+        parts.append("\n".join(loc_lines))
 
     # PC mood — surfaced so GM tunes language to current emotional state.
     if sess is not None:

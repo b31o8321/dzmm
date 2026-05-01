@@ -130,6 +130,7 @@ const {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
     refreshLocations()  // pick up <location_enter> updates
+    refreshNpcLocations()  // pick up <npc_update location="..."> changes
     refreshSuggestions()
   },
 })
@@ -139,13 +140,26 @@ const selectedNpc = ref<Npc | null>(null)
 const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
-const currentLocation = ref<{ name: string; description: string } | null>(null)
+const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
+
+async function refreshNpcLocations() {
+  try {
+    const fullNpcs = await sessionsApi.npcs(sessionId)
+    const npcMap = new Map(fullNpcs.map((n) => [n.name, n]))
+    for (const n of npcs.value) {
+      const full = npcMap.get(n.name)
+      if (full) (n as any).current_location = full.current_location ?? null
+    }
+  } catch { /* ignore */ }
+}
 
 async function refreshLocations() {
   try {
     const locs = await sessionsApi.locations(sessionId)
     const cur = locs.find((l) => l.is_current) ?? null
-    currentLocation.value = cur ? { name: cur.name, description: cur.description } : null
+    currentLocation.value = cur
+      ? { name: cur.name, description: cur.description, items: cur.items ?? [] }
+      : null
   } catch {
     /* ignore */
   }
@@ -442,11 +456,17 @@ onMounted(async () => {
     threads.value = st.threads
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
 
-    // Augment with pinned flag from /npcs endpoint (state endpoint doesn't include it).
+    // Augment with pinned flag and current_location from /npcs endpoint.
     try {
       const fullNpcs = await sessionsApi.npcs(sessionId)
-      const pinSet = new Set(fullNpcs.filter((n) => n.pinned).map((n) => n.name))
-      for (const n of npcs.value) n.pinned = pinSet.has(n.name)
+      const npcMap = new Map(fullNpcs.map((n) => [n.name, n]))
+      for (const n of npcs.value) {
+        const full = npcMap.get(n.name)
+        if (full) {
+          n.pinned = full.pinned
+          ;(n as any).current_location = full.current_location ?? null
+        }
+      }
     } catch { /* ignore */ }
   } catch {
     /* ignore */

@@ -30,6 +30,7 @@ from dzmm.service.state_apply.screenplay import (
     _apply_plot_turn,
 )
 from dzmm.service.state_apply.location import _apply_location_enter
+from dzmm.service.state_apply.location_item import _apply_location_item
 from dzmm.service.state_apply.state_change import _apply_state_change
 
 # Re-export for callers that imported these names from `_impl` directly
@@ -85,3 +86,5 @@ async def apply_tags(
             await _apply_ending(session, session_id, tag.attrs, current_turn)
         elif tag.name == "location_enter":
             await _apply_location_enter(session, session_id, current_turn, tag.attrs, tag.content)
+        elif tag.name == "location_item":
+            await _apply_location_item(session, session_id, current_turn, tag.attrs, tag.content)

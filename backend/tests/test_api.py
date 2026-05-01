@@ -1326,3 +1326,42 @@ async def test_export_with_cjk_session_name_does_not_500(http, app):
         assert "filename*=UTF-8''" in cd
         # Encoded form contains percent-escaped CJK bytes for 修.
         assert "%E4%BF%AE" in cd  # 修 in UTF-8 is E4 BF AE
+
+
+async def test_location_items_returned_in_api(http, app):
+    """GET /sessions/{id}/locations returns items parsed from items_json."""
+    import json
+    from dzmm.db.models import Location
+    sid = await _make_session(http)
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        loc = Location(session_id=sid, name="书房", description="",
+                       first_visited_turn=1, last_visited_turn=1, is_current=True,
+                       items_json=json.dumps([{"name": "戒指", "description": "金戒指"}]))
+        s.add(loc)
+        await s.commit()
+    r = await http.get(f"/sessions/{sid}/locations")
+    assert r.status_code == 200
+    locs = r.json()
+    assert len(locs) == 1
+    assert locs[0]["items"] == [{"name": "戒指", "description": "金戒指"}]
+
+
+async def test_npc_current_location_returned_in_api(http, app):
+    """GET /sessions/{id}/npcs returns current_location field."""
+    from dzmm.db.models import NPC
+    sid = await _make_session(http)
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        npc = NPC(session_id=sid, name="镜中人", description="", favor=0,
+                  state="被困", last_seen_turn=1, notes_json="[]", purpose="",
+                  archetype="", affinity_json="{}", pinned=False,
+                  revealed_json='{"name":true}', current_location="书房")
+        s.add(npc)
+        await s.commit()
+    r = await http.get(f"/sessions/{sid}/npcs")
+    assert r.status_code == 200
+    npcs = r.json()
+    found = next((n for n in npcs if n["name"] == "镜中人"), None)
+    assert found is not None
+    assert found["current_location"] == "书房"
