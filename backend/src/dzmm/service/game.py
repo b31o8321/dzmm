@@ -42,63 +42,13 @@ def _strip_thinking_tags(text: str) -> str:
     return _THINK_RE.sub("", text)
 
 
-# Self-introduction patterns that PC voice opens with. We only rewrite the name
-# bound to one of these verbs so we don't touch NPC dialogue or third-person
-# narrative. ([一-鿿A-Za-z0-9·_]) accepts hanzi, latin, digits and the
-# middle-dot used in transliterated names ("艾米丽·斯通"). Length 1-8 covers
-# everything from "我" (rare 1-char nicknames) through 8-char transliterations.
-_NAME_PATTERNS = [
-    re.compile(
-        r"(我叫|我是|在下|鄙人|叫我|本人是?|敝人)([一-鿿A-Za-z0-9·_]{1,8})"
-    ),
-]
-
-_SAY_BLOCK_RE = re.compile(r"<say\b[^>]*>.*?</say>", flags=re.DOTALL)
-
-
-def _repair_pc_name(content: str, character_name: str) -> tuple[str, int]:
-    """Detect and fix PC name drift in GM output.
-
-    Conservative — only rewrites self-introduction patterns ("我叫 X", "我是 X"
-    …) outside of <say speaker="..."> blocks. NPC dialogue inside <say> is
-    intentionally left alone (an NPC named "林峰" really should self-introduce
-    as "林峰"). Returns (repaired_text, num_fixes)."""
-    if not character_name or not content:
-        return content, 0
-
-    fixes = 0
-
-    # Mask <say>...</say> blocks first so we never rewrite NPC dialogue.
-    say_blocks: list[str] = []
-
-    def _mask(m: re.Match[str]) -> str:
-        say_blocks.append(m.group(0))
-        return f"\x00SAY{len(say_blocks) - 1}\x00"
-
-    masked = _SAY_BLOCK_RE.sub(_mask, content)
-
-    for pat in _NAME_PATTERNS:
-        def _fix(m: re.Match[str]) -> str:
-            nonlocal fixes
-            verb, name = m.group(1), m.group(2)
-            # Only rewrite when the name actually differs from the canonical PC
-            # name AND is at least 2 chars (avoids replacing pronouns like 我
-            # captured as a 1-char tail). Also skip if the captured name is
-            # already the PC name — no-op fix.
-            if name == character_name:
-                return m.group(0)
-            if len(name) < 2:
-                return m.group(0)
-            fixes += 1
-            return f"{verb}{character_name}"
-
-        masked = pat.sub(_fix, masked)
-
-    # Restore say blocks.
-    for i, block in enumerate(say_blocks):
-        masked = masked.replace(f"\x00SAY{i}\x00", block)
-
-    return masked, fixes
+# PC name drift repair extracted to a sibling module (v0.1.6 refactor); the
+# names are re-exported here so existing call-sites and tests still see them.
+from dzmm.service.name_repair import (
+    _NAME_PATTERNS,
+    _SAY_BLOCK_RE,
+    _repair_pc_name,
+)
 
 
 async def run_turn(
@@ -315,129 +265,13 @@ async def _load_recent_messages(
     return [Message(role=r.role, content=r.content) for r in rows]
 
 
-def _npc_revealed(npc: NPC) -> dict[str, bool]:
-    """Decode npc.revealed_json with safe fallback. name is always revealed —
-    GM has to be able to refer to the NPC even when other fields are hidden."""
-    try:
-        revealed = json.loads(npc.revealed_json or '{"name": true}')
-        if not isinstance(revealed, dict):
-            revealed = {}
-    except (TypeError, ValueError):
-        revealed = {}
-    revealed["name"] = True  # always — anchor for GM reference
-    return revealed
-
-
-def _format_npc_dossier(npc: NPC) -> str:
-    """Full 3-5 line dossier block for pinned/recalled NPCs.
-
-    v0.11: fields not present in npc.revealed_json are NOT printed with their
-    actual value — instead the GM is told the field exists but is unrevealed,
-    so it can choose to surface it organically through narrative."""
-    revealed = _npc_revealed(npc)
-
-    archetype = (npc.archetype or "").strip()
-    state = (npc.state or "").strip() or "未知"
-    head = f"- {npc.name}"
-    if archetype and revealed.get("archetype"):
-        head += f" [{archetype}]"
-    if revealed.get("state"):
-        head += f" 状态：{state}"
-
-    lines: list[str] = [head]
-
-    purpose = (npc.purpose or "").strip()
-    if purpose and revealed.get("purpose"):
-        lines.append(f"  动机：{purpose}")
-
-    affinity_parts: list[str] = []
-    if revealed.get("favor"):
-        affinity_parts.append(f"好感{npc.favor:+d}")
-    if revealed.get("affinity"):
-        try:
-            affinity = json.loads(npc.affinity_json or "{}")
-        except (TypeError, ValueError):
-            affinity = {}
-        if isinstance(affinity, dict):
-            for axis, val in affinity.items():
-                if isinstance(val, (int, float)):
-                    affinity_parts.append(f"{axis}{int(val):+d}")
-    if affinity_parts:
-        lines.append("  " + "｜".join(affinity_parts))
-
-    try:
-        notes = json.loads(npc.notes_json or "[]")
-    except (TypeError, ValueError):
-        notes = []
-    if isinstance(notes, list) and notes:
-        # Notes are GM-authored shorthand like "分享了童年阴影" — they're
-        # internal continuity markers, not raw NPC fields, so we don't gate
-        # them on revealed_json. They're written by the GM after a scene the
-        # player just witnessed.
-        last = notes[-1]
-        text = ""
-        if isinstance(last, dict):
-            text = str(last.get("text", "")).strip()
-        elif isinstance(last, str):
-            text = last.strip()
-        if text:
-            lines.append(f"  最近：{text}")
-    elif npc.description and revealed.get("description"):
-        desc = npc.description.strip()
-        if desc:
-            lines.append(f"  备注：{desc[:60]}")
-
-    # Surface a list of fields that exist but are NOT yet revealed. Lets the
-    # GM know there's hidden setting around this NPC it can choose to unveil
-    # naturally — without leaking the values.
-    hidden_fields: list[str] = []
-    if (npc.description or "").strip() and not revealed.get("description"):
-        hidden_fields.append("description")
-    if (npc.purpose or "").strip() and not revealed.get("purpose"):
-        hidden_fields.append("purpose")
-    if (npc.archetype or "").strip() and not revealed.get("archetype"):
-        hidden_fields.append("archetype")
-    if (npc.state or "").strip() and not revealed.get("state"):
-        hidden_fields.append("state")
-    if not revealed.get("favor") and npc.favor != 0:
-        hidden_fields.append("favor")
-    if not revealed.get("affinity"):
-        try:
-            aff = json.loads(npc.affinity_json or "{}")
-        except (TypeError, ValueError):
-            aff = {}
-        if isinstance(aff, dict) and aff:
-            hidden_fields.append("affinity")
-    if not revealed.get("emotion"):
-        try:
-            emo = json.loads(npc.emotion_json or "{}")
-        except (TypeError, ValueError):
-            emo = {}
-        if isinstance(emo, dict) and emo:
-            hidden_fields.append("emotion")
-    if hidden_fields:
-        lines.append(
-            "  [未揭示：" + "/".join(hidden_fields)
-            + " — 玩家尚未通过对话或调查获悉，请勿在叙述中直接说出]"
-        )
-
-    return "\n".join(lines)
-
-
-def _format_npc_short(npc: NPC) -> str:
-    """One-line summary for recently-seen NPCs (legacy compact format).
-
-    v0.11: only print fields the player has already learned. Description goes
-    verbatim if revealed; favor and state are hidden behind '?' otherwise so
-    the GM still knows the NPC exists without leaking the value."""
-    revealed = _npc_revealed(npc)
-    favor_str = f"{npc.favor:+d}" if revealed.get("favor") else "??"
-    state_str = npc.state if revealed.get("state") else "??"
-    desc = (npc.description or "").strip() if revealed.get("description") else ""
-    parts = f"- {npc.name}（好感{favor_str}，状态：{state_str}）"
-    if desc:
-        parts += desc[:40]
-    return parts
+# NPC dossier formatters extracted to a sibling module (v0.1.6 refactor); the
+# names are re-exported here so existing call-sites and tests still see them.
+from dzmm.service.npc_dossier import (
+    _format_npc_dossier,
+    _format_npc_short,
+    _npc_revealed,
+)
 
 
 async def _build_key_facts(
