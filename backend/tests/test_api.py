@@ -1237,3 +1237,36 @@ async def test_delete_session_does_not_remove_world_or_character(http):
     assert (await http.get(f"/worlds/{wid}")).status_code == 200
     chars = (await http.get(f"/characters?world_id={wid}")).json()
     assert any(c["id"] == cid for c in chars)
+
+
+# ============================================================================
+# v0.1.8 regression: HTTP headers are latin-1; CJK session names blew up the
+# Content-Disposition header with UnicodeEncodeError -> 500 on export. Now
+# the filename gets ASCII-sanitized + a UTF-8 RFC 5987 filename* fallback.
+# ============================================================================
+
+
+async def test_export_with_cjk_session_name_does_not_500(http, app):
+    """User-reported: a session named「修女」(CJK) caused all exports to 500
+    because Python's str.isalnum() returns True for CJK, so _safe_filename
+    didn't strip them, and the resulting Content-Disposition header tried to
+    encode CJK as latin-1."""
+    # Create a session, then rename it to something CJK directly via DB.
+    sid = await _make_session(http)
+    from dzmm.db.models import Session as GameSession
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        sess.name = "修女 / 第一夜"  # CJK + slash + space
+        await s.commit()
+
+    for fmt in ("json", "md"):
+        r = await http.get(f"/sessions/{sid}/export?format={fmt}")
+        assert r.status_code == 200, f"{fmt} failed: {r.status_code} {r.text[:200]}"
+        cd = r.headers.get("content-disposition", "")
+        # ASCII filename fallback present.
+        assert 'filename="dzmm_export_session.' in cd or 'filename="dzmm_export_' in cd
+        # RFC 5987 UTF-8 encoded filename* present so browsers can recover CJK.
+        assert "filename*=UTF-8''" in cd
+        # Encoded form contains percent-escaped CJK bytes for 修.
+        assert "%E4%BF%AE" in cd  # 修 in UTF-8 is E4 BF AE

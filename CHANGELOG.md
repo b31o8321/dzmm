@@ -11,6 +11,25 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.1.8] - 2026-05-01
+
+**实玩反馈热修：导出 500 + PC 名漂移成 #**
+
+### 修复
+- **存档导出 JSON / MD 全部 500** —— 用户反馈「网络错误，无法导出」。根因：session 名含 CJK 字符（如「修女」）时，`_safe_filename` 用 `c.isalnum()` 不剔除中文（Python 对 CJK 也返 True），导致 Content-Disposition header 含 latin-1 不能编码的字符 → starlette 抛 UnicodeEncodeError → 500。修：
+  - `_safe_filename` 强制 ASCII（`c.isascii() and c.isalnum()`）
+  - 新加 `_disposition_header()` 同时输出 ASCII fallback `filename="..."` 和 RFC 5987 `filename*=UTF-8''<percent-encoded>`，浏览器能恢复中文文件名
+  - 加回归测试：CJK 名字导出不再 500
+- **PC 名漂移成 `#`（实玩观察）** —— 一些本地 LM Studio 模型把 `#` 当成 PC 占位符（实玩中看到 `<pc_action>#站起身`、`记下了#的特征`、`攻击#`）。`_repair_pc_name` 加 placeholder repair：
+  - 新模式 `_PLACEHOLDER_PC_RE`：识别 `#` / `□` / `★` 后接 CJK 字符或 CJK 标点，替换为 character.name
+  - 拒绝 markdown heading：`## 基本信息` 不被替换（前后有 `#` 或空白）
+  - `<say>` 内的 NPC 对白不动（保 NPC 自由用 `#` 谈话）
+
+### 测试
+- 后端 260 → 265（+5：1 个 CJK 导出回归 + 4 个 # placeholder 修复）
+
+---
+
 ## [v0.1.7] - 2026-05-01
 
 **修复 + 新增**

@@ -90,3 +90,43 @@ def test_repair_transliterated_name_with_middle_dot():
     assert "艾米丽" not in out
     assert "Riku" in out
     assert n == 1
+
+
+# v0.1.8: real LM Studio output observed in the wild — model uses `#` as a
+# placeholder for the PC name. Repair must replace it before persistence so
+# the next turn's prompt doesn't compound the drift.
+
+
+def test_repair_replaces_hash_placeholder_before_cjk():
+    text = '<pc_action>#站起身去帮修女遮雨，掌心仍在出汗。</pc_action>'
+    out, n = _repair_pc_name(text, 'Riku')
+    assert '#' not in out
+    assert 'Riku站起身' in out
+    assert n == 1
+
+
+def test_repair_replaces_hash_placeholder_in_narrative():
+    """Real session: 'narrative 中提到「记下了#的特征」' — # = PC name."""
+    text = '<narrative>修道院管理人员记下了#的特征，并攻击#。</narrative>'
+    out, n = _repair_pc_name(text, '沈三川')
+    assert '#' not in out
+    assert '记下了沈三川的特征' in out
+    assert '攻击沈三川' in out
+    assert n == 2
+
+
+def test_repair_does_not_touch_markdown_heading():
+    """`## 基本信息` is a markdown heading, NOT a name slot."""
+    text = '## 基本信息\n性别：男'
+    out, n = _repair_pc_name(text, 'Riku')
+    assert out == text
+    assert n == 0
+
+
+def test_repair_does_not_touch_hash_inside_say_block():
+    """A NPC literally saying '#' (rare, but possible) should be left alone
+    so we don't trample NPC dialogue."""
+    text = '<say speaker="管理人员">「#是什么意思？」</say>'
+    out, n = _repair_pc_name(text, 'Riku')
+    assert '#' in out  # NPC dialogue preserved
+    assert 'Riku' not in out

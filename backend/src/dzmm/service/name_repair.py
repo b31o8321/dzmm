@@ -9,6 +9,10 @@ Conservative — only rewrites self-introduction patterns ("我叫 X" / "我是 
 ``<say speaker="...">`` blocks. NPC dialogue inside `<say>` is intentionally
 left alone — an NPC named "林峰" really should self-introduce as "林峰".
 
+v0.1.8: also handles placeholder symbols some local 7B models emit instead
+of the PC name — ``#`` (most common; user-reported), ``□``, ``★`` — when used
+as a standalone identity token before a CJK verb / particle.
+
 Extracted from `service/game.py` (v0.1.6 refactor).
 """
 import re
@@ -21,6 +25,15 @@ _NAME_PATTERNS = [
         r"(我叫|我是|在下|鄙人|叫我|本人是?|敝人)([一-鿿A-Za-z0-9·_]{1,8})"
     ),
 ]
+
+# Standalone placeholder chars some models output as a stand-in for the PC
+# name (notably `#`, observed in real LM Studio sessions). The placeholder is
+# typically wedged between CJK chars/punctuation: `记下了#的特征`, `攻击#。`,
+# `<pc_action>#站起身`. We replace when the placeholder is followed by a CJK
+# char or CJK punctuation, AND not part of a markdown heading (`##`, `# `).
+_PLACEHOLDER_PC_RE = re.compile(
+    r"(?<!#)([#□★])(?![#\s])(?=[一-鿿，。！？、；：「」『』])"
+)
 
 _SAY_BLOCK_RE = re.compile(r"<say\b[^>]*>.*?</say>", flags=re.DOTALL)
 
@@ -60,6 +73,16 @@ def _repair_pc_name(content: str, character_name: str) -> tuple[str, int]:
             return f"{verb}{character_name}"
 
         masked = pat.sub(_fix, masked)
+
+    # Replace standalone placeholder chars (#, □, ★) used as PC stand-in
+    # before a CJK glyph. Only fires when not part of a markdown heading or
+    # CJK run (the negative lookbehind rejects `##`, `字#`, etc.).
+    def _fix_placeholder(m: re.Match[str]) -> str:
+        nonlocal fixes
+        fixes += 1
+        return character_name
+
+    masked = _PLACEHOLDER_PC_RE.sub(_fix_placeholder, masked)
 
     # Restore say blocks.
     for i, block in enumerate(say_blocks):

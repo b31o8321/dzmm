@@ -46,10 +46,25 @@ def _redact_portrait(p: str | None) -> str:
 
 
 def _safe_filename(name: str) -> str:
-    """Sanitize a session name for use in Content-Disposition filename."""
-    # ASCII fallback — replace anything non-alnum with underscore.
-    cleaned = "".join(c if c.isalnum() else "_" for c in (name or ""))
+    """Sanitize a session name for use in HTTP Content-Disposition filename.
+
+    HTTP headers are latin-1 only, so we strip non-ASCII (Python's str.isalnum
+    returns True for CJK chars but they can't be header-encoded). Callers
+    that want to preserve the original CJK name should additionally emit a
+    `filename*=UTF-8''<percent-encoded>` per RFC 5987 — see _disposition_header.
+    """
+    cleaned = "".join(c if (c.isascii() and c.isalnum()) else "_" for c in (name or ""))
     return cleaned.strip("_") or "session"
+
+
+def _disposition_header(original_name: str, ext: str) -> str:
+    """Build a Content-Disposition value with both ASCII fallback and RFC 5987
+    UTF-8 encoded filename* so browsers can recover the original CJK name."""
+    from urllib.parse import quote
+    safe = _safe_filename(original_name)
+    fallback = f"dzmm_export_{safe}.{ext}"
+    encoded = quote(f"dzmm_export_{original_name or 'session'}.{ext}", safe="")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
 def _build_export_payload(
@@ -449,23 +464,19 @@ async def export_session(
         hidden=hidden, feedbacks=feedbacks,
     )
 
-    safe_name = _safe_filename(sess.name)
-
     if format == "md":
         md_text = _render_export_md(payload)
         return Response(
             content=md_text,
             media_type="text/markdown; charset=utf-8",
             headers={
-                "Content-Disposition":
-                    f'attachment; filename="dzmm_export_{safe_name}.md"',
+                "Content-Disposition": _disposition_header(sess.name, "md"),
             },
         )
 
     return JSONResponse(
         content=payload,
         headers={
-            "Content-Disposition":
-                f'attachment; filename="dzmm_export_{safe_name}.json"',
+            "Content-Disposition": _disposition_header(sess.name, "json"),
         },
     )
