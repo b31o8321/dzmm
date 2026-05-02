@@ -237,10 +237,13 @@ NPC 的对白用此标签包，引语用「」。可连续多个 <say> 表现来
 </choices>
 
 <plot_event type="new_quest|hook_introduced|hook_resolved|major_event|location_entered"
-            importance="1|2|3"
+            importance="2|3"
             thread_id="可选，回收伏笔时填">
 描述这个事件。一句话。
 </plot_event>
+
+重要：importance=1（日常细节）不emit此标签，直接写进 narrative 即可。
+每回合最多 emit 1 个 plot_event（只取最重要的那件事）。
 
 <era_begin name="第 N 章：副标题">
 描述这一章在情绪/地点/势力上的总体变化。

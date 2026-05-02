@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { PCGoalItem } from '@/api/sessions'
+
+const threadsExpanded = ref(false)
 
 defineProps<{
   stats: Record<string, number>
@@ -96,12 +99,20 @@ function tooltipFor(key: string): string {
     <section v-if="threads.length">
       <h3 class="font-bold text-slate-700 mb-2">剧情线</h3>
       <ul class="space-y-1 text-sm">
-        <li v-for="(t, i) in threads" :key="i">
+        <li v-for="(t, i) in (threadsExpanded ? threads : threads.slice(0, 5))" :key="i">
           <span class="text-amber-600 mr-1">{{ '★'.repeat(t.importance) }}</span>
           <span class="text-xs text-slate-500 mr-1">[{{ t.type }}]</span>
           {{ t.description }}
         </li>
       </ul>
+      <button
+        v-if="threads.length > 5"
+        type="button"
+        class="text-xs text-slate-400 hover:text-amber-600 mt-2"
+        @click="threadsExpanded = !threadsExpanded"
+      >
+        {{ threadsExpanded ? '收起' : `展开 (+${threads.length - 5})` }}
+      </button>
     </section>
 
     <section v-if="goals && goals.length">

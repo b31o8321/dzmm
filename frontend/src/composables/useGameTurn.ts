@@ -162,11 +162,14 @@ export function useGameTurn(
             let importance = 2
             const parsed = parseInt(attrs.importance ?? '2', 10)
             if (!isNaN(parsed)) importance = Math.max(1, Math.min(3, parsed))
-            gs.threads.value.push({
-              type: attrs.type ?? 'major_event',
-              description: content.trim(),
-              importance,
-            })
+            // Drop importance=1 trivia — they belong in narrative, not the sidebar.
+            if (importance >= 2) {
+              gs.threads.value.push({
+                type: attrs.type ?? 'major_event',
+                description: content.trim(),
+                importance,
+              })
+            }
           }
           else if (name === 'narrative_revised') {
             // Optional polish pass: replace the streaming narrative placeholder.

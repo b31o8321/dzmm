@@ -738,3 +738,17 @@ def test_choices_require_risk_differentiation():
     sys = msgs[0].content
     assert "风险" in sys or "代价" in sys or "后果" in sys
     assert "高风险" in sys or "低风险" in sys or "风险档" in sys
+
+
+def test_plot_event_throttle_rules_present():
+    """Template must instruct GM: importance=1 → don't emit; max 1 plot_event per turn."""
+    from dzmm.prompts.gm_template import build_gm_messages
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "importance=1" in sys or 'importance="1"' in sys
+    assert "每回合最多" in sys or "单回合最多" in sys or "max 1" in sys.lower()
