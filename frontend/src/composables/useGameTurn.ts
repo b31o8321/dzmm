@@ -86,6 +86,7 @@ export function useGameTurn(
       turn: turnCount.value + 1,
     })
     currentTurn.value = turn
+    const sayBuffer: string[] = []
     // Clear previous turn's choices — they're stale once the user sends.
     for (const t of turns.value) t.choices = []
     turns.value.push(turn)
@@ -103,10 +104,9 @@ export function useGameTurn(
           // streaming say/pc_action tags).
           if (name === 'say') {
             const speakerAttr = attrs.speaker ? ` speaker="${attrs.speaker}"` : ''
-            turn.rawContent =
-              (turn.rawContent ?? '') + `<say${speakerAttr}>${content}</say>`
+            sayBuffer.push(`<say${speakerAttr}>${content}</say>`)
           } else if (name === 'pc_action') {
-            turn.rawContent = (turn.rawContent ?? '') + `<pc_action>${content}</pc_action>`
+            sayBuffer.push(`<pc_action>${content}</pc_action>`)
           }
           // Record any structured tag (besides `narrative`/`say`/`pc_action`/`choices`)
           // as an event so it shows up in the per-message events dialog.
@@ -194,9 +194,11 @@ export function useGameTurn(
             if (leaked.length) turn.choices = leaked
           }
           turn.narrative = cleanNarrative(turn.narrative)
-          // Synthesize a rawContent that parseParts can chew on. We always
-          // prepend the cleaned narrative (wrapped) so backwards-compat is
-          // preserved when GM didn't emit any speaker tags at all.
+          // Flush buffered say/pc_action tags (collected during streaming so
+          // dialogue bubbles don't appear before narrative finishes).
+          if (sayBuffer.length) {
+            turn.rawContent = (turn.rawContent ?? '') + sayBuffer.join('')
+          }
           if (turn.narrative) {
             turn.rawContent =
               `<narrative>${turn.narrative}</narrative>` + (turn.rawContent ?? '')
