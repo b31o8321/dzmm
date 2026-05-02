@@ -181,15 +181,6 @@ def test_recall_tag_no_space_self_close():
     assert any(t.name == "recall" and t.attrs.get("name") == "A" for t in tags)
 
 
-def test_era_begin_tag_known():
-    p = StreamingTagParser()
-    out = collect(p, ['<era_begin name="第一章">序幕</era_begin>'])
-    tag = [e for e in out if isinstance(e, TagComplete)][0]
-    assert tag.name == "era_begin"
-    assert tag.attrs == {"name": "第一章"}
-    assert tag.content == "序幕"
-
-
 def test_pc_mood_tag_known():
     p = StreamingTagParser()
     out = collect(p, ['<pc_mood>{"tense":+20,"exhausted":+10}</pc_mood>'])

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElInput } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
-import { sessionsApi, type MessageRow, type Npc } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
@@ -32,6 +32,25 @@ const worldsStore = useWorldsStore()
 const modelsStore = useModelConfigsStore()
 const audio = useAudio()
 const version = __APP_VERSION__
+
+const FONT_SIZE_KEY = 'dzmm_game_font_size'
+const FONT_FAMILY_KEY = 'dzmm_game_font_family'
+const FONT_FAMILIES = [
+  { label: '默认', value: 'system-ui, sans-serif' },
+  { label: '衬线', value: 'Georgia, serif' },
+  { label: '等宽', value: "'Courier New', monospace" },
+]
+const fontSize = ref(parseInt(localStorage.getItem(FONT_SIZE_KEY) ?? '15'))
+const fontFamilyIdx = ref(parseInt(localStorage.getItem(FONT_FAMILY_KEY) ?? '0'))
+const fontFamily = computed(() => FONT_FAMILIES[fontFamilyIdx.value]?.value ?? FONT_FAMILIES[0].value)
+function changeFontSize(delta: number) {
+  fontSize.value = Math.min(24, Math.max(12, fontSize.value + delta))
+  localStorage.setItem(FONT_SIZE_KEY, String(fontSize.value))
+}
+function cycleFontFamily() {
+  fontFamilyIdx.value = (fontFamilyIdx.value + 1) % FONT_FAMILIES.length
+  localStorage.setItem(FONT_FAMILY_KEY, String(fontFamilyIdx.value))
+}
 
 const action = ref('')
 const inputRef = ref<InstanceType<typeof ElInput> | null>(null)
@@ -143,14 +162,18 @@ const {
   tokensIn,
   tokensOut,
   sending,
+  sceneMood,
   sendAction,
   refreshTokens,
 } = useGameTurn(sessionId, gs, {
   onTurnDone: () => {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
+    refreshLocations()  // pick up <location_enter> updates
+    refreshNpcLocations()  // pick up <npc_update location="..."> changes
     refreshSuggestions()
   },
+  onNpcInitiative: (npcName) => onInitiativeTrigger(npcName),
 })
 
 const npcDialogOpen = ref(false)
@@ -158,6 +181,31 @@ const selectedNpc = ref<Npc | null>(null)
 const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
+const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
+
+async function refreshNpcLocations() {
+  try {
+    const fullNpcs = await sessionsApi.npcs(sessionId)
+    const npcMap = new Map(fullNpcs.map((n) => [n.name, n]))
+    for (const n of npcs.value) {
+      const full = npcMap.get(n.name)
+      if (full) (n as any).current_location = full.current_location ?? null
+    }
+  } catch { /* ignore */ }
+}
+
+async function refreshLocations() {
+  try {
+    const locs = await sessionsApi.locations(sessionId)
+    const cur = locs.find((l) => l.is_current) ?? null
+    currentLocation.value = cur
+      ? { name: cur.name, description: cur.description, items: cur.items ?? [] }
+      : null
+  } catch {
+    /* ignore */
+  }
+}
+
 const modelSwitchOpen = ref(false)
 const switchModelId = ref<number | null>(null)
 
@@ -271,6 +319,83 @@ const suggestions = ref<string[]>([])
 
 function quick(act: string) {
   action.value = act
+}
+
+// NPC initiative
+const initiativeNpc = ref<string | null>(null)
+let initiativeTimer: ReturnType<typeof setTimeout> | null = null
+
+function onInitiativeTrigger(npcName: string) {
+  if (!npcName) return
+  initiativeNpc.value = npcName
+  if (initiativeTimer) clearTimeout(initiativeTimer)
+  initiativeTimer = setTimeout(() => triggerInitiative(), 4000)
+}
+
+async function triggerInitiative() {
+  const npcName = initiativeNpc.value
+  initiativeNpc.value = null
+  if (initiativeTimer) { clearTimeout(initiativeTimer); initiativeTimer = null }
+  if (!npcName) return
+
+  const newTurn = reactive<Turn>({ action: `【${npcName}主动】`, narrative: '', choices: [], events: [], turn: 0 })
+  turns.value.push(newTurn)
+  sending.value = true
+
+  try {
+    await sessionsApi.npcTick(
+      sessionId,
+      npcName,
+      {
+        onNarrative: (text) => { newTurn.narrative += text },
+        onTag: (name, attrs, content) => {
+          if (name === 'choices') {
+            newTurn.choices = content.split('\n').map((s: string) => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+          }
+          newTurn.events = [...(newTurn.events ?? []), { type: name, payload: attrs, content }]
+        },
+        onDone: () => {
+          sending.value = false
+          refreshCharacter()
+          refreshGoals()
+          refreshLocations()
+          refreshNpcLocations()
+          refreshSuggestions()
+        },
+      },
+    )
+  } finally {
+    sending.value = false
+  }
+}
+
+function dismissInitiative() {
+  initiativeNpc.value = null
+  if (initiativeTimer) { clearTimeout(initiativeTimer); initiativeTimer = null }
+}
+
+// v0.2.3 P2.3: 主推按钮——剧本当前章节下一个 [pending] main_event 作为 hint
+const nextMainEvent = computed(() => {
+  if (!screenplay.value) return null
+  const chapters = screenplay.value.chapters
+  const cur = chapters[screenplay.value.current_chapter - 1]
+  if (!cur) return null
+  const completed = screenplay.value.completed_events
+  for (let i = 0; i < cur.main_events.length; i++) {
+    const isDone = completed.some(
+      (c) =>
+        c.chapter === screenplay.value!.current_chapter &&
+        c.event_idx === i &&
+        c.type === 'main',
+    )
+    if (!isDone) return cur.main_events[i]
+  }
+  return null // all main events done
+})
+
+// 把通用推进提示塞 input，让玩家审阅／编辑后再发送（不直接 send）
+function applyEventHint(_event: string) {
+  action.value = '（感觉剧情进展太慢，请主动推进剧情节奏）'
 }
 
 async function refreshSuggestions() {
@@ -427,25 +552,52 @@ onMounted(async () => {
     threads.value = st.threads
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
 
-    // Augment with pinned flag from /npcs endpoint (state endpoint doesn't include it).
+    // Augment with pinned flag and current_location from /npcs endpoint.
     try {
       const fullNpcs = await sessionsApi.npcs(sessionId)
-      const pinSet = new Set(fullNpcs.filter((n) => n.pinned).map((n) => n.name))
-      for (const n of npcs.value) n.pinned = pinSet.has(n.name)
+      const npcMap = new Map(fullNpcs.map((n) => [n.name, n]))
+      for (const n of npcs.value) {
+        const full = npcMap.get(n.name)
+        if (full) {
+          n.pinned = full.pinned
+          ;(n as any).current_location = full.current_location ?? null
+        }
+      }
     } catch { /* ignore */ }
   } catch {
     /* ignore */
   }
 
   await refreshGoals()
+  await refreshLocations()
+
+  // v0.2.3 P2.1: 新 session 自动开局——turn_count=0 且无任何 turn 时，
+  // 自动派发首个 action 让 GM 输出开局描写。screenplay.opening_hook 是
+  // wizard 生成的引子，作为隐式起手 prompt。双重检查 turns.value.length === 0
+  // 防止已 hydrate 出消息时重复开局。
+  if (turnCount.value === 0 && turns.value.length === 0 && !sending.value) {
+    let opener = '(开始游戏 — 描写场景，让我代入)'
+    const hook = screenplay.value?.opening_hook
+    if (hook) {
+      opener = `(开始游戏。开篇引子: ${hook.slice(0, 200)})`
+    }
+    try {
+      await sendAction(opener)
+    } catch {
+      /* ignore — 玩家可手动输入 */
+    }
+  }
 })
 
-onUnmounted(() => audio.stopBgm())
+onUnmounted(() => {
+  audio.stopBgm()
+  if (initiativeTimer) clearTimeout(initiativeTimer)
+})
 </script>
 
 <template>
   <div class="flex h-full">
-    <section class="flex-1 flex flex-col bg-slate-50">
+    <section class="flex-1 flex flex-col bg-slate-50 transition-colors duration-700" :class="`mood-${sceneMood}`">
       <header class="px-6 py-3 border-b bg-white flex items-center justify-between">
         <div class="flex items-center gap-3 flex-wrap">
           <CharacterAvatar
@@ -502,8 +654,8 @@ onUnmounted(() => audio.stopBgm())
                                class="block w-full">🔗 关系</router-link>
                 </el-dropdown-item>
                 <el-dropdown-item>
-                  <router-link :to="`/play/${sessionId}/chronicle`"
-                               class="block w-full">📜 编年史</router-link>
+                  <router-link :to="`/play/${sessionId}/locations`"
+                               class="block w-full">📍 场所</router-link>
                 </el-dropdown-item>
                 <el-dropdown-item divided @click="feedbackOpen = true">
                   💬 反馈
@@ -517,7 +669,20 @@ onUnmounted(() => audio.stopBgm())
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <span class="flex items-center gap-0.5">
+            <button type="button"
+              class="text-xs w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded"
+              title="缩小字号" @click="changeFontSize(-1)">A-</button>
+            <span class="text-xs text-slate-400 w-6 text-center select-none">{{ fontSize }}</span>
+            <button type="button"
+              class="text-xs w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded"
+              title="放大字号" @click="changeFontSize(1)">A+</button>
+            <button type="button"
+              class="text-xs px-1.5 h-5 flex items-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded ml-0.5"
+              title="切换字体" @click="cycleFontFamily()">{{ FONT_FAMILIES[fontFamilyIdx].label }}</button>
+          </span>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800 shrink-0">
+
             返回存档
           </router-link>
           <span class="text-xs text-slate-400">v{{ version }}</span>
@@ -538,10 +703,17 @@ onUnmounted(() => audio.stopBgm())
         </el-button>
       </div>
 
+      <div v-if="initiativeNpc" class="initiative-banner">
+        <span class="initiative-label">{{ initiativeNpc }} 正在寻找你...</span>
+        <el-button size="small" type="primary" @click="triggerInitiative">立即触发</el-button>
+        <el-button size="small" @click="dismissInitiative">忽略</el-button>
+      </div>
+
       <MessageList
         :turns="turns"
         :character-name="character?.name"
         :sending="sending"
+        :style="{ fontSize: fontSize + 'px', fontFamily }"
         @choose="(c: string) => sendActionDirect(c)"
         @open-events="(t: Turn) => openEvents(t)"
       />
@@ -555,6 +727,18 @@ onUnmounted(() => audio.stopBgm())
       </div>
 
       <footer class="border-t bg-white p-4 space-y-2">
+        <!-- v0.2.3 P2.3: 主推剧本下一个 main_event，点击仅塞 input 让玩家审阅 -->
+        <div v-if="nextMainEvent" class="flex justify-end">
+          <el-button
+            size="small"
+            type="info"
+            plain
+            :disabled="sending"
+            @click="applyEventHint(nextMainEvent)"
+            title="感觉剧情太慢或走偏时使用"
+          >⚡ 推进剧情</el-button>
+        </div>
+        <!-- v0.2.5: action-mode chips + suggestions -->
         <div class="flex flex-wrap gap-2 items-center">
           <el-button
             v-for="chip in MODE_CHIPS"
@@ -596,6 +780,7 @@ onUnmounted(() => audio.stopBgm())
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
+                  :current-location="currentLocation"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
     </div>
@@ -604,7 +789,7 @@ onUnmounted(() => audio.stopBgm())
     <button
       v-if="!panelOpen"
       type="button"
-      class="md:hidden fixed top-2 right-2 z-20 bg-white border border-slate-300 rounded-full w-10 h-10 shadow flex items-center justify-center text-lg"
+      class="md:hidden fixed bottom-24 right-3 z-20 bg-white border border-slate-300 rounded-full w-10 h-10 shadow flex items-center justify-center text-lg"
       title="打开状态面板"
       @click="panelOpen = true"
     >📋</button>
@@ -627,6 +812,7 @@ onUnmounted(() => audio.stopBgm())
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
+                  :current-location="currentLocation"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
     </div>
@@ -707,3 +893,34 @@ onUnmounted(() => audio.stopBgm())
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.initiative-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(64, 158, 255, 0.1);
+  border: 1px solid rgba(64, 158, 255, 0.3);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.initiative-label {
+  flex: 1;
+  color: #409eff;
+}
+
+/* Scene mood atmosphere — subtle background tint that shifts with narrative */
+.mood-neutral    { background-color: rgb(248 250 252); }
+.mood-tense      { background-color: rgb(255 247 247); }
+.mood-horror     { background-color: rgb(241 245 249); }
+.mood-romantic   { background-color: rgb(255 241 248); }
+.mood-mysterious { background-color: rgb(245 243 255); }
+
+/* Colored top-border accent on the chat header */
+.mood-tense      header { border-top: 2px solid #fca5a5; }
+.mood-horror     header { border-top: 2px solid #94a3b8; }
+.mood-romantic   header { border-top: 2px solid #f9a8d4; }
+.mood-mysterious header { border-top: 2px solid #c4b5fd; }
+</style>

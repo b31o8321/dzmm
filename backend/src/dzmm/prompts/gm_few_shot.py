@@ -95,6 +95,38 @@ FEW_SHOT_EXAMPLE = """
 <narrative>店主抬眼。</narrative>
 错误原因：把 say 放到了 pc_action 之前——NPC 在 PC 动作之前就开口，时序倒置。
 
+--- 示范4：场地与NPC在场管理（v0.2.6，严格遵守）---
+
+玩家「走出茶馆回到街道上」，正确输出：
+
+<narrative>茶馆门吱呀一声推开，夜风裹着炭火气息扑来，街道上人影稀落。</narrative>
+
+<pc_action>{character_name}踏出门槛，回头最后看了一眼店主。</pc_action>
+
+<npc_update>
+{{"name": "店主陈伯", "location": ""}}
+</npc_update>
+
+<location_enter name="九龙黑街" description="昏黄路灯把积水染成琥珀色，远处传来麻将碰撞声"/>
+
+<choices>
+- 沿街向北，往那道暗灯走去
+- 停在门口，等一等再走
+- 压低帽檐穿过人群
+</choices>
+
+说明：location="" 表示陈伯留在茶馆，不再出现在「九龙黑街」的在场NPC列表。
+
+---
+
+玩家「把匕首插进木桌」，正确输出（物品进入场地）：
+
+<location_item name="匕首" description="银柄，刀背有缺口" action="add"/>
+
+玩家之后「收起匕首」，正确输出（物品离开场地）：
+
+<location_item name="匕首" action="remove"/>
+
 /* 以上仅为示例。实际输出必须从 <narrative> 开头，不要包含
 「输出范例」「示范」「错误示范」这类元文字，也不要把示例里的
 人名（陈子轩 / 老学者 / 年轻卫兵）抄到无关场景。 */

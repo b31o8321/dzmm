@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.db.models import (
     Character,
     CharState,
-    Era,
     HiddenEvent,
+    Location,
     Message as MessageRow,
     NPC,
     NpcRelation,
@@ -28,8 +28,10 @@ from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
 from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.director_template import build_director_messages
 from dzmm.prompts.gm_template import build_gm_messages
+from dzmm.prompts.outliner_template import build_outliner_messages
 from dzmm.prompts.polish_template import build_polish_messages
 from dzmm.service.activity_log import log_event
+from dzmm.service.npc_initiative import find_initiative_npc
 from dzmm.service.state_apply import apply_tags
 from dzmm.service.state_apply.dice_monitor import (
     build_stuck_warning,
@@ -39,6 +41,15 @@ from dzmm.service.state_apply.dice_monitor import (
 
 
 log = logging.getLogger(__name__)
+
+_STYLE_TO_GENRE: dict[str, str] = {
+    "dark": "悬疑探案",
+    "horror": "灾难求生",
+    "healing": "恋爱攻略",
+    "comedy": "英雄成长",
+    "realistic": "英雄成长",
+}
+_DEFAULT_GENRE = "英雄成长"
 
 # Recent verbatim turn window used when assembling the GM prompt. v0.2.1 — the
 # window shrinks once the session is long enough that summary + key_facts
@@ -93,6 +104,68 @@ from dzmm.service.name_repair import (
 )
 
 
+async def _auto_generate_screenplay(
+    session: AsyncSession,
+    sess: GameSession,
+    world: World,
+    char: Character,
+    client: ModelClient,
+) -> None:
+    """Generate and persist a Screenplay outline on the first turn.
+
+    Non-fatal: if LLM output can't be parsed as JSON, logs and returns.
+    """
+    genre = _STYLE_TO_GENRE.get(world.style or "", _DEFAULT_GENRE)
+    char_name = char.name or "PC"
+
+    msgs = build_outliner_messages(
+        world_name=world.name or "",
+        world_md=world.content_md or "",
+        character_name=char_name,
+        character_md=_format_character_card(char),
+        genre=genre,
+    )
+
+    buf: list[str] = []
+    async for chunk in client.stream(msgs, GenerationParams(max_tokens=2000, temperature=0.7)):
+        if chunk.delta:
+            buf.append(chunk.delta)
+
+    raw = "".join(buf).strip()
+    # Strip optional markdown code fences the model sometimes adds
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1]
+    if raw.endswith("```"):
+        raw = raw.rsplit("\n", 1)[0]
+
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        log.warning("auto_screenplay: JSON parse failed — proceeding without outline")
+        return
+
+    chapters = data.get("chapters", [])
+    main_characters = data.get("main_characters", [])
+
+    session.add(Screenplay(
+        session_id=sess.id,
+        version=1,
+        genre=genre,
+        chapters_json=json.dumps(chapters, ensure_ascii=False),
+        main_characters_json=json.dumps(main_characters, ensure_ascii=False),
+        ending_md=data.get("ending", ""),
+        opening_hook=data.get("opening_hook", ""),
+        current_chapter=1,
+        completed_events_json="[]",
+        status="active",
+    ))
+    await session.flush()
+    log.info(
+        "auto_screenplay: created for session %d (genre: %s, chapters: %d)",
+        sess.id, genre, len(chapters),
+    )
+
+
 async def run_turn(
     session: AsyncSession,
     session_id: int,
@@ -125,6 +198,17 @@ async def run_turn(
         )
     ).scalar_one_or_none()
     story_summary = summary_row.summary_text if summary_row else ""
+
+    # v0.2.7 — auto-generate screenplay on first turn if none exists
+    if sess.turn_count == 0:
+        existing_sp = (await session.execute(
+            select(Screenplay).where(
+                Screenplay.session_id == session_id,
+                Screenplay.status == "active",
+            )
+        )).scalar_one_or_none()
+        if existing_sp is None:
+            await _auto_generate_screenplay(session, sess, world, char, client)
 
     key_facts = await _build_key_facts(session, session_id, sess.turn_count, char)
 
@@ -307,6 +391,21 @@ async def run_turn(
     sess.turn_count = next_turn
     sess.last_played = datetime.now(UTC).replace(tzinfo=None)
 
+    # v0.2.7 — NPC initiative check. After this turn completes, find if any
+    # NPC is eligible to proactively contact PC. If yes, yield a synthetic
+    # npc_initiative tag event; frontend will auto-trigger a /npc_tick call.
+    initiative_npc = await find_initiative_npc(session, session_id, next_turn)
+    if initiative_npc is not None:
+        initiative_npc.last_initiative_turn = next_turn
+        yield TagComplete(
+            name="npc_initiative",
+            attrs={"npc": initiative_npc.name},
+            content="",
+        )
+        log.info(
+            "npc_initiative scheduled: %s (turn %d)", initiative_npc.name, next_turn
+        )
+
 
 def _extract_pc_hooks(profile_md: str) -> dict[str, list[str]]:
     """Heuristic extraction of abilities/items/weaknesses from profile_md.
@@ -487,13 +586,8 @@ async def _build_key_facts(
         )
     ).scalars().all()
 
-    current_era = (
-        await session.execute(
-            select(Era).where(Era.session_id == session_id)
-            .order_by(Era.started_turn.desc()).limit(1)
-        )
-    ).scalar_one_or_none()
-
+    # v0.2.5 — turn anchor at the head of key_facts so the GM doesn't drift on
+    # which turn it is when summary windows compress earlier rounds.
     parts: list[str] = [f"**当前是第 {current_turn} 回合**"]
 
     # PC identity lock — top priority, prevents the GM drifting to a different
@@ -514,9 +608,6 @@ async def _build_key_facts(
             "无论后文如何，PC 的姓名必须始终是上面这个，不得改名、不得替换、不得简称为别的名字。"
         )
         parts.append("\n".join(identity_lines))
-
-    if current_era:
-        parts.append(f"当前章节：{current_era.name}（自第 {current_era.started_turn} 回合起）")
 
     if pinned_npcs:
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")
@@ -553,6 +644,57 @@ async def _build_key_facts(
         for g in active_goals:
             prio_mark = {"high": "★★★", "normal": "★★", "low": "★"}.get(g.priority, "★★")
             parts.append(f"- [id={g.id}] {prio_mark} {g.description}")
+
+    # v0.2.6 — current scene context (location + in-scene NPCs + items).
+    current_loc = (
+        await session.execute(
+            select(Location).where(
+                Location.session_id == session_id,
+                Location.is_current == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if current_loc is not None:
+        loc_lines = [f"\n## 当前场地：{current_loc.name}"]
+        if current_loc.description:
+            loc_lines.append(f"描述：{current_loc.description}")
+
+        # NPCs physically present in this location (from all three NPC lists)
+        all_collected_npcs = list(pinned_npcs) + list(recent_filtered) + list(recalled_npcs)
+        scene_npcs = [
+            n for n in all_collected_npcs
+            if (n.current_location or "").lower() == current_loc.name.lower()
+        ]
+        if scene_npcs:
+            loc_lines.append("在场 NPC：" + "、".join(n.name for n in scene_npcs))
+        else:
+            loc_lines.append("在场 NPC：无")
+
+        # Items in this location
+        try:
+            items = json.loads(current_loc.items_json or "[]")
+            if not isinstance(items, list):
+                items = []
+        except (TypeError, ValueError):
+            items = []
+        if items:
+            item_strs = []
+            for i in items:
+                item_name = i.get("name", "")
+                if not item_name:
+                    continue
+                item_desc = i.get("description", "")
+                item_strs.append(f"{item_name}（{item_desc}）" if item_desc else item_name)
+            if item_strs:
+                loc_lines.append("关键物品：" + "、".join(item_strs))
+
+        loc_lines.append(
+            "（NPC 离开此地时 emit `<npc_update name=\"X\" location=\"\"/>`；"
+            "进入新地点时 emit `<npc_update name=\"X\" location=\"新地名\"/>`；"
+            "引入新物品 emit `<location_item name=\"物品\" description=\"描述\" action=\"add\"/>`；"
+            "物品被取走/消耗 emit `<location_item name=\"物品\" action=\"remove\"/>`）"
+        )
+        parts.append("\n".join(loc_lines))
 
     # PC mood — surfaced so GM tunes language to current emotional state.
     if sess is not None:
@@ -873,5 +1015,40 @@ async def _build_key_facts(
     stuck = detect_stuck_dice(d20_values, min_streak=2)
     if stuck is not None:
         parts.append(build_stuck_warning(d20_values, stuck))
+
+    # v0.2.5 — Per-turn dynamic directive. Python-computed from current game
+    # state; injected last so it's the freshest instruction before the GM writes.
+    # Replaces the need for the LLM to self-diagnose pacing/variety issues.
+    directive_items: list[str] = []
+
+    # Scene stagnation: 3+ turns in same location → push for new element.
+    if current_loc is not None:
+        turns_in_loc = current_turn - (current_loc.last_visited_turn or 0)
+        if turns_in_loc >= 3:
+            directive_items.append(
+                f"场景节奏：PC 已在「{current_loc.name}」停留 {turns_in_loc} 回合，"
+                "本回合必须加入打断元素（新NPC到来/意外发现/环境变化）或引导 PC 转移场景"
+            )
+
+    # NPC absence: pinned NPCs missing 5+ turns should be woven back in.
+    for n in pinned_npcs:
+        if current_turn > 0 and (current_turn - (n.last_seen_turn or 0)) >= 5:
+            turns_absent = current_turn - (n.last_seen_turn or 0)
+            directive_items.append(
+                f"NPC 回场：{n.name} 已 {turns_absent} 回合未出现"
+                f"（上次第 {n.last_seen_turn} 回合），本回合安排其主动联系或被提及"
+            )
+
+    # Narrative variety rotation — prevents the GM from defaulting to the
+    # same prose pattern every turn. Cycles through 4 different requirements.
+    _VARIETY = [
+        "叙事质感：本回合融入一个具体感官细节（声音/气味/触感/温度），自然嵌入，不要单独列出",
+        "叙事质感：安排一件出乎 PC 预料的小事或 NPC 意外反应，打破本回合的既定节奏",
+        "叙事质感：在本回合末尾埋下一个未解答的悬念或细节，让玩家带着好奇进入下一回合",
+        "叙事质感：聚焦情绪落差——同一场景内从平静到紧张（或反向）的节奏转变",
+    ]
+    directive_items.append(_VARIETY[current_turn % len(_VARIETY)])
+
+    parts.append("## 🎬 本回合要点\n" + "\n".join(f"- {d}" for d in directive_items))
 
     return "\n".join(parts)

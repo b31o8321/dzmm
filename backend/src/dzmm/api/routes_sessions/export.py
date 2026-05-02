@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.db.models import (
     Character,
     CharState,
-    Era,
     Feedback,
     HiddenEvent,
     Message as MessageRow,
@@ -24,7 +23,6 @@ from dzmm.db.models import (
     PlotThread,
     Session as GameSession,
     StorySummary,
-    Timeline,
     World,
 )
 
@@ -78,8 +76,6 @@ def _build_export_payload(
     relations: list[NpcRelation],
     threads: list[PlotThread],
     goals: list[PCGoal],
-    eras: list[Era],
-    timeline: list[Timeline],
     hidden: list[HiddenEvent],
     feedbacks: list[Feedback],
 ) -> dict:
@@ -173,22 +169,6 @@ def _build_export_payload(
             }
             for g in goals
         ],
-        "eras": [
-            {
-                "id": e.id, "name": e.name,
-                "started_turn": e.started_turn,
-                "description": e.description,
-            }
-            for e in eras
-        ],
-        "timeline": [
-            {
-                "id": t.id, "turn": t.turn,
-                "event_text": t.event_text, "importance": t.importance,
-                "created_at": t.created_at.isoformat() if t.created_at else None,
-            }
-            for t in timeline
-        ],
         "hidden_events": [
             {
                 "id": h.id, "subject": h.subject, "kind": h.kind,
@@ -223,8 +203,6 @@ def _render_export_md(payload: dict) -> str:
     relations = payload.get("npc_relations") or []
     threads = payload.get("plot_threads") or []
     goals = payload.get("pc_goals") or []
-    eras = payload.get("eras") or []
-    timeline = payload.get("timeline") or []
     hidden = payload.get("hidden_events") or []
     feedbacks = payload.get("feedbacks") or []
     messages = payload.get("messages") or []
@@ -314,23 +292,6 @@ def _render_export_md(payload: dict) -> str:
                 f"- {r.get('npc_a', '')} ←→ {r.get('npc_b', '')} "
                 f"({r.get('kind', '')}){tail}"
             )
-        lines.append("")
-
-    if eras:
-        lines.append("## 编年史 (Eras)")
-        for i, e in enumerate(eras, 1):
-            lines.append(
-                f"### Era {i}: {e.get('name', '')} "
-                f"(回合 {e.get('started_turn', 0)} 起)"
-            )
-            if e.get("description"):
-                lines.append(e["description"])
-            lines.append("")
-
-    if timeline:
-        lines.append("## 关键事件 (Timeline)")
-        for t in timeline:
-            lines.append(f"- 回合 {t.get('turn', 0)}: {t.get('event_text', '')}")
         lines.append("")
 
     if threads:
@@ -439,14 +400,6 @@ async def export_session(
         select(PCGoal).where(PCGoal.session_id == session_id)
         .order_by(PCGoal.id)
     )).scalars().all()
-    eras = (await s.execute(
-        select(Era).where(Era.session_id == session_id)
-        .order_by(Era.started_turn, Era.id)
-    )).scalars().all()
-    timeline = (await s.execute(
-        select(Timeline).where(Timeline.session_id == session_id)
-        .order_by(Timeline.turn, Timeline.id)
-    )).scalars().all()
     # hidden_events: include both active + resolved for archival/analysis.
     hidden = (await s.execute(
         select(HiddenEvent).where(HiddenEvent.session_id == session_id)
@@ -460,7 +413,7 @@ async def export_session(
     payload = _build_export_payload(
         sess=sess, world=world, char=char, messages=messages,
         summary=summary, cs=cs, npcs=npcs, relations=relations,
-        threads=threads, goals=goals, eras=eras, timeline=timeline,
+        threads=threads, goals=goals,
         hidden=hidden, feedbacks=feedbacks,
     )
 

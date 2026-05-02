@@ -1,18 +1,33 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { PCGoalItem } from '@/api/sessions'
 
 const threadsExpanded = ref(false)
 
-defineProps<{
+const props = defineProps<{
   stats: Record<string, number>
   inventory: string[]
-  npcs: { name: string; favor: number; state: string; pinned?: boolean }[]
+  npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null }[]
   dice: { skill: string; target: string; result: string }[]
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
   pcMood?: Record<string, number>
+  currentLocation?: {
+    name: string
+    description: string
+    items?: { name: string; description: string }[]
+  } | null
 }>()
+
+const presentNpcs = computed(() =>
+  props.currentLocation
+    ? props.npcs.filter(
+        (n) =>
+          n.current_location &&
+          n.current_location.toLowerCase() === props.currentLocation!.name.toLowerCase(),
+      )
+    : [],
+)
 
 const emit = defineEmits<{
   (e: 'select-npc', name: string): void
@@ -40,10 +55,29 @@ const STAT_TOOLTIPS: Record<string, string> = {
 function tooltipFor(key: string): string {
   return STAT_TOOLTIPS[key] || ''
 }
+
+function npcAvatarColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
+  return `hsl(${h % 360}, 52%, 50%)`
+}
 </script>
 
 <template>
   <aside class="w-80 bg-white border-l p-4 flex flex-col gap-4 overflow-auto">
+    <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm mb-2">
+      <span class="text-slate-500 text-xs">当前场所</span>
+      <div class="font-bold text-blue-800">📍 {{ currentLocation.name }}</div>
+      <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5">
+        {{ currentLocation.description }}
+      </div>
+      <div v-if="presentNpcs.length" class="text-xs text-slate-600 mt-1">
+        在场：{{ presentNpcs.map((n) => n.name).join('、') }}
+      </div>
+      <div v-if="currentLocation.items?.length" class="text-xs text-slate-500 mt-1">
+        <span class="font-medium">物品：</span>{{ currentLocation.items.map((i) => i.name).join('、') }}
+      </div>
+    </div>
     <section>
       <h3 class="font-bold text-slate-700 mb-2">角色状态</h3>
       <div class="space-y-1 text-sm">
@@ -152,10 +186,14 @@ function tooltipFor(key: string): string {
         <li v-for="n in npcs" :key="n.name" class="flex justify-between items-center gap-2">
           <button
             type="button"
-            class="text-left hover:underline hover:text-amber-700 truncate flex items-center gap-1"
+            class="text-left hover:underline hover:text-amber-700 truncate flex items-center gap-1.5"
             @click="emit('select-npc', n.name)"
             :title="`查看 ${n.name} 的详情`"
           >
+            <span
+              class="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-xs font-bold shrink-0 select-none"
+              :style="{ backgroundColor: npcAvatarColor(n.name) }"
+            >{{ n.name[0] }}</span>
             <span v-if="n.pinned" class="text-amber-500" title="已置顶">📌</span>
             <span>{{ n.name }}</span>
           </button>

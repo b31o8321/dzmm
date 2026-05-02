@@ -108,6 +108,8 @@ class NPC(Base):
     pinned: Mapped[bool] = mapped_column(default=False)
     emotion_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
     revealed_json: Mapped[str] = mapped_column(Text, default='{"name": true}')  # v0.11 progressive reveal: field→bool
+    current_location: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)  # v0.2.6 scene binding
+    last_initiative_turn: Mapped[int] = mapped_column(default=0)  # v0.2.7 NPC initiative: last turn this NPC self-initiated contact
 
 
 class PlotThread(Base):
@@ -120,31 +122,6 @@ class PlotThread(Base):
     importance: Mapped[int] = mapped_column(default=2)  # 1=minor, 2=normal, 3=major
     status: Mapped[str] = mapped_column(String(20), default="active")  # active|resolved|abandoned
     resolution: Mapped[str] = mapped_column(Text, default="")
-
-
-class Timeline(Base):
-    """Long-term key events extracted during recursive summary compression.
-    Not injected into prompts (would defeat the compression); used for
-    explicit user retrieval ("when did I first meet X?")."""
-    __tablename__ = "timeline"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
-    turn: Mapped[int] = mapped_column(default=0)
-    event_text: Mapped[str] = mapped_column(Text)
-    importance: Mapped[int] = mapped_column(default=2)  # 1-3
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
-
-
-class Era(Base):
-    """Story 'chapter' / 'arc' marker. GM emits <era_begin> to signal a
-    significant narrative phase shift — used to group Timeline events in the
-    Chronicle view."""
-    __tablename__ = "eras"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
-    name: Mapped[str] = mapped_column(String(120))
-    started_turn: Mapped[int] = mapped_column(default=0)
-    description: Mapped[str] = mapped_column(Text, default="")
 
 
 class NpcRelation(Base):
@@ -224,6 +201,20 @@ class Feedback(Base):
     kind: Mapped[str] = mapped_column(String(20), default="other")  # bug | suggestion | praise | other
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+
+
+class Location(Base):
+    """v0.2.3 — Locations visited by the PC. GM emits <location_enter> to register.
+    is_current tracks which location the PC is currently in."""
+    __tablename__ = "locations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text, default="")
+    first_visited_turn: Mapped[int] = mapped_column(default=0)
+    last_visited_turn: Mapped[int] = mapped_column(default=0)
+    is_current: Mapped[bool] = mapped_column(default=False)
+    items_json: Mapped[str] = mapped_column(Text, default="[]")  # v0.2.6 scene items: [{"name":str,"description":str}]
 
 
 class HiddenEvent(Base):

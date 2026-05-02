@@ -9,6 +9,7 @@ import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { sessionsApi } from '@/api/sessions'
 import type { SessionIn } from '@/api/types'
 import GenreSelector from '@/components/GenreSelector.vue'
+import { api } from '@/api/client'
 
 const router = useRouter()
 const sessionsStore = useSessionsStore()
@@ -77,6 +78,7 @@ async function exportSession(id: number, format: 'json' | 'md') {
 }
 
 async function onDelete(row: { id: number; name: string; turn_count: number; world_id: number; character_id: number }) {
+  // Step 1: confirm session delete
   try {
     await ElMessageBox.confirm(
       `确定要删除存档「${row.name}」吗？\n\n该操作会一并清除：消息历史、NPC、关系、` +
@@ -100,7 +102,7 @@ async function onDelete(row: { id: number; name: string; turn_count: number; wor
     return
   }
 
-  // Ask about deleting world
+  // Step 2: ask about deleting world
   const worldName = worldNameById.value.get(row.world_id) ?? `世界观 #${row.world_id}`
   const otherSessionsWithWorld = sessionsStore.items.filter(
     (s) => s.world_id === row.world_id,
@@ -124,7 +126,7 @@ async function onDelete(row: { id: number; name: string; turn_count: number; wor
     ElMessage.success(`已删除世界观「${worldName}」`)
   } catch { /* user chose to keep or closed dialog */ }
 
-  // Ask about deleting character
+  // Step 3: ask about deleting character
   const charName = charNameById.value.get(row.character_id) ?? `角色 #${row.character_id}`
   const otherSessionsWithChar = sessionsStore.items.filter(
     (s) => s.character_id === row.character_id,
@@ -189,6 +191,53 @@ const charNameById = computed(() => {
   return m
 })
 
+// --- Spinoff ---
+const spinoffTarget = ref<{ id: number; name: string } | null>(null)
+const spinoffName = ref('')
+const spinoffNpcs = ref<{ id: number; name: string; selected: boolean }[]>([])
+const spinoffLoading = ref(false)
+
+async function openSpinoff(session: { id: number; name: string }) {
+  spinoffTarget.value = session
+  spinoffName.value = session.name + ' 续'
+  spinoffNpcs.value = []
+  try {
+    const res = await api.get<{ id: number; name: string; pinned: boolean }[]>(
+      `/sessions/${session.id}/npcs`,
+    )
+    spinoffNpcs.value = res.data.map((n) => ({
+      id: n.id,
+      name: n.name,
+      selected: n.pinned,
+    }))
+  } catch (e: any) {
+    ElMessage.error(e.message ?? 'NPC 加载失败')
+  }
+}
+
+async function doSpinoff() {
+  if (!spinoffTarget.value) return
+  if (!spinoffName.value.trim()) {
+    ElMessage.warning('请输入续作名称')
+    return
+  }
+  spinoffLoading.value = true
+  try {
+    const npc_ids = spinoffNpcs.value.filter((n) => n.selected).map((n) => n.id)
+    const res = await api.post<{ id: number; name: string }>(
+      `/sessions/${spinoffTarget.value.id}/spinoff`,
+      { name: spinoffName.value.trim(), npc_ids },
+    )
+    ElMessage.success(`已创建续作「${res.data.name}」`)
+    spinoffTarget.value = null
+    router.push(`/play/${res.data.id}`)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '创建续作失败')
+  } finally {
+    spinoffLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     sessionsStore.refresh(),
@@ -216,7 +265,7 @@ onMounted(async () => {
         <template #default="{ row }">{{ charNameById.get(row.character_id) }}</template>
       </el-table-column>
       <el-table-column prop="turn_count" label="回合数" width="100" />
-      <el-table-column label="操作" width="290">
+      <el-table-column label="操作" width="370">
         <template #default="{ row }">
           <el-button size="small" type="primary" @click="router.push(`/play/${row.id}`)">
             继续
@@ -241,6 +290,13 @@ onMounted(async () => {
           <el-button
             class="ml-2"
             size="small"
+            type="success"
+            plain
+            @click="openSpinoff(row)"
+          >+ 续作</el-button>
+          <el-button
+            class="ml-2"
+            size="small"
             type="danger"
             plain
             @click="onDelete(row)"
@@ -248,6 +304,41 @@ onMounted(async () => {
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- Spinoff dialog -->
+    <el-dialog
+      :model-value="spinoffTarget !== null"
+      @update:model-value="(v: boolean) => { if (!v) spinoffTarget = null }"
+      title="创建续作"
+      width="480px"
+    >
+      <el-form label-width="90px">
+        <el-form-item label="续作名称">
+          <el-input v-model="spinoffName" placeholder="例如：第二章 续" />
+        </el-form-item>
+        <el-form-item label="携带 NPC">
+          <div v-if="!spinoffNpcs.length" class="text-slate-400 text-sm">
+            本存档暂无 NPC
+          </div>
+          <div v-else class="flex flex-col gap-1 max-h-48 overflow-y-auto w-full">
+            <el-checkbox
+              v-for="npc in spinoffNpcs"
+              :key="npc.id"
+              v-model="npc.selected"
+            >{{ npc.name }}</el-checkbox>
+          </div>
+        </el-form-item>
+      </el-form>
+      <div class="text-xs text-slate-500 mt-1">
+        续作将继承原存档的世界观与角色卡；所选 NPC 的好感与情绪将重置为中立。
+      </div>
+      <template #footer>
+        <el-button @click="spinoffTarget = null">取消</el-button>
+        <el-button type="primary" :loading="spinoffLoading" @click="doSpinoff">
+          创建续作
+        </el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="dialogOpen" title="新开一局" width="640px">
       <el-tabs v-model="createMode" type="card">

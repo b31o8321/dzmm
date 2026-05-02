@@ -81,7 +81,22 @@ def _npc_to_dict(n: NPC) -> dict:
             revealed = {"name": True}
     except (TypeError, ValueError):
         revealed = {"name": True}
-    revealed.setdefault("name", True)
+    revealed["name"] = True  # always
+
+    # v0.2.5: Python-driven threshold reveals (merge on top of LLM-driven stored reveals).
+    # Once an NPC has appeared in the story, basic observable fields are auto-revealed.
+    # This replaces the unreliable LLM reveal=attribute mechanism for common fields.
+    if n.last_seen_turn > 0:
+        revealed.setdefault("description", True)
+        revealed.setdefault("state", True)
+        revealed.setdefault("favor", True)
+    # Archetype becomes apparent after meaningful interaction
+    if abs(n.favor) >= 20 or (n.last_seen_turn > 0 and (n.archetype or "").strip()):
+        revealed.setdefault("archetype", True)
+    # Purpose revealed after significant relationship
+    if abs(n.favor) >= 30:
+        revealed.setdefault("purpose", True)
+
     return {
         "id": n.id,
         "name": n.name,
@@ -96,4 +111,5 @@ def _npc_to_dict(n: NPC) -> dict:
         "pinned": bool(n.pinned),
         "notes": notes,
         "revealed": revealed,
+        "current_location": n.current_location,
     }

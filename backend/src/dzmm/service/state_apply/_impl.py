@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply.character_xp import _apply_character_xp
-from dzmm.service.state_apply.era import _apply_era_begin
 from dzmm.service.state_apply.hidden_event import _apply_hidden_event
 from dzmm.service.state_apply.npc import (
     _NPC_REVEALABLE_FIELDS,
@@ -31,6 +30,8 @@ from dzmm.service.state_apply.screenplay import (
     _apply_plot_turn,
 )
 from dzmm.service.state_apply.doom import _apply_doom
+from dzmm.service.state_apply.location import _apply_location_enter
+from dzmm.service.state_apply.location_item import _apply_location_item
 from dzmm.service.state_apply.state_change import _apply_state_change
 
 # Re-export for callers that imported these names from `_impl` directly
@@ -64,8 +65,6 @@ async def apply_tags(
             await _apply_character_xp(session, session_id, tag.attrs, tag.content)
         elif tag.name == "recall":
             await _apply_recall(session, session_id, tag.attrs, tag.content)
-        elif tag.name == "era_begin":
-            await _apply_era_begin(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "pc_goal":
             await _apply_pc_goal(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "pc_mood":
@@ -88,3 +87,7 @@ async def apply_tags(
             await _apply_ending(session, session_id, tag.attrs, current_turn)
         elif tag.name == "doom":
             await _apply_doom(session, session_id, tag.attrs)
+        elif tag.name == "location_enter":
+            await _apply_location_enter(session, session_id, current_turn, tag.attrs, tag.content)
+        elif tag.name == "location_item":
+            await _apply_location_item(session, session_id, current_turn, tag.attrs, tag.content)

@@ -575,20 +575,6 @@ async def test_warmup_endpoint_returns_202(http, monkeypatch):
     assert r.json()["status"] == "started"
 
 
-async def test_timeline_endpoint_empty(http):
-    sid = await _make_session(http)
-    r = await http.get(f"/sessions/{sid}/timeline")
-    assert r.status_code == 200
-    assert r.json() == []
-
-
-async def test_eras_endpoint_empty(http):
-    sid = await _make_session(http)
-    r = await http.get(f"/sessions/{sid}/eras")
-    assert r.status_code == 200
-    assert r.json() == []
-
-
 async def test_goals_endpoint_empty(http):
     sid = await _make_session(http)
     r = await http.get(f"/sessions/{sid}/goals")
@@ -697,11 +683,21 @@ async def test_npcs_endpoint_includes_revealed_field(http, app):
     assert "revealed" in by_name["小菱"]
     assert by_name["小菱"]["revealed"]["name"] is True
     assert by_name["小菱"]["revealed"]["description"] is True
-    # purpose/archetype not in mask — frontend should treat as hidden.
+    # v0.2.5: last_seen_turn > 0 auto-reveals state, favor
+    assert by_name["小菱"]["revealed"]["state"] is True
+    assert by_name["小菱"]["revealed"]["favor"] is True
+    # archetype auto-revealed when last_seen_turn > 0 AND archetype is set
+    assert by_name["小菱"]["revealed"]["archetype"] is True
+    # purpose not revealed (favor=2 < 30 threshold)
     assert by_name["小菱"]["revealed"].get("purpose") is not True
 
-    # Default-mask NPC: only name revealed.
-    assert by_name["幽影"]["revealed"] == {"name": True}
+    # v0.2.5: NPC with last_seen_turn > 0 gets description/state/favor auto-revealed.
+    assert by_name["幽影"]["revealed"]["name"] is True
+    assert by_name["幽影"]["revealed"]["description"] is True
+    assert by_name["幽影"]["revealed"]["state"] is True
+    assert by_name["幽影"]["revealed"]["favor"] is True
+    # archetype not revealed (archetype is empty)
+    assert by_name["幽影"]["revealed"].get("archetype") is not True
 
 
 async def test_messages_endpoint_includes_events_field(http, app):
@@ -816,7 +812,7 @@ async def test_export_json_full_structure(http, app):
     sid = await _make_session(http)
     from dzmm.db.models import (
         HiddenEvent, Message as MessageRow, NPC, NpcRelation,
-        PCGoal, PlotThread, Era, Timeline,
+        PCGoal, PlotThread,
     )
     SessionMaker = app.state.session_maker
     async with SessionMaker() as s:
@@ -834,9 +830,6 @@ async def test_export_json_full_structure(http, app):
                          importance=3, status="active"))
         s.add(PCGoal(session_id=sid, description="找到出路", priority="high",
                      status="active", introduced_turn=1))
-        s.add(Era(session_id=sid, name="序章", started_turn=1,
-                  description="新生活"))
-        s.add(Timeline(session_id=sid, turn=1, event_text="出发", importance=2))
         s.add(HiddenEvent(session_id=sid, kind="injury", subject="主角",
                           severity=2, description="脚扭伤",
                           introduced_turn=1, status="active"))
@@ -848,7 +841,7 @@ async def test_export_json_full_structure(http, app):
     expected_keys = {
         "version", "exported_at", "session", "world", "character",
         "messages", "story_summary", "char_state", "npcs", "npc_relations",
-        "plot_threads", "pc_goals", "eras", "timeline", "hidden_events",
+        "plot_threads", "pc_goals", "hidden_events",
     }
     assert expected_keys.issubset(set(body.keys()))
     assert body["session"]["id"] == sid
@@ -864,8 +857,6 @@ async def test_export_json_full_structure(http, app):
     assert len(body["npc_relations"]) == 1
     assert len(body["plot_threads"]) == 1
     assert len(body["pc_goals"]) == 1
-    assert len(body["eras"]) == 1
-    assert len(body["timeline"]) == 1
     assert len(body["hidden_events"]) == 1
 
 
@@ -907,25 +898,6 @@ async def test_export_invalid_format_rejected(http):
     sid = await _make_session(http)
     r = await http.get(f"/sessions/{sid}/export?format=pdf")
     assert r.status_code == 400
-
-
-async def test_timeline_returns_seeded_rows(http, app):
-    """Insert Timeline row directly via session_maker, verify endpoint reflects it."""
-    sid = await _make_session(http)
-    from dzmm.db.models import Timeline
-    SessionMaker = app.state.session_maker
-    async with SessionMaker() as s:
-        s.add(Timeline(session_id=sid, turn=5, event_text="重要转折",
-                       importance=3))
-        await s.commit()
-
-    r = await http.get(f"/sessions/{sid}/timeline")
-    assert r.status_code == 200
-    items = r.json()
-    assert len(items) == 1
-    assert items[0]["event_text"] == "重要转折"
-    assert items[0]["importance"] == 3
-    assert items[0]["turn"] == 5
 
 
 # ============================================================================
@@ -1364,3 +1336,42 @@ async def test_export_with_cjk_session_name_does_not_500(http, app):
         assert "filename*=UTF-8''" in cd
         # Encoded form contains percent-escaped CJK bytes for 修.
         assert "%E4%BF%AE" in cd  # 修 in UTF-8 is E4 BF AE
+
+
+async def test_location_items_returned_in_api(http, app):
+    """GET /sessions/{id}/locations returns items parsed from items_json."""
+    import json
+    from dzmm.db.models import Location
+    sid = await _make_session(http)
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        loc = Location(session_id=sid, name="书房", description="",
+                       first_visited_turn=1, last_visited_turn=1, is_current=True,
+                       items_json=json.dumps([{"name": "戒指", "description": "金戒指"}]))
+        s.add(loc)
+        await s.commit()
+    r = await http.get(f"/sessions/{sid}/locations")
+    assert r.status_code == 200
+    locs = r.json()
+    assert len(locs) == 1
+    assert locs[0]["items"] == [{"name": "戒指", "description": "金戒指"}]
+
+
+async def test_npc_current_location_returned_in_api(http, app):
+    """GET /sessions/{id}/npcs returns current_location field."""
+    from dzmm.db.models import NPC
+    sid = await _make_session(http)
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        npc = NPC(session_id=sid, name="镜中人", description="", favor=0,
+                  state="被困", last_seen_turn=1, notes_json="[]", purpose="",
+                  archetype="", affinity_json="{}", pinned=False,
+                  revealed_json='{"name":true}', current_location="书房")
+        s.add(npc)
+        await s.commit()
+    r = await http.get(f"/sessions/{sid}/npcs")
+    assert r.status_code == 200
+    npcs = r.json()
+    found = next((n for n in npcs if n["name"] == "镜中人"), None)
+    assert found is not None
+    assert found["current_location"] == "书房"

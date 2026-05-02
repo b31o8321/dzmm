@@ -12,7 +12,6 @@ KNOWN_TAGS: set[str] = {
     "choices",
     "character_xp",
     "recall",
-    "era_begin",
     "pc_goal",
     "pc_mood",
     "npc_relation",
@@ -25,6 +24,8 @@ KNOWN_TAGS: set[str] = {
     "event_complete",
     "plot_turn",
     "ending",
+    # v0.2.3 — location tracking
+    "location_enter",
 }
 STREAMING_TAGS: set[str] = {"narrative"}
 

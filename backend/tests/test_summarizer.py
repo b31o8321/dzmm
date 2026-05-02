@@ -113,10 +113,8 @@ async def test_summarize_skips_when_below_threshold(tmp_path):
 
 
 async def test_summary_compression_triggers_above_threshold(seeded_with_messages):
-    """When the generated summary is too long, a second compression pass runs;
-    importance>=2 events get persisted to the Timeline table."""
+    """When the generated summary is too long, a second compression pass runs."""
     engine, SessionMaker, sid = seeded_with_messages
-    from dzmm.db.models import Timeline as TLModel
     from dzmm.service.summarizer import COMPRESSION_TRIGGER_CHARS
 
     long_text = "卷起的剧情" * 1000  # ~5000 chars > 4000 trigger
@@ -155,17 +153,6 @@ async def test_summary_compression_triggers_above_threshold(seeded_with_messages
         )).scalar_one()
         # Compressed summary is much shorter
         assert len(ss.summary_text) < COMPRESSION_TRIGGER_CHARS
-
-        # Two importance>=2 events persisted
-        tl = (await s.execute(
-            select(TLModel).where(TLModel.session_id == sid)
-        )).scalars().all()
-        assert len(tl) == 2
-        importances = sorted(t.importance for t in tl)
-        assert importances == [2, 3]
-        texts = [t.event_text for t in tl]
-        assert any("阿山" in t for t in texts)
-        assert any("小雨" in t for t in texts)
 
 
 # ----------------------------------------------------------------------------

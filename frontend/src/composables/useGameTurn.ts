@@ -1,4 +1,24 @@
 import { reactive, ref, type Ref } from 'vue'
+
+export type SceneMood = 'neutral' | 'tense' | 'horror' | 'romantic' | 'mysterious'
+
+const _MOOD_WORDS: Record<SceneMood, string[]> = {
+  tense:      ['紧张','警戒','危险','战斗','追','逃','血','刀','剑','杀','威胁','慌','急','激烈','冲突','搏斗'],
+  horror:     ['恐惧','恐怖','鬼','尸','黑暗','阴森','诡异','寒意','颤','惊悚','骇人','阴冷','异动'],
+  romantic:   ['温柔','温暖','心跳','甜','红晕','羞','靠近','触碰','柔软','爱意','情意','脸红','心软'],
+  mysterious: ['神秘','迷雾','秘密','预言','暗影','谜','命运','异象','古老','玄','未知','离奇'],
+  neutral:    [],
+}
+
+export function detectSceneMood(narrative: string): SceneMood {
+  const scores: Record<string, number> = { tense: 0, horror: 0, romantic: 0, mysterious: 0 }
+  for (const [mood, words] of Object.entries(_MOOD_WORDS)) {
+    if (mood === 'neutral') continue
+    for (const w of words) if (narrative.includes(w)) scores[mood]++
+  }
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1])
+  return sorted[0][1] >= 2 ? (sorted[0][0] as SceneMood) : 'neutral'
+}
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { sessionsApi, type MessageEvent } from '@/api/sessions'
@@ -54,6 +74,8 @@ export interface UseGameTurnHooks {
   onScroll?: () => void
   /** Called inside onDone, after turn finalisation. */
   onTurnDone?: () => void
+  /** Called when the backend signals that an NPC wants to take initiative. */
+  onNpcInitiative?: (npcName: string) => void
 }
 
 export function useGameTurn(
@@ -67,6 +89,7 @@ export function useGameTurn(
   const tokensIn = ref(0)
   const tokensOut = ref(0)
   const sending = ref(false)
+  const sceneMood = ref<SceneMood>('neutral')
   const audio = useAudio()
 
   async function sendAction(userAction: string) {
@@ -176,6 +199,9 @@ export function useGameTurn(
             const polished = content.trim()
             if (polished) turn.narrative = polished
           }
+          else if (name === 'npc_initiative') {
+            hooks.onNpcInitiative?.(attrs.npc ?? '')
+          }
         },
         onError: (msg) => {
           // v0.2.1 P0.5: backend parser.finish() (added in v0.1.9) already
@@ -202,6 +228,10 @@ export function useGameTurn(
           if (sayBuffer.length) {
             turn.rawContent = (turn.rawContent ?? '') + sayBuffer.join('')
           }
+          sceneMood.value = detectSceneMood(turn.narrative)
+          // Synthesize a rawContent that parseParts can chew on. We always
+          // prepend the cleaned narrative (wrapped) so backwards-compat is
+          // preserved when GM didn't emit any speaker tags at all.
           if (turn.narrative) {
             turn.rawContent =
               `<narrative>${turn.narrative}</narrative>` + (turn.rawContent ?? '')
@@ -241,6 +271,7 @@ export function useGameTurn(
     tokensIn,
     tokensOut,
     sending,
+    sceneMood,
     sendAction,
     refreshTokens,
   }

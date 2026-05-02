@@ -59,9 +59,18 @@ _V11_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# v0.13.1 — Player feedback table is created via Base.metadata.create_all.
+# Nothing to migrate column-wise.
+
 _V025_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     "sessions": [
         ("settings_json", "settings_json TEXT NOT NULL DEFAULT '{}'"),
+    ],
+    "npcs": [
+        ("current_location", "current_location VARCHAR(120)"),  # nullable, no DEFAULT
+    ],
+    "locations": [
+        ("items_json", "items_json TEXT NOT NULL DEFAULT '[]'"),
     ],
 }
 
@@ -71,8 +80,9 @@ _V026_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
-# v0.13.1 — Player feedback table is created via Base.metadata.create_all.
-# Nothing to migrate column-wise.
+_V027_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "npcs": [("last_initiative_turn", "last_initiative_turn INTEGER NOT NULL DEFAULT 0")],
+}
 
 
 def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) -> None:
@@ -103,4 +113,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V025_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V026_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V027_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

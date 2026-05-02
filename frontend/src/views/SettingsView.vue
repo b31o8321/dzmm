@@ -124,18 +124,5 @@ function replayOnboarding() {
       </div>
     </el-card>
 
-    <!-- 调试 -->
-    <el-card>
-      <template #header>
-        <strong>开发者</strong>
-      </template>
-      <div class="text-sm text-slate-600 space-y-1">
-        <div>调试模式触发序列：<code class="bg-slate-100 px-1 rounded">↑ ↑ ↓ ↓ ← → ← →</code></div>
-        <div class="text-xs text-slate-400">
-          在任意非输入框页面键入即可切换；开启后侧栏出现「🐛 调试」入口
-          展示完整剧本 / 隐性事件 / NPC 全字段等隐藏数据。
-        </div>
-      </div>
-    </el-card>
   </div>
 </template>

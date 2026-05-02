@@ -246,34 +246,6 @@ async def test_pinned_npc_always_in_prompt(seeded):
     assert "羁绊+2" in sys_msg
 
 
-async def test_era_appears_in_next_prompt(seeded):
-    """An era declared in turn N must surface in the system prompt of turn N+1."""
-    engine, SessionMaker, sid = seeded
-
-    # turn 1: GM declares an era
-    async with SessionMaker() as s:
-        async for _ in run_turn(
-            s, sid, "推进",
-            FakeClient(
-                "<narrative>新章开始</narrative>"
-                '<era_begin name="第二章">新阶段</era_begin>'
-            ),
-        ):
-            pass
-        await s.commit()
-
-    # turn 2: capture system prompt
-    captured = FakeClient("<narrative>第二回合</narrative>")
-    async with SessionMaker() as s:
-        async for _ in run_turn(s, sid, "继续", captured):
-            pass
-        await s.commit()
-
-    sys_msg = captured.last_messages[0].content
-    assert "第二章" in sys_msg
-    assert "当前章节" in sys_msg
-
-
 async def test_pc_mood_appears_in_next_prompt(seeded):
     """PC mood declared in turn N must appear in the system prompt of turn N+1."""
     engine, SessionMaker, sid = seeded
@@ -1143,3 +1115,86 @@ async def test_key_facts_no_dice_warning_when_only_two_same(seeded):
 
     sys_msg = client.last_messages[0].content
     assert "Dice 警告" not in sys_msg
+
+
+# ============================================================================
+# v0.2.6 T3 — GM prompt 注入当前场地
+# ============================================================================
+
+async def test_key_facts_includes_current_location(seeded):
+    """_build_key_facts includes current location name, in-scene NPCs, and items."""
+    from dzmm.db.models import Location
+    from dzmm.service.game import _build_key_facts
+
+    _, SessionMaker, sid = seeded
+
+    async with SessionMaker() as s:
+        loc = Location(session_id=sid, name="书房", description="摆满书架的房间",
+                       first_visited_turn=1, last_visited_turn=1, is_current=True,
+                       items_json=json.dumps([{"name": "戒指", "description": "一枚金戒指"}]))
+        s.add(loc)
+
+        npc = NPC(session_id=sid, name="镜中人", description="", favor=0,
+                  state="被困", last_seen_turn=1, notes_json="[]", purpose="",
+                  archetype="", affinity_json="{}", pinned=False,
+                  revealed_json='{"name":true}', current_location="书房")
+        s.add(npc)
+        await s.commit()
+
+    async with SessionMaker() as s:
+        result = await _build_key_facts(s, sid, 2)
+    assert "书房" in result
+    assert "镜中人" in result
+    assert "戒指" in result
+
+
+# ============================================================================
+# v0.2.7 T6 — auto-generate screenplay on first turn
+# ============================================================================
+
+
+async def test_auto_generates_screenplay_on_first_turn(seeded):
+    """First turn (turn_count=0) with no screenplay → Screenplay row created."""
+    engine, SessionMaker, sid = seeded
+    from dzmm.db.models import Screenplay
+    from sqlalchemy import select as sql_select
+
+    outline_json = json.dumps({
+        "chapters": [{"title": "第一章", "summary": "开始", "main_events": ["事件A"],
+                      "optional_events": [], "main_npcs": ["小菱"]}],
+        "main_characters": [{"name": "小菱", "role": "盟友", "description": "神秘少女",
+                              "intro_chapter": 1}],
+        "ending": "找到真相",
+        "opening_hook": "Riku 发现了一封信",
+    })
+
+    call_count = 0
+
+    class TwoPhaseClient(FakeClient):
+        async def stream(self, messages, params):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # Outliner call — returns JSON
+                for ch in outline_json:
+                    yield StreamChunk(delta=ch)
+                yield StreamChunk(delta="", finish_reason="stop", usage=self.usage)
+            else:
+                # GM call — normal fake
+                async for chunk in super().stream(messages, params):
+                    yield chunk
+
+    client = TwoPhaseClient("<narrative>开始了。</narrative>")
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "开始", client):
+            pass
+        await s.commit()
+
+    async with SessionMaker() as s:
+        sp = (await s.execute(
+            sql_select(Screenplay).where(Screenplay.session_id == sid)
+        )).scalar_one_or_none()
+    assert sp is not None
+    assert "第一章" in sp.chapters_json
+    assert sp.status == "active"
+    assert call_count == 2  # outliner + gm

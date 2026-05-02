@@ -102,6 +102,12 @@ function isRevealed(field: string): boolean {
 }
 
 const HIDDEN_HINT = '（尚未通过对话/调查得知）'
+
+function npcAvatarColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
+  return `hsl(${h % 360}, 52%, 50%)`
+}
 </script>
 
 <template>
@@ -113,50 +119,59 @@ const HIDDEN_HINT = '（尚未通过对话/调查得知）'
     @close="close"
   >
     <div v-if="local" class="space-y-4">
+      <div class="flex items-center gap-3 mb-1">
+        <span
+          class="inline-flex items-center justify-center w-12 h-12 rounded-full text-white text-xl font-bold shrink-0 select-none shadow-sm"
+          :style="{ backgroundColor: npcAvatarColor(local.name) }"
+        >{{ local.name[0] }}</span>
+        <div>
+          <div class="font-bold text-slate-800 text-base">{{ local.name }}</div>
+          <div class="text-xs text-slate-400">上次出现：第 {{ local.last_seen_turn }} 回合</div>
+        </div>
+      </div>
       <div class="flex items-center gap-2 flex-wrap">
         <span v-if="isRevealed('archetype') && local.archetype"
               class="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded">
           {{ local.archetype }}
         </span>
-        <span v-else-if="!isRevealed('archetype')"
+        <span v-else-if="!isRevealed('archetype') && local.archetype"
               class="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 italic rounded"
               :title="HIDDEN_HINT">
           原型 ****
         </span>
-        <span v-if="isRevealed('state')"
+        <span v-if="isRevealed('state') && local.state && local.state !== '未知'"
               class="text-xs px-2 py-0.5 bg-slate-100 text-slate-700 rounded">
-          状态：{{ local.state || '未知' }}
+          状态：{{ local.state }}
         </span>
-        <span v-else
+        <span v-else-if="!isRevealed('state') && local.state && local.state !== '未知'"
               class="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 italic rounded"
               :title="HIDDEN_HINT">
           状态 ****
         </span>
-        <span class="text-xs text-slate-400 ml-auto">
-          上次出现：第 {{ local.last_seen_turn }} 回合
-        </span>
       </div>
 
-      <section>
+      <section v-if="local.purpose || isRevealed('purpose')">
         <h4 class="text-sm font-bold text-slate-600 mb-1">动机</h4>
-        <p v-if="isRevealed('purpose')" class="text-sm text-slate-800">
-          {{ local.purpose || '（无）' }}
+        <p v-if="isRevealed('purpose') && local.purpose" class="text-sm text-slate-800">
+          {{ local.purpose }}
         </p>
-        <p v-else class="text-sm text-slate-400 italic">**** {{ HIDDEN_HINT }}</p>
+        <p v-else-if="!isRevealed('purpose') && local.purpose"
+           class="text-sm text-slate-400 italic">**** {{ HIDDEN_HINT }}</p>
       </section>
 
-      <section>
+      <section v-if="local.description || isRevealed('description')">
         <h4 class="text-sm font-bold text-slate-600 mb-1">描述</h4>
-        <p v-if="isRevealed('description')"
+        <p v-if="isRevealed('description') && local.description"
            class="text-sm text-slate-800 whitespace-pre-line">
-          {{ local.description || '（无）' }}
+          {{ local.description }}
         </p>
-        <p v-else class="text-sm text-slate-400 italic">**** {{ HIDDEN_HINT }}</p>
+        <p v-else-if="!isRevealed('description') && local.description"
+           class="text-sm text-slate-400 italic">**** {{ HIDDEN_HINT }}</p>
       </section>
 
-      <section>
+      <section v-if="isRevealed('favor') || affinityEntries.length">
         <h4 class="text-sm font-bold text-slate-600 mb-2">亲密度</h4>
-        <div v-if="isRevealed('favor') || isRevealed('affinity')" class="space-y-2 text-sm">
+        <div class="space-y-2 text-sm">
           <div v-if="isRevealed('favor')" class="flex items-center gap-2">
             <span class="w-16 text-slate-500">好感度</span>
             <div class="flex-1 bg-slate-100 rounded h-3 relative overflow-hidden">
@@ -171,10 +186,7 @@ const HIDDEN_HINT = '（尚未通过对话/调查得知）'
               {{ local.favor >= 0 ? '+' : '' }}{{ local.favor }}
             </span>
           </div>
-          <div v-else class="text-xs text-slate-400 italic">
-            好感度 **** {{ HIDDEN_HINT }}
-          </div>
-          <template v-if="isRevealed('affinity')">
+          <template v-if="isRevealed('affinity') && affinityEntries.length">
             <div
               v-for="[axis, val] in affinityEntries"
               :key="axis"
@@ -193,22 +205,13 @@ const HIDDEN_HINT = '（尚未通过对话/调查得知）'
                 {{ val >= 0 ? '+' : '' }}{{ val }}
               </span>
             </div>
-            <div v-if="!affinityEntries.length" class="text-xs text-slate-400 italic">
-              （GM 尚未为此 NPC 标注多维亲密度）
-            </div>
           </template>
-          <div v-else class="text-xs text-slate-400 italic">
-            多维亲密度 **** {{ HIDDEN_HINT }}
-          </div>
-        </div>
-        <div v-else class="text-xs text-slate-400 italic">
-          **** {{ HIDDEN_HINT }}
         </div>
       </section>
 
-      <section v-if="isRevealed('emotion')">
+      <section v-if="isRevealed('emotion') && emotionEntries.length">
         <h4 class="text-sm font-bold text-slate-600 mb-2">情绪</h4>
-        <div v-if="emotionEntries.length" class="space-y-1 text-xs">
+        <div class="space-y-1 text-xs">
           <div
             v-for="[axis, val] in emotionEntries"
             :key="axis"
@@ -227,11 +230,6 @@ const HIDDEN_HINT = '（尚未通过对话/调查得知）'
             <span class="font-mono w-8 text-right">{{ val }}</span>
           </div>
         </div>
-        <div v-else class="text-xs text-slate-400 italic">（暂无情绪数据）</div>
-      </section>
-      <section v-else>
-        <h4 class="text-sm font-bold text-slate-600 mb-2">情绪</h4>
-        <div class="text-xs text-slate-400 italic">**** {{ HIDDEN_HINT }}</div>
       </section>
 
       <section v-if="timelineEntries.length">

@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 # the GM rephrased entire clauses. 0.6 still rejects clearly-distinct quests
 # (e.g. "调查重力场异常" vs "寻找解药救小菱" → ratio 0.0) so false-collapse
 # risk is low; the empirical user pair scores 0.79 → safely caught.
-_PLOT_DEDUP_RATIO = 0.6
+_PLOT_DEDUP_RATIO = 0.45
 
 # Plot-event types that create a *new* thread row. Any tag whose type is in
 # this set goes through dedup against existing active threads; types not
@@ -161,3 +161,4 @@ async def _apply_plot_event(
         status="active",
     )
     session.add(thread)
+    await session.flush()
