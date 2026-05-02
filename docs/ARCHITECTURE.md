@@ -8,7 +8,7 @@
 dzmm/
 ├── backend/           Python FastAPI + SQLite + LLM 适配器
 │   ├── src/dzmm/      源码
-│   ├── tests/         pytest 测试（260+）
+│   ├── tests/         pytest 测试（346+）
 │   ├── pyproject.toml
 │   └── dzmm-backend.spec  PyInstaller --onedir spec
 ├── frontend/          Vue 3 + Vite + Element Plus + Pinia
@@ -30,20 +30,36 @@ dzmm/
 ```
 backend/src/dzmm/
 ├── api/             HTTP 路由（FastAPI APIRouter）
-│   ├── routes_sessions.py   跑团核心：CRUD / SSE turn / messages /
-│   │                        export / feedback / hidden_events / npcs ...
-│   ├── routes_screenplay.py 剧本驱动：generate / mark_decision / continue ...
-│   ├── routes_worlds.py     世界观 CRUD
-│   ├── routes_characters.py 角色 CRUD + portrait 上传
-│   ├── routes_models.py     模型配置 CRUD（ollama / lm_studio / openai_compat）
-│   ├── routes_system.py     /health / /system/status / /system/ollama/start
-│   └── schemas.py           Pydantic in/out 模型
+│   ├── routes_sessions/       跑团核心（拆分为独立模块）
+│   │   ├── __init__.py        汇总注册所有子路由
+│   │   ├── _common.py         共用依赖（session_maker 注入）
+│   │   ├── base.py            Session CRUD + 列表
+│   │   ├── turn.py            POST /turn — SSE 游戏循环
+│   │   ├── npc_tick.py        POST /npc_tick — NPC 主动行动（v0.2.7）
+│   │   ├── npcs.py            NPC CRUD + 好感 / 情绪
+│   │   ├── messages.py        消息历史
+│   │   ├── threads.py         剧情线
+│   │   ├── goals.py           PC 目标
+│   │   ├── hidden_events.py   暗中状态
+│   │   ├── locations.py       场景 / 位置
+│   │   ├── export.py          JSON / Markdown 导出
+│   │   ├── feedback.py        玩家反馈
+│   │   ├── suggest.py         上下文行动建议（v0.2.5）
+│   │   └── spinoff.py         续作创建
+│   ├── routes_screenplay.py   剧本驱动：generate / mark_decision / continue ...
+│   ├── routes_worlds.py       世界观 CRUD
+│   ├── routes_characters.py   角色 CRUD + portrait 上传
+│   ├── routes_models.py       模型配置 CRUD（ollama / lm_studio / openai_compat）
+│   ├── routes_wizard.py       向导式创建（6 步 LLM 引导）
+│   ├── routes_system.py       /health / /system/status / /system/ollama/start
+│   └── schemas.py             Pydantic in/out 模型
 ├── db/
 │   ├── models.py    SQLAlchemy ORM（World / Character / Session / Message / NPC /
 │   │                NpcRelation / PlotThread / Era / Timeline / CharState /
 │   │                StorySummary / PCGoal / HiddenEvent / Screenplay /
 │   │                ScreenplayRevision / Feedback）
-│   └── base.py      engine / session_maker + 增量 column 迁移（_V07 - _V11）
+│   │                NPC 新增 last_initiative_turn 字段（v0.2.7）
+│   └── base.py      engine / session_maker + 增量 column 迁移（_V07 - _V027）
 ├── models/          LLM 适配器（不是 ORM 而是 model client）
 │   ├── client.py    抽象基类 ModelClient + StreamChunk 类型
 │   ├── ollama.py    Ollama HTTP 流式
@@ -55,14 +71,27 @@ backend/src/dzmm/
 │   ├── repair.py    错拼闭合标签容错
 │   └── events.py    NarrativeDelta / TagComplete / ParseError 数据类
 ├── prompts/
-│   ├── gm_template.py     22+ 行为铁律 + 反应性原则 + 暗中状态 + few_shot
+│   ├── gm_template.py     25+ 行为铁律 + 反应性原则 + 暗中状态 + few_shot
+│   │                      v0.2.7：铁律 16 强化感官细节 + NPC 对白要求
+│   ├── gm_few_shot.py     示范 1-4（含 v0.2.7 场景/NPC 管理示范）
 │   ├── outliner_template.py 剧本生成 prompt（输出 JSON schema）
-│   └── summarizer_template.py 摘要器 prompt（递归压缩）
+│   ├── summarizer_template.py 摘要器 prompt（递归压缩）
+│   └── wizard_prompts.py  向导 6 步 prompt
 ├── service/         业务逻辑（无 HTTP / DB session 直接耦合）
 │   ├── game.py      run_turn() 主循环 + key_facts 注入 + name repair
-│   ├── state_apply.py  把 GM 输出的 14+ 标签应用到 DB（每标签一个 handler）
-│   ├── screenplay.py   剧本生成 + 续作
-│   └── summarizer.py   超长会话摘要
+│   │                v0.2.7：首回合自动调 _auto_generate_screenplay()
+│   │                v0.2.7：每回合末 find_initiative_npc() + npc_initiative 标签
+│   ├── npc_initiative.py  NPC 主动行为资格判断（v0.2.7）
+│   │                      find_initiative_npc(session, session_id, turn) -> NPC|None
+│   │                      条件：last_seen > 0 + 闲置 ≥2 回合 + 冷却 ≥4 回合 + eagerness > 0
+│   ├── state_apply/       标签应用拆分为多文件（v0.2.6+）
+│   │   └── *.py           每类标签一个处理模块
+│   ├── screenplay.py      剧本生成 + 续作
+│   ├── summarizer.py      超长会话摘要
+│   ├── activity_log.py    活跃度记录
+│   ├── name_repair.py     NPC 姓名漂移修复
+│   ├── npc_dossier.py     NPC 档案汇总
+│   └── wizard.py          向导步骤执行
 ├── seed_data.py     首次启动预设：4 个世界 + 4 角色 + 默认模型配置
 ├── secrets.py       OS keychain 集成（API key 不入库）
 ├── config.py        APP_DIR、DEFAULT_DB_URL、host/port env 解析
@@ -78,6 +107,7 @@ frontend/src/
 ├── api/             HTTP 客户端 + TS 类型
 │   ├── client.ts    axios + baseURL 解析（Tauri / dev / LAN 三模式）+ fetchHealth
 │   ├── sessions.ts  session 全部 API + 类型（HiddenEventItem / FeedbackItem 等）
+│   │                v0.2.7：新增 npcTick() 方法
 │   ├── screenplay.ts 剧本 API + KNOWN_GENRES
 │   ├── worlds.ts / characters.ts / models.ts
 │   └── types.ts     共享类型（GameSession / SessionIn / Character ...）
@@ -96,6 +126,7 @@ frontend/src/
 │   ├── CharacterAvatar.vue
 │   └── MarkdownView.vue
 ├── composables/
+│   ├── useGameTurn.ts    游戏回合控制 + tag 分发（v0.2.7：npc_initiative 事件处理）
 │   ├── useTurnStream.ts  SSE 流式订阅
 │   ├── useAudio.ts       BGM + SFX
 │   └── useUpdater.ts     Tauri auto-updater
@@ -106,14 +137,14 @@ frontend/src/
 ├── views/           路由级页面
 │   ├── LayoutView.vue    SidebarNav + router-view
 │   ├── WelcomeView.vue   首次启动欢迎
-│   ├── SessionsView.vue  存档列表 + 创建 + 导出 + 删除
+│   ├── SessionsView.vue  存档列表 + 创建（向导/快速）+ 导出 + 续作 + 删除（含角色卡）
 │   ├── SessionGenerateView.vue  剧本生成 loading 页
-│   ├── GameView.vue      跑团主界面（最大）
+│   ├── GameView.vue      跑团主界面（v0.2.7：NPC initiative banner + 4s 倒计时触发）
 │   ├── ScreenplayView.vue  剧本进度
 │   ├── WorldsView.vue / CharactersView.vue / ModelsView.vue
 │   ├── JournalView.vue / NpcsView.vue / RelationsView.vue / ChronicleView.vue
 │   ├── HelpView.vue      说明页
-│   ├── SettingsView.vue  检查更新 + 重新引导 + 调试触发说明
+│   ├── SettingsView.vue  检查更新 + 重新引导
 │   └── DebugView.vue     调试模式集中页（剧透剧本 / hidden_events / NPC 全字段）
 ├── router/index.ts  hash mode + 首次启动重定向 /welcome
 ├── App.vue          BootGate 包裹 router-view + Konami 全局监听
@@ -136,8 +167,12 @@ service.game.run_turn(session, sess_id, user_action, client)
   │     ↓ 查 screenplay（active）→「当前剧本进度」段
   │     ↓ 算 PC 钩子（profile_md 抽 abilities/items/weaknesses）
   │     ↓ 拼成纯文本 key_facts 段
+  ├─ [首回合] _auto_generate_screenplay()  异步调 outliner LLM 生成剧本大纲
+  │     ↓ 根据 world.style 映射 genre → build_outliner_messages()
+  │     ↓ 流式 LLM → 剥 markdown fence → 解析 JSON → 存 Screenplay 表
+  │     ↓ session.flush() 确保同 tx 内 _build_key_facts 能读到
   ├─ build_gm_messages(world, character, story_summary, key_facts, recent, action)
-  │     ↓ 拼 22+ 铁律 + 反应性 + 暗中状态机制 + 标签字典 + few_shot
+  │     ↓ 拼 25+ 铁律 + 反应性 + 暗中状态机制 + 标签字典 + few_shot
   │     ↓ 末尾追加 _load_recent_messages(12 条)
   │     ↓ 末尾追加 user action
   └─ ModelClient.stream(messages, params)  调 Ollama / LM Studio / OpenAI
@@ -158,12 +193,31 @@ service.game.run_turn(session, sess_id, user_action, client)
        ├─ hidden_event → hidden_events 创建 / resolve
        ├─ chapter_advance / event_complete / plot_turn / ending → screenplay 进度
        ├─ recall name="X" → Session.recall_pending_json 待下回合 prompt 重注入
-       ├─ NER fallback：narrative 抽人名 stub 到 NPC 表
        └─ name_repair：扫 GM 输出修「我叫/我是」漂移
      Message(role="assistant", events_json=[all_tags]).persist
      Session.turn_count += 1 + tokens 累计
      超过 10 回合：summarizer.maybe_summarize 递归压缩
+     [v0.2.7] find_initiative_npc() 检查资格
+       ↓ 有资格 NPC → yield TagComplete(name="npc_initiative", attrs={"npc": name})
+       ↓ 前端接收 → 4s 倒计时 banner → 自动 POST /npc_tick
+
+NPC 主动行动（POST /sessions/{id}/npc_tick）
+  ↓ 构造特殊动作字符串：「【NPC主动行动】{npc_name} 主动找到了 PC...」
+  └─ 复用 run_turn() 完整流程（同样 SSE 流式）
 ```
+
+## NPC 主动行为机制（v0.2.7）
+
+每回合结束后，`find_initiative_npc()` 检查所有 NPC 的资格：
+
+| 条件 | 说明 |
+|---|---|
+| `last_seen_turn > 0` | NPC 必须已在场景中出现过 |
+| 闲置 ≥ 2 回合 | `current_turn - last_seen_turn >= 2` |
+| 冷却 ≥ 4 回合 | `current_turn - last_initiative_turn >= 4` |
+| `eagerness > 0` | 热情值 = pinned(+10) + favor//5 + max(emotion)//10 |
+
+满足条件的 NPC 中热情值最高者胜出。后端发出 `npc_initiative` SSE 标签，前端显示 4 秒倒计时横幅，超时自动触发 `/npc_tick` 端点（玩家也可手动忽略）。
 
 ## 数据库 schema 概览
 
@@ -181,34 +235,40 @@ service.game.run_turn(session, sess_id, user_action, client)
 - `messages` — user + assistant 历史（events_json 含解析后的标签）
 - `char_states` — 实时 stats / inventory（按 session_id PK）
 - `story_summaries` — 摘要器输出（按 session_id PK）
-- `npcs` — 该 session 的 NPC 表（含 emotion_json / affinity_json / revealed_json）
+- `npcs` — 该 session 的 NPC 表（含 emotion_json / affinity_json / revealed_json / last_initiative_turn）
 - `npc_relations` — NPC 之间关系
 - `plot_threads` — 剧情线（new_quest / hook_introduced / major_event / ...）
 - `eras` — 章节 / 编年史
 - `timeline` — 长线关键事件（recursive summary 提取）
 - `pc_goals` — 玩家目标
 - `hidden_events` — 暗中状态（GM 后台引信）
-- `screenplays` + `screenplay_revisions` — v0.1.0 剧本驱动
-- `feedbacks` — v0.0.14 玩家应用内反馈
+- `screenplays` + `screenplay_revisions` — 剧本驱动
+- `feedbacks` — 玩家应用内反馈
 
 ## 关键设计模式
 
 ### 1. LLM 输出结构化标签 → 状态机更新 → 下回合注入
 GM 不直接修改 DB——它在自然语言旁白中夹带 `<state_change>`、`<npc_update>` 等标签。后端 `stream_parser` 增量解析、`state_apply` 应用到 DB。下回合 `_build_key_facts` 把 DB 当前状态拼回 prompt。这条闭环是整个游戏的核心。
 
-### 2. 渐进式 NPC 信息揭示（v0.11）
+### 2. 渐进式 NPC 信息揭示
 `NPC.revealed_json: dict[field, bool]`。GM emit `<npc_update reveal="purpose,archetype">` 揭示。`_build_key_facts` 注入 prompt 时**未揭示字段不输出值**只输出占位提示，避免 GM 误说。前端 NpcDetailDialog 渲染未揭示字段为 `****`。
 
-### 3. 隐性事件后台演变（v0.10）
+### 3. 隐性事件后台演变
 `<hidden_event subject="小菱" kind="injury" consequence="5 回合不治会昏迷"/>`。每回合在 prompt 里以「## 暗中状态(GM only)」段注入，玩家不可见但 GM 必须按 consequence 演变化。
 
-### 4. 剧本驱动跑团（v0.1.0）
-开档同步调 outliner LLM 生成结构化大纲（章节 / 主要 NPC / 关键事件 / 完结条件）。每回合 prompt 注入「## 当前剧本进度」段。GM emit `<event_complete>` 推进、`<chapter_advance/>` 切章、`<ending/>` 完结。
+### 4. 剧本驱动跑团
+开档首回合自动调 outliner LLM 生成结构化大纲（章节 / 主要 NPC / 关键事件 / 完结条件）。每回合 prompt 注入「## 当前剧本进度」段。GM emit `<event_complete>` 推进、`<chapter_advance/>` 切章、`<ending/>` 完结。
 
-### 5. 启动日志（v0.1.5）
+### 5. NPC 主动行为（v0.2.7）
+每回合后台计算 NPC 热情值，符合条件者触发 `npc_initiative` SSE 信号 → 前端 4 秒倒计时 → 自动注入 NPC 主动互动回合。无需玩家输入，让世界保持生命力。复用 `run_turn()` 保持完整状态更新链路。
+
+### 6. SSE 内 HTTPException 陷阱
+在已发送 HTTP 200 响应头之后，async generator 内的 `raise HTTPException(404)` 会静默关闭流，而非返回 HTTP 错误码。正确做法是 in-band 错误事件：`yield {"event": "error", "data": json.dumps({"message": "..."})}; return`。
+
+### 7. 启动日志
 Tauri Rust 端 `spawn_backend` 用 `Stdio::piped()` 捕获 PyInstaller binary 的 stdout/stderr，emit `backend-log` 事件给 webview。前端 `BootGate` 把事件 + 自身状态变化都收到 timestamped 日志面板，便于诊断 Windows / 路径 / 权限等启动失败。
 
-### 6. 调试模式（v0.1.1）
+### 8. 调试模式
 Konami 序列 `↑↑↓↓←→←→` 全局触发，`/debug` 页展示一切被 reveal mask / 剧本剧透限制 / 普通 UI 隐藏的数据。
 
 ## 前端运行模式
@@ -228,11 +288,11 @@ python packaging/build.py
 
 依次：检查 prereqs → backend venv + pip install → npm install → `backend/build_sidecar.py` 跑 PyInstaller `--onedir` → `npm run tauri:build` → 把产物拷到 `packaging/dist/`。
 
-CI（`.github/workflows/release.yml`）在推 `v*` tag 时自动跑 macOS DMG + Windows NSIS，含 v0.9 加的 artifact smoke check。
+CI（`.github/workflows/release.yml`）在推 `v*` tag 时自动跑 macOS DMG + Windows NSIS，含 artifact smoke check。
 
 ## 测试
 
-- 后端：`pytest`，260+ 用例覆盖 parser / state_apply / game / api / prompts / models / secrets
+- 后端：`pytest`，346+ 用例覆盖 parser / state_apply / game / api / prompts / models / secrets / npc_initiative
 - 前端：`npm run build` 跑 vue-tsc 类型检查
 - E2E：`.github/workflows/e2e.yml` 在 Ubuntu 跑 Playwright chromium，启 mock_backend.py（注入 stub LLM）+ Vite dev → 自动测开档创建 → SSE 跑团 → narrative 显示
 
