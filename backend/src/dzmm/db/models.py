@@ -111,6 +111,7 @@ class NPC(Base):
     revealed_json: Mapped[str] = mapped_column(Text, default='{"name": true}')  # v0.11 progressive reveal: field→bool
     current_location: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)  # v0.2.6 scene binding
     last_initiative_turn: Mapped[int] = mapped_column(default=0)  # v0.2.7 NPC initiative: last turn this NPC self-initiated contact
+    tts_voice: Mapped[str] = mapped_column(String(120), default="")  # v0.2.9: TTS voice id/name
 
 
 class PlotThread(Base):
@@ -177,6 +178,7 @@ class Screenplay(Base):
     parent_screenplay_id: Mapped[int | None] = mapped_column(ForeignKey("screenplays.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+    pc_tts_voice: Mapped[str] = mapped_column(String(120), default="")  # v0.2.9: PC TTS voice
     concluded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 

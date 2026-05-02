@@ -97,6 +97,15 @@ _V028_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V029_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "npcs": [
+        ("tts_voice", "tts_voice VARCHAR(120) NOT NULL DEFAULT ''"),
+    ],
+    "screenplays": [
+        ("pc_tts_voice", "pc_tts_voice VARCHAR(120) NOT NULL DEFAULT ''"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -164,4 +173,6 @@ async def init_db(engine: AsyncEngine) -> None:
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         await conn.run_sync(_make_screenplay_session_id_nullable_sync)
         for table, cols in _V028_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V029_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
