@@ -22,9 +22,9 @@ function loadTourCompleted(): boolean {
 function loadTtsSetting<T>(key: string, defaultVal: T): T {
   try {
     const v = typeof localStorage !== 'undefined' && localStorage.getItem(`dzmm.tts.${key}`)
-    if (v === null || v === undefined || v === false) return defaultVal
+    if (!v) return defaultVal
     if (typeof defaultVal === 'boolean') return (v === '1') as unknown as T
-    if (typeof defaultVal === 'number') return (Number(v) || 0) as unknown as T
+    if (typeof defaultVal === 'number') { const n = Number(v); return (isNaN(n) ? defaultVal : n) as unknown as T }
     return v as unknown as T
   } catch {
     return defaultVal
