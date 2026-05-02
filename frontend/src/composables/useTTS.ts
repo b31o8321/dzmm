@@ -56,12 +56,30 @@ function getAudioCtx(): AudioContext {
 
 const _speaking = ref(false)
 let _aborted = false
+let _abortCtrl: AbortController | null = null
+let _activeSource: AudioBufferSourceNode | null = null
+
+async function _getVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return []
+  const voices = window.speechSynthesis.getVoices()
+  if (voices.length) return voices
+  return new Promise((resolve) => {
+    window.speechSynthesis.addEventListener(
+      'voiceschanged',
+      () => resolve(window.speechSynthesis.getVoices()),
+      { once: true },
+    )
+  })
+}
 
 export function useTTS() {
   const appStore = useAppStore()
 
   function stop() {
     _aborted = true
+    _abortCtrl?.abort()
+    _activeSource?.stop()
+    _activeSource = null
     _speaking.value = false
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel()
@@ -70,7 +88,7 @@ export function useTTS() {
 
   async function _speakWebSpeech(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
-    const voices = window.speechSynthesis.getVoices()
+    const voices = await _getVoices()
 
     function findVoice(name: string): SpeechSynthesisVoice | null {
       if (!name) return null
@@ -109,6 +127,7 @@ export function useTTS() {
             text: seg.text,
             voice,
           }),
+          signal: _abortCtrl?.signal,
         })
         if (!resp.ok) continue
         const buf = await resp.arrayBuffer()
@@ -117,10 +136,12 @@ export function useTTS() {
         const source = ctx.createBufferSource()
         source.buffer = decoded
         source.connect(ctx.destination)
+        _activeSource = source
         await new Promise<void>((resolve) => {
           source.onended = () => resolve()
           source.start()
         })
+        _activeSource = null
       } catch {
         // skip segment on error — don't block gameplay
       }
@@ -133,6 +154,7 @@ export function useTTS() {
 
     stop()
     _aborted = false
+    _abortCtrl = new AbortController()
     _speaking.value = true
 
     const segments = parseSegments(rawContent)
