@@ -62,6 +62,8 @@ export interface Npc {
   revealed?: Record<string, boolean>
   // v0.2.6: which location the NPC is currently in (null = unknown / not set)
   current_location?: string | null
+  // v0.2.9: TTS voice id/name
+  tts_voice?: string
 }
 
 export interface RelationItem {
@@ -114,6 +116,8 @@ export const sessionsApi = {
     api.get<Npc[]>(`/sessions/${id}/npcs`).then((r) => r.data),
   pinNpc: (sid: number, npcId: number, pinned: boolean) =>
     api.put<Npc>(`/sessions/${sid}/npcs/${npcId}/pin`, { pinned }).then((r) => r.data),
+  patchNpcVoice: (sid: number, npcId: number, ttsVoice: string) =>
+    api.patch<Npc>(`/sessions/${sid}/npcs/${npcId}/voice`, { tts_voice: ttsVoice }).then((r) => r.data),
   deleteAutoCreatedNpcs: (sid: number) =>
     api.delete(`/sessions/${sid}/npcs/auto_created`).then(() => undefined),
   goals: (id: number) =>

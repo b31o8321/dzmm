@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { sessionsApi, type Npc } from '@/api/sessions'
+import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   modelValue: boolean
@@ -16,6 +17,8 @@ const emit = defineEmits<{
 
 const local = ref<Npc | null>(null)
 const saving = ref(false)
+const appStore = useAppStore()
+const voiceSaving = ref(false)
 
 watch(
   () => props.npc,
@@ -40,6 +43,20 @@ async function togglePin() {
     ElMessage.error(e.message ?? '操作失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function saveVoice(voice: string) {
+  if (!local.value) return
+  voiceSaving.value = true
+  try {
+    const updated = await sessionsApi.patchNpcVoice(props.sessionId, local.value.id, voice)
+    local.value = { ...updated, affinity: { ...updated.affinity }, notes: [...(updated.notes ?? [])] }
+    emit('updated', updated)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '保存音色失败')
+  } finally {
+    voiceSaving.value = false
   }
 }
 
@@ -246,6 +263,21 @@ function npcAvatarColor(name: string): string {
             <span class="text-slate-700">{{ n.text }}</span>
           </li>
         </ul>
+      </section>
+
+      <section v-if="appStore.ttsEnabled">
+        <h4 class="text-sm font-bold text-slate-600 mb-1">TTS 音色</h4>
+        <el-input
+          :model-value="local.tts_voice ?? ''"
+          :loading="voiceSaving"
+          placeholder="留空则使用旁白默认音色"
+          clearable
+          @change="(v: string) => saveVoice(v)"
+          @clear="saveVoice('')"
+        />
+        <div class="text-xs text-slate-400 mt-1">
+          本地模式填 voice 参数名（如 af_sky）；Web Speech 填音色全名。
+        </div>
       </section>
     </div>
 
