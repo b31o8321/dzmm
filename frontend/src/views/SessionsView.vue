@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { useCharactersStore } from '@/stores/characters'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
+import { useScreenplaysStore } from '@/stores/screenplays'
 import { sessionsApi } from '@/api/sessions'
-import type { SessionIn } from '@/api/types'
 import GenreSelector from '@/components/GenreSelector.vue'
 import { api } from '@/api/client'
 
@@ -16,6 +16,7 @@ const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
 const charsStore = useCharactersStore()
 const modelsStore = useModelConfigsStore()
+const spStore = useScreenplaysStore()
 
 const dialogOpen = ref(false)
 const submitting = ref(false)
@@ -26,33 +27,29 @@ function goWizard() {
   router.push({ name: 'session-wizard' })
 }
 
-const form = reactive<SessionIn>({
+const form = ref({
   name: '',
-  world_id: 0,
-  character_id: 0,
+  screenplay_id: 0,
   gm_model_config_id: 0,
   summarizer_model_config_id: 0,
 })
+const selectedWorldId = ref(0)
+const worldScreenplays = computed(() => spStore.byWorld.get(selectedWorldId.value) ?? [])
 
-const genreForm = reactive<{ genre: string; custom_prompt: string }>({
-  genre: '悬疑探案',
-  custom_prompt: '',
-})
+async function onWorldChange(worldId: number) {
+  selectedWorldId.value = worldId
+  form.value.screenplay_id = 0
+  if (worldId) await spStore.fetchByWorld(worldId)
+}
 
-const charsForWorld = computed(() =>
-  charsStore.items.filter((c) => c.world_id === form.world_id),
-)
-
-function reset() {
-  Object.assign(form, {
+function resetForm() {
+  form.value = {
     name: '',
-    world_id: worldsStore.items[0]?.id ?? 0,
-    character_id: 0,
+    screenplay_id: 0,
     gm_model_config_id: modelsStore.items[0]?.id ?? 0,
     summarizer_model_config_id: modelsStore.items[0]?.id ?? 0,
-  })
-  genreForm.genre = '悬疑探案'
-  genreForm.custom_prompt = ''
+  }
+  selectedWorldId.value = 0
 }
 
 async function exportSession(id: number, format: 'json' | 'md') {
@@ -154,25 +151,19 @@ async function onDelete(row: { id: number; name: string; turn_count: number; wor
 async function onCreate() {
   submitting.value = true
   try {
-    if (!form.world_id || !form.character_id || !form.gm_model_config_id) {
-      ElMessage.warning('请补全所有字段')
+    if (!form.value.screenplay_id || !form.value.gm_model_config_id) {
+      ElMessage.warning('请选择剧本和模型')
       return
     }
-    if (genreForm.genre === '自定义' && !genreForm.custom_prompt.trim()) {
-      ElMessage.warning('选择「自定义」时请填写故事描述')
-      return
-    }
-    const s = await sessionsStore.create(form)
-    ElMessage.success('已创建，正在生成剧本…')
-    dialogOpen.value = false
-    router.push({
-      name: 'session-generate',
-      params: { id: String(s.id) },
-      query: {
-        genre: genreForm.genre,
-        custom_prompt: genreForm.custom_prompt,
-      },
+    const s = await sessionsStore.create({
+      name: form.value.name || '新游戏',
+      screenplay_id: form.value.screenplay_id,
+      gm_model_config_id: form.value.gm_model_config_id,
+      summarizer_model_config_id: form.value.summarizer_model_config_id,
     })
+    ElMessage.success('已创建，正在进入游戏…')
+    dialogOpen.value = false
+    router.push(`/play/${s.id}`)
   } catch (e: any) {
     ElMessage.error(e.message)
   } finally {
@@ -188,6 +179,13 @@ const worldNameById = computed(() => {
 const charNameById = computed(() => {
   const m = new Map<number, string>()
   for (const c of charsStore.items) m.set(c.id, c.name)
+  return m
+})
+const screenplayTitleById = computed(() => {
+  const m = new Map<number, string>()
+  for (const [, sps] of spStore.byWorld) {
+    for (const sp of sps) m.set(sp.id, sp.title)
+  }
   return m
 })
 
@@ -245,7 +243,10 @@ onMounted(async () => {
     charsStore.refresh(),
     modelsStore.refresh(),
   ])
-  reset()
+  for (const w of worldsStore.items) {
+    spStore.fetchByWorld(w.id)
+  }
+  resetForm()
 })
 </script>
 
@@ -258,8 +259,13 @@ onMounted(async () => {
 
     <el-table :data="sessionsStore.items" v-loading="sessionsStore.loading" border>
       <el-table-column prop="name" label="名称" width="220" />
-      <el-table-column label="世界" width="200">
-        <template #default="{ row }">{{ worldNameById.get(row.world_id) }}</template>
+      <el-table-column label="世界观 / 剧本" min-width="200">
+        <template #default="{ row }">
+          <div>{{ worldNameById.get(row.world_id) ?? `世界观#${row.world_id}` }}</div>
+          <div v-if="row.screenplay_id" class="sp-subtitle">
+            📜 {{ screenplayTitleById.get(row.screenplay_id) ?? `剧本#${row.screenplay_id}` }}
+          </div>
+        </template>
       </el-table-column>
       <el-table-column label="角色" width="160">
         <template #default="{ row }">{{ charNameById.get(row.character_id) }}</template>
@@ -340,7 +346,7 @@ onMounted(async () => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="dialogOpen" title="新开一局" width="640px">
+    <el-dialog v-model="dialogOpen" title="新开一局" width="640px" @closed="resetForm">
       <el-tabs v-model="createMode" type="card">
         <el-tab-pane label="🪄 向导式（推荐）" name="wizard">
           <div class="space-y-3 p-2">
@@ -358,17 +364,20 @@ onMounted(async () => {
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="⚡ 快速创建（预设）" name="quick">
+        <el-tab-pane label="⚡ 快速创建（已有剧本）" name="quick">
           <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-3 leading-relaxed">
-            💡 一键生成大纲后即可开始。本地 7-8B 模型够用；
-            想要更精致的世界观推荐用「向导式」。
+            💡 选择已有的世界观与剧本，直接进入游戏。
           </div>
           <el-form :model="form" label-width="100px">
-            <el-form-item label="存档名称" required>
-              <el-input v-model="form.name" placeholder="例如：赛博朋克 第一夜" />
+            <el-form-item label="存档名称">
+              <el-input v-model="form.name" placeholder="留空则使用剧本名" />
             </el-form-item>
-            <el-form-item label="世界观" required>
-              <el-select v-model="form.world_id" @change="form.character_id = 0">
+            <el-form-item label="世界观">
+              <el-select
+                :model-value="selectedWorldId"
+                @change="onWorldChange"
+                placeholder="先选世界观"
+              >
                 <el-option
                   v-for="w in worldsStore.items"
                   :key="w.id"
@@ -377,13 +386,17 @@ onMounted(async () => {
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="角色" required>
-              <el-select v-model="form.character_id" :disabled="!form.world_id">
+            <el-form-item label="剧本" required>
+              <el-select
+                v-model="form.screenplay_id"
+                :disabled="!selectedWorldId"
+                placeholder="选择剧本"
+              >
                 <el-option
-                  v-for="c in charsForWorld"
-                  :key="c.id"
-                  :label="c.name"
-                  :value="c.id"
+                  v-for="sp in worldScreenplays"
+                  :key="sp.id"
+                  :label="`${sp.title}（${sp.pc_name}）`"
+                  :value="sp.id"
                 />
               </el-select>
             </el-form-item>
@@ -407,9 +420,6 @@ onMounted(async () => {
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="故事类型" required>
-              <GenreSelector v-model="genreForm" />
-            </el-form-item>
           </el-form>
         </el-tab-pane>
       </el-tabs>
@@ -427,3 +437,7 @@ onMounted(async () => {
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.sp-subtitle { font-size: 12px; color: #888; }
+</style>
