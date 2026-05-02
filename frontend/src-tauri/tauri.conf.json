@@ -28,12 +28,11 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg", "nsis"],
-    "resources": [
-      "backend-runtime/*",
-      "backend-runtime/_internal/**/*",
-      "../dist/*",
-      "../dist/assets/*"
-    ],
+    "resources": {
+      "backend-runtime/": "backend-runtime/",
+      "backend-runtime/_internal/": "backend-runtime/_internal/",
+      "../dist/": "frontend-dist/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

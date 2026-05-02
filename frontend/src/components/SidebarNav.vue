@@ -3,8 +3,23 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { fetchHealth } from '@/api/client'
 import { useDebugStore } from '@/stores/debug'
+import { useAppStore } from '@/stores/app'
+import { useAudio } from '@/composables/useAudio'
+import { useRouter } from 'vue-router'
 
 const debug = useDebugStore()
+const appStore = useAppStore()
+const audio = useAudio()
+const router = useRouter()
+
+function toggleMute() {
+  audio.setMuted(!appStore.muted)
+}
+
+function restartTour() {
+  appStore.restartTour()
+  router.push('/welcome')
+}
 
 const items = [
   { to: '/sessions', label: '跑团', icon: '🎲' },
@@ -69,6 +84,16 @@ const versionMismatch = computed(() => {
       >
         <span class="mr-2">📖</span>说明 / 帮助
       </RouterLink>
+      <div class="flex gap-1 px-3 mt-1">
+        <button type="button"
+          class="text-slate-400 hover:text-slate-200 text-sm w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 transition"
+          :title="appStore.muted ? '取消静音' : '静音'"
+          @click="toggleMute">{{ appStore.muted ? '🔇' : '🔊' }}</button>
+        <button type="button"
+          class="text-slate-400 hover:text-slate-200 text-sm w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 transition"
+          title="重新查看引导"
+          @click="restartTour">❓</button>
+      </div>
       <div class="text-xs text-slate-400 mt-2 px-3">
         v{{ frontendVersion }}
         <span
@@ -117,11 +142,21 @@ const versionMismatch = computed(() => {
     >
       <span class="mr-1">📖</span>说明
     </RouterLink>
-    <span class="ml-auto self-center text-xs text-slate-400 px-2 shrink-0">
-      v{{ frontendVersion }}<span
-        v-if="backendVersion"
-        :class="versionMismatch ? 'text-red-500 font-bold' : ''"
-      > / 后端 v{{ backendVersion }}</span>
-    </span>
+    <div class="ml-auto flex items-center gap-1 shrink-0 px-1">
+      <button type="button"
+        class="text-slate-300 hover:text-white text-sm w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 transition shrink-0"
+        :title="appStore.muted ? '取消静音' : '静音'"
+        @click="toggleMute">{{ appStore.muted ? '🔇' : '🔊' }}</button>
+      <button type="button"
+        class="text-slate-300 hover:text-white text-sm w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 transition shrink-0"
+        title="重新查看引导"
+        @click="restartTour">❓</button>
+      <span class="text-xs text-slate-400 px-1">
+        v{{ frontendVersion }}<span
+          v-if="backendVersion"
+          :class="versionMismatch ? 'text-red-500 font-bold' : ''"
+        > / 后端 v{{ backendVersion }}</span>
+      </span>
+    </div>
   </nav>
 </template>

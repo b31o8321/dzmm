@@ -727,7 +727,7 @@ onUnmounted(() => {
     <button
       v-if="!panelOpen"
       type="button"
-      class="md:hidden fixed top-2 right-2 z-20 bg-white border border-slate-300 rounded-full w-10 h-10 shadow flex items-center justify-center text-lg"
+      class="md:hidden fixed bottom-24 right-3 z-20 bg-white border border-slate-300 rounded-full w-10 h-10 shadow flex items-center justify-center text-lg"
       title="打开状态面板"
       @click="panelOpen = true"
     >📋</button>
