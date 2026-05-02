@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, nextTick, ref } from 'vue'
+import { watch, nextTick, ref, computed } from 'vue'
 import { ElButton } from 'element-plus'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
@@ -8,6 +8,7 @@ import type { Turn } from '@/composables/useGameTurn'
 const props = defineProps<{
   turns: Turn[]
   characterName?: string
+  sending?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -73,6 +74,25 @@ function displayParts(t: Turn): Part[] {
   return parts
 }
 
+const recentPlotEvents = computed(() => {
+  const events: string[] = []
+  const slice = props.turns.slice(0, -1).slice(-5)  // last 5 prior turns
+  for (const t of slice) {
+    for (const e of t.events ?? []) {
+      if (e.type === 'plot_event' && e.content) {
+        events.push(e.content)
+      }
+    }
+  }
+  return events.slice(-3)  // most recent 3 plot events
+})
+
+const isLastTurnLoading = computed(() => {
+  if (!props.sending) return false
+  const last = props.turns[props.turns.length - 1]
+  return !!last && !last.narrative
+})
+
 // Auto-scroll to bottom whenever a new turn appears.
 watch(
   () => props.turns.length,
@@ -93,7 +113,23 @@ defineExpose({ logEl })
     <article v-for="(t, i) in turns" :key="i" class="space-y-2">
       <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
       <div class="relative bg-white rounded shadow-sm p-4">
-        <template v-if="displayParts(t).length">
+        <!-- Loading state: waiting for first LLM token -->
+        <template v-if="i === turns.length - 1 && isLastTurnLoading">
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 text-slate-500 text-sm animate-pulse">
+              <span>⚔️ 行动中…</span>
+            </div>
+            <div v-if="recentPlotEvents.length" class="border-t pt-2 space-y-1">
+              <div class="text-xs text-slate-400 mb-1">— 近期事件 —</div>
+              <div
+                v-for="(ev, ei) in recentPlotEvents"
+                :key="ei"
+                class="text-xs text-slate-500 leading-relaxed"
+              >{{ ev }}</div>
+            </div>
+          </div>
+        </template>
+        <template v-else-if="displayParts(t).length">
           <SpeakerBubble
             v-for="(part, pi) in displayParts(t)"
             :key="pi"

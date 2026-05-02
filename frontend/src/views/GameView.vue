@@ -520,6 +520,7 @@ onUnmounted(() => audio.stopBgm())
       <MessageList
         :turns="turns"
         :character-name="character?.name"
+        :sending="sending"
         @choose="(c: string) => sendActionDirect(c)"
         @open-events="(t: Turn) => openEvents(t)"
       />
