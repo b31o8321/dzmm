@@ -36,9 +36,13 @@ async def suggest_actions(
         {
             "role": "system",
             "content": (
-                "你是 TRPG 助手，根据当前场景和玩家目标，给出 3 个简短的行动建议。\n"
-                "每条建议不超过 12 个汉字，直接是玩家可以做的动作。\n"
-                "只输出 3 行，每行一个建议，不加序号不加解释。"
+                "你是 TRPG 助手，根据当前场景和玩家目标，给出 3 个行动建议。\n"
+                "规则：\n"
+                "- 每条不超过 16 个汉字（含括号内的后果提示）\n"
+                "- 三个建议必须覆盖不同风险档：至少一个高风险高回报、至少一个低风险稳进\n"
+                "- 至少一个直接推进当前目标或主线剧情\n"
+                "- 可选：在行动后用括号标注关键后果，例如「强攻（可能暴露）」\n"
+                "- 只输出 3 行，每行一个，不加序号不加解释"
             ),
         },
         {
@@ -50,7 +54,7 @@ async def suggest_actions(
     chunks: list[str] = []
     try:
         async for ch in client.stream(
-            messages, GenerationParams(max_tokens=80, temperature=0.8)
+            messages, GenerationParams(max_tokens=120, temperature=0.8)
         ):
             if ch.delta:
                 chunks.append(ch.delta)
