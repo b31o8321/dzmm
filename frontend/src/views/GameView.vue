@@ -352,9 +352,9 @@ const nextMainEvent = computed(() => {
   return null // all main events done
 })
 
-// 把 event 描述塞 input，让玩家审阅／编辑后再发送（不直接 send）
-function applyEventHint(event: string) {
-  action.value = `（推进剧情）${event}`
+// 把通用推进提示塞 input，让玩家审阅／编辑后再发送（不直接 send）
+function applyEventHint(_event: string) {
+  action.value = '（感觉剧情进展太慢，请主动推进剧情节奏）'
 }
 
 async function refreshSuggestions() {
@@ -678,14 +678,15 @@ onUnmounted(() => {
 
       <footer class="border-t bg-white p-4 space-y-2">
         <!-- v0.2.3 P2.3: 主推剧本下一个 main_event，点击仅塞 input 让玩家审阅 -->
-        <div v-if="nextMainEvent">
+        <div v-if="nextMainEvent" class="flex justify-end">
           <el-button
-            type="primary"
+            size="small"
+            type="info"
             plain
-            class="w-full"
             :disabled="sending"
             @click="applyEventHint(nextMainEvent)"
-          >⚡ 推进剧情：{{ nextMainEvent }}</el-button>
+            title="感觉剧情太慢或走偏时使用"
+          >⚡ 推进剧情</el-button>
         </div>
         <!-- 通用 fallback：自由探索 -->
         <div class="flex flex-wrap gap-1">
