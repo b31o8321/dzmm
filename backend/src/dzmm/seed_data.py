@@ -5,25 +5,13 @@ when the corresponding table is empty.
 """
 import json
 import logging
-import shutil
-from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from dzmm.config import APP_DIR
-from dzmm.db.models import Character, ModelConfig, World
+from dzmm.db.models import ModelConfig, Screenplay, World
 
 log = logging.getLogger(__name__)
-
-# Mapping from preset character name to its bundled portrait filename in
-# repo_root/frontend/public/portraits/. Names match the entries in _CHARACTERS.
-_PORTRAIT_FILES = {
-    "楚晓": "riku.svg",
-    "顾之行": "sanchuan.svg",
-    "沈语": "aya.svg",
-    "裴无弦": "sanchuan.svg",
-}
 
 _WORLDS = [
     {
@@ -125,111 +113,70 @@ _WORLDS = [
     },
 ]
 
-_CHARACTERS = [
+_SCREENPLAYS = [
     {
-        "world_idx": 0,
-        "name": "楚晓",
-        "profile_md": (
-            "## 基本信息\n"
-            "- 性别：女 / 年龄：29 / 职业：NCB 前数据审核员，现无业\n"
-            "- 外貌：利落短发，惯用右手，右手腕有一道不够深的疤。穿廉价合规的灰色通勤装。\n\n"
-            "## 性格\n"
-            "习惯在脑子里把所有可能性排列一遍再开口。话少，但说出口的字没有废的。\n"
-            "对「对的事」有一种固执的执念——哪怕她越来越不确定什么是「对」。\n\n"
-            "## 背景\n"
-            "她在 NCB 干了六年，审核市民的神经档案，给越轨行为打红点。\n"
-            "三周前，她在档案里发现一个七岁女孩的账号已经有四个红点——\n"
-            "查不到任何对应的越轨记录。她截了屏，那天晚上自己档案里多了一个红点。\n"
-            "第二天她辞职了，现在还剩两次机会。\n\n"
-            "## 能力与物品\n"
-            "- 六年审核工作让她能快速判断谁在撒谎（DC -2）\n"
-            "- 知道 NCB 内部的几个漏洞，但用一次少一次\n"
-            "- 一个改装过的旧手表，能屏蔽芯片信号约十分钟，充电一次只能用两回\n\n"
-            "## 弱点\n"
-            "- 她的脸在 NCB 数据库里，被人脸识别扫到概率很高\n"
-            "- 对「无辜者受害」有应激反应，容易冲动覆盖理性判断"
-        ),
-        "base_stats_json": json.dumps({"hp": 18, "sanity": 15, "stamina": 14}),
+        "world_index": 0,  # 零区禁令：新京都 2091
+        "title": "合规人生的边界",
+        "genre": "政治阴谋",
+        "pc_name": "楚晓",
+        "pc_profile_md": """## 楚晓
+
+**身份：** NCB（神经合规局）前三级审核员，编号 C-0471
+
+**背景：** 曾执行过 247 次"强制重置"申请审核，其中 3 次签发了自己后来质疑的处决令。六周前，她在常规清仓时发现档案库 B-7 里存在一个从未被分配合规芯片的区域——这在法律上不应该存在。
+
+**特质：** 习惯在说谎前用右手拇指摩擦无名指指节；对纸质文件有近乎执念的偏好；从不相信巧合。
+
+**携带：** 一枚已停用的四级权限芯片（失效日期：三周前）、审核官证（仍然有效）、记录着某个孤儿院地址的小纸条。""",
+        "pc_base_stats_json": '{"调查":8,"交涉":6,"渗透":5,"战斗":3,"技术":6,"意志":7}',
     },
     {
-        "world_idx": 1,
-        "name": "顾之行",
-        "profile_md": (
-            "## 基本信息\n"
-            "- 性别：男 / 年龄：34 / 职业：军统上海站外勤，编号「鸽七」\n"
-            "- 外貌：中等身材，脸不出众，正是这行最需要的样子。常穿长衫，随季节换色。\n\n"
-            "## 性格\n"
-            "情绪很少在脸上。不是冷漠，是经过训练的克制。\n"
-            "他信任程序多于直觉——但有一种情况例外：当程序本身出了问题的时候。\n\n"
-            "## 背景\n"
-            "入行十一年，亲历三次叛变，从中学到一件事：\n"
-            "叛变的人通常不是坏人，只是走到了某个没有退路的路口。\n"
-            "他的上线三天前失联了。站长说等通知，但他在失联前最后一次通话里，\n"
-            "只说了一句话：「名单是真的，但用法是假的。」\n\n"
-            "## 能力与物品\n"
-            "- 跟踪与反跟踪（城市环境中可降低被察觉概率）\n"
-            "- 三套备用身份（洋行职员、报社记者、药材商），证件齐全\n"
-            "- 一支德制袖珍手枪，六发子弹，备弹十二发\n"
-            "- 上线给过他一串电话号码，说「只在活不下去的时候打」\n\n"
-            "## 弱点\n"
-            "- 酒是他的软肋，三杯之后判断力下降，话也开始多了\n"
-            "- 对女性目标有一套固定的心理防线，但如果对方先说真话，他会手软"
-        ),
-        "base_stats_json": json.dumps({"hp": 20, "sanity": 14, "stamina": 16}),
+        "world_index": 1,  # 上海·谍影 1937
+        "title": "失联的猎雀人",
+        "genre": "悬疑探案",
+        "pc_name": "顾之行",
+        "pc_profile_md": """## 顾之行
+
+**身份：** 军统上海站外勤情报员，代号"鸢尾"
+
+**背景：** 加入军统前是租界里的跑单帮，见过太多人为了活命出卖同伴。三年前被老站长亲自招募，执行过四次渗透任务，全身而退。两周前，联络人"麻雀"在例行接头后失踪，顾之行奉命查清原委——但他隐约察觉这次任务与组织内部的某条黑线有关。
+
+**特质：** 能在三分钟内判断出一个陌生人的大概出身；喝茶从不加糖；在确认安全之前从不走同一条路两次。
+
+**携带：** 军统证件（伪造身份：实业公司职员）、一把改装过消音弹的小型手枪、"麻雀"最后一封密信（部分字迹被水浸湿）。""",
+        "pc_base_stats_json": '{"侦察":8,"潜伏":7,"格斗":6,"交际":5,"应变":7,"意志":6}',
     },
     {
-        "world_idx": 2,
-        "name": "沈语",
-        "profile_md": (
-            "## 基本信息\n"
-            "- 性别：女 / 年龄：31 / 职业：前外出小队医疗员，现任庇护所诊室负责人\n"
-            "- 外貌：手常年有碘伏的气味，左眼比右眼小，那是核冬天第一年一次意外留下的。\n\n"
-            "## 性格\n"
-            "对数字有病态的信任：粮食天数、温度、成功率——她把所有能量化的东西都量化。\n"
-            "这帮助她在最坏的情况下保持清醒，也让她有时候忘记自己面对的是人而不是变量。\n\n"
-            "## 背景\n"
-            "她在外出小队待了三年，亲眼看着十七个人在任务里没有回来。\n"
-            "第四年她拒绝继续外出，管委会让她留下来管诊室，但把她的口粮配额降了一档。\n"
-            "现在那个陌生人住进来之后，他每天早上会来她的诊室，说头痛，\n"
-            "但她检查不到任何生理原因——而且他的核辐射指数是她见过最低的，"
-            "比庇护所里出生长大、从没出过门的孩子还低。\n\n"
-            "## 能力与物品\n"
-            "- 医疗判断（诊断、急救、调配药物储量）\n"
-            "- 记忆力极好，庇护所 340 人她能叫出 310 个名字和过往病史\n"
-            "- 一本手写的庇护所人员档案，比管委会的官方版本详细三倍\n\n"
-            "## 弱点\n"
-            "- 亲历太多死亡，她对新的感情投入有强烈的防御本能\n"
-            "- 技师组的人不信任她，因为她三年前在报告里写了一份「燃料不足以支撑另一个冬天」的评估"
-        ),
-        "base_stats_json": json.dumps({"hp": 16, "sanity": 17, "stamina": 13}),
+        "world_index": 2,  # 残光庇护所
+        "title": "核冬之后，第七十二天",
+        "genre": "灾难求生",
+        "pc_name": "沈语",
+        "pc_profile_md": """## 沈语
+
+**身份：** 庇护所三区医疗官，前传染病研究员
+
+**背景：** 核冬来临前三天，她正在隔离舱内研究一种尚未命名的病毒变体，因此意外成了庇护所里唯一知道外面情况全貌的人——或者说，曾经知道。笔记本在第十二天的骚乱中遗失了。现在她靠残缺的记忆管理着日益枯竭的药品库，以及日益绝望的人心。
+
+**特质：** 拥有过目不忘的短期记忆，但长期记忆在压力下会出现空白；习惯在诊断时做"没有用处的详细记录"；对谎言的厌恶近乎生理反应。
+
+**携带：** 医疗急救箱（储量：约40%）、弄丢了一半内容的研究日志、三区配给钥匙卡、一支用完了子弹的注射型镇静枪。""",
+        "pc_base_stats_json": '{"医疗":9,"科学":7,"交涉":5,"应变":6,"体能":4,"意志":8}',
     },
     {
-        "world_idx": 3,
-        "name": "裴无弦",
-        "profile_md": (
-            "## 基本信息\n"
-            "- 性别：男 / 年龄：27 / 身份：散修，曾是某门派弃徒\n"
-            "- 外貌：左臂从肘以下是假肢——竹制，关节处缠着布，有焦痕。右手五指完好，持刀。\n\n"
-            "## 武功\n"
-            "擅轻功和暗器，近身刀法凌厉但走的是「伤敌一千自损八百」的路子。\n"
-            "没有内功底子，靠硬功夫和快弥补。生死之间打过十一场，活下来了十一次，全带伤。\n\n"
-            "## 性格\n"
-            "言语刻薄，但从不对弱者动手。欠人情会还，被人害不会忘。\n"
-            "他在意活下去，比在意任何立场或大义都多——这是他唯一的原则，也是最难动摇的。\n\n"
-            "## 背景\n"
-            "他的师父死在《断江录》之前，死于门派内部。\n"
-            "师父死之前把一件东西交给他，说不到绝境不能用。他不知道那是什么，\n"
-            "因为那东西被密封着，十三年了他没打开过——不是不想，是怕开了就再没退路。\n"
-            "天机楼三天前联系了他，让他交出那件东西，说可以用一条活路换。\n\n"
-            "## 物品\n"
-            "- 腰间一个铜锁木匣，锁上有血封（强开会触发某种机关）\n"
-            "- 二十枚淬了见血封喉的梅花镖，备用镖头六枚\n"
-            "- 一张漕帮通行令，可以在运河沿线免检过关\n\n"
-            "## 弱点\n"
-            "- 假肢在雨天反应迟钝，近身格斗时是明显破绽\n"
-            "- 他的脸被天机楼存了画影图形，大城市里行走需要易容"
-        ),
-        "base_stats_json": json.dumps({"hp": 22, "sanity": 13, "stamina": 18}),
+        "world_index": 3,  # 刀锋录·断江湖
+        "title": "封印的木匣",
+        "genre": "政治阴谋",
+        "pc_name": "裴无弦",
+        "pc_profile_md": """## 裴无弦
+
+**身份：** 独臂散修，前天机楼"弦"字级密探
+
+**背景：** 天机楼共有七个字级密探，代号取自琴弦。"无弦"意味着他是第八个——从未被正式承认存在的那个。三年前，他奉命护送一个装有天机楼核心密档的木匣前往西疆，却在半路遭遇追杀，失去左臂，木匣却奇异地封印在他身上。自那以后，每当木匣感知到天机楼的气息，封印便会灼烧他的肌肤。
+
+**特质：** 以残臂为荣，拒绝一切义肢；推算人心如推演棋局；对天机楼的人既防备又难以割舍。
+
+**携带：** 封于右臂皮肤之下的神秘木匣（无法取出）、一把只有三尺长的断剑、天机楼通缉令（画像失真，但悬赏真实）。""",
+        "pc_base_stats_json": '{"轻功":7,"剑术":8,"推算":9,"隐匿":6,"交锋":5,"内力":7}',
     },
 ]
 
@@ -244,42 +191,16 @@ _MODEL_CONFIGS = [
 ]
 
 
-def _copy_bundled_portraits(char_objs: list[Character]) -> None:
-    """Copy bundled SVG portraits from frontend/public/portraits into
-    APP_DIR/portraits and set portrait_path on the matching Character objects.
-    Silently skips when source dir is missing (e.g. backend-only bundle)."""
-    # backend/src/dzmm/seed_data.py → repo_root is parents[3]
-    repo_root = Path(__file__).resolve().parents[3]
-    portrait_src_dir = repo_root / "frontend" / "public" / "portraits"
-    if not portrait_src_dir.is_dir():
-        return
-    portraits_dst_dir = APP_DIR / "portraits"
-    portraits_dst_dir.mkdir(parents=True, exist_ok=True)
-    for c in char_objs:
-        src_filename = _PORTRAIT_FILES.get(c.name)
-        if not src_filename:
-            continue
-        src = portrait_src_dir / src_filename
-        if not src.exists():
-            continue
-        dst = portraits_dst_dir / f"{c.id}.svg"
-        try:
-            shutil.copy(src, dst)
-            c.portrait_path = str(dst)
-        except Exception:
-            log.warning("failed to copy portrait for %s", c.name, exc_info=True)
-
-
 async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None:
-    """Insert default worlds/characters/model_configs if those tables are empty.
+    """Insert default worlds/screenplays/model_configs if those tables are empty.
     Each table is checked independently so partial DBs (e.g. user kept worlds
     but lost model_configs) get filled in for the missing pieces only."""
     async with session_maker() as s:
         worlds_existing = (
             await s.execute(select(World.id).limit(1))
         ).scalar_one_or_none()
-        chars_existing = (
-            await s.execute(select(Character.id).limit(1))
+        screenplays_existing = (
+            await s.execute(select(Screenplay.id).limit(1))
         ).scalar_one_or_none()
         models_existing = (
             await s.execute(select(ModelConfig.id).limit(1))
@@ -294,24 +215,26 @@ async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None
             added += len(world_objs)
             log.info("seeded %d default worlds", len(world_objs))
 
-            # Characters reference worlds by index — only seed them in the same
-            # run where we created the worlds, so the world_idx mapping is
-            # meaningful. If the user already has worlds, we don't add chars.
-            if chars_existing is None:
-                char_objs = [
-                    Character(
-                        world_id=world_objs[c["world_idx"]].id,
-                        name=c["name"],
-                        profile_md=c["profile_md"],
-                        base_stats_json=c["base_stats_json"],
+            # Screenplays reference worlds by index — only seed them in the same
+            # run where we created the worlds, so the world_index mapping is
+            # meaningful. If the user already has worlds, we don't add screenplays.
+            if screenplays_existing is None:
+                sp_objs = [
+                    Screenplay(
+                        world_id=world_objs[sp["world_index"]].id,
+                        session_id=None,
+                        title=sp["title"],
+                        genre=sp["genre"],
+                        pc_name=sp["pc_name"],
+                        pc_profile_md=sp["pc_profile_md"],
+                        pc_base_stats_json=sp["pc_base_stats_json"],
                     )
-                    for c in _CHARACTERS
+                    for sp in _SCREENPLAYS
                 ]
-                s.add_all(char_objs)
-                await s.flush()  # populate IDs so we can name portrait files by id
-                _copy_bundled_portraits(char_objs)
-                added += len(char_objs)
-                log.info("seeded %d default characters", len(char_objs))
+                s.add_all(sp_objs)
+                await s.flush()
+                added += len(sp_objs)
+                log.info("seeded %d default screenplays", len(sp_objs))
 
         if models_existing is None:
             model_objs = [ModelConfig(**m) for m in _MODEL_CONFIGS]
