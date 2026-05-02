@@ -453,53 +453,53 @@ onUnmounted(() => audio.stopBgm())
             </el-button>
           </div>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3 shrink-0">
           <button
             type="button"
             class="text-sm text-slate-500 hover:text-slate-800"
             @click="characterCardOpen = true"
           >📜 角色卡</button>
-          <router-link :to="`/play/${sessionId}/screenplay`"
-                       class="text-sm text-slate-500 hover:text-slate-800">
-            📜 剧本
-          </router-link>
-          <router-link :to="`/play/${sessionId}/journal`"
-                       class="text-sm text-slate-500 hover:text-slate-800">
-            📖 任务日志
-          </router-link>
-          <router-link :to="`/play/${sessionId}/npcs`"
-                       class="text-sm text-slate-500 hover:text-slate-800">
-            📒 NPC
-          </router-link>
-          <router-link :to="`/play/${sessionId}/relations`"
-                       class="text-sm text-slate-500 hover:text-slate-800">
-            🔗 关系
-          </router-link>
-          <router-link :to="`/play/${sessionId}/chronicle`"
-                       class="text-sm text-slate-500 hover:text-slate-800">
-            📜 编年史
-          </router-link>
-          <button
-            type="button"
-            class="text-sm text-slate-500 hover:text-slate-800"
-            @click="feedbackOpen = true"
-          >💬 反馈</button>
-          <button
-            type="button"
-            class="text-xs text-slate-400 hover:text-slate-600 shrink-0"
-            @click="modelSwitchOpen = true"
-            title="切换 GM 模型"
-          >⚙️ 模型</button>
-          <button
-            type="button"
-            class="text-xs text-slate-400 hover:text-slate-600 shrink-0"
-            @click="settingsOpen = true"
-            title="游戏设置"
-          >🔧 设置</button>
-          <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
+          <el-dropdown trigger="click" placement="bottom-end">
+            <button type="button"
+                    class="text-sm text-slate-500 hover:text-slate-800 px-1">···</button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item>
+                  <router-link :to="`/play/${sessionId}/screenplay`"
+                               class="block w-full">📜 剧本</router-link>
+                </el-dropdown-item>
+                <el-dropdown-item>
+                  <router-link :to="`/play/${sessionId}/journal`"
+                               class="block w-full">📖 任务日志</router-link>
+                </el-dropdown-item>
+                <el-dropdown-item>
+                  <router-link :to="`/play/${sessionId}/npcs`"
+                               class="block w-full">📒 NPC</router-link>
+                </el-dropdown-item>
+                <el-dropdown-item>
+                  <router-link :to="`/play/${sessionId}/relations`"
+                               class="block w-full">🔗 关系</router-link>
+                </el-dropdown-item>
+                <el-dropdown-item>
+                  <router-link :to="`/play/${sessionId}/chronicle`"
+                               class="block w-full">📜 编年史</router-link>
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="feedbackOpen = true">
+                  💬 反馈
+                </el-dropdown-item>
+                <el-dropdown-item @click="modelSwitchOpen = true">
+                  ⚙️ 模型
+                </el-dropdown-item>
+                <el-dropdown-item @click="settingsOpen = true">
+                  🔧 设置
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800 shrink-0">
             返回存档
           </router-link>
-          <span class="text-xs text-slate-400 ml-2">v{{ version }}</span>
+          <span class="text-xs text-slate-400">v{{ version }}</span>
         </div>
       </header>
 
