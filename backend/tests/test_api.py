@@ -683,11 +683,21 @@ async def test_npcs_endpoint_includes_revealed_field(http, app):
     assert "revealed" in by_name["小菱"]
     assert by_name["小菱"]["revealed"]["name"] is True
     assert by_name["小菱"]["revealed"]["description"] is True
-    # purpose/archetype not in mask — frontend should treat as hidden.
+    # v0.2.5: last_seen_turn > 0 auto-reveals state, favor
+    assert by_name["小菱"]["revealed"]["state"] is True
+    assert by_name["小菱"]["revealed"]["favor"] is True
+    # archetype auto-revealed when last_seen_turn > 0 AND archetype is set
+    assert by_name["小菱"]["revealed"]["archetype"] is True
+    # purpose not revealed (favor=2 < 30 threshold)
     assert by_name["小菱"]["revealed"].get("purpose") is not True
 
-    # Default-mask NPC: only name revealed.
-    assert by_name["幽影"]["revealed"] == {"name": True}
+    # v0.2.5: NPC with last_seen_turn > 0 gets description/state/favor auto-revealed.
+    assert by_name["幽影"]["revealed"]["name"] is True
+    assert by_name["幽影"]["revealed"]["description"] is True
+    assert by_name["幽影"]["revealed"]["state"] is True
+    assert by_name["幽影"]["revealed"]["favor"] is True
+    # archetype not revealed (archetype is empty)
+    assert by_name["幽影"]["revealed"].get("archetype") is not True
 
 
 async def test_messages_endpoint_includes_events_field(http, app):

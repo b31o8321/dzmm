@@ -65,7 +65,7 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
     npc_rows = (
         await s.execute(
             select(NPC)
-            .where(NPC.session_id == session_id)
+            .where(NPC.session_id == session_id, NPC.last_seen_turn > 0)
             .order_by(NPC.last_seen_turn.desc())
         )
     ).scalars().all()
