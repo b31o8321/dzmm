@@ -26,6 +26,7 @@ def _sp_to_out(sp: Screenplay) -> ScreenplayStandaloneOut:
         main_characters_json=sp.main_characters_json,
         ending_md=sp.ending_md,
         opening_hook=sp.opening_hook,
+        pc_tts_voice=sp.pc_tts_voice,
         version=sp.version,
         current_chapter=sp.current_chapter,
         completed_events_json=sp.completed_events_json,
@@ -57,6 +58,7 @@ async def create_world_screenplay(
         main_characters_json=body.main_characters_json,
         ending_md=body.ending_md,
         opening_hook=body.opening_hook,
+        pc_tts_voice=body.pc_tts_voice,
     )
     s.add(sp)
     await s.commit()

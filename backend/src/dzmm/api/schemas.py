@@ -122,6 +122,7 @@ class ScreenplayStandaloneIn(BaseModel):
     main_characters_json: str = "[]"
     ending_md: str = ""
     opening_hook: str = ""
+    pc_tts_voice: str = ""
 
 
 class ScreenplayStandaloneOut(ScreenplayStandaloneIn):
