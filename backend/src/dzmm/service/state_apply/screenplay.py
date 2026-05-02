@@ -121,6 +121,12 @@ async def _apply_event_complete(
             if char is not None:
                 char.xp = max(0, char.xp + xp_delta)
 
+        # Completing a main event reduces doom pressure.
+        if type_ == "main":
+            sess = await session.get(GameSession, session_id)
+            if sess is not None:
+                sess.doom_score = max(0, sess.doom_score - 10)
+
 
 async def _apply_plot_turn(
     session: AsyncSession,

@@ -30,6 +30,7 @@ from dzmm.service.state_apply.screenplay import (
     _apply_event_complete,
     _apply_plot_turn,
 )
+from dzmm.service.state_apply.doom import _apply_doom
 from dzmm.service.state_apply.state_change import _apply_state_change
 
 # Re-export for callers that imported these names from `_impl` directly
@@ -85,3 +86,5 @@ async def apply_tags(
             await _apply_plot_turn(session, session_id, tag.attrs, current_turn)
         elif tag.name == "ending":
             await _apply_ending(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "doom":
+            await _apply_doom(session, session_id, tag.attrs)

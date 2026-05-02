@@ -1,5 +1,5 @@
 from datetime import datetime, UTC
-from sqlalchemy import ForeignKey, String, Text, DateTime
+from sqlalchemy import ForeignKey, Integer, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dzmm.db.base import Base
@@ -55,6 +55,7 @@ class Session(Base):
     recall_pending_json: Mapped[str] = mapped_column(Text, default="[]")
     pc_mood_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
     settings_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.2.5
+    doom_score: Mapped[int] = mapped_column(Integer, default=0)  # v0.2.5
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
     last_played: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 

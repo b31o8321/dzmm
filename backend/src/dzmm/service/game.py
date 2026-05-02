@@ -1,5 +1,6 @@
 import json
 import logging
+import random
 import re
 from collections.abc import AsyncIterator
 from datetime import datetime, UTC
@@ -140,6 +141,27 @@ async def run_turn(
                 key_facts = key_facts + "\n\n## 🎬 导演预处理\n" + directive.strip()
         except Exception as exc:  # noqa: BLE001
             log.warning("director pass failed: %s", exc)
+
+    # Doom meter: inject current pressure level + maybe trigger bad ending.
+    doom = sess.doom_score
+    if doom > 0:
+        if doom < 60:
+            doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：{doom}/100（低风险，正常叙事）。"
+        elif doom < 80:
+            doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：{doom}/100（中等压力）。叙事基调偏阴沉，NPC 更紧张，事态更难控制。"
+            if random.random() < 0.10:
+                doom_note += "\n\n🔴 **坏结局触发**：本回合必须演出一个不可逆的恶化事件并 emit `<ending type=\"bad\">`。"
+        elif doom < 90:
+            doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：{doom}/100（高压力）。世界对PC持续恶化。"
+            if random.random() < 0.25:
+                doom_note += "\n\n🔴 **坏结局触发**：本回合必须演出一个不可逆的恶化事件并 emit `<ending type=\"bad\">`。"
+        elif doom < 100:
+            doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：{doom}/100（临界崩溃）。"
+            if random.random() < 0.50:
+                doom_note += "\n\n🔴 **坏结局触发**：本回合必须演出一个不可逆的恶化事件并 emit `<ending type=\"bad\">`。"
+        else:
+            doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：100/100。\n\n🔴 **坏结局触发**：本回合必须演出末日事件并 emit `<ending type=\"bad\">`。"
+        key_facts = key_facts + "\n\n" + doom_note
 
     recent = await _load_recent_messages(session, session_id, summary_row)
 
