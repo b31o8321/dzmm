@@ -4,17 +4,14 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
-import { useCharactersStore } from '@/stores/characters'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { useScreenplaysStore } from '@/stores/screenplays'
 import { sessionsApi } from '@/api/sessions'
-import GenreSelector from '@/components/GenreSelector.vue'
 import { api } from '@/api/client'
 
 const router = useRouter()
 const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
-const charsStore = useCharactersStore()
 const modelsStore = useModelConfigsStore()
 const spStore = useScreenplaysStore()
 
@@ -123,29 +120,6 @@ async function onDelete(row: { id: number; name: string; turn_count: number; wor
     ElMessage.success(`已删除世界观「${worldName}」`)
   } catch { /* user chose to keep or closed dialog */ }
 
-  // Step 3: ask about deleting character
-  const charName = charNameById.value.get(row.character_id) ?? `角色 #${row.character_id}`
-  const otherSessionsWithChar = sessionsStore.items.filter(
-    (s) => s.character_id === row.character_id,
-  )
-  const charWarning = otherSessionsWithChar.length > 0
-    ? `\n⚠️ 还有 ${otherSessionsWithChar.length} 个其他存档使用此角色卡，删除后它们也将失去关联。`
-    : ''
-  try {
-    await ElMessageBox.confirm(
-      `是否同时删除角色卡「${charName}」？${charWarning}`,
-      '删除角色卡',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '保留',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-        distinguishCancelAndClose: true,
-      },
-    )
-    await charsStore.remove(row.character_id)
-    ElMessage.success(`已删除角色卡「${charName}」`)
-  } catch { /* user chose to keep or closed dialog */ }
 }
 
 async function onCreate() {
@@ -174,11 +148,6 @@ async function onCreate() {
 const worldNameById = computed(() => {
   const m = new Map<number, string>()
   for (const w of worldsStore.items) m.set(w.id, w.name)
-  return m
-})
-const charNameById = computed(() => {
-  const m = new Map<number, string>()
-  for (const c of charsStore.items) m.set(c.id, c.name)
   return m
 })
 const screenplayTitleById = computed(() => {
@@ -240,7 +209,6 @@ onMounted(async () => {
   await Promise.all([
     sessionsStore.refresh(),
     worldsStore.refresh(),
-    charsStore.refresh(),
     modelsStore.refresh(),
   ])
   for (const w of worldsStore.items) {
@@ -266,9 +234,6 @@ onMounted(async () => {
             📜 {{ screenplayTitleById.get(row.screenplay_id) ?? `剧本#${row.screenplay_id}` }}
           </div>
         </template>
-      </el-table-column>
-      <el-table-column label="角色" width="160">
-        <template #default="{ row }">{{ charNameById.get(row.character_id) }}</template>
       </el-table-column>
       <el-table-column prop="turn_count" label="回合数" width="100" />
       <el-table-column label="操作" width="370">

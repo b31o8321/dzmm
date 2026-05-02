@@ -19,7 +19,6 @@ const router = createRouter({
         { path: 'worlds', name: 'worlds', component: () => import('@/views/WorldsView.vue') },
         { path: 'worlds/:id/screenplays', name: 'world-screenplays',
           component: () => import('@/views/WorldScreenplaysView.vue'), props: true },
-        { path: 'characters', name: 'characters', component: () => import('@/views/CharactersView.vue') },
         { path: 'sessions', name: 'sessions', component: () => import('@/views/SessionsView.vue') },
         { path: 'sessions/wizard', name: 'session-wizard',
           component: () => import('@/views/WizardView.vue') },
