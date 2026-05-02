@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { useWorldsStore } from '@/stores/worlds'
+import { useScreenplaysStore } from '@/stores/screenplays'
 import MarkdownView from '@/components/MarkdownView.vue'
 import type { World, WorldIn } from '@/api/types'
 
 const store = useWorldsStore()
+const router = useRouter()
+const spStore = useScreenplaysStore()
+
+const screenplayCountById = computed(() =>
+  new Map(store.items.map(w => [w.id, (spStore.byWorld.get(w.id) ?? []).length]))
+)
 const dialogOpen = ref(false)
 const editingId = ref<number | null>(null)
 const submitting = ref(false)
@@ -91,7 +99,12 @@ async function onDelete(row: World) {
   }
 }
 
-onMounted(() => store.refresh())
+onMounted(async () => {
+  await store.refresh()
+  for (const w of store.items) {
+    spStore.fetchByWorld(w.id)
+  }
+})
 </script>
 
 <template>
@@ -108,6 +121,17 @@ onMounted(() => store.refresh())
       <el-table-column label="设定预览">
         <template #default="{ row }">
           <div class="line-clamp-2 text-sm text-slate-600">{{ row.content_md }}</div>
+        </template>
+      </el-table-column>
+      <el-table-column label="剧本" width="130">
+        <template #default="{ row }">
+          <el-button
+            link
+            size="small"
+            @click="router.push({ name: 'world-screenplays', params: { id: row.id } })"
+          >
+            📜 {{ screenplayCountById.get(row.id) ?? 0 }} 个剧本
+          </el-button>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="160">
