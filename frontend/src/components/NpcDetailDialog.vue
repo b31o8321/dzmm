@@ -269,7 +269,7 @@ function npcAvatarColor(name: string): string {
         <h4 class="text-sm font-bold text-slate-600 mb-1">TTS 音色</h4>
         <el-input
           :model-value="local.tts_voice ?? ''"
-          :loading="voiceSaving"
+          :disabled="voiceSaving"
           placeholder="留空则使用旁白默认音色"
           clearable
           @change="(v: string) => saveVoice(v)"
