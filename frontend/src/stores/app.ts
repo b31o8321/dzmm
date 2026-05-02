@@ -19,6 +19,18 @@ function loadTourCompleted(): boolean {
   }
 }
 
+function loadTtsSetting<T>(key: string, defaultVal: T): T {
+  try {
+    const v = typeof localStorage !== 'undefined' && localStorage.getItem(`dzmm.tts.${key}`)
+    if (v === null || v === undefined || v === false) return defaultVal
+    if (typeof defaultVal === 'boolean') return (v === '1') as unknown as T
+    if (typeof defaultVal === 'number') return (Number(v) || 0) as unknown as T
+    return v as unknown as T
+  } catch {
+    return defaultVal
+  }
+}
+
 /**
  * App-level UI state that doesn't fit cleanly into resource stores:
  *  - whether we're running inside the Tauri webview
@@ -37,6 +49,22 @@ export const useAppStore = defineStore('app', () => {
   const muted = ref(loadMuted())
   const tourCompleted = ref(loadTourCompleted())
   const tourStep = ref<number>(0) // 0 = hidden, 1..N = active step
+
+  const ttsEnabled = ref(loadTtsSetting('enabled', false))
+  const ttsMode = ref<'webspeech' | 'local'>(loadTtsSetting('mode', 'webspeech') as 'webspeech' | 'local')
+  const ttsModelConfigId = ref(loadTtsSetting('model_config_id', 0))
+  const ttsGmVoice = ref(loadTtsSetting('gm_voice', ''))
+  const ttsPcVoice = ref(loadTtsSetting('pc_voice', ''))
+
+  function saveTtsSettings() {
+    try {
+      localStorage.setItem('dzmm.tts.enabled', ttsEnabled.value ? '1' : '0')
+      localStorage.setItem('dzmm.tts.mode', ttsMode.value)
+      localStorage.setItem('dzmm.tts.model_config_id', String(ttsModelConfigId.value))
+      localStorage.setItem('dzmm.tts.gm_voice', ttsGmVoice.value)
+      localStorage.setItem('dzmm.tts.pc_voice', ttsPcVoice.value)
+    } catch { /* ignore */ }
+  }
 
   function completeTour() {
     tourCompleted.value = true
@@ -67,5 +95,11 @@ export const useAppStore = defineStore('app', () => {
     tourStep,
     completeTour,
     restartTour,
+    ttsEnabled,
+    ttsMode,
+    ttsModelConfigId,
+    ttsGmVoice,
+    ttsPcVoice,
+    saveTtsSettings,
   }
 })
