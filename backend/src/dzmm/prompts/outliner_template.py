@@ -22,8 +22,20 @@ _OUTLINER_SYSTEM = """你是一位经验丰富的 TRPG 编剧。你的任务是�
     {{
       "title": "第一章：副标题",
       "summary": "本章 50-80 字概要",
-      "main_events": ["主线事件 1（必演）", "主线事件 2（必演）"],
-      "optional_events": ["分支事件 1（PC 探索才触发）", "分支事件 2"],
+      "main_events": [
+        {{
+          "description": "主线事件描述（20-40字）",
+          "keywords": ["触发关键词1", "关键词2", "关键词3"],
+          "criteria": "完成标准：具体可判断的一句话（15-25字）"
+        }}
+      ],
+      "optional_events": [
+        {{
+          "description": "支线事件描述",
+          "keywords": ["关键词1", "关键词2"],
+          "criteria": "完成标准"
+        }}
+      ],
       "main_npcs": ["本章重要 NPC 名"]
     }}
   ],
@@ -44,6 +56,8 @@ _OUTLINER_SYSTEM = """你是一位经验丰富的 TRPG 编剧。你的任务是�
 4. opening_hook 写得像小说开篇——画面感、感官、悬念，但**不能告诉玩家后面会发生什么**
 5. 整套大纲要紧扣故事类型（genre）的套路
 6. PC 的能力 / 物品 / 弱点（profile_md 里有）应在 main_events 中找到至少一处可以用上 / 受挑战的场景
+7. 每个事件的 keywords 3-5 个（名词或动词短语，GM 在 narrative/PC行动中看到这些词时应推进该事件）
+8. 每个事件的 criteria 是 15-25 字的具体条件，GM 确认满足后立即 emit <event_complete>
 
 # 强约束
 - 输出必须是合法 JSON，不要前后加任何文字

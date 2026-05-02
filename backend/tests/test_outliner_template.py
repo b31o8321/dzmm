@@ -54,3 +54,15 @@ def test_known_genres_constant_exposed():
     # Must include the 5 templates we promised the user
     for g in ["悬疑探案", "英雄成长", "政治阴谋", "灾难求生", "恋爱攻略"]:
         assert g in KNOWN_GENRES
+
+
+def test_outliner_system_prompt_includes_keywords_and_criteria():
+    """Outliner schema must instruct LLM to output keywords + criteria per event."""
+    msgs = build_outliner_messages(
+        world_name="W", world_md="x",
+        character_name="C", character_md="y",
+        genre="悬疑探案",
+    )
+    sys = msgs[0].content
+    assert "keywords" in sys
+    assert "criteria" in sys or "完成标准" in sys

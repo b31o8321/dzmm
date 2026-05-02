@@ -386,6 +386,21 @@ from dzmm.service.npc_dossier import (
 )
 
 
+def _render_event(ev: "str | dict") -> str:
+    """Render a screenplay event — new dict format or legacy string."""
+    if isinstance(ev, str):
+        return ev
+    desc = ev.get("description", "")
+    keywords = ev.get("keywords") or []
+    criteria = ev.get("criteria", "")
+    parts = [desc]
+    if keywords:
+        parts.append(f"  关键词：{'／'.join(str(k) for k in keywords)}")
+    if criteria:
+        parts.append(f"  完成标准：{criteria}")
+    return "\n".join(parts)
+
+
 async def _build_key_facts(
     session: AsyncSession,
     session_id: int,
@@ -614,7 +629,7 @@ async def _build_key_facts(
                         for c in completed
                     )
                     flag = "[done]" if done else "[pending]"
-                    sp_lines.append(f"- {flag} {ev}")
+                    sp_lines.append(f"- {flag} {_render_event(ev)}")
 
             optional_events = cur_ch.get("optional_events") or []
             if isinstance(optional_events, list) and optional_events:
@@ -628,7 +643,7 @@ async def _build_key_facts(
                         for c in completed
                     )
                     flag = "[done]" if done else "[optional]"
-                    sp_lines.append(f"- {flag} {ev}")
+                    sp_lines.append(f"- {flag} {_render_event(ev)}")
 
             # Main NPCs whose intro_chapter is on or before current — surface
             # only the names; details should already exist in the NPC list above
@@ -726,7 +741,7 @@ async def _build_key_facts(
                         urgency = "❗❗ 极度紧急" if turns_since_progress >= 6 else "⚠️ 剧情强推"
                         parts.append(
                             f"## {urgency}（已 {turns_since_progress} 回合无主线进展）\n"
-                            f"**本回合必须完成主线事件**：「{next_event}」\n\n"
+                            f"**本回合必须完成主线事件**：「{_render_event(next_event)}」\n\n"
                             f"操作步骤：\n"
                             f"1. 无论 PC 当前在做什么，立刻安排 NPC 或环境将 PC 引向该事件\n"
                             f"2. 在 narrative 中演出该事件的核心场景（不超过 200 字）\n"
