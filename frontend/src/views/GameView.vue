@@ -177,13 +177,15 @@ const {
     refreshNpcLocations()  // pick up <npc_update location="..."> changes
     refreshSuggestions()
     // TTS: speak the completed turn with per-speaker voices
-    const raw = currentTurn.value?.rawContent
-    if (raw) {
-      sessionsApi.npcs(sessionId).then((npcList) => {
-        playTurn(raw, buildVoiceMap(npcList))
-      }).catch(() => {
-        playTurn(raw, buildVoiceMap([]))
-      })
+    if (appStore.ttsEnabled && !appStore.muted) {
+      const raw = currentTurn.value?.rawContent
+      if (raw) {
+        sessionsApi.npcs(sessionId).then((npcList) => {
+          playTurn(raw, buildVoiceMap(npcList))
+        }).catch(() => {
+          playTurn(raw, buildVoiceMap([]))
+        })
+      }
     }
   },
   onNpcInitiative: (npcName) => onInitiativeTrigger(npcName),
@@ -615,6 +617,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   audio.stopBgm()
+  stopTts()
   if (initiativeTimer) clearTimeout(initiativeTimer)
 })
 </script>
