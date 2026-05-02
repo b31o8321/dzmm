@@ -165,6 +165,16 @@ async def run_turn(
 
     recent = await _load_recent_messages(session, session_id, summary_row)
 
+    # If the summarizer hasn't run yet (or failed) but the session is already
+    # long, inject a recovery note so the GM doesn't "forget" the present.
+    from dzmm.service.summarizer import SUMMARIZE_AFTER_TURNS
+    if not story_summary and sess.turn_count > SUMMARIZE_AFTER_TURNS:
+        key_facts = (
+            "⚠️ 剧情摘要暂缺（摘要器尚未运行或失败）。"
+            "请完全依赖下方的 recent messages 推断背景，"
+            "保持当前场景的人物/地点/事件与消息历史一致，不要重置剧情或重新介绍已出现的 NPC。\n\n"
+        ) + key_facts
+
     rules_mode = json.loads(world.rules_json or '{"mode":"light"}').get("mode", "light")
 
     character_md = _format_character_card(char)
@@ -484,7 +494,7 @@ async def _build_key_facts(
         )
     ).scalar_one_or_none()
 
-    parts: list[str] = []
+    parts: list[str] = [f"**当前是第 {current_turn} 回合**"]
 
     # PC identity lock — top priority, prevents the GM drifting to a different
     # PC name after a few turns. character.name is the load-bearing field;

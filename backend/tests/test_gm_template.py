@@ -752,3 +752,16 @@ def test_plot_event_throttle_rules_present():
     sys = msgs[0].content
     assert "importance=1" in sys or 'importance="1"' in sys
     assert "每回合最多" in sys or "单回合最多" in sys or "max 1" in sys.lower()
+
+
+def test_iron_law_9_plausibility_check_present():
+    """Iron law 9 must instruct GM to reject physically impossible actions."""
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "共 9 条" in sys
+    assert "穿越" in sys or "可信度" in sys or "根本没有路径" in sys
