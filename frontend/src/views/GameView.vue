@@ -210,10 +210,13 @@ async function refreshNpcLocations() {
 }
 
 function buildVoiceMap(npcList: Npc[]): TtsVoiceMap {
+  const pcVoice = appStore.ttsPcVoice || appStore.ttsGmVoice
   const map: TtsVoiceMap = {
     narrator: appStore.ttsGmVoice,
-    pc: appStore.ttsPcVoice || appStore.ttsGmVoice,
+    pc: pcVoice,
   }
+  // Also map the PC's actual name so <say speaker="CharacterName"> resolves correctly
+  if (character.value?.name) map[character.value.name] = pcVoice
   for (const npc of npcList) {
     if (npc.tts_voice) map[npc.name] = npc.tts_voice
   }

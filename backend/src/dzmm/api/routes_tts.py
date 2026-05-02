@@ -1,7 +1,7 @@
 """POST /tts — proxy to local OpenAI-compat TTS server."""
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/tts", tags=["tts"])
 
 class TtsRequest(BaseModel):
     model_config_id: int
-    text: str
-    voice: str = "default"
+    text: str = Field(..., max_length=5000)
+    voice: str = Field("default", max_length=120)
 
 
 @router.post("")

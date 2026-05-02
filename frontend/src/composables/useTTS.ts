@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { backendOrigin } from '@/api/client'
 
 export interface TtsVoiceMap {
   narrator: string   // GM narration voice
@@ -119,7 +120,7 @@ export function useTTS() {
       if (_aborted) break
       const voice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? 'default'
       try {
-        const resp = await fetch('/api/tts', {
+        const resp = await fetch(`${backendOrigin}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
