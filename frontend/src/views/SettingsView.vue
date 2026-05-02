@@ -4,6 +4,7 @@ import { ElButton, ElCard, ElMessage, ElTag, ElDivider } from 'element-plus'
 import { useUpdater, type UpdateInfo } from '@/composables/useUpdater'
 import { useAppStore } from '@/stores/app'
 import { fetchHealth } from '@/api/client'
+import TtsSettingsCard from '@/components/TtsSettingsCard.vue'
 
 const { checkForUpdates, downloadAndInstall } = useUpdater()
 const appStore = useAppStore()
@@ -123,6 +124,9 @@ function replayOnboarding() {
         </router-link>
       </div>
     </el-card>
+
+    <!-- TTS -->
+    <TtsSettingsCard />
 
   </div>
 </template>
