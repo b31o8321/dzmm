@@ -44,7 +44,7 @@ async def proxy_tts(body: TtsRequest, s: AsyncSession = Depends(get_session_dep)
     try:
         async with httpx.AsyncClient(timeout=cfg.timeout) as client:
             resp = await client.post(url, json=payload, headers=headers)
-        resp.raise_for_status()
+            resp.raise_for_status()
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, f"TTS server error: {e.response.text}")
     except httpx.RequestError as e:
