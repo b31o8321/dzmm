@@ -43,6 +43,7 @@ export interface ModelConfigIn {
 export interface GameSession {
   id: number
   name: string
+  screenplay_id: number | null
   world_id: number
   character_id: number
   gm_model_config_id: number
@@ -50,7 +51,40 @@ export interface GameSession {
   turn_count: number
 }
 
-export type SessionIn = Omit<GameSession, 'id' | 'turn_count'>
+export interface SessionIn {
+  name: string
+  screenplay_id?: number
+  world_id?: number
+  character_id?: number
+  gm_model_config_id: number
+  summarizer_model_config_id: number
+}
+
+export interface StandaloneScreenplay {
+  id: number
+  world_id: number
+  session_id: number | null
+  title: string
+  genre: string
+  pc_name: string
+  pc_profile_md: string
+  pc_base_stats_json: string
+  custom_prompt: string
+  outline_md: string
+  chapters_json: string
+  main_characters_json: string
+  ending_md: string
+  opening_hook: string
+  version: number
+  current_chapter: number
+  completed_events_json: string
+  status: 'active' | 'concluded' | 'superseded'
+  created_at: string
+}
+
+export type StandaloneScreenplayIn = Omit<StandaloneScreenplay,
+  'id' | 'world_id' | 'session_id' | 'version' | 'current_chapter' |
+  'completed_events_json' | 'status' | 'created_at'>
 
 export type TurnEvent =
   | { type: 'narrative'; text: string }
