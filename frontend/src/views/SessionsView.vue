@@ -76,12 +76,11 @@ async function exportSession(id: number, format: 'json' | 'md') {
   }
 }
 
-async function onDelete(row: { id: number; name: string; turn_count: number }) {
+async function onDelete(row: { id: number; name: string; turn_count: number; world_id: number; character_id: number }) {
   try {
     await ElMessageBox.confirm(
       `确定要删除存档「${row.name}」吗？\n\n该操作会一并清除：消息历史、NPC、关系、` +
-      `剧情线、编年史、目标、暗中状态、剧本、玩家反馈等。\n` +
-      `世界观和角色卡不会被删（共享给其它存档使用）。\n\n此操作无法撤销。`,
+      `剧情线、编年史、目标、暗中状态、剧本、玩家反馈等。\n\n此操作无法撤销。`,
       `删除存档（已进行 ${row.turn_count} 回合）`,
       {
         confirmButtonText: '确认删除',
@@ -98,7 +97,56 @@ async function onDelete(row: { id: number; name: string; turn_count: number }) {
     ElMessage.success(`已删除「${row.name}」`)
   } catch (e: any) {
     ElMessage.error(e.message ?? '删除失败')
+    return
   }
+
+  // Ask about deleting world
+  const worldName = worldNameById.value.get(row.world_id) ?? `世界观 #${row.world_id}`
+  const otherSessionsWithWorld = sessionsStore.items.filter(
+    (s) => s.world_id === row.world_id,
+  )
+  const worldWarning = otherSessionsWithWorld.length > 0
+    ? `\n⚠️ 还有 ${otherSessionsWithWorld.length} 个其他存档使用此世界观，删除后它们也将失去关联。`
+    : ''
+  try {
+    await ElMessageBox.confirm(
+      `是否同时删除世界观「${worldName}」？${worldWarning}`,
+      '删除世界观',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '保留',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        distinguishCancelAndClose: true,
+      },
+    )
+    await worldsStore.remove(row.world_id)
+    ElMessage.success(`已删除世界观「${worldName}」`)
+  } catch { /* user chose to keep or closed dialog */ }
+
+  // Ask about deleting character
+  const charName = charNameById.value.get(row.character_id) ?? `角色 #${row.character_id}`
+  const otherSessionsWithChar = sessionsStore.items.filter(
+    (s) => s.character_id === row.character_id,
+  )
+  const charWarning = otherSessionsWithChar.length > 0
+    ? `\n⚠️ 还有 ${otherSessionsWithChar.length} 个其他存档使用此角色卡，删除后它们也将失去关联。`
+    : ''
+  try {
+    await ElMessageBox.confirm(
+      `是否同时删除角色卡「${charName}」？${charWarning}`,
+      '删除角色卡',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '保留',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        distinguishCancelAndClose: true,
+      },
+    )
+    await charsStore.remove(row.character_id)
+    ElMessage.success(`已删除角色卡「${charName}」`)
+  } catch { /* user chose to keep or closed dialog */ }
 }
 
 async function onCreate() {
