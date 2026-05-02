@@ -7,6 +7,7 @@ import { useWorldsStore } from '@/stores/worlds'
 import { useCharactersStore } from '@/stores/characters'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { sessionsApi } from '@/api/sessions'
+import { charactersApi } from '@/api/characters'
 import type { SessionIn } from '@/api/types'
 import GenreSelector from '@/components/GenreSelector.vue'
 import { api } from '@/api/client'
@@ -77,12 +78,14 @@ async function exportSession(id: number, format: 'json' | 'md') {
   }
 }
 
-async function onDelete(row: { id: number; name: string; turn_count: number }) {
+async function onDelete(row: { id: number; name: string; turn_count: number; character_id: number }) {
+  const charName = charNameById.value.get(row.character_id) ?? '关联角色'
+
+  // Step 1: confirm session delete
   try {
     await ElMessageBox.confirm(
       `确定要删除存档「${row.name}」吗？\n\n该操作会一并清除：消息历史、NPC、关系、` +
-      `剧情线、编年史、目标、暗中状态、剧本、玩家反馈等。\n` +
-      `世界观和角色卡不会被删（共享给其它存档使用）。\n\n此操作无法撤销。`,
+      `剧情线、编年史、目标、暗中状态、剧本、玩家反馈等。\n\n此操作无法撤销。`,
       `删除存档（已进行 ${row.turn_count} 回合）`,
       {
         confirmButtonText: '确认删除',
@@ -92,11 +95,42 @@ async function onDelete(row: { id: number; name: string; turn_count: number }) {
       },
     )
   } catch {
-    return  // user cancelled
+    return
   }
+
+  // Step 2: ask whether to also delete the character
+  let deleteChar = false
+  try {
+    await ElMessageBox.confirm(
+      `是否同时删除关联角色卡「${charName}」？\n角色卡若被其它存档使用，建议保留。`,
+      '是否删除角色卡',
+      {
+        confirmButtonText: '删除角色卡',
+        cancelButtonText: '仅删除存档',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        distinguishCancelAndClose: true,
+      },
+    )
+    deleteChar = true
+  } catch (action) {
+    if (action === 'close') return  // X button = full cancel
+    // cancelButtonText clicked = keep character, proceed with session delete only
+  }
+
   try {
     await sessionsStore.remove(row.id)
-    ElMessage.success(`已删除「${row.name}」`)
+    if (deleteChar) {
+      try {
+        await charactersApi.remove(row.character_id)
+        await charsStore.refresh()
+        ElMessage.success(`已删除存档「${row.name}」及角色卡「${charName}」`)
+      } catch {
+        ElMessage.warning(`存档已删除，但角色卡「${charName}」删除失败（可能已被其它存档使用）`)
+      }
+    } else {
+      ElMessage.success(`已删除「${row.name}」`)
+    }
   } catch (e: any) {
     ElMessage.error(e.message ?? '删除失败')
   }
@@ -259,7 +293,7 @@ onMounted(async () => {
     <!-- Spinoff dialog -->
     <el-dialog
       :model-value="spinoffTarget !== null"
-      @update:model-value="(v) => { if (!v) spinoffTarget = null }"
+      @update:model-value="(v: boolean) => { if (!v) spinoffTarget = null }"
       title="创建续作"
       width="480px"
     >

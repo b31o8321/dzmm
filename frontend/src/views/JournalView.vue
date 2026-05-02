@@ -103,7 +103,7 @@ onMounted(refresh)
     <!-- Thread detail dialog -->
     <el-dialog
       :model-value="threadDetail !== null"
-      @update:model-value="(v) => { if (!v) threadDetail = null }"
+      @update:model-value="(v: boolean) => { if (!v) threadDetail = null }"
       title="剧情线详情"
       width="560px"
       v-loading="threadDetailLoading"
