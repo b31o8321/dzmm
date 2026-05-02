@@ -11,6 +11,7 @@ from dzmm.api import (
     routes_characters,
     routes_models,
     routes_screenplay,
+    routes_screenplays,
     routes_sessions,
     routes_system,
     routes_wizard,
@@ -48,6 +49,7 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
         routes_models,
         routes_sessions,
         routes_screenplay,
+        routes_screenplays,
         routes_wizard,
     ):
         # routes_screenplay reuses routes_sessions.get_session_dep (same function

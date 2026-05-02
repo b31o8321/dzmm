@@ -100,3 +100,28 @@ class NpcOut(BaseModel):
     pinned: bool = False
     notes: list = []
     revealed: dict[str, bool] = {"name": True}
+
+
+class ScreenplayStandaloneIn(BaseModel):
+    title: str
+    genre: str = ""
+    pc_name: str = ""
+    pc_profile_md: str = ""
+    pc_base_stats_json: str = "{}"
+    custom_prompt: str = ""
+    outline_md: str = ""
+    chapters_json: str = "[]"
+    main_characters_json: str = "[]"
+    ending_md: str = ""
+    opening_hook: str = ""
+
+
+class ScreenplayStandaloneOut(ScreenplayStandaloneIn):
+    id: int
+    world_id: int
+    session_id: int | None = None
+    version: int = 1
+    current_chapter: int = 1
+    completed_events_json: str = "[]"
+    status: str = "active"
+    created_at: str
