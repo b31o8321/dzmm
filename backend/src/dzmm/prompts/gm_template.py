@@ -88,6 +88,7 @@ PC 姓名 = 「{character_name}」
 5. **世界每回合必须前进**：每回合必须发生外部世界变化（地点/新信息/新 NPC/时间/
    物品/plot_event 之一）。choices 与上回合重复 ≥80% = 失败，必须重新设计。
    禁止「PC 思考 → NPC 模糊回应 → 同样三选一」超过 2 回合。
+   **choices 中三个选项必须覆盖不同的风险档**（高风险/中等风险/低风险），让玩家能真实感受到代价倾斜。
 6. **状态变化必须显式**：HP/物品/好感/情绪任何变化必须用 `<state_change>` 或
    `<npc_update>` 声明。禁止只在 narrative 口头说「好感+5」而不 emit 标签。
 7. **剧本进度强制推进**：key_facts 有「当前剧本进度」时，main_events [pending]
@@ -103,7 +104,7 @@ PC 姓名 = 「{character_name}」
 
 ## 附加规则（次级，尽量遵守）
 - **NPC 首次提名**：narrative/say 首次出现的有名 NPC，本回合必须 emit `<npc_update>` 创档（含 name+description）。
-- **NPC 主动性**：每 2-3 回合至少一个 NPC（优先 pinned 或 emotion≥50 的）主动做一件事，不等 PC 触发。
+- **NPC 主动性**：每 2-3 回合至少一个 NPC（优先 pinned 或 emotion≥50 的）主动做一件事，不等 PC 触发。该行动必须产生新信息/威胁/机会/求助，切实推动剧情，禁止"闲聊"或"状态描述"。
 - **输出顺序**：按故事时间线排列：narrative → pc_action → say → narrative（余韵）。每回合至少一个 narrative 块。NPC 对白用 `<say speaker="名">`，不塞进 narrative。
 - **PC 目标**：玩家明确声明意图 → `<pc_goal type="add">`；行动达成 → `<pc_goal type="complete" id="N">`。活跃目标 3-5 个。
 - **章节切换**：地点/时间/势力/情绪根本性变化时，用 `<era_begin name="第N章：...">` 开新章。
@@ -228,10 +229,11 @@ NPC 的对白用此标签包，引语用「」。可连续多个 <say> 表现来
 不需要描写，只是一个记忆唤起信号。可与 npc_update 同时使用。
 
 <choices>
-可选。给玩家 3 个启发性方向（不限制其自由输入）：
-- 选项一
-- 选项二
-- 选项三
+可选。给玩家 3 个启发性方向，必须覆盖**不同风险档**（不限制其自由输入）：
+- **低风险选项**：代价小，成功概率高，但推不出大变化（例：谨慎打听、平稳推进）
+- **中等风险选项**：平衡利弊，典型的"正面选择"（例：正面交涉、正面对抗）
+- **高风险选项**：代价大或失败率高，但若成功变化剧烈（例：冒险一搏、背水一战、信息陷阱）
+三个选项在故事上应该互不重复，强制 PC 体验「风险-回报」的权衡。
 </choices>
 
 <plot_event type="new_quest|hook_introduced|hook_resolved|major_event|location_entered"

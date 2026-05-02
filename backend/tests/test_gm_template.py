@@ -724,3 +724,17 @@ def test_few_shot_demonstrates_ordering():
     sys_text = _build_default_sys()
     # Demonstration 3 from gm_few_shot — story-timeline ordering example
     assert "信息顺序" in sys_text or "示范3" in sys_text or "故事时间线" in sys_text
+
+
+def test_choices_require_risk_differentiation():
+    """Each choices block must now instruct GM to cover different risk axes."""
+    from dzmm.prompts.gm_template import build_gm_messages
+    msgs = build_gm_messages(
+        world_md="x", character_md="y", live_state={},
+        rules_mode="light", style="dark",
+        story_summary="", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys = msgs[0].content
+    assert "风险" in sys or "代价" in sys or "后果" in sys
+    assert "高风险" in sys or "低风险" in sys or "风险档" in sys
