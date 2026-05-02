@@ -25,7 +25,9 @@ from dzmm.db.models import (
 from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
 from dzmm.parsing.stream_parser import StreamingTagParser
+from dzmm.prompts.director_template import build_director_messages
 from dzmm.prompts.gm_template import build_gm_messages
+from dzmm.prompts.polish_template import build_polish_messages
 from dzmm.service.activity_log import log_event
 from dzmm.service.state_apply import apply_tags
 from dzmm.service.state_apply.dice_monitor import (
@@ -125,6 +127,20 @@ async def run_turn(
 
     key_facts = await _build_key_facts(session, session_id, sess.turn_count, char)
 
+    # Optional director pre-pass: run a short LLM call to produce a 2-line
+    # directive (core event + emotion tone) and inject it into key_facts.
+    settings = json.loads(sess.settings_json or "{}")
+    if settings.get("director_pass"):
+        try:
+            dir_msgs = build_director_messages(key_facts, user_action)
+            directive, _ = await client.complete(
+                dir_msgs, GenerationParams(temperature=0.5, max_tokens=120)
+            )
+            if directive.strip():
+                key_facts = key_facts + "\n\n## 🎬 导演预处理\n" + directive.strip()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("director pass failed: %s", exc)
+
     recent = await _load_recent_messages(session, session_id, summary_row)
 
     rules_mode = json.loads(world.rules_json or '{"mode":"light"}').get("mode", "light")
@@ -206,6 +222,23 @@ async def run_turn(
             joined = "".join(narrative_parts)
             repaired_joined, _ = _repair_pc_name(joined, char.name)
             narrative_parts = [repaired_joined] if repaired_joined else []
+
+    # Optional narrative polish pass: run a prose-improvement LLM call on the
+    # collected narrative, then emit a `narrative_revised` tag so the frontend
+    # can replace the streaming placeholder with the polished version.
+    if settings.get("narrative_polish") and narrative_parts:
+        raw_narrative = "".join(narrative_parts).strip()
+        if raw_narrative:
+            try:
+                polish_msgs = build_polish_messages(raw_narrative)
+                polished, _ = await client.complete(
+                    polish_msgs, GenerationParams(temperature=0.4, max_tokens=800)
+                )
+                if polished.strip():
+                    narrative_parts = [polished.strip()]
+                    yield TagComplete(name="narrative_revised", content=polished.strip())
+            except Exception as exc:  # noqa: BLE001
+                log.warning("polish pass failed: %s", exc)
 
     next_turn = sess.turn_count + 1
 

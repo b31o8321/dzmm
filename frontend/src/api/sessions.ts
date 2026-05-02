@@ -164,6 +164,23 @@ export const sessionsApi = {
     })
   },
 
+  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean }> {
+    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean } }>(
+      `/sessions/${sessionId}/settings`,
+    )
+    return {
+      narrative_polish: r.data.settings?.narrative_polish ?? false,
+      director_pass: r.data.settings?.director_pass ?? false,
+    }
+  },
+
+  async updateSettings(
+    sessionId: number,
+    settings: { narrative_polish?: boolean; director_pass?: boolean },
+  ): Promise<void> {
+    await api.patch(`/sessions/${sessionId}/settings`, settings)
+  },
+
   async suggestActions(
     sessionId: number,
     narrative: string,

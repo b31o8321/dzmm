@@ -17,7 +17,11 @@ from datetime import datetime, UTC
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import Screenplay, ScreenplayRevision
+from dzmm.db.models import Character, Screenplay, ScreenplayRevision
+from dzmm.db.models import Session as GameSession
+
+_XP_MAIN = 50
+_XP_OPTIONAL = 20
 
 
 async def _get_active_screenplay(
@@ -108,6 +112,14 @@ async def _apply_event_complete(
         }
         completed.append(rec)
         sp.completed_events_json = json.dumps(completed, ensure_ascii=False)
+
+        # Auto-award XP on event completion so the LLM doesn't need to track it.
+        xp_delta = _XP_MAIN if type_ == "main" else _XP_OPTIONAL
+        sess = await session.get(GameSession, session_id)
+        if sess is not None:
+            char = await session.get(Character, sess.character_id)
+            if char is not None:
+                char.xp = max(0, char.xp + xp_delta)
 
 
 async def _apply_plot_turn(

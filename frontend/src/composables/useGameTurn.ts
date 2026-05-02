@@ -168,6 +168,11 @@ export function useGameTurn(
               importance,
             })
           }
+          else if (name === 'narrative_revised') {
+            // Optional polish pass: replace the streaming narrative placeholder.
+            const polished = content.trim()
+            if (polished) turn.narrative = polished
+          }
         },
         onError: (msg) => {
           // v0.2.1 P0.5: backend parser.finish() (added in v0.1.9) already

@@ -119,7 +119,7 @@ async def test_summary_compression_triggers_above_threshold(seeded_with_messages
     from dzmm.db.models import Timeline as TLModel
     from dzmm.service.summarizer import COMPRESSION_TRIGGER_CHARS
 
-    long_text = "卷起的剧情" * 800  # ~3200 chars > 3000 trigger
+    long_text = "卷起的剧情" * 1000  # ~5000 chars > 4000 trigger
     short_text = (
         "PC 经历了赛博朋克城市的多个事件，遇到了义体黑客阿山，"
         "在九龙黑街揭穿了一桩义体走私案。\n\n"

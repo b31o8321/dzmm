@@ -59,6 +59,12 @@ _V11_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V025_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "sessions": [
+        ("settings_json", "settings_json TEXT NOT NULL DEFAULT '{}'"),
+    ],
+}
+
 # v0.13.1 — Player feedback table is created via Base.metadata.create_all.
 # Nothing to migrate column-wise.
 
@@ -87,4 +93,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V10_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V11_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V025_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

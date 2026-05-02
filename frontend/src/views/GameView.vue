@@ -41,6 +41,25 @@ const eventsDialogTurn = ref(0)
 const panelOpen = ref(false)
 const character = ref<Character | null>(null)
 const levelUpDialogOpen = ref(false)
+const settingsOpen = ref(false)
+const narrativePolish = ref(false)
+const directorPass = ref(false)
+
+async function loadSettings() {
+  try {
+    const s = await sessionsApi.getSettings(sessionId)
+    narrativePolish.value = s.narrative_polish
+    directorPass.value = s.director_pass
+  } catch { /* ignore */ }
+}
+
+async function toggleSetting(key: 'narrative_polish' | 'director_pass', val: boolean) {
+  try {
+    await sessionsApi.updateSettings(sessionId, { [key]: val })
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '保存失败')
+  }
+}
 const levelUpAutoShown = ref(false)
 
 const xpThreshold = computed(() => {
@@ -293,6 +312,7 @@ function extractDiceFromHistory(messages: MessageRow[]) {
 onMounted(async () => {
   // Fire-and-forget GM model warmup so the first turn isn't cold.
   sessionsApi.warmup(sessionId).catch(() => { /* ignore */ })
+  loadSettings().catch(() => { /* ignore */ })
 
   // Load model configs for the model-switch dialog.
   if (modelsStore.items.length === 0) await modelsStore.refresh()
@@ -470,6 +490,12 @@ onUnmounted(() => audio.stopBgm())
             @click="modelSwitchOpen = true"
             title="切换 GM 模型"
           >⚙️ 模型</button>
+          <button
+            type="button"
+            class="text-xs text-slate-400 hover:text-slate-600 shrink-0"
+            @click="settingsOpen = true"
+            title="游戏设置"
+          >🔧 设置</button>
           <router-link to="/sessions" class="text-sm text-slate-500 hover:text-slate-800">
             返回存档
           </router-link>
@@ -610,6 +636,40 @@ onUnmounted(() => audio.stopBgm())
       <template #footer>
         <el-button @click="modelSwitchOpen = false">取消</el-button>
         <el-button type="primary" @click="applyModelSwitch">确认切换</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="settingsOpen" title="游戏设置" width="400px">
+      <div class="space-y-4 text-sm">
+        <div class="flex items-start gap-3">
+          <el-switch
+            v-model="directorPass"
+            @change="(v: boolean) => toggleSetting('director_pass', v)"
+          />
+          <div>
+            <div class="font-medium text-slate-800">导演预处理</div>
+            <div class="text-xs text-slate-500 mt-0.5">
+              每回合前由 AI 生成"核心事件+情绪节点"方向提示，注入 GM 提示词。
+              提升叙事聚焦感，额外增加 3-8 秒延迟。
+            </div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <el-switch
+            v-model="narrativePolish"
+            @change="(v: boolean) => toggleSetting('narrative_polish', v)"
+          />
+          <div>
+            <div class="font-medium text-slate-800">叙事润色</div>
+            <div class="text-xs text-slate-500 mt-0.5">
+              GM 生成后，由 AI 对叙事文字进行文学润色（不改情节）。
+              额外增加 5-15 秒延迟，润色完成后替换显示内容。
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="settingsOpen = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>

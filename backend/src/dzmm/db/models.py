@@ -54,6 +54,7 @@ class Session(Base):
     schema_version: Mapped[int] = mapped_column(default=1)
     recall_pending_json: Mapped[str] = mapped_column(Text, default="[]")
     pc_mood_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
+    settings_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.2.5
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
     last_played: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 

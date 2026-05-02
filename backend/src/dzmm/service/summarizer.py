@@ -28,9 +28,9 @@ SUMMARIZE_TRIGGER_TURNS = 10
 # documents the intended overlap so future maintainers can tune both knobs in
 # concert.)
 SUMMARIZE_KEEP_RECENT = 6
-SUMMARY_MAX_TOKENS = 1000
-COMPRESSION_TRIGGER_CHARS = 3000  # ~1500 tokens for Chinese
-COMPRESSED_TARGET_TOKENS = 600
+SUMMARY_MAX_TOKENS = 1500      # increased for key-facts section
+COMPRESSION_TRIGGER_CHARS = 4000  # allow larger before compressing
+COMPRESSED_TARGET_TOKENS = 800
 
 
 _EVENT_RE = re.compile(r'<event\s+importance="(\d+)">([\s\S]*?)</event>', re.IGNORECASE)

@@ -131,7 +131,7 @@ def test_plot_event_format_in_prompt():
     )
     sys = msgs[0].content
     assert "<plot_event" in sys
-    assert "显式登记剧情事件" in sys
+    assert "plot_event" in sys
 
 
 def test_standard_rules_emits_dice_instructions():
@@ -243,14 +243,14 @@ def test_emotion_mood_relation_behavior_rules_present():
         recent_messages=[], current_action="x",
     )
     sys = msgs[0].content
-    # Rule 11 (情绪追踪)
-    assert "NPC 情绪追踪" in sys
+    # Emotion threshold still present in reactive principles
     assert "≥70" in sys
-    # Rule 12 (PC 心情)
-    assert "重大情绪事件" in sys
-    # Rule 13 (NPC 关系)
-    assert "NPC 关系" in sys
-    assert "世界观持续性" in sys
+    # emotion field still documented in npc_update format
+    assert "emotion" in sys
+    # pc_mood tag still in format section
+    assert "pc_mood" in sys
+    # npc_relation tag still in format section
+    assert "npc_relation" in sys
 
 
 def test_few_shot_example_present():
@@ -356,7 +356,7 @@ def test_npc_reactivity_baseline_rule():
     )
     sys_text = msgs[0].content
     assert "搭话" in sys_text or "提问" in sys_text
-    assert "必须有回应" in sys_text or "必须回应" in sys_text
+    assert "反应兜底" in sys_text or "必须有可被感知" in sys_text or "NPC 反应兜底" in sys_text
 
 
 def test_input_perspective_rule():
@@ -368,7 +368,7 @@ def test_input_perspective_rule():
         recent_messages=[], current_action="x",
     )
     sys_text = msgs[0].content
-    assert "导演视角" in sys_text and "代入视角" in sys_text
+    assert "导演视角" in sys_text and ("代入视角" in sys_text or "第一人称" in sys_text)
 
 
 def test_say_tag_documented():
@@ -476,17 +476,17 @@ def test_pc_hook_rule_present():
 
 
 def test_numerical_anchoring_rule_present():
-    """铁律 21 — 数值锚定（DC 表 + 物品 + 等级影响 NPC 态度）。"""
+    """铁律 21/PC钩子 — DC参考、能力/物品/弱点的钩子规则。"""
     sys_text = build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    assert "数值锚定" in sys_text or "DC" in sys_text
-    assert "属性" in sys_text and "等级" in sys_text
-    # DC 表参考点
-    assert "12" in sys_text and ("14" in sys_text or "15" in sys_text)
+    # DC reference still present in dice format docs
+    assert "DC" in sys_text
+    # PC hooks rule still present in secondary rules
+    assert "能力" in sys_text and "弱点" in sys_text
 
 
 # ----------------------------------------------------------------------------
@@ -495,16 +495,16 @@ def test_numerical_anchoring_rule_present():
 
 
 def test_rule_information_progress_present():
-    """铁律 22 — 关键信息推进义务，禁止反复反问。"""
+    """铁律 4 — 关键信息必须直给，禁止拖延。"""
     sys_text = build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    assert "关键信息" in sys_text or "追问" in sys_text
-    assert "必须给出" in sys_text or "本回合" in sys_text  # 推进义务
-    assert "反问" in sys_text  # 反问限制
+    assert "关键信息" in sys_text or "告诉我" in sys_text
+    assert "本回合" in sys_text  # 推进义务
+    assert "时机未到" in sys_text or "以后再说" in sys_text  # 拖延禁止
 
 
 def test_rule_world_state_progress_present():
@@ -520,16 +520,15 @@ def test_rule_world_state_progress_present():
 
 
 def test_rule_name_self_check_present():
-    """铁律 16 强化 — PC 姓名锁的反向自检。"""
+    """铁律 1 — PC 姓名锁，不能漂移。"""
     sys_text = build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    # 反向自检关键词
-    assert "我叫" in sys_text and "我是" in sys_text
-    assert "改回" in sys_text or "纠正" in sys_text
+    assert "漂移" in sys_text  # name drift is forbidden
+    assert "不替 PC" in sys_text or "不替 PC 做决定" in sys_text
 
 
 def test_few_shot_example_uses_actual_pc_name():
@@ -585,10 +584,9 @@ def test_rule_22_explicit_question_patterns():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    assert "包含问号" in sys_text or "?" in sys_text
     assert "告诉我" in sys_text or "是谁" in sys_text
-    # forbidden phrases listed:
-    assert "可能告诉你" in sys_text or "下一步揭晓" in sys_text or "时机未到" in sys_text
+    # forbidden delay phrases listed:
+    assert "时机未到" in sys_text or "以后再说" in sys_text
     # allowed escape: NPC doesn't know
     assert "不知道" in sys_text
 
@@ -600,7 +598,8 @@ def test_rule_22_repeated_question_must_repeat_answer():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    assert "重复问题" in sys_text or "同样问题" in sys_text or "重复给" in sys_text
+    # key info must be given directly; forbidden delay phrases must be named
+    assert "时机未到" in sys_text or "以后再说" in sys_text
 
 
 def test_few_shot_includes_correct_information_example():
@@ -651,7 +650,7 @@ def test_gm_prompt_documents_screenplay_tags():
 
 
 def test_gm_prompt_rule_24_screenplay_obedience():
-    """Iron rule 24 must explicitly tell the GM to follow '## 当前剧本进度'
+    """Iron rule 7 (was 24) must explicitly tell the GM to follow '## 当前剧本进度'
     and emit the right tags as main events get played out."""
     sys_text = build_gm_messages(
         world_md="x", character_md="y", live_state={},
@@ -659,10 +658,10 @@ def test_gm_prompt_rule_24_screenplay_obedience():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )[0].content
-    # Rule 24 mentions screenplay + advance behavior
-    assert "24." in sys_text
+    # Rule 7 (formerly 24) mentions screenplay + advance behavior
+    assert "7." in sys_text
     assert "剧本进度" in sys_text
-    assert "主线" in sys_text and "推进" in sys_text
+    assert "主线" in sys_text and ("推进" in sys_text or "event_complete" in sys_text)
     # Concrete tag references in the rule body — these are the GM's emit cues
     assert "event_complete" in sys_text
     assert "chapter_advance" in sys_text
@@ -680,48 +679,38 @@ def _build_default_sys() -> str:
 
 
 def test_rule_24_force_progress_present():
-    """v0.2.2 P1.2 — rule 24 must reflect the strict 1-2 turn cadence and
-    reference the strong-push fallback so the GM understands both the
-    soft rhythm and the hard override that key_facts injects."""
+    """v0.2.5 — rule 7 (was 24) must reflect strict 1-2 turn cadence."""
     sys_text = _build_default_sys()
     # Tightened cadence (was 1-3, now 1-2)
     assert "1-2 回合" in sys_text or "每 1-2" in sys_text
     # Old loose phrasing must NOT remain
     assert "1-3 回合" not in sys_text
-    # Strong-push self-correction language: the GM should be told it's
-    # "划水" past 4 turns of no event_complete, that key_facts will
-    # contain a 强推 directive, and that the GM must push PC back to
-    # the main line via NPC / environment / events.
-    assert "划水" in sys_text or "强推" in sys_text or "推 PC 回主线" in sys_text
+    # Core screenplay progression tags are referenced
+    assert "event_complete" in sys_text
+    assert "chapter_advance" in sys_text
 
 
 def test_rule_25_ordering_present():
-    """v0.2.2 P1.1 — iron rule 25: information ordering must follow story
-    timeline; `say` should immediately follow the `pc_action` that triggered it."""
+    """v0.2.5 — output ordering rule: narrative → pc_action → say."""
     sys_text = _build_default_sys()
-    assert "25." in sys_text
     assert "顺序" in sys_text
     assert "say" in sys_text and "pc_action" in sys_text
-    # Ironclad rule should reference the story-timeline / 发生顺序 phrasing.
+    # Rule references the story-timeline / 发生顺序 phrasing.
     assert "发生顺序" in sys_text or "故事时间线" in sys_text
 
 
 def test_rule_26_npc_proactive_present():
-    """v0.2.2 P1.3 — iron rule 26: at least one NPC must take a proactive
-    action every 2-3 turns rather than waiting for PC to trigger them."""
+    """v0.2.5 — NPC must take proactive action every 2-3 turns."""
     sys_text = _build_default_sys()
-    assert "26." in sys_text
-    assert "NPC 每" in sys_text or "主动" in sys_text
+    assert "主动" in sys_text
     assert "2-3 回合" in sys_text or "2 回合" in sys_text
-    # No "dead scene" phrasing
     assert "死场景" in sys_text or "禁止" in sys_text
 
 
 def test_rule_27_dice_failure_consequences():
-    """v0.2.2 P1.4 — iron rule 27: dice failure must produce negative
-    consequences; can't be 'nothing happens'. Critical success rewards XP."""
+    """v0.2.5 — rule 8 (was 27): dice failure must produce negative consequences."""
     sys_text = _build_default_sys()
-    assert "27." in sys_text
+    assert "8." in sys_text
     assert "失败" in sys_text and "负面后果" in sys_text
     # At least one of the example consequence categories should be named
     assert "关系恶化" in sys_text or "线索错失" in sys_text

@@ -34,6 +34,43 @@ class PatchGmModelRequest(BaseModel):
     gm_model_config_id: int
 
 
+class PatchSettingsRequest(BaseModel):
+    narrative_polish: bool | None = None
+    director_pass: bool | None = None
+
+
+@router.patch("/{session_id}/settings")
+async def patch_session_settings(
+    session_id: int,
+    body: PatchSettingsRequest,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    import json as _json
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    settings = _json.loads(sess.settings_json or "{}")
+    if body.narrative_polish is not None:
+        settings["narrative_polish"] = body.narrative_polish
+    if body.director_pass is not None:
+        settings["director_pass"] = body.director_pass
+    sess.settings_json = _json.dumps(settings)
+    await s.commit()
+    return {"id": sess.id, "settings": settings}
+
+
+@router.get("/{session_id}/settings")
+async def get_session_settings(
+    session_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    import json as _json
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    return {"id": sess.id, "settings": _json.loads(sess.settings_json or "{}")}
+
+
 @router.patch("/{session_id}/gm_model")
 async def patch_session_gm_model(
     session_id: int,
