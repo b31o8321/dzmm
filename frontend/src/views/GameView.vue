@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElInput } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
@@ -34,6 +34,26 @@ const audio = useAudio()
 const version = __APP_VERSION__
 
 const action = ref('')
+const inputRef = ref<InstanceType<typeof ElInput> | null>(null)
+
+const MODE_CHIPS = [
+  { label: '⚔️ 行动', prefix: '' },
+  { label: '💬 对话', prefix: '对__说："' },
+  { label: '🔍 调查', prefix: '仔细调查 ' },
+  { label: '🎲 技能', prefix: '（用__尝试__）' },
+] as const
+
+function setMode(prefix: string) {
+  action.value = prefix
+  nextTick(() => {
+    const textarea = inputRef.value?.textarea
+    if (textarea) {
+      textarea.focus()
+      textarea.setSelectionRange(prefix.length, prefix.length)
+    }
+  })
+}
+
 const composing = ref(false)
 const eventsDialogOpen = ref(false)
 const eventsDialogEvents = ref<Turn['events']>([])
@@ -183,7 +203,8 @@ async function sendActionDirect(choice: string) {
   await sendAction(choice)
 }
 
-function onKey(e: KeyboardEvent) {
+function onKey(e: Event | KeyboardEvent) {
+  if (!(e instanceof KeyboardEvent)) return
   if (e.key !== 'Enter') return
   // While the user is composing a CJK candidate, never intercept Enter.
   if (composing.value) return
@@ -534,17 +555,28 @@ onUnmounted(() => audio.stopBgm())
       </div>
 
       <footer class="border-t bg-white p-4 space-y-2">
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 items-center">
           <el-button
-            v-for="s in (suggestions.length ? suggestions : ['环顾四周', '探索', '搭话'])"
+            v-for="chip in MODE_CHIPS"
+            :key="chip.label"
+            size="small"
+            :disabled="sending"
+            @click="setMode(chip.prefix)"
+          >{{ chip.label }}</el-button>
+          <span v-if="suggestions.length" class="text-slate-300 select-none">|</span>
+          <el-button
+            v-for="s in suggestions"
             :key="s"
             size="small"
+            type="info"
+            plain
             @click="quick(s)"
             :disabled="sending"
           >{{ s }}</el-button>
         </div>
         <div class="flex gap-2">
           <el-input
+            ref="inputRef"
             v-model="action"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
