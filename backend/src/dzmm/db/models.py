@@ -48,6 +48,7 @@ class Session(Base):
     name: Mapped[str] = mapped_column(String(120))
     world_id: Mapped[int] = mapped_column(ForeignKey("worlds.id"))
     character_id: Mapped[int] = mapped_column(ForeignKey("characters.id"))
+    screenplay_id: Mapped[int | None] = mapped_column(ForeignKey("screenplays.id"), nullable=True)  # v0.2.8: source screenplay
     gm_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))
     summarizer_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))
     turn_count: Mapped[int] = mapped_column(default=0)
@@ -157,7 +158,12 @@ class Screenplay(Base):
     GM follows main events strictly; optional events are PC-driven."""
     __tablename__ = "screenplays"
     id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("sessions.id"), nullable=True)
+    world_id: Mapped[int | None] = mapped_column(ForeignKey("worlds.id"), nullable=True)  # v0.2.8: standalone screenplay belongs to world
+    title: Mapped[str] = mapped_column(String(120), default="")  # v0.2.8: display title
+    pc_name: Mapped[str] = mapped_column(String(120), default="")  # v0.2.8: PC definition
+    pc_profile_md: Mapped[str] = mapped_column(Text, default="")
+    pc_base_stats_json: Mapped[str] = mapped_column(Text, default="{}")
     version: Mapped[int] = mapped_column(default=1)
     genre: Mapped[str] = mapped_column(String(60), default="")
     custom_prompt: Mapped[str] = mapped_column(Text, default="")

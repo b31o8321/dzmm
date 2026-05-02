@@ -84,6 +84,19 @@ _V027_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     "npcs": [("last_initiative_turn", "last_initiative_turn INTEGER NOT NULL DEFAULT 0")],
 }
 
+_V028_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "screenplays": [
+        ("world_id", "world_id INTEGER REFERENCES worlds(id)"),
+        ("title", "title VARCHAR(120) NOT NULL DEFAULT ''"),
+        ("pc_name", "pc_name VARCHAR(120) NOT NULL DEFAULT ''"),
+        ("pc_profile_md", "pc_profile_md TEXT NOT NULL DEFAULT ''"),
+        ("pc_base_stats_json", "pc_base_stats_json TEXT NOT NULL DEFAULT '{}'"),
+    ],
+    "sessions": [
+        ("screenplay_id", "screenplay_id INTEGER REFERENCES screenplays(id)"),
+    ],
+}
+
 
 def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) -> None:
     """SQLite-friendly column-add migration. Idempotent: skips columns that
@@ -115,4 +128,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V026_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V027_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V028_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
