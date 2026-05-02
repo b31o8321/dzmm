@@ -77,3 +77,23 @@ async def update_npc_pin(
     await s.commit()
     await s.refresh(npc)
     return _npc_to_dict(npc)
+
+
+class NpcVoicePatch(BaseModel):
+    tts_voice: str
+
+
+@router.patch("/{session_id}/npcs/{npc_id}/voice")
+async def patch_npc_voice(
+    session_id: int,
+    npc_id: int,
+    body: NpcVoicePatch,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    npc = await s.get(NPC, npc_id)
+    if npc is None or npc.session_id != session_id:
+        raise HTTPException(404, "npc not found")
+    npc.tts_voice = body.tts_voice
+    await s.commit()
+    await s.refresh(npc)
+    return _npc_to_dict(npc)

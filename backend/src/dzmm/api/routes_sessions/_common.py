@@ -114,4 +114,5 @@ def _npc_to_dict(n: NPC) -> dict:
         "notes": notes,
         "revealed": revealed,
         "current_location": n.current_location,
+        "tts_voice": n.tts_voice or "",
     }

@@ -107,6 +107,7 @@ class NpcOut(BaseModel):
     pinned: bool = False
     notes: list = []
     revealed: dict[str, bool] = {"name": True}
+    tts_voice: str = ""
 
 
 class ScreenplayStandaloneIn(BaseModel):
