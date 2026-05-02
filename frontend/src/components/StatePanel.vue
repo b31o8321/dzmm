@@ -53,6 +53,12 @@ const STAT_TOOLTIPS: Record<string, string> = {
 function tooltipFor(key: string): string {
   return STAT_TOOLTIPS[key] || ''
 }
+
+function npcAvatarColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
+  return `hsl(${h % 360}, 52%, 50%)`
+}
 </script>
 
 <template>
@@ -170,10 +176,14 @@ function tooltipFor(key: string): string {
         <li v-for="n in npcs" :key="n.name" class="flex justify-between items-center gap-2">
           <button
             type="button"
-            class="text-left hover:underline hover:text-amber-700 truncate flex items-center gap-1"
+            class="text-left hover:underline hover:text-amber-700 truncate flex items-center gap-1.5"
             @click="emit('select-npc', n.name)"
             :title="`查看 ${n.name} 的详情`"
           >
+            <span
+              class="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-xs font-bold shrink-0 select-none"
+              :style="{ backgroundColor: npcAvatarColor(n.name) }"
+            >{{ n.name[0] }}</span>
             <span v-if="n.pinned" class="text-amber-500" title="已置顶">📌</span>
             <span>{{ n.name }}</span>
           </button>

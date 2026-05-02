@@ -102,6 +102,12 @@ function isRevealed(field: string): boolean {
 }
 
 const HIDDEN_HINT = '（尚未通过对话/调查得知）'
+
+function npcAvatarColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
+  return `hsl(${h % 360}, 52%, 50%)`
+}
 </script>
 
 <template>
@@ -113,6 +119,16 @@ const HIDDEN_HINT = '（尚未通过对话/调查得知）'
     @close="close"
   >
     <div v-if="local" class="space-y-4">
+      <div class="flex items-center gap-3 mb-1">
+        <span
+          class="inline-flex items-center justify-center w-12 h-12 rounded-full text-white text-xl font-bold shrink-0 select-none shadow-sm"
+          :style="{ backgroundColor: npcAvatarColor(local.name) }"
+        >{{ local.name[0] }}</span>
+        <div>
+          <div class="font-bold text-slate-800 text-base">{{ local.name }}</div>
+          <div class="text-xs text-slate-400">上次出现：第 {{ local.last_seen_turn }} 回合</div>
+        </div>
+      </div>
       <div class="flex items-center gap-2 flex-wrap">
         <span v-if="isRevealed('archetype') && local.archetype"
               class="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded">
@@ -131,9 +147,6 @@ const HIDDEN_HINT = '（尚未通过对话/调查得知）'
               class="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 italic rounded"
               :title="HIDDEN_HINT">
           状态 ****
-        </span>
-        <span class="text-xs text-slate-400 ml-auto">
-          上次出现：第 {{ local.last_seen_turn }} 回合
         </span>
       </div>
 

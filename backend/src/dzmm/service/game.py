@@ -934,4 +934,39 @@ async def _build_key_facts(
     if stuck is not None:
         parts.append(build_stuck_warning(d20_values, stuck))
 
+    # v0.2.5 — Per-turn dynamic directive. Python-computed from current game
+    # state; injected last so it's the freshest instruction before the GM writes.
+    # Replaces the need for the LLM to self-diagnose pacing/variety issues.
+    directive_items: list[str] = []
+
+    # Scene stagnation: 3+ turns in same location → push for new element.
+    if current_loc is not None:
+        turns_in_loc = current_turn - (current_loc.last_visited_turn or 0)
+        if turns_in_loc >= 3:
+            directive_items.append(
+                f"场景节奏：PC 已在「{current_loc.name}」停留 {turns_in_loc} 回合，"
+                "本回合必须加入打断元素（新NPC到来/意外发现/环境变化）或引导 PC 转移场景"
+            )
+
+    # NPC absence: pinned NPCs missing 5+ turns should be woven back in.
+    for n in pinned_npcs:
+        if current_turn > 0 and (current_turn - (n.last_seen_turn or 0)) >= 5:
+            turns_absent = current_turn - (n.last_seen_turn or 0)
+            directive_items.append(
+                f"NPC 回场：{n.name} 已 {turns_absent} 回合未出现"
+                f"（上次第 {n.last_seen_turn} 回合），本回合安排其主动联系或被提及"
+            )
+
+    # Narrative variety rotation — prevents the GM from defaulting to the
+    # same prose pattern every turn. Cycles through 4 different requirements.
+    _VARIETY = [
+        "叙事质感：本回合融入一个具体感官细节（声音/气味/触感/温度），自然嵌入，不要单独列出",
+        "叙事质感：安排一件出乎 PC 预料的小事或 NPC 意外反应，打破本回合的既定节奏",
+        "叙事质感：在本回合末尾埋下一个未解答的悬念或细节，让玩家带着好奇进入下一回合",
+        "叙事质感：聚焦情绪落差——同一场景内从平静到紧张（或反向）的节奏转变",
+    ]
+    directive_items.append(_VARIETY[current_turn % len(_VARIETY)])
+
+    parts.append("## 🎬 本回合要点\n" + "\n".join(f"- {d}" for d in directive_items))
+
     return "\n".join(parts)

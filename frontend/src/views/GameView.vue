@@ -123,6 +123,7 @@ const {
   tokensIn,
   tokensOut,
   sending,
+  sceneMood,
   sendAction,
   refreshTokens,
 } = useGameTurn(sessionId, gs, {
@@ -555,7 +556,7 @@ onUnmounted(() => {
 
 <template>
   <div class="flex h-full">
-    <section class="flex-1 flex flex-col bg-slate-50">
+    <section class="flex-1 flex flex-col bg-slate-50 transition-colors duration-700" :class="`mood-${sceneMood}`">
       <header class="px-6 py-3 border-b bg-white flex items-center justify-between">
         <div class="flex items-center gap-3 flex-wrap">
           <CharacterAvatar
@@ -815,4 +816,17 @@ onUnmounted(() => {
   flex: 1;
   color: #409eff;
 }
+
+/* Scene mood atmosphere — subtle background tint that shifts with narrative */
+.mood-neutral    { background-color: rgb(248 250 252); }
+.mood-tense      { background-color: rgb(255 247 247); }
+.mood-horror     { background-color: rgb(241 245 249); }
+.mood-romantic   { background-color: rgb(255 241 248); }
+.mood-mysterious { background-color: rgb(245 243 255); }
+
+/* Colored top-border accent on the chat header */
+.mood-tense      header { border-top: 2px solid #fca5a5; }
+.mood-horror     header { border-top: 2px solid #94a3b8; }
+.mood-romantic   header { border-top: 2px solid #f9a8d4; }
+.mood-mysterious header { border-top: 2px solid #c4b5fd; }
 </style>
