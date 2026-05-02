@@ -732,6 +732,32 @@ onBeforeUnmount(() => {
         @back="gotoStep(0)"
         @retry="generateBrief"
       >
+        <!-- Prompt inputs always visible so user can tweak before regenerating -->
+        <div class="mb-4 p-3 bg-slate-50 rounded border border-slate-200 space-y-2">
+          <div class="text-xs font-medium text-slate-500">提示词（修改后点「重新生成」）</div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500 w-10 shrink-0">题材</span>
+            <el-select v-model="state.genre" size="small" class="w-36 shrink-0">
+              <el-option v-for="g in KNOWN_GENRES" :key="g.key" :label="g.label" :value="g.key" />
+            </el-select>
+          </div>
+          <el-input
+            v-if="state.genre === '自定义'"
+            v-model="state.custom_genre"
+            size="small"
+            placeholder="自定义题材…"
+          />
+          <div class="flex items-start gap-2">
+            <span class="text-xs text-slate-500 w-10 shrink-0 pt-1">主题</span>
+            <el-input
+              v-model="state.theme"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 4 }"
+              size="small"
+              placeholder="一句话主题提示…"
+            />
+          </div>
+        </div>
         <div v-if="state.world_brief" class="space-y-3">
           <div>
             <div class="text-xs text-slate-500">世界名</div>
@@ -790,13 +816,28 @@ onBeforeUnmount(() => {
       </WizardStep>
 
       <!-- ====== Step 3: character ====== -->
-      <div v-if="step === 3 && !state.character_md && !loading && !errorMsg" class="space-y-4 bg-white border border-slate-200 rounded p-6">
-        <div class="text-xl font-bold text-slate-800">🎭 第 3 步 / 主角设定</div>
-        <div class="text-sm text-slate-600">
-          先告诉 GM 你想演什么样的角色，然后让向导生成一份完整角色卡。
-        </div>
-        <div>
-          <div class="text-sm font-medium text-slate-700 mb-1">角色原型</div>
+      <WizardStep
+        v-if="step === 3"
+        title="🎭 第 3 步 / 主角"
+        :loading="loading"
+        :elapsed="elapsed"
+        :tip="currentTip"
+        :error="errorMsg"
+        :editing="editing.character"
+        :content="state.character_md"
+        :can-regenerate="!!state.archetype.trim()"
+        :accept-label="state.character_md ? '⏩ 接受继续' : '⏩ 生成角色卡'"
+        @update:content="(v) => (state.character_md = v)"
+        @edit="editing.character = true"
+        @regenerate="generateCharacter"
+        @handwrite="handwriteCharacter"
+        @accept="state.character_md ? acceptCharacterAndNext() : generateCharacter()"
+        @back="gotoStep(2)"
+        @retry="generateCharacter"
+      >
+        <!-- Archetype prompt always visible so user can tweak before regenerating -->
+        <div class="mb-4 p-3 bg-slate-50 rounded border border-slate-200 space-y-2">
+          <div class="text-xs font-medium text-slate-500">角色原型提示词（修改后点「重新生成」）</div>
           <el-input
             v-model="state.archetype"
             type="textarea"
@@ -806,38 +847,15 @@ onBeforeUnmount(() => {
             show-word-limit
           />
         </div>
-        <div class="flex gap-2">
-          <el-button @click="gotoStep(2)">⬅ 返回</el-button>
-          <div class="flex-1" />
-          <el-button type="primary" :disabled="!state.archetype.trim()" @click="generateCharacter">
-            ⏩ 生成角色卡
-          </el-button>
-        </div>
-      </div>
-
-      <WizardStep
-        v-else-if="step === 3"
-        title="🎭 第 3 步 / 主角"
-        :loading="loading"
-        :elapsed="elapsed"
-        :tip="currentTip"
-        :error="errorMsg"
-        :editing="editing.character"
-        :content="state.character_md"
-        @update:content="(v) => (state.character_md = v)"
-        @edit="editing.character = true"
-        @regenerate="generateCharacter"
-        @handwrite="handwriteCharacter"
-        @accept="acceptCharacterAndNext"
-        @back="gotoStep(2)"
-        @retry="generateCharacter"
-      >
-        <div class="space-y-3">
+        <div v-if="state.character_md" class="space-y-3">
           <div v-if="state.character_name">
             <div class="text-xs text-slate-500">角色名</div>
             <div class="text-lg font-bold text-slate-800">{{ state.character_name }}</div>
           </div>
           <MarkdownView :source="state.character_md" />
+        </div>
+        <div v-else class="text-sm text-slate-400 text-center py-4">
+          填写原型后点「⏩ 生成角色卡」
         </div>
         <!-- Debug: raw LLM output toggle -->
         <div v-if="state.raw_outputs['character']" class="mt-3 border-t pt-2">
