@@ -34,7 +34,9 @@ def get_session_maker_dep():
 def _to_out(s):
     from dzmm.api.schemas import SessionOut
     return SessionOut(
-        id=s.id, name=s.name, world_id=s.world_id, character_id=s.character_id,
+        id=s.id, name=s.name,
+        screenplay_id=s.screenplay_id,
+        world_id=s.world_id, character_id=s.character_id,
         gm_model_config_id=s.gm_model_config_id,
         summarizer_model_config_id=s.summarizer_model_config_id,
         turn_count=s.turn_count,

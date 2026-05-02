@@ -47,14 +47,21 @@ class ModelConfigOut(BaseModel):
 
 class SessionIn(BaseModel):
     name: str
-    world_id: int
-    character_id: int
+    screenplay_id: int | None = None   # new: standalone screenplay → auto-create character
+    world_id: int | None = None         # legacy / direct
+    character_id: int | None = None     # legacy / direct
     gm_model_config_id: int
     summarizer_model_config_id: int
 
 
-class SessionOut(SessionIn):
+class SessionOut(BaseModel):
     id: int
+    name: str
+    screenplay_id: int | None = None
+    world_id: int
+    character_id: int
+    gm_model_config_id: int
+    summarizer_model_config_id: int
     turn_count: int
 
 

@@ -88,7 +88,36 @@ async def patch_session_gm_model(
 
 @router.post("", response_model=SessionOut)
 async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_dep)):
-    sess = GameSession(**body.model_dump())
+    from dzmm.db.models import Character as CharacterRow
+
+    world_id = body.world_id
+    character_id = body.character_id
+
+    if body.screenplay_id is not None:
+        sp = await s.get(Screenplay, body.screenplay_id)
+        if sp is None:
+            raise HTTPException(404, "screenplay not found")
+        world_id = sp.world_id
+        char = CharacterRow(
+            world_id=world_id,
+            name=sp.pc_name or "主角",
+            profile_md=sp.pc_profile_md or "",
+            base_stats_json=sp.pc_base_stats_json or "{}",
+        )
+        s.add(char)
+        await s.flush()
+        character_id = char.id
+    elif world_id is None or character_id is None:
+        raise HTTPException(422, "either screenplay_id or both world_id+character_id are required")
+
+    sess = GameSession(
+        name=body.name,
+        world_id=world_id,
+        character_id=character_id,
+        screenplay_id=body.screenplay_id,
+        gm_model_config_id=body.gm_model_config_id,
+        summarizer_model_config_id=body.summarizer_model_config_id,
+    )
     s.add(sess)
     await s.flush()
     s.add(CharState(session_id=sess.id))
