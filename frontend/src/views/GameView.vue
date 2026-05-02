@@ -8,6 +8,8 @@ import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
+import { useTTS, type TtsVoiceMap } from '@/composables/useTTS'
+import { useAppStore } from '@/stores/app'
 import { useGameState, MAX_DICE } from '@/composables/useGameState'
 import {
   useGameTurn,
@@ -31,6 +33,8 @@ const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
 const modelsStore = useModelConfigsStore()
 const audio = useAudio()
+const appStore = useAppStore()
+const { playTurn, stop: stopTts, speaking } = useTTS()
 const version = __APP_VERSION__
 
 const FONT_SIZE_KEY = 'dzmm_game_font_size'
@@ -172,6 +176,15 @@ const {
     refreshLocations()  // pick up <location_enter> updates
     refreshNpcLocations()  // pick up <npc_update location="..."> changes
     refreshSuggestions()
+    // TTS: speak the completed turn with per-speaker voices
+    const raw = currentTurn.value?.rawContent
+    if (raw) {
+      sessionsApi.npcs(sessionId).then((npcList) => {
+        playTurn(raw, buildVoiceMap(npcList))
+      }).catch(() => {
+        playTurn(raw, buildVoiceMap([]))
+      })
+    }
   },
   onNpcInitiative: (npcName) => onInitiativeTrigger(npcName),
 })
@@ -192,6 +205,17 @@ async function refreshNpcLocations() {
       if (full) (n as any).current_location = full.current_location ?? null
     }
   } catch { /* ignore */ }
+}
+
+function buildVoiceMap(npcList: Npc[]): TtsVoiceMap {
+  const map: TtsVoiceMap = {
+    narrator: appStore.ttsGmVoice,
+    pc: appStore.ttsPcVoice || appStore.ttsGmVoice,
+  }
+  for (const npc of npcList) {
+    if (npc.tts_voice) map[npc.name] = npc.tts_voice
+  }
+  return map
 }
 
 async function refreshLocations() {
@@ -669,6 +693,13 @@ onUnmounted(() => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <button
+            v-if="appStore.ttsEnabled && speaking"
+            type="button"
+            class="text-xs px-1.5 h-5 flex items-center text-amber-600 hover:text-amber-800 border border-amber-300 rounded"
+            title="停止朗读"
+            @click="stopTts"
+          >⏹ 停音</button>
           <span class="flex items-center gap-0.5">
             <button type="button"
               class="text-xs w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 border border-slate-200 rounded"
