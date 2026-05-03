@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElDrawer, ElProgress, ElTag, ElDivider } from 'element-plus'
+import { ElDrawer, ElProgress, ElTag, ElDivider, ElButton } from 'element-plus'
 import MarkdownView from './MarkdownView.vue'
 import CharacterAvatar from './CharacterAvatar.vue'
 import type { Character } from '@/api/types'
+import { useAppStore } from '@/stores/app'
+import { useTTS } from '@/composables/useTTS'
+const appStore = useAppStore()
+const { previewVoice, speaking: ttsSpeaking } = useTTS()
 
 const props = defineProps<{
   modelValue: boolean
@@ -129,6 +133,27 @@ function close() {
         <div class="prose prose-sm max-w-none">
           <MarkdownView :source="character.profile_md || '（无档案）'" />
         </div>
+      </div>
+
+      <el-divider />
+
+      <!-- TTS 音色 -->
+      <div>
+        <div class="text-sm font-bold text-slate-700 mb-2">旁白 / 主角音色</div>
+        <div v-if="appStore.ttsEnabled" class="flex items-center gap-3 flex-wrap">
+          <span class="text-xs text-slate-500">
+            模式：<strong>{{ { edge: 'edge-tts', kokoro: 'Kokoro', webspeech: '浏览器', local: '外部服务' }[appStore.ttsMode] }}</strong>
+          </span>
+          <span v-if="appStore.ttsGmVoice" class="text-xs text-slate-500">
+            旁白：<code class="bg-slate-100 px-1 rounded text-xs">{{ appStore.ttsGmVoice }}</code>
+          </span>
+          <el-button
+            size="small"
+            :loading="ttsSpeaking"
+            @click="previewVoice(character?.name ? character.name + '，今日天气不错。' : '测试音色', appStore.ttsPcVoice || appStore.ttsGmVoice || '')"
+          >🔊 试听主角音色</el-button>
+        </div>
+        <div v-else class="text-xs text-slate-400">TTS 未启用（可在设置页开启）</div>
       </div>
     </div>
     <div v-else class="text-slate-400 italic">（角色信息加载中…）</div>
