@@ -57,6 +57,13 @@ hidden += collect_submodules('chromadb')
 # pydantic.v1 shim required by langchain_core._api.deprecation at import time.
 hidden += ['pydantic.v1', 'pydantic.v1.main', 'pydantic.v1.fields']
 
+# edge-tts: pure Python async websocket client
+hidden += ['edge_tts', 'edge_tts.communicate', 'edge_tts.exceptions']
+
+# kokoro-onnx: ONNX-based TTS, no torch required
+hidden += collect_submodules('kokoro_onnx')
+hidden += ['soundfile', 'soundfile._soundfile']
+
 a = Analysis(
     [str(src_root / 'dzmm' / 'main_entry.py')],
     pathex=[str(src_root)],
