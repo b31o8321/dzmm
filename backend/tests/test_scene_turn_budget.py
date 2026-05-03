@@ -8,7 +8,7 @@ from dzmm.db.models import (
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, TagComplete
-from dzmm.service.game import run_turn, SCENE_SOFT_PRESSURE_TURNS, _build_key_facts
+from dzmm.service.game import run_turn, SCENE_SOFT_PRESSURE_TURNS, SCENE_HARD_EXIT_TURNS, _build_key_facts
 
 
 class FakeClient(ModelClient):
@@ -117,3 +117,18 @@ async def test_scene_pressure_absent_below_threshold(seeded):
         kf = await _build_key_facts(s, sid, current_turn=3)
     assert "场景时间提醒" not in kf
     assert "场景强推" not in kf
+
+
+async def test_hard_exit_pressure_at_scene_hard_exit_turns(seeded):
+    """Hard exit pressure (场景强推) appears at SCENE_HARD_EXIT_TURNS threshold."""
+    SM, sid = seeded
+    async with SM() as s:
+        sess = await s.get(GameSession, sid)
+        sess.scene_turn_count = SCENE_HARD_EXIT_TURNS
+        s.add(Location(session_id=sid, name="酒馆", description="",
+                       first_visited_turn=1, last_visited_turn=6, is_current=True))
+        await s.commit()
+    async with SM() as s:
+        kf = await _build_key_facts(s, sid, current_turn=8)
+    assert "场景强推" in kf
+    assert "场景时间提醒" not in kf

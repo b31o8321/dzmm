@@ -1069,9 +1069,12 @@ async def _build_key_facts(
     directive_items: list[str] = []
 
     # Scene stagnation: 3+ turns in same location → push for new element.
+    # Suppressed when the structured scene pressure block (v0.3.0) is already
+    # injecting a more authoritative directive above SCENE_SOFT_PRESSURE_TURNS.
     if current_loc is not None:
         turns_in_loc = current_turn - (current_loc.last_visited_turn or 0)
-        if turns_in_loc >= 3:
+        stc_active = sess is not None and (sess.scene_turn_count or 0) >= SCENE_SOFT_PRESSURE_TURNS
+        if turns_in_loc >= 3 and not stc_active:
             directive_items.append(
                 f"场景节奏：PC 已在「{current_loc.name}」停留 {turns_in_loc} 回合，"
                 "本回合必须加入打断元素（新NPC到来/意外发现/环境变化）或引导 PC 转移场景"
