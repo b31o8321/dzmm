@@ -1,30 +1,30 @@
-# DZMM 学习笔记目录
+# DZMM 学习文档
 
-> 本目录整理了项目中用到的关键技术，特别是 **LLM 工程化**相关的设计决策和实现方式。
-> 适合有 Java 背景、Python 基础的开发者阅读。
+> 每篇文档都直接引用项目源码，点 GitHub 链接可跳到对应行。
 
----
-
-## 文档列表
+## 文档
 
 | 文档 | 内容 |
 |------|------|
-| [01-架构总览](01-architecture.md) | 项目整体架构、技术栈、分层设计 |
-| [02-LLM工程化](02-llm-engineering.md) | **核心**：Prompt 设计、上下文管理、流式处理、弱模型适配 |
-| [03-Python入门](03-python-for-java-devs.md) | 面向 Java 开发者的 Python 关键语法对比 |
+| [Python 后端实现](python-backend.md) | async/await、SQLAlchemy、FastAPI、数据库迁移 |
+| [LLM 工程化实现](llm-engineering.md) | Prompt 设计、流式解析、上下文管理、弱模型容错 |
+| [Vue3 前端实现](vue-frontend.md) | SSE 消费、Composable、Pinia Store、响应式原理 |
 
----
+## 一次回合走完整个调用链
 
-## 快速跳转：核心文件（含注释）
-
-所有带注释的源文件都在这里：
-
-**Python 后端：**
-- [db/models.py](https://github.com/b31o8321/dzmm/blob/main/backend/src/dzmm/db/models.py) — 数据库 ORM 实体（SQLAlchemy）
-- [models/client.py](https://github.com/b31o8321/dzmm/blob/main/backend/src/dzmm/models/client.py) — LLM 抽象接口（ABC + async generator）
-- [parsing/stream_parser.py](https://github.com/b31o8321/dzmm/blob/main/backend/src/dzmm/parsing/stream_parser.py) — 流式 XML 解析（状态机）
-- [service/game.py](https://github.com/b31o8321/dzmm/blob/main/backend/src/dzmm/service/game.py) — 游戏引擎核心（async generator 驱动）
-- [api/routes_sessions/turn.py](https://github.com/b31o8321/dzmm/blob/main/backend/src/dzmm/api/routes_sessions/turn.py) — HTTP 路由（FastAPI + SSE）
-
-**Vue3 前端：**
-- [composables/useGameTurn.ts](https://github.com/b31o8321/dzmm/blob/main/frontend/src/composables/useGameTurn.ts) — 回合状态管理（Composable）
+```
+玩家点击"发送"
+  ↓ useGameTurn.sendAction()           [frontend/composables/useGameTurn.ts]
+  ↓ streamTurn()                       [frontend/composables/useTurnStream.ts]
+  ↓ fetch POST /sessions/{id}/turn     HTTP SSE
+  ↓ take_turn() API 路由               [backend/api/routes_sessions/turn.py]
+  ↓ run_turn() 业务逻辑                [backend/service/game.py]
+  ↓   读 DB（世界/角色/剧本/NPC）
+  ↓   组装 GM System Prompt
+  ↓   client.stream() LLM 调用         [backend/models/ollama.py]
+  ↓   StreamingTagParser.feed()        [backend/parsing/stream_parser.py]
+  ↓   yield ParseEvent → SSE 推送
+  ↓   apply_tags() 写 DB               [backend/service/state_apply/_impl.py]
+  ↓ 前端 onNarrative/onTag 回调
+  ↓ turn.narrative += text → Vue 重渲染
+```
