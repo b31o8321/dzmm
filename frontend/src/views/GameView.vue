@@ -36,10 +36,10 @@ const modelsStore = useModelConfigsStore()
 const audio = useAudio()
 
 const gmModelCfgId = ref<number | null>(null)
-const { isOk: modelOk, pullCommands, checking: modelChecking } = useModelCheck(gmModelCfgId)
+const { isOk: modelOk, pullCommands, error: modelCheckError } = useModelCheck(gmModelCfgId)
 const modelBannerDismissed = ref(false)
 const showModelBanner = computed(
-  () => modelOk.value === false && !modelBannerDismissed.value
+  () => (modelOk.value === false || modelCheckError.value) && !modelBannerDismissed.value
 )
 const appStore = useAppStore()
 const { playTurn, stop: stopTts, speaking } = useTTS()
@@ -742,7 +742,7 @@ onUnmounted(() => {
       >
         <span class="text-amber-600 text-lg leading-none mt-0.5">⚠️</span>
         <div class="flex-1">
-          <div class="font-semibold text-amber-800">模型不可用</div>
+          <div class="font-semibold text-amber-800">{{ modelCheckError ? '模型检测失败（Ollama 未启动？）' : '模型不可用' }}</div>
           <div class="text-amber-700 mt-0.5">以下模型未运行，游戏可能无法正常工作：</div>
           <div class="mt-1 space-y-0.5">
             <div
