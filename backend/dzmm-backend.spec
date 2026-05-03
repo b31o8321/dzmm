@@ -48,6 +48,15 @@ hidden += collect_submodules('dzmm')
 # discovery — keep the broad collect for these.
 hidden += collect_submodules('keyring.backends')
 
+# Phase A/B: LangChain RAG + LangGraph — these use lazy imports / plugin registries
+# that PyInstaller can't trace statically, so broad collect is necessary here.
+hidden += collect_submodules('langchain_core')
+hidden += collect_submodules('langgraph')
+hidden += collect_submodules('langchain_text_splitters')
+hidden += collect_submodules('chromadb')
+# pydantic.v1 shim required by langchain_core._api.deprecation at import time.
+hidden += ['pydantic.v1', 'pydantic.v1.main', 'pydantic.v1.fields']
+
 a = Analysis(
     [str(src_root / 'dzmm' / 'main_entry.py')],
     pathex=[str(src_root)],
@@ -59,8 +68,8 @@ a = Analysis(
     excludes=[
         'tkinter', 'test', 'unittest', 'pydoc', 'doctest',
         'httptools', 'uvloop', 'watchfiles',
-        'pydantic.v1', 'pydantic.deprecated',
         'numpy', 'pandas',
+        # pydantic.v1 removed: langchain_core._api.deprecation requires it
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
