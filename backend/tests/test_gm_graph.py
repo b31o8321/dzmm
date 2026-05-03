@@ -96,3 +96,62 @@ async def test_run_npc_post_pass_returns_empty_when_no_npcs():
         narrative="...", present_npcs=[], user_action="...", client=client
     )
     assert events == []
+
+
+class _FakeNpc:
+    """Minimal NPC stub for testing — mirrors NPC ORM fields used by the prompt."""
+    def __init__(
+        self,
+        name: str,
+        archetype: str = "普通人",
+        description: str = "一个普通的人。",
+        state: str = "平静",
+        purpose: str = "",
+        emotion_json: str = "{}",
+    ):
+        self.name = name
+        self.archetype = archetype
+        self.description = description
+        self.state = state
+        self.purpose = purpose
+        self.emotion_json = emotion_json
+
+
+def test_build_npc_single_react_messages_embeds_archetype():
+    from dzmm.prompts.npc_react_template import build_npc_single_react_messages
+    npc = _FakeNpc(
+        name="卫队长",
+        archetype="冷酷军人",
+        description="前帝国精锐，话少，但观察敏锐。",
+        state="戒备",
+        purpose="守护王城安全",
+        emotion_json='{"suspicious": 7}',
+    )
+    msgs = build_npc_single_react_messages(
+        narrative="你走进了城门，卫队长瞥了你一眼，手按在剑柄上。",
+        npc=npc,
+        user_action="我微笑着递上通行证",
+    )
+    assert len(msgs) == 1
+    assert msgs[0].role == "user"
+    assert "冷酷军人" in msgs[0].content
+    assert "卫队长" in msgs[0].content
+    assert "戒备" in msgs[0].content
+
+
+def test_build_npc_single_react_messages_different_archetype():
+    from dzmm.prompts.npc_react_template import build_npc_single_react_messages
+    npc = _FakeNpc(
+        name="酒馆老板",
+        archetype="热情商人",
+        description="胖乎乎，总是笑着，非常健谈。",
+        state="高兴",
+        purpose="经营酒馆，广结善缘",
+    )
+    msgs = build_npc_single_react_messages(
+        narrative="你推开酒馆大门，热气扑面而来。",
+        npc=npc,
+        user_action="我走进酒馆",
+    )
+    assert "热情商人" in msgs[0].content
+    assert "酒馆老板" in msgs[0].content
