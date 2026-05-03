@@ -941,12 +941,15 @@ async def _build_key_facts(
                         parts.append(
                             f"## {urgency}（已 {turns_since_progress} 回合无主线进展）\n"
                             f"**本回合必须完成主线事件**：「{_render_event(next_event)}」\n\n"
-                            f"操作步骤：\n"
-                            f"1. 无论 PC 当前在做什么，立刻安排 NPC 或环境将 PC 引向该事件\n"
-                            f"2. 在 narrative 中演出该事件的核心场景（不超过 200 字）\n"
-                            f"3. 演完后立即在输出末尾 emit 以下 tag（原样复制，勿修改）：\n"
+                            f"操作步骤（严格按顺序）：\n"
+                            f"1. 立刻安排 NPC 或环境事件将 PC 引向该主线事件（1-2 句即可）\n"
+                            f"2. 在 narrative 中演出该事件的核心一幕（≤150 字，抓住最戏剧性的瞬间）\n"
+                            f"3. **核心一幕演完后，立刻输出以下 tag（在当前回合任意位置均可，无需等叙事结束）**：\n"
                             f"```\n{emit_tag}\n```\n"
-                            f"**如不 emit 该 tag，系统将认为事件未完成，下回合继续强推。**"
+                            f"4. emit 完成后可继续补充叙事细节或 choices，但 event_complete 不能推到下回合\n\n"
+                            f"⚠️ 误区纠正：event_complete 是**进度标记**，不是叙事终止符。"
+                            f"你不需要等「整个事件叙事结束」才 emit——演出核心即标记完成。\n"
+                            f"**如本回合未 emit 该 tag，系统视为未完成，下回合继续强推。**"
                         )
 
     # Hidden events — GM-only state with a fuse. Re-inject every turn so the
