@@ -13,6 +13,9 @@ dependencies = [
     "keyring>=24.0",
     "sse-starlette>=2.0",
     "python-multipart>=0.0.9",
+    "langchain-text-splitters>=0.3",
+    "langchain-core>=0.3",
+    "chromadb>=0.5",
 ]
 
 [project.optional-dependencies]
