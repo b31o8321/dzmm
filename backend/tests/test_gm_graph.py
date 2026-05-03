@@ -2,7 +2,7 @@
 import pytest
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import TagComplete
-from dzmm.prompts.npc_react_template import build_npc_react_messages
+from dzmm.prompts.npc_react_template import build_npc_react_messages, build_npc_single_react_messages
 from dzmm.prompts.rules_template import build_rules_messages
 from dzmm.service.gm_graph import run_npc_post_pass, run_pre_pass
 
@@ -118,7 +118,6 @@ class _FakeNpc:
 
 
 def test_build_npc_single_react_messages_embeds_archetype():
-    from dzmm.prompts.npc_react_template import build_npc_single_react_messages
     npc = _FakeNpc(
         name="卫队长",
         archetype="冷酷军人",
@@ -137,10 +136,12 @@ def test_build_npc_single_react_messages_embeds_archetype():
     assert "冷酷军人" in msgs[0].content
     assert "卫队长" in msgs[0].content
     assert "戒备" in msgs[0].content
+    assert "守护王城安全" in msgs[0].content   # purpose
+    assert "前帝国精锐" in msgs[0].content      # description (part of the description text)
+    assert "suspicious" in msgs[0].content      # emotion key from emotion_json
 
 
 def test_build_npc_single_react_messages_different_archetype():
-    from dzmm.prompts.npc_react_template import build_npc_single_react_messages
     npc = _FakeNpc(
         name="酒馆老板",
         archetype="热情商人",
