@@ -57,6 +57,8 @@ export const useAppStore = defineStore('app', () => {
   const ttsModelConfigId = ref(loadTtsSetting('model_config_id', 0))
   const ttsGmVoice = ref(loadTtsSetting('gm_voice', ''))
   const ttsPcVoice = ref(loadTtsSetting('pc_voice', ''))
+  // Direct URL for external/LAN TTS service (OpenAI-compatible base URL, e.g. http://192.168.1.5:5001)
+  const ttsDirectUrl = ref(loadTtsSetting('direct_url', ''))
 
   function saveTtsSettings() {
     try {
@@ -65,6 +67,7 @@ export const useAppStore = defineStore('app', () => {
       localStorage.setItem('dzmm.tts.model_config_id', String(ttsModelConfigId.value))
       localStorage.setItem('dzmm.tts.gm_voice', ttsGmVoice.value)
       localStorage.setItem('dzmm.tts.pc_voice', ttsPcVoice.value)
+      localStorage.setItem('dzmm.tts.direct_url', ttsDirectUrl.value)
     } catch { /* ignore */ }
   }
 
@@ -102,6 +105,7 @@ export const useAppStore = defineStore('app', () => {
     ttsModelConfigId,
     ttsGmVoice,
     ttsPcVoice,
+    ttsDirectUrl,
     saveTtsSettings,
   }
 })

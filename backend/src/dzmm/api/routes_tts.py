@@ -52,6 +52,32 @@ async def proxy_tts(body: TtsRequest, s: AsyncSession = Depends(get_session_dep)
     return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/mpeg"))
 
 
+class DirectTtsRequest(BaseModel):
+    url: str = Field(..., max_length=500)  # base URL of the OpenAI-compatible TTS service
+    text: str = Field(..., max_length=5000)
+    voice: str = Field("default", max_length=120)
+    model: str = Field("tts-1", max_length=120)
+
+
+@router.post("/direct")
+async def direct_tts(body: DirectTtsRequest):
+    """Proxy synthesis to an arbitrary OpenAI-compatible TTS endpoint (LAN or localhost)."""
+    if not body.text.strip():
+        return Response(status_code=204)
+    base = body.url.rstrip("/")
+    endpoint = f"{base}/v1/audio/speech"
+    payload = {"model": body.model, "input": body.text, "voice": body.voice}
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(endpoint, json=payload)
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, f"TTS server error: {e.response.text}")
+    except httpx.RequestError as e:
+        raise HTTPException(503, f"TTS server unreachable: {e}")
+    return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/mpeg"))
+
+
 _VOICE_LABELS = {
     "zh-CN-XiaoxiaoNeural":   "晓晓（温柔/旁白）",
     "zh-CN-XiaohanNeural":    "晓涵（活泼）",

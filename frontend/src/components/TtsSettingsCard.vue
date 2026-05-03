@@ -304,19 +304,31 @@ const otherVoices = computed(() =>
 
         <!-- local proxy mode -->
         <template v-if="appStore.ttsMode === 'local'">
-          <el-form-item label="TTS 模型配置">
+          <el-form-item label="服务地址">
+            <el-input
+              v-model="appStore.ttsDirectUrl"
+              @change="appStore.saveTtsSettings"
+              placeholder="http://192.168.1.x:5001（留空则用下方模型配置）"
+              clearable
+            />
+            <div class="text-xs text-slate-400 mt-1">
+              填入局域网（或本机）OpenAI 兼容 TTS 服务的根地址，留空则走「模型配置」。<br>
+              CosyVoice / Kokoro / Fish-Speech 等部署后直接填此地址即可使用，无需另建配置。
+            </div>
+          </el-form-item>
+          <el-form-item v-if="!appStore.ttsDirectUrl" label="模型配置">
             <el-select v-model="appStore.ttsModelConfigId" @change="appStore.saveTtsSettings" placeholder="选择模型配置">
               <el-option v-for="m in modelsStore.items" :key="m.id" :label="`${m.name} (${m.model_name})`" :value="m.id" />
             </el-select>
             <div class="text-xs text-slate-400 mt-1">
-              在「模型配置」中添加 TTS 服务的 base_url 与 model_name（如 kokoro / tts-1）。
+              在「模型配置」中添加 TTS 服务的 base_url 与 model_name。
             </div>
           </el-form-item>
           <el-form-item label="GM 旁白音色">
-            <el-input v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="如 af_sky / zh_female_1" />
+            <el-input v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="如 中文女 / af_sky / zh_female_1" />
           </el-form-item>
           <el-form-item label="主角（PC）音色">
-            <el-input v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="如 zh_male_1" />
+            <el-input v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="如 中文男 / zh_male_1" />
           </el-form-item>
         </template>
 

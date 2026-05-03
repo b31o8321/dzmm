@@ -150,16 +150,30 @@ export function useTTS() {
           })
         }
       } else {
-        // local proxy mode
-        const resp = await fetch(`${backendOrigin}/tts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model_config_id: appStore.ttsModelConfigId, text, voice }),
-          signal: _abortCtrl.signal,
-        })
-        if (resp.ok) {
-          const buf = await resp.arrayBuffer()
-          if (!_aborted) await _playAudioBytes(buf)
+        // local proxy mode: prefer direct URL if set, fall back to model config
+        const directUrl = appStore.ttsDirectUrl?.trim()
+        if (directUrl) {
+          const resp = await fetch(`${backendOrigin}/tts/direct`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: directUrl, text, voice: voice || appStore.ttsGmVoice || 'default' }),
+            signal: _abortCtrl.signal,
+          })
+          if (resp.ok && resp.status !== 204) {
+            const buf = await resp.arrayBuffer()
+            if (!_aborted) await _playAudioBytes(buf)
+          }
+        } else {
+          const resp = await fetch(`${backendOrigin}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_config_id: appStore.ttsModelConfigId, text, voice }),
+            signal: _abortCtrl.signal,
+          })
+          if (resp.ok) {
+            const buf = await resp.arrayBuffer()
+            if (!_aborted) await _playAudioBytes(buf)
+          }
         }
       }
     } catch { /* ignore abort / network errors */ } finally {
@@ -190,17 +204,21 @@ export function useTTS() {
   }
 
   async function _speakLocal(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
+    const directUrl = appStore.ttsDirectUrl?.trim()
     for (const seg of segments) {
       if (_aborted) break
       const voice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? 'default'
       try {
-        const resp = await fetch(`${backendOrigin}/tts`, {
+        const [endpoint, body] = directUrl
+          ? [`${backendOrigin}/tts/direct`, { url: directUrl, text: seg.text, voice }]
+          : [`${backendOrigin}/tts`, { model_config_id: appStore.ttsModelConfigId, text: seg.text, voice }]
+        const resp = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model_config_id: appStore.ttsModelConfigId, text: seg.text, voice }),
+          body: JSON.stringify(body),
           signal: _abortCtrl?.signal,
         })
-        if (!resp.ok) continue
+        if (!resp.ok || resp.status === 204) continue
         const buf = await resp.arrayBuffer()
         if (_aborted) break
         await _playAudioBytes(buf)
