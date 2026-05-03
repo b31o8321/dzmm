@@ -138,3 +138,75 @@ async def test_eval_score_overall_property():
     # overall = (plot_speed + (10 - violations*2) + rp_immersion + dice_accuracy) / 4
     expected = (8.0 + 10.0 + 7.0 + 9.0) / 4
     assert abs(score.overall - expected) < 0.01
+
+
+from dzmm.eval.runner import EvalConfig, run_eval
+import json as _json
+from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_run_eval_runs_correct_number_of_turns():
+    """run_eval should call run_turn() once per turn and return one score per judge_every turns."""
+    turn_calls = []
+
+    async def fake_run_turn(session, session_id, action, client, **kwargs):
+        turn_calls.append((session_id, action))
+        return
+        yield  # Make it an async generator
+
+    class _FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *a):
+            pass
+        async def get(self, cls, pk):
+            if cls.__name__ == "Session":
+                m = MagicMock()
+                m.world_id = 1
+                m.character_id = 1
+                m.settings_json = "{}"
+                m.gm_model_config_id = None
+                return m
+            if cls.__name__ == "Character":
+                m = MagicMock()
+                m.profile_md = "林峰，侦探。"
+                m.name = "林峰"
+                return m
+            if cls.__name__ == "World":
+                m = MagicMock()
+                m.content_md = "维多利亚伦敦"
+                return m
+            return MagicMock()
+        async def execute(self, stmt):
+            m = MagicMock()
+            m.scalars.return_value.all.return_value = []
+            return m
+        def add(self, obj): pass
+        async def commit(self): pass
+
+    def fake_session_maker():
+        return _FakeSession()
+
+    valid_score_json = _json.dumps({
+        "plot_speed": 7, "rule_violations": 0,
+        "rp_immersion": 8, "dice_accuracy": 9, "reasoning": "good",
+    })
+    gm_client = _FakeClient("你走进了一个昏暗的房间。")
+    player_client = _FakeClient("我检查周围的环境。")
+    judge_client = _FakeClient(valid_score_json)
+
+    config = EvalConfig(
+        session_id=1,
+        config_name="test",
+        max_turns=10,
+        judge_every=5,
+        use_graph=False,
+    )
+
+    with patch("dzmm.eval.runner.run_turn", fake_run_turn):
+        scores = await run_eval(config, fake_session_maker, gm_client, player_client, judge_client)
+
+    assert len(turn_calls) == 10
+    assert len(scores) == 2  # judge runs at turn 5 and turn 10
+    assert all(isinstance(s, EvalScore) for s in scores)
