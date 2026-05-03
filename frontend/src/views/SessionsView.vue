@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
@@ -7,6 +7,9 @@ import { useWorldsStore } from '@/stores/worlds'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { useScreenplaysStore } from '@/stores/screenplays'
 import { sessionsApi } from '@/api/sessions'
+import { modelsApi } from '@/api/models'
+import type { ModelCheckResult } from '@/api/models'
+import type { GameSession } from '@/api/types'
 import { api } from '@/api/client'
 
 const router = useRouter()
@@ -14,6 +17,54 @@ const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
 const modelsStore = useModelConfigsStore()
 const spStore = useScreenplaysStore()
+
+// Per-session model check results
+const modelCheckResults = reactive<Record<number, ModelCheckResult | 'checking' | 'error'>>({})
+
+async function checkSessionModel(session: GameSession) {
+  modelCheckResults[session.id] = 'checking'
+  try {
+    const result = await modelsApi.check(session.gm_model_config_id)
+    modelCheckResults[session.id] = result
+  } catch {
+    modelCheckResults[session.id] = 'error'
+  }
+}
+
+const modelNameById = computed(() => {
+  const map: Record<number, string> = {}
+  for (const m of modelsStore.items) map[m.id] = m.name
+  return map
+})
+
+// Fix model dialog
+const fixModelDialog = reactive({
+  visible: false,
+  sessionId: 0,
+  selectedCfgId: 0,
+  saving: false,
+})
+
+function openFixModel(session: GameSession) {
+  fixModelDialog.sessionId = session.id
+  fixModelDialog.selectedCfgId = session.gm_model_config_id
+  fixModelDialog.visible = true
+  fixModelDialog.saving = false
+}
+
+async function saveFixModel() {
+  fixModelDialog.saving = true
+  try {
+    await sessionsApi.updateGmModel(fixModelDialog.sessionId, fixModelDialog.selectedCfgId)
+    await sessionsStore.refresh()
+    fixModelDialog.visible = false
+    ElMessage.success('模型已更新')
+  } catch {
+    ElMessage.error('更新失败，请重试')
+  } finally {
+    fixModelDialog.saving = false
+  }
+}
 
 const dialogOpen = ref(false)
 const submitting = ref(false)
@@ -236,6 +287,28 @@ onMounted(async () => {
         </template>
       </el-table-column>
       <el-table-column prop="turn_count" label="回合数" width="100" />
+      <el-table-column label="GM 模型" min-width="180">
+        <template #default="{ row }">
+          <div class="flex items-center gap-1 flex-wrap">
+            <span class="text-slate-500 text-xs">{{ modelNameById[row.gm_model_config_id] || '—' }}</span>
+            <template v-if="modelCheckResults[row.id]">
+              <span v-if="modelCheckResults[row.id] === 'checking'" class="text-slate-400 text-xs">…</span>
+              <span v-else-if="modelCheckResults[row.id] === 'error'" class="text-orange-500 text-xs" title="检测失败">⚠️</span>
+              <span
+                v-else-if="(modelCheckResults[row.id] as ModelCheckResult).narrative_ok && ((modelCheckResults[row.id] as ModelCheckResult).embed_ok ?? true)"
+                class="text-green-600 text-xs" title="模型在线"
+              >✓</span>
+              <span
+                v-else
+                class="text-red-500 text-xs"
+                :title="'缺少：' + (modelCheckResults[row.id] as ModelCheckResult).missing.join(', ')"
+              >✗</span>
+            </template>
+            <el-button size="small" text @click.stop="checkSessionModel(row)" :loading="modelCheckResults[row.id] === 'checking'" class="!px-1">检测</el-button>
+            <el-button size="small" text type="primary" @click.stop="openFixModel(row)" class="!px-1">修改</el-button>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="370">
         <template #default="{ row }">
           <el-button size="small" type="primary" @click="router.push(`/play/${row.id}`)">
@@ -398,6 +471,25 @@ onMounted(async () => {
         >
           开始跑团
         </el-button>
+      </template>
+    </el-dialog>
+    <!-- Fix GM model dialog -->
+    <el-dialog v-model="fixModelDialog.visible" title="修改 GM 模型" width="420px">
+      <div class="space-y-3">
+        <div class="text-sm text-slate-600">为该存档选择新的 GM 模型：</div>
+        <el-select v-model="fixModelDialog.selectedCfgId" class="w-full">
+          <el-option
+            v-for="cfg in modelsStore.items"
+            :key="cfg.id"
+            :label="`${cfg.name} (${cfg.model_name})`"
+            :value="cfg.id"
+          />
+        </el-select>
+        <div class="text-xs text-slate-400">切换后立即生效，下次回合使用新模型。</div>
+      </div>
+      <template #footer>
+        <el-button @click="fixModelDialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="fixModelDialog.saving" @click="saveFixModel">保存</el-button>
       </template>
     </el-dialog>
   </div>

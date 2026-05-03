@@ -9,6 +9,7 @@ import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
 import { useTTS, type TtsVoiceMap } from '@/composables/useTTS'
+import { useModelCheck } from '@/composables/useModelCheck'
 import { useAppStore } from '@/stores/app'
 import { useGameState, MAX_DICE } from '@/composables/useGameState'
 import {
@@ -33,6 +34,13 @@ const sessionsStore = useSessionsStore()
 const worldsStore = useWorldsStore()
 const modelsStore = useModelConfigsStore()
 const audio = useAudio()
+
+const gmModelCfgId = ref<number | null>(null)
+const { isOk: modelOk, pullCommands, checking: modelChecking } = useModelCheck(gmModelCfgId)
+const modelBannerDismissed = ref(false)
+const showModelBanner = computed(
+  () => modelOk.value === false && !modelBannerDismissed.value
+)
 const appStore = useAppStore()
 const { playTurn, stop: stopTts, speaking } = useTTS()
 const version = __APP_VERSION__
@@ -519,6 +527,7 @@ onMounted(async () => {
   try {
     const sess = await sessionsStore.get(sessionId)
     turnCount.value = sess.turn_count
+    gmModelCfgId.value = sess.gm_model_config_id
     try {
       character.value = await charactersApi.get(sess.character_id)
     } catch {
@@ -725,6 +734,35 @@ onUnmounted(() => {
           <span class="text-xs text-slate-400">v{{ version }}</span>
         </div>
       </header>
+
+      <!-- Model availability warning banner -->
+      <div
+        v-if="showModelBanner"
+        class="mx-4 mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-3 text-sm"
+      >
+        <span class="text-amber-600 text-lg leading-none mt-0.5">⚠️</span>
+        <div class="flex-1">
+          <div class="font-semibold text-amber-800">模型不可用</div>
+          <div class="text-amber-700 mt-0.5">以下模型未运行，游戏可能无法正常工作：</div>
+          <div class="mt-1 space-y-0.5">
+            <div
+              v-for="cmd in pullCommands"
+              :key="cmd"
+              class="font-mono text-xs bg-amber-100 text-amber-900 px-2 py-1 rounded select-all"
+            >{{ cmd }}</div>
+          </div>
+          <div class="mt-1.5 text-amber-600 text-xs">
+            在终端运行以上命令后刷新页面。或前往
+            <router-link to="/sessions" class="underline font-medium">存档列表</router-link>
+            更换模型。
+          </div>
+        </div>
+        <button
+          class="text-amber-500 hover:text-amber-700 text-lg leading-none"
+          @click="modelBannerDismissed = true"
+          title="关闭"
+        >✕</button>
+      </div>
 
       <FeedbackDialog
         v-model="feedbackOpen"

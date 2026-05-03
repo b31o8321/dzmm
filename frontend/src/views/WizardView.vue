@@ -36,6 +36,7 @@ import {
 } from '@/api/wizard'
 import { KNOWN_GENRES } from '@/api/screenplay'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
+import { useModelCheck } from '@/composables/useModelCheck'
 import MarkdownView from '@/components/MarkdownView.vue'
 import WizardStep from '@/components/wizard/WizardStep.vue'
 
@@ -88,6 +89,14 @@ const state = reactive<State>({
   screenplay: null,
   raw_outputs: {},
 })
+
+// ---- model availability checks ----
+
+const wizardCfgId = computed(() => state.wizard_model_config_id)
+const gmWizardCfgId = computed(() => state.gm_model_config_id)
+
+const { isOk: wizardModelOk, pullCommands: wizardPullCmds, checking: wizardChecking } = useModelCheck(wizardCfgId)
+const { isOk: gmModelOk, pullCommands: gmPullCmds, checking: gmChecking } = useModelCheck(gmWizardCfgId)
 
 // 0..6 (7 stages: setup + 5 LLM-driven steps + review)
 const step = ref(0)
@@ -624,6 +633,14 @@ onBeforeUnmount(() => {
             💡 推荐：12B+ 思考型模型（qwen2.5:14b / deepseek-r1:7b）/ 云端 gpt-4o / claude-haiku。
             创建只跑一次，慢一点没事，质量优先。
           </div>
+          <div v-if="state.wizard_model_config_id" class="mt-1.5 text-xs">
+            <span v-if="wizardChecking" class="text-slate-400">检查中…</span>
+            <span v-else-if="wizardModelOk === true" class="text-green-600">✓ 模型在线</span>
+            <template v-else-if="wizardModelOk === false">
+              <span class="text-red-600">✗ 模型不可用</span>
+              <div v-for="cmd in wizardPullCmds" :key="cmd" class="font-mono bg-red-50 text-red-800 px-1.5 py-0.5 rounded mt-0.5">{{ cmd }}</div>
+            </template>
+          </div>
         </div>
 
         <div>
@@ -643,6 +660,14 @@ onBeforeUnmount(() => {
           <div class="text-xs text-slate-500 mt-1">
             💡 推荐：7-8B 快速型（qwen2.5:7b / llama3.1:8b）够用；满血体验用云端 gpt-4o-mini / claude-haiku。
             跑团每回合都要调，速度优先。
+          </div>
+          <div v-if="state.gm_model_config_id" class="mt-1.5 text-xs">
+            <span v-if="gmChecking" class="text-slate-400">检查中…</span>
+            <span v-else-if="gmModelOk === true" class="text-green-600">✓ 模型在线（含 nomic-embed-text）</span>
+            <template v-else-if="gmModelOk === false">
+              <span class="text-red-600">✗ 缺少以下模型：</span>
+              <div v-for="cmd in gmPullCmds" :key="cmd" class="font-mono bg-red-50 text-red-800 px-1.5 py-0.5 rounded mt-0.5">{{ cmd }}</div>
+            </template>
           </div>
         </div>
 
