@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { sessionsApi, type Npc } from '@/api/sessions'
 import { useAppStore } from '@/stores/app'
 import { archetypeEdgeMap, archetypeKokoroMap } from '@/utils/ttsArchetype'
+import { useTTS } from '@/composables/useTTS'
 
 const edgeVoiceOptions = [
   { voice: 'zh-CN-XiaoxiaoNeural',   label: '晓晓（温柔/旁白）' },
@@ -43,7 +44,17 @@ const voiceSaving = ref(false)
 
 watch(
   () => props.npc,
-  (n) => { local.value = n ? { ...n, affinity: { ...n.affinity }, notes: [...(n.notes ?? [])] } : null },
+  (n) => {
+    local.value = n ? { ...n, affinity: { ...n.affinity }, notes: [...(n.notes ?? [])] } : null
+    // Pre-populate tts_voice from archetype for preview (not auto-saved)
+    if (local.value && !local.value.tts_voice && local.value.archetype) {
+      if (appStore.ttsMode === 'edge' && archetypeEdgeMap[local.value.archetype]) {
+        local.value.tts_voice = archetypeEdgeMap[local.value.archetype]
+      } else if (appStore.ttsMode === 'kokoro' && archetypeKokoroMap[local.value.archetype]) {
+        local.value.tts_voice = archetypeKokoroMap[local.value.archetype]
+      }
+    }
+  },
   { immediate: true },
 )
 
@@ -109,6 +120,17 @@ const autoKokoroVoiceLabel = computed(() => {
   const voice = archetypeKokoroMap[arch] ?? 'zf_xiaobei'
   return kokoroVoiceOptions.find((v) => v.value === voice)?.label ?? voice
 })
+
+const { previewVoice, speaking: ttsSpeaking } = useTTS()
+
+const effectiveEdgeVoice = computed(() =>
+  local.value?.tts_voice ||
+  (local.value?.archetype ? archetypeEdgeMap[local.value.archetype] ?? 'zh-CN-XiaoxiaoNeural' : 'zh-CN-XiaoxiaoNeural')
+)
+const effectiveKokoroVoice = computed(() =>
+  local.value?.tts_voice ||
+  (local.value?.archetype ? archetypeKokoroMap[local.value.archetype] ?? 'zf_xiaobei' : 'zf_xiaobei')
+)
 
 const affinityEntries = computed(() => {
   if (!local.value) return []
@@ -303,18 +325,23 @@ function npcAvatarColor(name: string): string {
 
         <!-- edge mode: dropdown -->
         <template v-if="appStore.ttsMode === 'edge'">
-          <el-select
-            :model-value="local.tts_voice ?? ''"
-            :disabled="voiceSaving"
-            placeholder="自动（按性格原型）"
-            clearable
-            filterable
-            @change="(v: string) => saveVoice(v)"
-            @clear="saveVoice('')"
-          >
-            <el-option label="自动（按性格原型）" value="" />
-            <el-option v-for="v in edgeVoiceOptions" :key="v.voice" :label="v.label" :value="v.voice" />
-          </el-select>
+          <div class="flex items-center gap-2">
+            <el-select
+              style="flex:1"
+              :model-value="local.tts_voice ?? ''"
+              :disabled="voiceSaving"
+              placeholder="自动（按性格原型）"
+              clearable
+              filterable
+              @change="(v: string) => saveVoice(v)"
+              @clear="saveVoice('')"
+            >
+              <el-option label="自动（按性格原型）" value="" />
+              <el-option v-for="v in edgeVoiceOptions" :key="v.voice" :label="v.label" :value="v.voice" />
+            </el-select>
+            <el-button size="small" circle :loading="ttsSpeaking"
+              title="试听" @click="previewVoice(local.name + '，你好', effectiveEdgeVoice)">🔊</el-button>
+          </div>
           <div class="text-xs text-slate-400 mt-1">
             留空则根据「{{ local.archetype || '性格原型' }}」自动分配：{{ autoVoiceLabel }}
           </div>
@@ -322,18 +349,23 @@ function npcAvatarColor(name: string): string {
 
         <!-- kokoro mode: dropdown -->
         <template v-else-if="appStore.ttsMode === 'kokoro'">
-          <el-select
-            :model-value="local.tts_voice ?? ''"
-            :disabled="voiceSaving"
-            placeholder="自动（按性格原型）"
-            clearable
-            filterable
-            @change="(v: string) => saveVoice(v)"
-            @clear="saveVoice('')"
-          >
-            <el-option label="自动（按性格原型）" value="" />
-            <el-option v-for="v in kokoroVoiceOptions" :key="v.value" :label="v.label" :value="v.value" />
-          </el-select>
+          <div class="flex items-center gap-2">
+            <el-select
+              style="flex:1"
+              :model-value="local.tts_voice ?? ''"
+              :disabled="voiceSaving"
+              placeholder="自动（按性格原型）"
+              clearable
+              filterable
+              @change="(v: string) => saveVoice(v)"
+              @clear="saveVoice('')"
+            >
+              <el-option label="自动（按性格原型）" value="" />
+              <el-option v-for="v in kokoroVoiceOptions" :key="v.value" :label="v.label" :value="v.value" />
+            </el-select>
+            <el-button size="small" circle :loading="ttsSpeaking"
+              title="试听" @click="previewVoice(local.name + '，你好', effectiveKokoroVoice)">🔊</el-button>
+          </div>
           <div class="text-xs text-slate-400 mt-1">
             留空则根据「{{ local.archetype || '性格原型' }}」自动分配：{{ autoKokoroVoiceLabel }}
           </div>
@@ -341,14 +373,19 @@ function npcAvatarColor(name: string): string {
 
         <!-- webspeech / local: free text -->
         <template v-else>
-          <el-input
-            :model-value="local.tts_voice ?? ''"
-            :disabled="voiceSaving"
-            placeholder="留空则使用旁白默认音色"
-            clearable
-            @change="(v: string) => saveVoice(v)"
-            @clear="saveVoice('')"
-          />
+          <div class="flex items-center gap-2">
+            <el-input
+              style="flex:1"
+              :model-value="local.tts_voice ?? ''"
+              :disabled="voiceSaving"
+              placeholder="留空则使用旁白默认音色"
+              clearable
+              @change="(v: string) => saveVoice(v)"
+              @clear="saveVoice('')"
+            />
+            <el-button size="small" circle :loading="ttsSpeaking"
+              title="试听" @click="previewVoice(local.name + '，你好', local.tts_voice || '')">🔊</el-button>
+          </div>
           <div class="text-xs text-slate-400 mt-1">
             本地模式填 voice 参数名（如 af_sky）；Web Speech 填音色全名。
           </div>
