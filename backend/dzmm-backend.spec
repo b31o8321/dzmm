@@ -11,7 +11,7 @@
 # Tauri bundles this whole directory via bundle.resources.
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 
@@ -62,22 +62,37 @@ hidden += ['edge_tts', 'edge_tts.communicate', 'edge_tts.exceptions']
 
 # kokoro-onnx: ONNX-based TTS, no torch required.
 # numpy + onnxruntime are hard imports of kokoro_onnx — must not be excluded.
+# phonemizer + joblib are transitive deps pulled in by kokoro_onnx.tokenizer.
 hidden += collect_submodules('kokoro_onnx')
+hidden += collect_submodules('phonemizer')
+hidden += collect_submodules('joblib')
 hidden += collect_submodules('onnxruntime')
 hidden += ['numpy', 'soundfile', 'soundfile._soundfile']
+
+# Data files: non-Python assets that packages read at runtime.
+# kokoro_onnx reads config.json (get_vocab()) on import.
+# phonemizer needs share/ g2p/festival files; language_tags needs JSON registry.
+# chromadb needs migration SQL files.
+# joblib test data excluded (65 files, not needed at runtime).
+datas = collect_data_files('kokoro_onnx')
+datas += collect_data_files('phonemizer')
+datas += collect_data_files('language_tags')
+datas += collect_data_files('chromadb')
+datas += [(src, dst) for src, dst in collect_data_files('joblib') if '/test/' not in src]
 
 a = Analysis(
     [str(src_root / 'dzmm' / 'main_entry.py')],
     pathex=[str(src_root)],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=hidden,
     hookspath=[],
     runtime_hooks=[],
     excludes=[
-        'tkinter', 'test', 'unittest', 'pydoc', 'doctest',
+        'tkinter', 'test', 'unittest', 'doctest',
         'httptools', 'uvloop', 'watchfiles',
         'pandas',
+        # pydoc removed: joblib (dep of phonemizer/kokoro_onnx) imports it
         # pydantic.v1 removed: langchain_core._api.deprecation requires it
     ],
     win_no_prefer_redirects=False,

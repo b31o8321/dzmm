@@ -116,7 +116,8 @@ async def test_kokoro_synthesize_returns_wav_bytes(tmp_path):
     mock_kokoro = MagicMock()
     mock_kokoro.create.return_value = (fake_samples, fake_sample_rate)
 
-    with patch("dzmm.tts.kokoro_engine.Kokoro", return_value=mock_kokoro):
+    # Kokoro is now lazily imported inside _get_instance; patch the source module.
+    with patch("kokoro_onnx.Kokoro", return_value=mock_kokoro):
         result = await kokoro_synthesize("你好", "zf_xiaobei", models_dir=tmp_path)
 
     assert len(result) > 44  # at least WAV header (44 bytes)

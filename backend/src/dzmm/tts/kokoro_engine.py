@@ -4,9 +4,9 @@ import asyncio
 import io
 from pathlib import Path
 
-import soundfile as sf
-from kokoro_onnx import Kokoro
-
+# Lazy import: kokoro_onnx pulls in phonemizer → espeak → language_tags at
+# module load time (~0.3s + data files). Defer until first synthesis call so
+# app startup is not penalised when user hasn't downloaded the model.
 from dzmm.config import APP_DIR
 
 MODEL_FILENAME = "kokoro-v1.0.onnx"
@@ -14,8 +14,8 @@ VOICES_FILENAME = "voices.bin"
 _MODEL_REPO = "hexgrad/Kokoro-82M"
 _DEFAULT_MODELS_DIR = APP_DIR / "models" / "tts"
 
-# Module-level cache: one Kokoro instance per models_dir path
-_instances: dict[Path, Kokoro] = {}
+# Module-level cache: one Kokoro instance per models_dir path (lazy-loaded)
+_instances: dict[Path, object] = {}
 
 
 def is_model_ready(models_dir: Path | None = None) -> bool:
@@ -41,8 +41,9 @@ async def ensure_model(models_dir: Path | None = None) -> None:
     )
 
 
-def _get_instance(models_dir: Path) -> Kokoro:
+def _get_instance(models_dir: Path) -> object:
     if models_dir not in _instances:
+        from kokoro_onnx import Kokoro  # lazy: defers phonemizer/espeak import
         _instances[models_dir] = Kokoro(
             str(models_dir / MODEL_FILENAME),
             str(models_dir / VOICES_FILENAME),
@@ -57,6 +58,7 @@ async def synthesize(
     models_dir: Path | None = None,
 ) -> bytes:
     """Return WAV bytes. Raises RuntimeError if model not downloaded."""
+    import soundfile as sf  # lazy: avoid soundfile import at startup
     d = models_dir or _DEFAULT_MODELS_DIR
     if not is_model_ready(d):
         raise RuntimeError("Kokoro model not downloaded — call ensure_model() first")
@@ -69,7 +71,7 @@ async def synthesize(
     loop = asyncio.get_running_loop()
     samples, sample_rate = await loop.run_in_executor(
         None,
-        lambda: kokoro.create(text, voice=voice, speed=speed, lang=lang),
+        lambda: kokoro.create(text, voice=voice, speed=speed, lang=lang),  # type: ignore[union-attr]
     )
 
     buf = io.BytesIO()
