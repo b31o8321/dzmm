@@ -4,7 +4,6 @@ import asyncio
 import io
 from pathlib import Path
 
-import numpy as np
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
@@ -32,11 +31,11 @@ async def ensure_model(models_dir: Path | None = None) -> None:
     d.mkdir(parents=True, exist_ok=True)
     # Use huggingface_hub (already a transitive dep via chromadb)
     from huggingface_hub import hf_hub_download
-    await asyncio.get_event_loop().run_in_executor(
+    await asyncio.get_running_loop().run_in_executor(
         None,
         lambda: hf_hub_download(_MODEL_REPO, MODEL_FILENAME, local_dir=str(d)),
     )
-    await asyncio.get_event_loop().run_in_executor(
+    await asyncio.get_running_loop().run_in_executor(
         None,
         lambda: hf_hub_download(_MODEL_REPO, VOICES_FILENAME, local_dir=str(d)),
     )
@@ -67,7 +66,7 @@ async def synthesize(
     kokoro = _get_instance(d)
     lang = "z" if voice.startswith("z") else "a"
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     samples, sample_rate = await loop.run_in_executor(
         None,
         lambda: kokoro.create(text, voice=voice, speed=speed, lang=lang),

@@ -1,4 +1,6 @@
 import pytest
+from unittest.mock import MagicMock, patch
+
 from dzmm.tts.voice_map import (
     edge_voice_for_archetype,
     edge_prosody_for_archetype,
@@ -45,10 +47,6 @@ def test_narrator_voices_defined():
     assert NARRATOR_KOKORO_VOICE.startswith("z")
 
 
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
-
-
 @pytest.mark.asyncio
 async def test_edge_synthesize_returns_bytes():
     """edge engine should return non-empty bytes on success."""
@@ -85,9 +83,6 @@ async def test_edge_synthesize_empty_text_returns_empty():
         result = await edge_synthesize("", "zh-CN-XiaoxiaoNeural")
 
     assert result == b""
-
-
-from pathlib import Path
 
 
 def test_kokoro_model_ready_false_when_no_file(tmp_path):
