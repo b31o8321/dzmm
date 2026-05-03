@@ -7,8 +7,9 @@
 #        rules_node 分析行动类型和技能检定需求
 #        → 条件边：有检定 → dice_enrich_node；无检定 → END
 #     2. 主叙事生成（Narrative）— 现有流式生成，不变
-#     3. NPC 后处理（Post-pass）— 独立异步函数
-#        检查在场 NPC 是否有遗漏反应
+#     3. NPC 后处理（Post-pass）— 每个在场 NPC 独立一次 LLM 调用，asyncio.gather 并行
+#        每次调用包含该 NPC 的完整人设（archetype/description/emotions），
+#        保证"冷酷商人"和"热情向导"给出符合各自性格的不同反应。
 #
 # 【LangGraph 核心概念】
 #   StateGraph:  有向图，节点是状态处理函数，边是流程控制
@@ -19,6 +20,7 @@
 #   ainvoke():   异步执行整个图，返回最终状态
 # ============================================================
 
+import asyncio
 import logging
 from typing import TypedDict
 
@@ -27,13 +29,13 @@ from langgraph.graph import END, StateGraph
 from dzmm.models.client import GenerationParams, ModelClient
 from dzmm.parsing.events import ParseEvent, TagComplete
 from dzmm.parsing.stream_parser import StreamingTagParser
-from dzmm.prompts.npc_react_template import build_npc_react_messages
+from dzmm.prompts.npc_react_template import build_npc_single_react_messages
 from dzmm.prompts.rules_template import build_rules_messages
 
 log = logging.getLogger(__name__)
 
 _RULES_PARAMS = GenerationParams(temperature=0.3, max_tokens=120)
-_NPC_PARAMS = GenerationParams(temperature=0.5, max_tokens=300)
+_NPC_PARAMS = GenerationParams(temperature=0.7, max_tokens=150)
 
 
 # ── LangGraph 状态定义 ────────────────────────────────────
@@ -107,28 +109,53 @@ async def run_pre_pass(
     return key_facts
 
 
-async def run_npc_post_pass(
+async def run_single_npc_pass(
     narrative: str,
-    present_npcs: list[str],
+    npc,  # NPC ORM object: .name .archetype .description .state .purpose .emotion_json
     user_action: str,
     client: ModelClient,
-) -> list[ParseEvent]:
-    """NPC 后处理：检查在场 NPC 是否有遗漏反应，返回额外 TagComplete 事件。"""
-    if not present_npcs:
-        return []
+) -> ParseEvent | None:
+    """单个 NPC 的独立 LLM 调用，返回一个 TagComplete 事件或 None。
+
+    【学习点：per-NPC 并行调用】
+      相比把所有 NPC 塞进一次调用，每个 NPC 独立调用有两个优势：
+      1. 每次 LLM 调用的 prompt 里只有一个角色的人设，注意力集中，性格更准确
+      2. 多个调用用 asyncio.gather 并行，总延迟 ≈ 最慢那个 NPC 的单次调用
+    """
     try:
-        msgs = build_npc_react_messages(narrative, present_npcs, user_action)
+        msgs = build_npc_single_react_messages(narrative, npc, user_action)
         output, _ = await client.complete(msgs, _NPC_PARAMS)
         if not output.strip() or 'name="none"' in output:
-            return []
+            return None
         parser = StreamingTagParser()
         events: list[ParseEvent] = []
         for ev in parser.feed(output):
             if isinstance(ev, TagComplete) and ev.name == "npc_update":
                 events.append(ev)
-        events.extend(ev for ev in parser.finish()
-                      if isinstance(ev, TagComplete) and ev.name == "npc_update")
-        return events
+        events.extend(
+            ev for ev in parser.finish()
+            if isinstance(ev, TagComplete) and ev.name == "npc_update"
+        )
+        return events[0] if events else None
+    except Exception as exc:
+        log.warning("gm_graph npc_single_pass failed (%s): %s", getattr(npc, "name", "?"), exc)
+        return None
+
+
+async def run_npc_post_pass(
+    narrative: str,
+    present_npcs: list,  # list of NPC ORM objects
+    user_action: str,
+    client: ModelClient,
+) -> list[ParseEvent]:
+    """NPC 后处理：每个在场 NPC 独立一次 LLM 调用，asyncio.gather 并行执行。"""
+    if not present_npcs:
+        return []
+    try:
+        results = await asyncio.gather(
+            *[run_single_npc_pass(narrative, npc, user_action, client) for npc in present_npcs]
+        )
+        return [ev for ev in results if ev is not None]
     except Exception as exc:
         log.warning("gm_graph npc_post_pass failed: %s", exc)
         return []

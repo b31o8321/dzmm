@@ -68,9 +68,10 @@ async def test_run_pre_pass_returns_original_on_empty_enrichment():
 @pytest.mark.asyncio
 async def test_run_npc_post_pass_parses_npc_update_tags():
     client = _FakeClient('<npc_update name="王五">注意到你，微微点头</npc_update>')
+    npc = _FakeNpc(name="王五", archetype="冷静商人", state="平静")
     events = await run_npc_post_pass(
         narrative="你走进了酒馆",
-        present_npcs=["王五（心情：平静）"],
+        present_npcs=[npc],
         user_action="我走进酒馆",
         client=client,
     )
@@ -83,8 +84,9 @@ async def test_run_npc_post_pass_parses_npc_update_tags():
 @pytest.mark.asyncio
 async def test_run_npc_post_pass_returns_empty_for_none_response():
     client = _FakeClient('<npc_update name="none">无需补充</npc_update>')
+    npc = _FakeNpc(name="李四")
     events = await run_npc_post_pass(
-        narrative="...", present_npcs=["李四"], user_action="...", client=client
+        narrative="...", present_npcs=[npc], user_action="...", client=client
     )
     assert events == []
 
@@ -156,3 +158,62 @@ def test_build_npc_single_react_messages_different_archetype():
     )
     assert "热情商人" in msgs[0].content
     assert "酒馆老板" in msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_run_npc_post_pass_per_npc_with_objects():
+    """run_npc_post_pass should call LLM once per NPC object and return all non-none events."""
+    call_count = 0
+
+    class _CountingClient(ModelClient):
+        name = "counting"
+
+        async def stream(self, messages, params):
+            yield StreamChunk(delta="", finish_reason="stop")
+
+        async def complete(self, messages, params):
+            nonlocal call_count
+            call_count += 1
+            npc_name = "王五" if call_count == 1 else "李四"
+            return f'<npc_update name="{npc_name}">有反应</npc_update>', TokenUsage()
+
+    npc1 = _FakeNpc(name="王五", archetype="冷酷商人")
+    npc2 = _FakeNpc(name="李四", archetype="热情向导")
+    events = await run_npc_post_pass(
+        narrative="你进入了市场。",
+        present_npcs=[npc1, npc2],
+        user_action="我四处张望",
+        client=_CountingClient(),
+    )
+    assert call_count == 2  # one LLM call per NPC
+    assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_npc_post_pass_skips_none_responses():
+    """NPCs that respond with 'none' should not contribute events."""
+    call_num = 0
+
+    class _SequentialClient(ModelClient):
+        name = "seq"
+
+        async def stream(self, messages, params):
+            yield StreamChunk(delta="", finish_reason="stop")
+
+        async def complete(self, messages, params):
+            nonlocal call_num
+            call_num += 1
+            if call_num == 1:
+                return '<npc_update name="none">无需补充</npc_update>', TokenUsage()
+            return '<npc_update name="村民">惊讶地看着你</npc_update>', TokenUsage()
+
+    npc1 = _FakeNpc(name="守卫")
+    npc2 = _FakeNpc(name="村民")
+    events = await run_npc_post_pass(
+        narrative="你走进村子。",
+        present_npcs=[npc1, npc2],
+        user_action="我进村",
+        client=_SequentialClient(),
+    )
+    assert len(events) == 1
+    assert events[0].attrs.get("name") == "村民"
