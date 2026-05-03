@@ -57,6 +57,48 @@ async def test_model_config(cfg_id: int, s: AsyncSession = Depends(get_session_d
     return {"ok": ok, "info": info}
 
 
+_EMBED_MODEL = "nomic-embed-text"
+
+
+@router.get("/{cfg_id}/check")
+async def check_model_config(cfg_id: int, s: AsyncSession = Depends(get_session_dep)):
+    """Check if the configured model (and nomic-embed-text for RAG) are available in Ollama.
+
+    Returns:
+      narrative_ok: whether the narrative model is in Ollama's model list
+      embed_ok: whether nomic-embed-text is available (None for non-Ollama configs)
+      missing: list of model names that need to be pulled
+    """
+    cfg = await s.get(ModelConfig, cfg_id)
+    if cfg is None:
+        raise HTTPException(404, "config not found")
+    client = build_client(cfg)
+
+    if cfg.type != "ollama":
+        ok, _ = await client.health_check()
+        return {"narrative_ok": ok, "embed_ok": None, "missing": []}
+
+    try:
+        available = await client.list_models()
+    except Exception:
+        return {"narrative_ok": False, "embed_ok": False, "missing": [cfg.model_name, _EMBED_MODEL]}
+
+    def _model_available(target: str, available_list: list[str]) -> bool:
+        base = target.split(":")[0].lower()
+        return any(m.lower().startswith(base) for m in available_list)
+
+    narrative_ok = _model_available(cfg.model_name, available)
+    embed_ok = _model_available(_EMBED_MODEL, available)
+
+    missing = []
+    if not narrative_ok:
+        missing.append(cfg.model_name)
+    if not embed_ok:
+        missing.append(_EMBED_MODEL)
+
+    return {"narrative_ok": narrative_ok, "embed_ok": embed_ok, "missing": missing}
+
+
 @router.put("/{cfg_id}", response_model=ModelConfigOut)
 async def update_model_config(
     cfg_id: int, body: ModelConfigIn,
