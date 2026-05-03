@@ -57,6 +57,7 @@ class Session(Base):
     pc_mood_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.9
     settings_json: Mapped[str] = mapped_column(Text, default="{}")  # v0.2.5
     doom_score: Mapped[int] = mapped_column(Integer, default=0)  # v0.2.5
+    scene_turn_count: Mapped[int] = mapped_column(Integer, default=0)  # v0.3.0: turns elapsed in current scene/location
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
     last_played: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
