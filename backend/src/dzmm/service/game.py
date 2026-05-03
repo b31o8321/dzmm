@@ -64,6 +64,25 @@ RECENT_WINDOW_VERY_LONG = 6      # > 60 turns
 # name keep working. Treat as deprecated.
 RECENT_WINDOW = RECENT_WINDOW_DEFAULT
 
+# Scene pacing constants — turns before scene-exit pressure kicks in.
+# Soft pressure (reminder) starts at SCENE_SOFT_PRESSURE_TURNS.
+# Hard pressure (forced exit) starts at SCENE_HARD_EXIT_TURNS.
+SCENE_SOFT_PRESSURE_TURNS = 4
+SCENE_HARD_EXIT_TURNS = 7
+
+
+def _update_scene_turn_count(sess, completed_tags: list) -> None:
+    """Update sess.scene_turn_count after apply_tags.
+    Reset to 1 if a location_enter tag was emitted (new scene),
+    otherwise increment by 1."""
+    location_entered = any(
+        getattr(t, "name", None) == "location_enter" for t in completed_tags
+    )
+    if location_entered:
+        sess.scene_turn_count = 1
+    else:
+        sess.scene_turn_count = (sess.scene_turn_count or 0) + 1
+
 
 def _recent_window_for(turn_count: int) -> int:
     """Adaptive verbatim window — see module-level constants for the bands."""
@@ -387,6 +406,8 @@ async def run_turn(
         next_turn,
         completed_tags,
     )
+
+    _update_scene_turn_count(sess, completed_tags)
 
     sess.turn_count = next_turn
     sess.last_played = datetime.now(UTC).replace(tzinfo=None)
