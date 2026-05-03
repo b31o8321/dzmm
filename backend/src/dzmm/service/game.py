@@ -717,6 +717,32 @@ async def _build_key_facts(
         )
         parts.append("\n".join(loc_lines))
 
+    # v0.3.0 — Scene turn pressure. When the session has been at the same
+    # location for many turns, inject an escalating directive to force scene
+    # closure. Hard cap at SCENE_HARD_EXIT_TURNS prevents indefinite loops.
+    if current_loc is not None and sess is not None:
+        stc = sess.scene_turn_count or 0
+        if stc >= SCENE_HARD_EXIT_TURNS:
+            parts.append(
+                f"\n## 🚨 场景强推（已在「{current_loc.name}」滞留 {stc} 回合）\n"
+                "**本回合必须结束当前场景**，选择以下任一方式立即执行：\n"
+                "(a) 用一个环境事件强制打断（有人闯入 / 危险爆发 / 时限耗尽），PC **必须** 离开；\n"
+                "(b) 揭示足以让 PC 立刻行动的决定性信息，随后 emit "
+                "`<location_enter name=\"新地点\" description=\"一句话\"/>` 推进；\n"
+                "(c) NPC 明确宣告「此处已谈无可谈」，给出下一目的地。\n"
+                "**禁止**：在此场景继续新增细节、旁支问题、模糊引导。\n"
+                "强推要求立刻执行，不接受「下一回合」的推迟。"
+            )
+        elif stc >= SCENE_SOFT_PRESSURE_TURNS:
+            parts.append(
+                f"\n## ⏰ 场景时间提醒（已在「{current_loc.name}」{stc} 回合）\n"
+                "本回合必须提供明确的场景推进路径之一：\n"
+                "(a) 揭示让 PC 能够立刻行动的关键信息（名字/地点/方法）；\n"
+                "(b) NPC 主动改变立场或给出具体让步；\n"
+                "(c) 环境事件中断当前对话/探索节奏。\n"
+                "禁止「碎片化喂养」——把本可一回合说清的内容再拆分。"
+            )
+
     # PC mood — surfaced so GM tunes language to current emotional state.
     if sess is not None:
         try:
