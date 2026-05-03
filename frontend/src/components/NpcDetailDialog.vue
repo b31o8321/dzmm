@@ -1,5 +1,41 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+
+const edgeVoiceOptions = [
+  { voice: 'zh-CN-XiaoxiaoNeural',   label: '晓晓（温柔/旁白）' },
+  { voice: 'zh-CN-XiaohanNeural',    label: '晓涵（活泼）' },
+  { voice: 'zh-CN-XiaomoNeural',     label: '晓墨（冷静）' },
+  { voice: 'zh-CN-XiaoqiuNeural',    label: '晓秋（沉稳/智者）' },
+  { voice: 'zh-CN-XiaoshuangNeural', label: '晓双（儿童）' },
+  { voice: 'zh-CN-XiaozhenNeural',   label: '晓甄（平民）' },
+  { voice: 'zh-CN-YunfengNeural',    label: '云枫（守卫/武将）' },
+  { voice: 'zh-CN-YunxiNeural',      label: '云希（盟友）' },
+  { voice: 'zh-CN-YunyangNeural',    label: '云扬（商人/权威）' },
+  { voice: 'zh-CN-YunyeNeural',      label: '云野（导师/反派）' },
+]
+
+const KOKORO_VOICE_OPTIONS = [
+  { value: 'zf_xiaobei', label: '小北（中文女，温柔）' },
+  { value: 'zf_xiaoni',  label: '小妮（中文女，活泼）' },
+  { value: 'zm_yunxi',   label: '云希（中文男，稳重）' },
+  { value: 'zm_yundong', label: '云动（中文男，低沉）' },
+]
+
+const ARCHETYPE_EDGE: Record<string, string> = {
+  '导师': 'zh-CN-YunyeNeural', '盟友': 'zh-CN-YunxiNeural',
+  '反派': 'zh-CN-YunyeNeural', '神秘人': 'zh-CN-XiaoqiuNeural',
+  '商人': 'zh-CN-YunyangNeural', '守卫': 'zh-CN-YunfengNeural',
+  '平民': 'zh-CN-XiaozhenNeural', '智者': 'zh-CN-XiaoqiuNeural',
+  '冷酷': 'zh-CN-XiaomoNeural', '温柔': 'zh-CN-XiaoxiaoNeural',
+  '活泼': 'zh-CN-XiaohanNeural', '邪恶': 'zh-CN-YunyeNeural',
+  '儿童': 'zh-CN-XiaoshuangNeural',
+}
+
+const ARCHETYPE_KOKORO: Record<string, string> = {
+  '导师': 'zm_yunxi', '盟友': 'zm_yunxi', '反派': 'zm_yundong',
+  '神秘人': 'zm_yundong', '温柔': 'zf_xiaobei', '活泼': 'zf_xiaoni',
+  '冷酷': 'zf_xiaobei', '邪恶': 'zm_yundong', '儿童': 'zf_xiaoni',
+}
 import { ElMessage } from 'element-plus'
 import { sessionsApi, type Npc } from '@/api/sessions'
 import { useAppStore } from '@/stores/app'
@@ -76,6 +112,18 @@ function barColor(v: number): string {
   if (v > -5) return 'bg-rose-300'
   return 'bg-rose-500'
 }
+
+const autoVoiceLabel = computed(() => {
+  const arch = local.value?.archetype ?? ''
+  const voice = ARCHETYPE_EDGE[arch] ?? 'zh-CN-XiaoxiaoNeural'
+  return edgeVoiceOptions.find((v) => v.voice === voice)?.label ?? voice
+})
+
+const autoKokoroVoiceLabel = computed(() => {
+  const arch = local.value?.archetype ?? ''
+  const voice = ARCHETYPE_KOKORO[arch] ?? 'zf_xiaobei'
+  return KOKORO_VOICE_OPTIONS.find((v) => v.value === voice)?.label ?? voice
+})
 
 const affinityEntries = computed(() => {
   if (!local.value) return []
@@ -267,17 +315,58 @@ function npcAvatarColor(name: string): string {
 
       <section v-if="appStore.ttsEnabled">
         <h4 class="text-sm font-bold text-slate-600 mb-1">TTS 音色</h4>
-        <el-input
-          :model-value="local.tts_voice ?? ''"
-          :disabled="voiceSaving"
-          placeholder="留空则使用旁白默认音色"
-          clearable
-          @change="(v: string) => saveVoice(v)"
-          @clear="saveVoice('')"
-        />
-        <div class="text-xs text-slate-400 mt-1">
-          本地模式填 voice 参数名（如 af_sky）；Web Speech 填音色全名。
-        </div>
+
+        <!-- edge mode: dropdown -->
+        <template v-if="appStore.ttsMode === 'edge'">
+          <el-select
+            :model-value="local.tts_voice ?? ''"
+            :disabled="voiceSaving"
+            placeholder="自动（按性格原型）"
+            clearable
+            filterable
+            @change="(v: string) => saveVoice(v)"
+            @clear="saveVoice('')"
+          >
+            <el-option label="自动（按性格原型）" value="" />
+            <el-option v-for="v in edgeVoiceOptions" :key="v.voice" :label="v.label" :value="v.voice" />
+          </el-select>
+          <div class="text-xs text-slate-400 mt-1">
+            留空则根据「{{ local.archetype || '性格原型' }}」自动分配：{{ autoVoiceLabel }}
+          </div>
+        </template>
+
+        <!-- kokoro mode: dropdown -->
+        <template v-else-if="appStore.ttsMode === 'kokoro'">
+          <el-select
+            :model-value="local.tts_voice ?? ''"
+            :disabled="voiceSaving"
+            placeholder="自动（按性格原型）"
+            clearable
+            @change="(v: string) => saveVoice(v)"
+            @clear="saveVoice('')"
+          >
+            <el-option label="自动（按性格原型）" value="" />
+            <el-option v-for="v in KOKORO_VOICE_OPTIONS" :key="v.value" :label="v.label" :value="v.value" />
+          </el-select>
+          <div class="text-xs text-slate-400 mt-1">
+            留空则根据「{{ local.archetype || '性格原型' }}」自动分配：{{ autoKokoroVoiceLabel }}
+          </div>
+        </template>
+
+        <!-- webspeech / local: free text -->
+        <template v-else>
+          <el-input
+            :model-value="local.tts_voice ?? ''"
+            :disabled="voiceSaving"
+            placeholder="留空则使用旁白默认音色"
+            clearable
+            @change="(v: string) => saveVoice(v)"
+            @clear="saveVoice('')"
+          />
+          <div class="text-xs text-slate-400 mt-1">
+            本地模式填 voice 参数名（如 af_sky）；Web Speech 填音色全名。
+          </div>
+        </template>
       </section>
     </div>
 
