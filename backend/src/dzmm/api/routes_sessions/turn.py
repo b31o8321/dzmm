@@ -172,7 +172,8 @@ async def take_turn(
 
             # run_turn 是异步生成器（async generator），用 async for 消费
             # 它边调用 LLM 边产出 ParseEvent 事件
-            async for ev in run_turn(s, session_id, body.action, client):
+            async for ev in run_turn(s, session_id, body.action, client,
+                                     ollama_base_url=cfg.base_url if cfg else None):
                 if isinstance(ev, NarrativeDelta):
                     # 叙事片段：加入缓冲，满足条件时推送
                     narrative_buf.append(ev.text)

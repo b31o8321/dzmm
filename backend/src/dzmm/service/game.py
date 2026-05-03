@@ -52,6 +52,7 @@ from dzmm.prompts.director_template import build_director_messages
 from dzmm.prompts.gm_template import build_gm_messages
 from dzmm.prompts.outliner_template import build_outliner_messages
 from dzmm.prompts.polish_template import build_polish_messages
+from dzmm.service.world_rag import get_world_md
 from dzmm.service.activity_log import log_event
 from dzmm.service.npc_initiative import find_initiative_npc
 from dzmm.service.state_apply import apply_tags
@@ -263,6 +264,7 @@ async def run_turn(
     user_action: str,
     client: ModelClient,
     params: GenerationParams | None = None,
+    ollama_base_url: str | None = None,
 ) -> AsyncIterator[ParseEvent]:
     """游戏引擎核心：处理一回合，流式产出解析事件。
 
@@ -363,7 +365,12 @@ async def run_turn(
     character_md = _format_character_card(char)
 
     msgs = build_gm_messages(
-        world_md=world.content_md,
+        world_md=get_world_md(
+            world.id,
+            world.content_md or "",
+            user_action,
+            ollama_base_url,
+        ),
         character_md=character_md,
         live_state=live_state,
         rules_mode=rules_mode,
