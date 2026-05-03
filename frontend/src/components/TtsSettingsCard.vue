@@ -9,6 +9,7 @@ const appStore = useAppStore()
 const modelsStore = useModelConfigsStore()
 const { previewVoice, speaking, stop } = useTTS()
 const previewText = ref('天地玄黄，宇宙洪荒。日月盈昃，辰宿列张。')
+const showGuide = ref(false)
 
 // webspeech
 const webSpeechVoices = ref<{ name: string; lang: string; uri: string }[]>([])
@@ -368,6 +369,162 @@ const otherVoices = computed(() =>
             </div>
           </div>
         </el-form-item>
+
+        <!-- 部署指南 -->
+        <el-divider />
+        <div>
+          <button
+            class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 cursor-pointer select-none"
+            @click="showGuide = !showGuide"
+          >
+            <span>{{ showGuide ? '▾' : '▸' }}</span>
+            <span>部署指南 / 帮助</span>
+          </button>
+
+          <div v-if="showGuide" class="mt-3 space-y-4 text-xs text-slate-600">
+
+            <!-- 模式对比 -->
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">各模式对比</div>
+              <table class="w-full border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50 text-slate-500">
+                    <th class="border border-slate-200 px-2 py-1 text-left font-medium">模式</th>
+                    <th class="border border-slate-200 px-2 py-1 text-left font-medium">是否离线</th>
+                    <th class="border border-slate-200 px-2 py-1 text-left font-medium">下载量</th>
+                    <th class="border border-slate-200 px-2 py-1 text-left font-medium">音质</th>
+                    <th class="border border-slate-200 px-2 py-1 text-left font-medium">备注</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="border border-slate-200 px-2 py-1">edge-tts</td>
+                    <td class="border border-slate-200 px-2 py-1">❌ 需联网</td>
+                    <td class="border border-slate-200 px-2 py-1">无</td>
+                    <td class="border border-slate-200 px-2 py-1">★★★★☆</td>
+                    <td class="border border-slate-200 px-2 py-1">微软 Neural，免费，无需配置</td>
+                  </tr>
+                  <tr class="bg-slate-50">
+                    <td class="border border-slate-200 px-2 py-1">Kokoro</td>
+                    <td class="border border-slate-200 px-2 py-1">✅ 离线</td>
+                    <td class="border border-slate-200 px-2 py-1">~82 MB</td>
+                    <td class="border border-slate-200 px-2 py-1">★★★☆☆</td>
+                    <td class="border border-slate-200 px-2 py-1">ONNX，点击即下载，本机 CPU 运行</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-200 px-2 py-1">CosyVoice（本机）</td>
+                    <td class="border border-slate-200 px-2 py-1">✅ 离线</td>
+                    <td class="border border-slate-200 px-2 py-1">~2.5 GB</td>
+                    <td class="border border-slate-200 px-2 py-1">★★★★★</td>
+                    <td class="border border-slate-200 px-2 py-1">需先安装 uv；CPU 推理较慢</td>
+                  </tr>
+                  <tr class="bg-slate-50">
+                    <td class="border border-slate-200 px-2 py-1">外部服务</td>
+                    <td class="border border-slate-200 px-2 py-1">取决于服务</td>
+                    <td class="border border-slate-200 px-2 py-1">—</td>
+                    <td class="border border-slate-200 px-2 py-1">取决于服务</td>
+                    <td class="border border-slate-200 px-2 py-1">局域网另一台机器 / 云服务</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-200 px-2 py-1">浏览器内置</td>
+                    <td class="border border-slate-200 px-2 py-1">✅ 离线</td>
+                    <td class="border border-slate-200 px-2 py-1">无</td>
+                    <td class="border border-slate-200 px-2 py-1">★★☆☆☆</td>
+                    <td class="border border-slate-200 px-2 py-1">依赖系统已安装语音，因平台差异较大</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- edge-tts -->
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">edge-tts（无需安装）</div>
+              <p>选择此模式后直接启用即可。调用微软 Azure 的 Neural TTS，不产生费用，但需要可以访问 <code>speech.platform.bing.com</code> 的网络环境。</p>
+            </div>
+
+            <!-- Kokoro -->
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">Kokoro ONNX（本机离线）</div>
+              <ol class="list-decimal list-inside space-y-1">
+                <li>切换到「本地 Kokoro」模式</li>
+                <li>模型状态显示「未下载」时，点击「立即下载」</li>
+                <li>等待 ~82 MB 下载完成（仅首次），之后每次打开应用自动就绪</li>
+              </ol>
+            </div>
+
+            <!-- CosyVoice 本机 -->
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">CosyVoice 本机安装</div>
+              <p class="mb-1">前置条件：安装 <strong>uv</strong>（跨平台 Python 包管理器）。</p>
+              <div class="bg-slate-900 text-green-300 rounded p-2 font-mono space-y-1 leading-5">
+                <div class="text-slate-400"># macOS / Linux</div>
+                <div>curl -LsSf https://astral.sh/uv/install.sh | sh</div>
+                <div class="text-slate-400 mt-1"># Windows（PowerShell 或 winget）</div>
+                <div>winget install astral-sh.uv</div>
+                <div class="text-slate-400"><!-- 或 --></div>
+                <div>irm https://astral.sh/uv/install.ps1 | iex</div>
+              </div>
+              <ol class="list-decimal list-inside space-y-1 mt-2">
+                <li>安装 uv 后，回到此页切换到「本地 CosyVoice」模式</li>
+                <li>点击「安装（~2.5GB）」，等待进度日志显示「安装完成」</li>
+                <li>点击「启动」，状态变为「运行中」后即可使用</li>
+                <li><strong>注意：</strong>应用重启后需要手动回到此页再次点击「启动」</li>
+              </ol>
+              <p class="mt-1 text-slate-400">CPU 推理速度约 2–5 倍实时。有 NVIDIA GPU 可在安装后手动将 torch 换成 CUDA 版本以大幅提速。</p>
+            </div>
+
+            <!-- 局域网 CosyVoice -->
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">局域网另一台机器运行 CosyVoice</div>
+              <p class="mb-1">在配置较好的机器（如带 GPU 的台式机）上部署，笔记本连接使用。</p>
+              <div class="bg-slate-900 text-green-300 rounded p-2 font-mono space-y-1 leading-5 text-[11px]">
+                <div class="text-slate-400"># 1. 安装 uv（见上方）</div>
+                <div class="text-slate-400 mt-1"># 2. 创建环境 + 安装依赖</div>
+                <div>uv venv cosy-env --python 3.10</div>
+                <div>uv pip install --python cosy-env/bin/python \</div>
+                <div>&nbsp;&nbsp;torch torchaudio \</div>
+                <div>&nbsp;&nbsp;--index-url https://download.pytorch.org/whl/cpu</div>
+                <div>uv pip install --python cosy-env/bin/python \</div>
+                <div>&nbsp;&nbsp;fastapi "uvicorn[standard]" modelscope \</div>
+                <div>&nbsp;&nbsp;"git+https://github.com/FunAudioLLM/CosyVoice.git"</div>
+                <div class="text-slate-400 mt-1"># 3. 下载模型（~1.8 GB）</div>
+                <div>cosy-env/bin/python -c \</div>
+                <div>&nbsp;&nbsp;"from modelscope import snapshot_download; \</div>
+                <div>&nbsp;&nbsp; snapshot_download('iic/CosyVoice-300M-Instruct', \</div>
+                <div>&nbsp;&nbsp; local_dir='./model')"</div>
+                <div class="text-slate-400 mt-1"># 4. 启动服务（监听局域网 IP，端口 5001）</div>
+                <div>cosy-env/bin/python cosyvoice_server_script.py \</div>
+                <div>&nbsp;&nbsp;--port 5001 --model-dir ./model --host 0.0.0.0</div>
+              </div>
+              <p class="mt-2">然后在本机 TTS 设置中选「外部 TTS 服务」，服务地址填 <code>http://&lt;局域网IP&gt;:5001</code>。</p>
+              <p class="mt-1 text-slate-400">
+                <code>cosyvoice_server_script.py</code> 随 dzmm 后端安装，位于
+                <code>~/.dzmm/</code> 解压目录中，或从 dzmm 源码 <code>backend/src/dzmm/tts/</code> 取得。
+              </p>
+            </div>
+
+            <!-- Fish-Speech / 其他服务 -->
+            <div>
+              <div class="font-semibold text-slate-700 mb-1">其他 OpenAI 兼容 TTS 服务</div>
+              <p class="mb-1">任何实现了 <code>POST /v1/audio/speech</code> 接口的服务均可使用。常见选项：</p>
+              <ul class="list-disc list-inside space-y-1">
+                <li>
+                  <strong>Fish-Speech</strong>（高音质克隆）—
+                  <code>pip install fish-speech</code>，然后 <code>fish_speech server --listen 0.0.0.0:5001</code>
+                </li>
+                <li>
+                  <strong>GPT-SoVITS</strong>（音色克隆）— 参考官方文档开启 API 模式后填入地址
+                </li>
+                <li>
+                  <strong>OpenAI TTS</strong> / <strong>Azure TTS</strong> — 填 API base URL，将 API key 配置在「模型配置」中
+                </li>
+              </ul>
+              <p class="mt-1 text-slate-400">voice 字段含义取决于具体服务；CosyVoice 使用中文音色名（「中文女」「中文男」等），Fish-Speech 使用角色 ID。</p>
+            </div>
+
+          </div>
+        </div>
+
       </template>
     </el-form>
   </el-card>
