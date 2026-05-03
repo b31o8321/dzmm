@@ -10,8 +10,9 @@ from pathlib import Path
 from dzmm.config import APP_DIR
 
 MODEL_FILENAME = "kokoro-v1.0.onnx"
-VOICES_FILENAME = "voices.bin"
-_MODEL_REPO = "hexgrad/Kokoro-82M"
+VOICES_FILENAME = "voices-v1.0.bin"
+# Model files are on GitHub releases, NOT HuggingFace (hexgrad/Kokoro-82M has .pth, not .onnx)
+_MODEL_BASE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
 _DEFAULT_MODELS_DIR = APP_DIR / "models" / "tts"
 
 # Module-level cache: one Kokoro instance per models_dir path (lazy-loaded)
@@ -23,22 +24,27 @@ def is_model_ready(models_dir: Path | None = None) -> bool:
     return (d / MODEL_FILENAME).exists() and (d / VOICES_FILENAME).exists()
 
 
+async def _download_file(url: str, dest: Path) -> None:
+    """Stream-download url → dest, resuming is not needed (files are <300MB)."""
+    import httpx
+    async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
+        async with client.stream("GET", url) as resp:
+            resp.raise_for_status()
+            with dest.open("wb") as f:
+                async for chunk in resp.aiter_bytes(65536):
+                    f.write(chunk)
+
+
 async def ensure_model(models_dir: Path | None = None) -> None:
     """Download model files if not already present. Raises on failure."""
     d = models_dir or _DEFAULT_MODELS_DIR
     if is_model_ready(d):
         return
     d.mkdir(parents=True, exist_ok=True)
-    # Use huggingface_hub (already a transitive dep via chromadb)
-    from huggingface_hub import hf_hub_download
-    await asyncio.get_running_loop().run_in_executor(
-        None,
-        lambda: hf_hub_download(_MODEL_REPO, MODEL_FILENAME, local_dir=str(d)),
-    )
-    await asyncio.get_running_loop().run_in_executor(
-        None,
-        lambda: hf_hub_download(_MODEL_REPO, VOICES_FILENAME, local_dir=str(d)),
-    )
+    for filename in (MODEL_FILENAME, VOICES_FILENAME):
+        dest = d / filename
+        if not dest.exists():
+            await _download_file(f"{_MODEL_BASE_URL}/{filename}", dest)
 
 
 def _get_instance(models_dir: Path) -> object:
