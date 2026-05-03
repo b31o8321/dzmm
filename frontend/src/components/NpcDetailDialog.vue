@@ -46,14 +46,6 @@ watch(
   () => props.npc,
   (n) => {
     local.value = n ? { ...n, affinity: { ...n.affinity }, notes: [...(n.notes ?? [])] } : null
-    // Pre-populate tts_voice from archetype for preview (not auto-saved)
-    if (local.value && !local.value.tts_voice && local.value.archetype) {
-      if (appStore.ttsMode === 'edge' && archetypeEdgeMap[local.value.archetype]) {
-        local.value.tts_voice = archetypeEdgeMap[local.value.archetype]
-      } else if (appStore.ttsMode === 'kokoro' && archetypeKokoroMap[local.value.archetype]) {
-        local.value.tts_voice = archetypeKokoroMap[local.value.archetype]
-      }
-    }
   },
   { immediate: true },
 )
