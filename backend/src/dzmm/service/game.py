@@ -481,12 +481,9 @@ async def run_turn(
             )
         ).scalars().all()
         if recent_npc_rows:
-            present_npc_strs = [
-                f"{n.name}（状态：{n.state or '未知'}）" for n in recent_npc_rows
-            ]
             narrative_so_far = "".join(narrative_parts)
             npc_extra_events = await run_npc_post_pass(
-                narrative_so_far, present_npc_strs, user_action, client
+                narrative_so_far, list(recent_npc_rows), user_action, client
             )
             for ev in npc_extra_events:
                 completed_tags.append(ev)
