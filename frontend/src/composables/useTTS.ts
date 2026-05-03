@@ -128,7 +128,9 @@ export function useTTS() {
           signal: _abortCtrl?.signal,
         })
         if (!resp.ok) continue
-        await _playAudioBytes(await resp.arrayBuffer())
+        const buf = await resp.arrayBuffer()
+        if (_aborted) break
+        await _playAudioBytes(buf)
       } catch { /* skip segment */ }
     }
   }
@@ -146,7 +148,9 @@ export function useTTS() {
           signal: _abortCtrl?.signal,
         })
         if (!resp.ok || resp.status === 204) continue
-        await _playAudioBytes(await resp.arrayBuffer())
+        const buf = await resp.arrayBuffer()
+        if (_aborted) break
+        await _playAudioBytes(buf)
       } catch { /* skip segment */ }
     }
   }
@@ -163,7 +167,9 @@ export function useTTS() {
           signal: _abortCtrl?.signal,
         })
         if (!resp.ok || resp.status === 204) continue
-        await _playAudioBytes(await resp.arrayBuffer())
+        const buf = await resp.arrayBuffer()
+        if (_aborted) break
+        await _playAudioBytes(buf)
       } catch { /* skip segment */ }
     }
   }

@@ -60,9 +60,11 @@ hidden += ['pydantic.v1', 'pydantic.v1.main', 'pydantic.v1.fields']
 # edge-tts: pure Python async websocket client
 hidden += ['edge_tts', 'edge_tts.communicate', 'edge_tts.exceptions']
 
-# kokoro-onnx: ONNX-based TTS, no torch required
+# kokoro-onnx: ONNX-based TTS, no torch required.
+# numpy + onnxruntime are hard imports of kokoro_onnx — must not be excluded.
 hidden += collect_submodules('kokoro_onnx')
-hidden += ['soundfile', 'soundfile._soundfile']
+hidden += collect_submodules('onnxruntime')
+hidden += ['numpy', 'soundfile', 'soundfile._soundfile']
 
 a = Analysis(
     [str(src_root / 'dzmm' / 'main_entry.py')],
@@ -75,7 +77,7 @@ a = Analysis(
     excludes=[
         'tkinter', 'test', 'unittest', 'pydoc', 'doctest',
         'httptools', 'uvloop', 'watchfiles',
-        'numpy', 'pandas',
+        'pandas',
         # pydantic.v1 removed: langchain_core._api.deprecation requires it
     ],
     win_no_prefer_redirects=False,
