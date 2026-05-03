@@ -60,6 +60,17 @@ async def test_model_config(cfg_id: int, s: AsyncSession = Depends(get_session_d
 _EMBED_MODEL = "nomic-embed-text"
 
 
+def _model_base(name: str) -> str:
+    """Strip Ollama tag suffix, e.g. 'qwen2.5:7b' → 'qwen2.5'."""
+    return name.split(":")[0].lower()
+
+
+def _model_available(target: str, available_list: list[str]) -> bool:
+    """Check if target model (ignoring tag) is present in the available list."""
+    target_base = _model_base(target)
+    return bool(target_base) and any(_model_base(m) == target_base for m in available_list)
+
+
 @router.get("/{cfg_id}/check")
 async def check_model_config(cfg_id: int, s: AsyncSession = Depends(get_session_dep)):
     """Check if the configured model (and nomic-embed-text for RAG) are available in Ollama.
@@ -82,10 +93,6 @@ async def check_model_config(cfg_id: int, s: AsyncSession = Depends(get_session_
         available = await client.list_models()
     except Exception:
         return {"narrative_ok": False, "embed_ok": False, "missing": [cfg.model_name, _EMBED_MODEL]}
-
-    def _model_available(target: str, available_list: list[str]) -> bool:
-        base = target.split(":")[0].lower()
-        return any(m.lower().startswith(base) for m in available_list)
 
     narrative_ok = _model_available(cfg.model_name, available)
     embed_ok = _model_available(_EMBED_MODEL, available)
