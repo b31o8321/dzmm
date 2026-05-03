@@ -155,6 +155,19 @@ const gmCloudModels = [
   { id: 'claude-haiku-4-5-20251001', baseUrl: '（需 OpenAI 兼容转发层）',     note: 'Roleplay 细腻，直接调用建议用官方 SDK 而非此处' },
 ]
 
+const ttsBuiltinModes = [
+  {
+    name: 'edge-tts（内置，在线）',
+    desc: '微软 Neural TTS，免费，无需安装，需联网。中文音色丰富（13+ Neural voices），NPC 按性格原型自动分配音色。在设置页选择「内置 edge-tts」即可使用。',
+    setup: '无需配置',
+  },
+  {
+    name: 'Kokoro-ONNX（内置，离线）',
+    desc: '本地 ONNX 模型，~82MB，一次下载后完全离线。中文音色 4 种（小北、小妮、云希、云冬）。在设置页选择「本地 Kokoro」并点击下载。',
+    setup: '设置页点击「立即下载」',
+  },
+]
+
 const ttsLocalServices = [
   { name: 'openedai-speech (Kokoro)', baseUrl: 'http://localhost:8000', note: '高质量多音色，兼容 OpenAI /v1/audio/speech；推荐 Docker 部署' },
   { name: 'AllTalk TTS',              baseUrl: 'http://localhost:7851', note: '支持声音克隆，本地 WebUI，Base URL 填到 /v1' },
@@ -243,10 +256,31 @@ onMounted(() => store.refresh())
             <!-- TTS -->
             <el-tab-pane label="TTS 语音合成" name="tts">
               <p class="text-xs text-slate-500 mb-3">
-                TTS 需要单独运行一个兼容 OpenAI <code>/v1/audio/speech</code> 接口的服务，在设置页开启并选择对应的模型配置。
+                DZMM 支持三种 TTS 模式，可在<strong>「设置」→「语音朗读」</strong>切换。内置模式无需额外配置。
               </p>
 
-              <p class="text-xs font-semibold text-slate-600 mb-2">本地语音服务</p>
+              <p class="text-xs font-semibold text-slate-600 mb-2">内置引擎（推荐）</p>
+              <table class="w-full text-sm mb-4">
+                <thead>
+                  <tr class="border-b border-slate-200 text-xs text-slate-500">
+                    <th class="text-left py-1 pr-4 font-medium">引擎</th>
+                    <th class="text-left py-1 pr-4 font-medium">配置方式</th>
+                    <th class="text-left py-1 font-medium">说明</th>
+                  </tr>
+                </thead>
+                <tbody class="text-slate-700">
+                  <tr v-for="m in ttsBuiltinModes" :key="m.name" class="border-b border-slate-100 last:border-0">
+                    <td class="py-1.5 pr-4 text-xs font-medium whitespace-nowrap">{{ m.name }}</td>
+                    <td class="py-1.5 pr-4 text-xs text-slate-500 whitespace-nowrap">{{ m.setup }}</td>
+                    <td class="py-1.5 text-xs text-slate-600">{{ m.desc }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p class="text-xs font-semibold text-slate-600 mb-2">外部 TTS 服务（OpenAI 兼容接口，「外部服务」模式）</p>
+              <p class="text-xs text-slate-500 mb-2">
+                选择「外部 TTS 服务」模式时，需在此页面添加一条模型配置，填写服务的 Base URL 与模型名。
+              </p>
               <table class="w-full text-sm mb-4">
                 <thead>
                   <tr class="border-b border-slate-200 text-xs text-slate-500">
