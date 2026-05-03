@@ -3,9 +3,12 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { backendOrigin } from '@/api/client'
+import { useTTS } from '@/composables/useTTS'
 
 const appStore = useAppStore()
 const modelsStore = useModelConfigsStore()
+const { previewVoice, speaking, stop } = useTTS()
+const previewText = ref('天地玄黄，宇宙洪荒。日月盈昃，辰宿列张。')
 
 // webspeech
 const webSpeechVoices = ref<{ name: string; lang: string; uri: string }[]>([])
@@ -203,6 +206,39 @@ const otherVoices = computed(() =>
         <div v-if="appStore.ttsMode !== 'local'" class="text-xs text-slate-400 pl-1">
           各 NPC 的专属音色可在游戏中的「NPC 图鉴」里单独设置；新 NPC 会按性格原型自动分配。
         </div>
+
+        <!-- 试听 -->
+        <el-divider />
+        <el-form-item label="试听">
+          <div class="flex flex-col gap-2 w-full">
+            <el-input
+              v-model="previewText"
+              placeholder="输入试听文本"
+              size="small"
+              :disabled="speaking"
+            />
+            <div class="flex gap-2">
+              <el-button
+                size="small"
+                :loading="speaking"
+                :disabled="!appStore.ttsEnabled"
+                @click="previewVoice(previewText, appStore.ttsGmVoice || '')"
+              >试听旁白</el-button>
+              <el-button
+                size="small"
+                :loading="speaking"
+                :disabled="!appStore.ttsEnabled"
+                @click="previewVoice(previewText, appStore.ttsPcVoice || appStore.ttsGmVoice || '')"
+              >试听PC</el-button>
+              <el-button
+                v-if="speaking"
+                size="small"
+                type="danger"
+                @click="stop()"
+              >停止</el-button>
+            </div>
+          </div>
+        </el-form-item>
       </template>
     </el-form>
   </el-card>
