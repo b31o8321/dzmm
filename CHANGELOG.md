@@ -2,6 +2,31 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.6.0] - 2026-05-03
+
+**Phase C — 自主 Agent 自动评测**
+
+玩家 Agent 自动生成行动 + 评审 Agent（LLM-as-Judge）每 10 回合打分，输出对比报告。支持单体 GM vs 多 Agent GM 质量对比。
+
+### 新增
+- **`eval/player_agent.py`** — 玩家 Agent：读取对话历史 → LLM 决策 → 输出下一步行动
+- **`eval/judge_agent.py`** — 评审 Agent：LLM-as-Judge 对 4 个维度打分（剧情推进/规则违反/RP沉浸感/骰子准确性）；三级 JSON 解析 + fallback 默认分
+- **`eval/runner.py`** — 评测编排器：`EvalConfig` + `run_eval()`，N 回合自动对局，评分写入 `feedbacks` 表
+- **`eval/report.py`** — Markdown 对比报告生成器，均值表格 + 逐检查点详细分
+- **`eval/cli.py`** — CLI 入口：`python -m dzmm.eval.cli --session-id 1 --turns 20 [--compare --session-id-b 2]`
+- **报告输出** — 自动保存到 `~/.dzmm/eval/report_{timestamp}.md`
+
+### 使用
+```bash
+# 单局评测
+python -m dzmm.eval.cli --session-id 1 --turns 20
+
+# 对比评测（单体 GM vs 多 Agent GM）
+python -m dzmm.eval.cli --session-id 1 --session-id-b 2 --turns 20 --compare
+```
+
+---
+
 ## 版本号约定
 
 `MAJOR.MINOR.PATCH`：

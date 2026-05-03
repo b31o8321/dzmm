@@ -12,6 +12,7 @@
 - **v0.3.0** — 弱模型适配（JSON 三级降级）
 - **v0.4.0** — Phase A：LangChain RAG 世界书检索（OllamaEmbedder + ChromaDB + 自动重索引）
 - **v0.5.0** — Phase B：LangGraph 多 Agent GM（StateGraph + 条件边 + NPC 后处理 Agent）
+- **v0.6.0** — Phase C：自主 Agent 自动评测（Player Agent + Judge Agent + LLM-as-Judge）
 
 ---
 
