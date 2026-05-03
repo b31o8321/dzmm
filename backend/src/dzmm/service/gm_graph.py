@@ -125,7 +125,7 @@ async def run_single_npc_pass(
     try:
         msgs = build_npc_single_react_messages(narrative, npc, user_action)
         output, _ = await client.complete(msgs, _NPC_PARAMS)
-        if not output.strip() or 'name="none"' in output:
+        if not output.strip():
             return None
         parser = StreamingTagParser()
         events: list[ParseEvent] = []
@@ -136,7 +136,12 @@ async def run_single_npc_pass(
             ev for ev in parser.finish()
             if isinstance(ev, TagComplete) and ev.name == "npc_update"
         )
-        return events[0] if events else None
+        if not events:
+            return None
+        ev = events[0]
+        if ev.attrs.get("name") == "none":
+            return None
+        return ev
     except Exception as exc:
         log.warning("gm_graph npc_single_pass failed (%s): %s", getattr(npc, "name", "?"), exc)
         return None
@@ -151,11 +156,8 @@ async def run_npc_post_pass(
     """NPC 后处理：每个在场 NPC 独立一次 LLM 调用，asyncio.gather 并行执行。"""
     if not present_npcs:
         return []
-    try:
-        results = await asyncio.gather(
-            *[run_single_npc_pass(narrative, npc, user_action, client) for npc in present_npcs]
-        )
-        return [ev for ev in results if ev is not None]
-    except Exception as exc:
-        log.warning("gm_graph npc_post_pass failed: %s", exc)
-        return []
+    results = await asyncio.gather(
+        *[run_single_npc_pass(narrative, npc, user_action, client) for npc in present_npcs],
+        return_exceptions=True,
+    )
+    return [ev for ev in results if isinstance(ev, ParseEvent)]
