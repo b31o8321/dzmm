@@ -1,7 +1,28 @@
+// ============================================================
+// useGameTurn — 游戏回合管理（Vue3 Composable）
+// ============================================================
+// 【Vue3 Composable 是什么？】
+//   Composable 就是"把相关的响应式状态和函数打包成一个可复用的函数"。
+//   类似 React Hooks，但用的是 Vue3 的 Composition API。
+//   【Java 对比】有点像 Service 类，但它直接持有 UI 状态（ref/reactive）。
+//
+// 【这个文件做什么？】
+//   管理"发送行动 → 接收 LLM 流式响应 → 更新 UI 状态"的完整流程。
+//   前端所有"回合"逻辑都在这里，GameView.vue 只是调用它、渲染它的状态。
+// ============================================================
+
 import { reactive, ref, type Ref } from 'vue'
+// reactive(obj)  → 使对象的每个属性都变成响应式（深度代理）
+// ref(value)     → 把基本类型（string/number/boolean）包成响应式容器
+// Ref<T>         → ref() 返回值的类型（泛型）
+// 【Java 对比】可以理解为"自动触发 UI 更新的 AtomicReference/AtomicInteger"
+
+// ── 场景氛围检测 ──────────────────────────────────────────
+// 根据叙事文本的关键词判断当前场景氛围，用于背景音乐/色调切换
 
 export type SceneMood = 'neutral' | 'tense' | 'horror' | 'romantic' | 'mysterious'
 
+// 每种氛围的触发关键词列表（中文关键词）
 const _MOOD_WORDS: Record<SceneMood, string[]> = {
   tense:      ['紧张','警戒','危险','战斗','追','逃','血','刀','剑','杀','威胁','慌','急','激烈','冲突','搏斗'],
   horror:     ['恐惧','恐怖','鬼','尸','黑暗','阴森','诡异','寒意','颤','惊悚','骇人','阴冷','异动'],
@@ -11,96 +32,114 @@ const _MOOD_WORDS: Record<SceneMood, string[]> = {
 }
 
 export function detectSceneMood(narrative: string): SceneMood {
+  // Record<string, number> 是 TypeScript 的键值对类型（相当于 Map<String, Integer>）
   const scores: Record<string, number> = { tense: 0, horror: 0, romantic: 0, mysterious: 0 }
   for (const [mood, words] of Object.entries(_MOOD_WORDS)) {
     if (mood === 'neutral') continue
     for (const w of words) if (narrative.includes(w)) scores[mood]++
   }
+  // 按分数降序排列，取最高分
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1])
+  // 需要至少 2 个关键词才认定为该氛围，否则返回 neutral（避免误判）
   return sorted[0][1] >= 2 ? (sorted[0][0] as SceneMood) : 'neutral'
 }
+
 import { ElMessage } from 'element-plus'
 import { streamTurn } from '@/composables/useTurnStream'
 import { sessionsApi, type MessageEvent } from '@/api/sessions'
 import { useAudio } from '@/composables/useAudio'
 
+// ── 类型定义 ──────────────────────────────────────────────
+
 export interface Turn {
-  action: string
-  narrative: string
-  choices: string[]
-  events: MessageEvent[]
-  turn: number
-  rawContent?: string
+  action: string       // 玩家输入的行动描述
+  narrative: string    // GM 生成的叙事文本（流式累积）
+  choices: string[]    // GM 给出的行动选项列表
+  events: MessageEvent[] // 本回合的结构化事件（dice/state_change 等）
+  turn: number         // 回合序号
+  rawContent?: string  // 原始内容（含 XML 标签，用于重建对话气泡）
 }
 
-// Narrative-content sanitisation helpers. Lifted out of GameView so the
-// streaming finalizer (in this composable) and the history rehydration code
-// (still in GameView) share the same regex-based recovery logic.
+// ── 正则表达式常量（预编译，性能更好）──────────────────────
+// 匹配任何已知子标签（用于从叙事文本中剥离意外混入的标签）
 const ANY_KNOWN_CHILD_RE =
   /<(?:choices|state_change|npc_update|plot_event|dice)\b[^>]*>[\s\S]*?(?:<\/(?:choices|state_change|npc_update|plot_event|dice)>|$)/g
 const CHOICES_RE = /<choices\b[^>]*>([\s\S]*?)<\/choices>/g
 
 export function cleanNarrative(raw: string): string {
+  /**
+   * 清理叙事文本：移除 LLM 错误混入的 XML 标签和 <think> 推理块。
+   * LLM 有时会把 <state_change> 等内容夹在 <narrative> 里，这里把它们剥掉。
+   */
   return raw
-    .replace(ANY_KNOWN_CHILD_RE, '')
-    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
-    .replace(/<\/?\w+\b[^>]*>/g, '')
+    .replace(ANY_KNOWN_CHILD_RE, '')           // 移除已知子标签
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')  // 移除 DeepSeek 的推理块
+    .replace(/<\/?\w+\b[^>]*>/g, '')           // 移除剩余的任何 XML 标签
     .trim()
 }
 
 export function extractChoices(content: string): string[] {
+  /**
+   * 从内容中提取 <choices> 标签里的选项列表。
+   * LLM 有时会把 <choices> 放在 <narrative> 里（协议违规），
+   * 这个函数作为降级处理，从文本中补救出选项。
+   */
   const out: string[] = []
   let m: RegExpExecArray | null
-  CHOICES_RE.lastIndex = 0
+  CHOICES_RE.lastIndex = 0  // 重置 regex 状态（有 g 标志的 regex 是有状态的）
   while ((m = CHOICES_RE.exec(content))) {
     for (const line of m[1].split('\n')) {
-      const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')
+      const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')  // 去掉列表符号
       if (trimmed) out.push(trimmed)
     }
   }
   return out
 }
 
+// ── 外部依赖接口 ──────────────────────────────────────────
+// useGameTurn 需要调用 GameView 里的状态更新函数，通过接口注入而非直接引用，
+// 实现了"依赖倒置"（和 Java 的 interface 注入思路一致）。
+
 export interface GameStateBindings {
-  applyStateChange: (content: string) => void
-  applyNpcUpdate: (content: string) => void
-  applyPcMood: (content: string) => void
+  applyStateChange: (content: string) => void   // 处理角色属性变化
+  applyNpcUpdate: (content: string) => void     // 更新 NPC 信息
+  applyPcMood: (content: string) => void        // 更新 PC 情绪
   pushDice: (d: { skill: string; target: string; result: string; success?: string; fail?: string }) => void
   threads: Ref<{ type: string; description: string; importance: number }[]>
 }
 
 export interface UseGameTurnHooks {
-  /** Called after a streaming chunk lands so the host can scroll the log. */
-  onScroll?: () => void
-  /** Called inside onDone, after turn finalisation. */
-  onTurnDone?: () => void
-  /** Called when the backend signals that an NPC wants to take initiative. */
-  onNpcInitiative?: (npcName: string) => void
+  onScroll?: () => void           // 有新文本时滚动到底部
+  onTurnDone?: () => void         // 回合结束后执行（如刷新 NPC 列表）
+  onNpcInitiative?: (npcName: string) => void  // NPC 主动出场时触发
 }
 
+
+// ── 主 Composable 函数 ────────────────────────────────────
 export function useGameTurn(
   sessionId: number,
-  gs: GameStateBindings,
+  gs: GameStateBindings,   // 依赖注入：外部状态操作函数
   hooks: UseGameTurnHooks = {},
 ) {
-  const turns = ref<Turn[]>([])
-  const currentTurn = ref<Turn | null>(null)
+  // ref() 创建响应式引用。Vue 会追踪哪些组件读了它，值变化时自动重新渲染。
+  // 访问/修改值需要 .value（这是 Vue3 的规则）
+  const turns = ref<Turn[]>([])           // 所有已完成/进行中的回合
+  const currentTurn = ref<Turn | null>(null)  // 当前正在流式生成的回合
   const turnCount = ref(0)
   const tokensIn = ref(0)
   const tokensOut = ref(0)
-  const sending = ref(false)
+  const sending = ref(false)              // 是否正在发送（防止重复点击）
   const sceneMood = ref<SceneMood>('neutral')
-  const audio = useAudio()
+  const audio = useAudio()               // 音效控制 composable
 
   async function sendAction(userAction: string) {
     if (!userAction || sending.value) return
     sending.value = true
 
-    // IMPORTANT: wrap in `reactive()` so subsequent `turn.narrative += text`
-    // mutations go through the Vue reactivity proxy (not just the raw object
-    // reference). Without this, streaming text updates the underlying object
-    // but Vue doesn't notice because the local `turn` var bypasses the proxy
-    // — leading to blank narrative until a refresh re-reads from the DB.
+    // reactive() 对对象做深度代理，确保 turn.narrative += text 能触发 Vue 重渲染。
+    // 【注意】如果只写 const turn: Turn = {...}，JavaScript 对象不是响应式的，
+    // Vue 不会追踪到字段变化，导致流式文本更新了对象但页面不刷新。
+    // 【Java 对比】类似"把普通对象包装成 Observable 对象"
     const turn: Turn = reactive({
       action: userAction,
       narrative: '',
@@ -109,63 +148,72 @@ export function useGameTurn(
       turn: turnCount.value + 1,
     })
     currentTurn.value = turn
-    const sayBuffer: string[] = []
-    // Clear previous turn's choices — they're stale once the user sends.
+    const sayBuffer: string[] = []  // 缓存说话标签，等叙事结束后统一处理
+
+    // 清空上一回合的选项（玩家已经做了选择，旧选项过时了）
     for (const t of turns.value) t.choices = []
     turns.value.push(turn)
-    hooks.onScroll?.()
+    hooks.onScroll?.()   // ?. 是"可选链"：hooks.onScroll 为 undefined 时不报错
 
     try {
+      // streamTurn 使用 fetch + EventSource 接收 SSE 流，每个事件触发对应回调
       await streamTurn(sessionId, userAction, {
+
+        // ── 叙事流处理 ──────────────────────────────────
         onNarrative: (text) => {
-          turn.narrative += text
+          turn.narrative += text    // 累积叙事文本（触发响应式更新 → UI 实时显示）
           hooks.onScroll?.()
         },
+
+        // ── 结构化标签处理 ──────────────────────────────
         onTag: (name, attrs, content) => {
-          // Build a running rawContent so parseParts() can reconstruct speaker
-          // bubbles after the turn finishes (and on the live frame for non-
-          // streaming say/pc_action tags).
+          // 把 say/pc_action 标签缓冲，等回合结束后重建对话气泡
           if (name === 'say') {
             const speakerAttr = attrs.speaker ? ` speaker="${attrs.speaker}"` : ''
             sayBuffer.push(`<say${speakerAttr}>${content}</say>`)
           } else if (name === 'pc_action') {
             sayBuffer.push(`<pc_action>${content}</pc_action>`)
           }
-          // Record any structured tag (besides `narrative`/`say`/`pc_action`/`choices`)
-          // as an event so it shows up in the per-message events dialog.
+
+          // 记录结构化事件（显示在消息旁边的小图标里）
           const skipForEvents = new Set(['narrative', 'narriative', 'say', 'pc_action', 'choices'])
           if (!skipForEvents.has(name)) {
-            let payload: Record<string, any> = { ...attrs }
+            let payload: Record<string, any> = { ...attrs }  // 展开属性（... = 解构）
             const trimmed = content.trim()
             if (trimmed) {
               try {
                 const parsed = JSON.parse(trimmed)
+                // 如果 content 是 JSON 对象，合并到 payload
                 if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                   payload = { ...payload, ...parsed }
                 } else {
                   payload = { ...payload, value: parsed }
                 }
               } catch {
-                payload = { ...payload, content: trimmed }
+                payload = { ...payload, content: trimmed }  // 不是 JSON，当字符串处理
               }
             }
             turn.events.push({ type: name, payload, content: trimmed || undefined })
           }
+
+          // 各种标签的具体处理逻辑：
           if (name === 'state_change') {
+            // 属性变化 → 播放音效 + 更新侧边栏数值
             try {
               const obj = JSON.parse(content)
               let totalDelta = 0
               for (const [, v] of Object.entries(obj)) {
                 if (typeof v === 'number') totalDelta += v
               }
-              if (totalDelta < 0) audio.playSfx('state_down')
-              else if (totalDelta > 0) audio.playSfx('state_up')
+              if (totalDelta < 0) audio.playSfx('state_down')   // 属性降低音效
+              else if (totalDelta > 0) audio.playSfx('state_up') // 属性提升音效
             } catch { /* ignore */ }
             gs.applyStateChange(content)
           }
           else if (name === 'npc_update') gs.applyNpcUpdate(content)
           else if (name === 'pc_mood') gs.applyPcMood(content)
           else if (name === 'choices') {
+            // 解析选项列表（每行一个选项，去掉列表符号）
             const opts: string[] = []
             for (const line of content.split('\n')) {
               const trimmed = line.trim().replace(/^[-*•・·]\s*/, '')
@@ -174,20 +222,21 @@ export function useGameTurn(
             turn.choices = opts
           }
           else if (name === 'dice') {
+            // 骰子判定 → 播放骰子音效 + 推入侧边栏
             audio.playSfx('dice')
             gs.pushDice({
               skill: attrs.skill ?? '判定',
               target: attrs.target ?? '?',
               result: content.trim() || '?',
-              success: attrs.success || undefined,
-              fail: attrs.fail || undefined,
+              success: attrs.success || undefined,  // 成功后果（可选）
+              fail: attrs.fail || undefined,         // 失败后果（可选）
             })
           }
           else if (name === 'plot_event') {
+            // 剧情事件 → 加入侧边栏时间线（忽略 importance=1 的琐碎事件）
             let importance = 2
             const parsed = parseInt(attrs.importance ?? '2', 10)
             if (!isNaN(parsed)) importance = Math.max(1, Math.min(3, parsed))
-            // Drop importance=1 trivia — they belong in narrative, not the sidebar.
             if (importance >= 2) {
               gs.threads.value.push({
                 type: attrs.type ?? 'major_event',
@@ -197,48 +246,56 @@ export function useGameTurn(
             }
           }
           else if (name === 'narrative_revised') {
-            // Optional polish pass: replace the streaming narrative placeholder.
+            // 可选"润色后"的叙事文本：替换流式版本（如果开启了 narrative_polish）
             const polished = content.trim()
             if (polished) turn.narrative = polished
           }
           else if (name === 'npc_initiative') {
+            // NPC 主动出场：通知 GameView 触发 NPC tick（让 NPC 说话）
             hooks.onNpcInitiative?.(attrs.npc ?? '')
           }
         },
+
         onError: (msg) => {
-          // v0.2.1 P0.5: backend parser.finish() (added in v0.1.9) already
-          // recovers unclosed tags, so the toast for "Unclosed tag <X>" is
-          // pure noise to the player. Swallow it to console; surface anything
-          // else as a non-blocking warning rather than red error.
+          // "Unclosed tag" 是正常情况（LLM 有时忘记写闭合标签，后端已容错处理）
+          // 只打 debug 日志，不弹错误提示，避免干扰玩家
           if (/unclosed/i.test(msg)) {
             console.debug('[parser]', msg)
             return
           }
-          ElMessage.warning(msg)
+          ElMessage.warning(msg)   // 其他错误作为警告弹窗
         },
+
         onDone: () => {
+          // ── 回合结束的收尾工作 ──────────────────────────
           turnCount.value += 1
-          // GM may have forgotten </narrative> and embedded choices into the
-          // streamed narrative buffer; recover them here.
+
+          // GM 有时忘记用 <choices> 标签，直接把选项写在 narrative 里
+          // 这里从叙事文本中补救出选项（降级处理）
           if (!turn.choices.length) {
             const leaked = extractChoices(turn.narrative)
             if (leaked.length) turn.choices = leaked
           }
+
+          // 清理叙事文本（移除意外混入的 XML 标签）
           turn.narrative = cleanNarrative(turn.narrative)
-          // Flush buffered say/pc_action tags (collected during streaming so
-          // dialogue bubbles don't appear before narrative finishes).
+
+          // 把缓冲的 say/pc_action 标签追加到 rawContent
           if (sayBuffer.length) {
             turn.rawContent = (turn.rawContent ?? '') + sayBuffer.join('')
           }
+
+          // 检测本回合的场景氛围（用于背景音乐/UI 色调）
           sceneMood.value = detectSceneMood(turn.narrative)
-          // Synthesize a rawContent that parseParts can chew on. We always
-          // prepend the cleaned narrative (wrapped) so backwards-compat is
-          // preserved when GM didn't emit any speaker tags at all.
+
+          // 把清理后的叙事包装成 <narrative> 标签，存入 rawContent
+          // rawContent 是重建对话气泡的数据源
           if (turn.narrative) {
             turn.rawContent =
               `<narrative>${turn.narrative}</narrative>` + (turn.rawContent ?? '')
           }
-          refreshTokens()  // fire-and-forget
+
+          refreshTokens()      // 异步刷新 token 统计（fire-and-forget）
           hooks.onTurnDone?.()
         },
       })
@@ -246,12 +303,17 @@ export function useGameTurn(
       ElMessage.error(e.message ?? '请求失败')
       turn.narrative += `\n\n[出错：${e.message ?? '未知错误'}]`
     } finally {
+      // finally 块无论成功/失败/异常都会执行（相当于 Java 的 try-finally）
       sending.value = false
       currentTurn.value = null
     }
   }
 
   async function refreshTokens() {
+    /**
+     * 从数据库重新统计 token 用量（仅用于 UI 展示，非关键路径）。
+     * 不 await、不 throw，纯后台刷新。
+     */
     try {
       const msgs = await sessionsApi.messages(sessionId)
       let ti = 0, to = 0
@@ -266,6 +328,8 @@ export function useGameTurn(
     } catch { /* ignore */ }
   }
 
+  // 返回所有外部需要的状态和方法
+  // 调用方用解构：const { turns, sending, sendAction } = useGameTurn(...)
   return {
     turns,
     currentTurn,

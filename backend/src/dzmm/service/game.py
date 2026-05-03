@@ -1,3 +1,25 @@
+# ============================================================
+# 游戏核心服务（Service 层）
+# ============================================================
+# 【架构说明】
+#   这是整个项目最核心的文件，run_turn() 是游戏引擎的"心脏"。
+#   每回合的完整流程都在这里：
+#     1. 读取数据库状态（世界/角色/NPC/剧本/摘要）
+#     2. 组装 GM Prompt（system message）
+#     3. 调用 LLM 流式生成
+#     4. 边生成边解析 XML 标签（通过 StreamingTagParser）
+#     5. 把解析事件 yield 给 API 层（SSE 推送给前端）
+#     6. 解析完毕后执行 DB 副作用（apply_tags）
+#     7. 持久化消息和状态
+#
+# 【关键 Python 概念：async generator】
+#   run_turn() 是一个 async generator function（返回 AsyncIterator）。
+#   它用 yield 逐条产出 ParseEvent，调用方（API 路由）用 async for 消费。
+#   这样 LLM 还在生成时，前端就已经收到开头的文字，实现"打字机效果"。
+#   【Java 对比】最接近的是 Reactor 的 Flux<ParseEvent> + emit()，
+#   但 Python 的 async generator 语法更接近同步代码，不需要响应式编程知识。
+# ============================================================
+
 import json
 import logging
 import random
@@ -42,6 +64,7 @@ from dzmm.service.state_apply.dice_monitor import (
 
 log = logging.getLogger(__name__)
 
+# 世界风格 → 剧本类型映射（用于生成剧本大纲时选择故事结构）
 _STYLE_TO_GENRE: dict[str, str] = {
     "dark": "悬疑探案",
     "horror": "灾难求生",
@@ -51,41 +74,43 @@ _STYLE_TO_GENRE: dict[str, str] = {
 }
 _DEFAULT_GENRE = "英雄成长"
 
-# Recent verbatim turn window used when assembling the GM prompt. v0.2.1 — the
-# window shrinks once the session is long enough that summary + key_facts
-# already carry the load; this prevents the prompt from growing unboundedly
-# as turn_count climbs (live play at turn 70+ saw the GM reciting
-# few-shot examples, a textbook long-context collapse symptom).
-RECENT_WINDOW_DEFAULT = 12       # < 30 turns
-RECENT_WINDOW_LONG_GAME = 8      # 30-60 turns
-RECENT_WINDOW_VERY_LONG = 6      # > 60 turns
+# ── Prompt 上下文窗口大小 ──────────────────────────────────
+# LLM 的 Context Window（上下文窗口）是有限的。
+# 把所有历史消息都塞进 Prompt 会导致：
+#   1. Token 超出限制被截断
+#   2. 模型"迷失在长文本中"，开始重复 few-shot 示例（实测 70 回合后出现）
+# 解决方案：只保留最近 N 条完整消息，更早的消息用"摘要"代替。
+# N 随游戏进程自适应缩小：游戏越长，摘要质量越高，可以少要原文。
+RECENT_WINDOW_DEFAULT = 12       # 0-30 回合
+RECENT_WINDOW_LONG_GAME = 8      # 30-60 回合
+RECENT_WINDOW_VERY_LONG = 6      # 60 回合以上
 
-# Backwards-compat alias kept so external code / tests that imported the old
-# name keep working. Treat as deprecated.
-RECENT_WINDOW = RECENT_WINDOW_DEFAULT
+RECENT_WINDOW = RECENT_WINDOW_DEFAULT  # 向后兼容别名
 
-# Scene pacing constants — turns before scene-exit pressure kicks in.
-# Soft pressure (reminder) starts at SCENE_SOFT_PRESSURE_TURNS.
-# Hard pressure (forced exit) starts at SCENE_HARD_EXIT_TURNS.
-SCENE_SOFT_PRESSURE_TURNS = 4
-SCENE_HARD_EXIT_TURNS = 7
+# ── 场景节奏控制 ──────────────────────────────────────────
+# 如果 PC 在同一地点停留太多回合（一直不推进剧情），
+# GM Prompt 里会注入"场景压力"提示，强制推动故事发展。
+SCENE_SOFT_PRESSURE_TURNS = 4   # 停留 4 回合：给 GM 提醒
+SCENE_HARD_EXIT_TURNS = 7       # 停留 7 回合：强制推进（三个具体方案 + 禁令）
 
 
 def _update_scene_turn_count(sess, completed_tags: list) -> None:
-    """Update sess.scene_turn_count after apply_tags.
-    Reset to 1 if a location_enter tag was emitted (new scene),
-    otherwise increment by 1."""
+    """场景回合计数器更新：进入新地点时重置为 1，否则递增。
+
+    any(条件 for x in 列表) → Python 的"短路求值生成器表达式"
+    【Java 对比】相当于 list.stream().anyMatch(t -> t.name.equals("location_enter"))
+    """
     location_entered = any(
         t.name == "location_enter" for t in completed_tags
     )
     if location_entered:
-        sess.scene_turn_count = 1
+        sess.scene_turn_count = 1   # 进入新场景，重置计数
     else:
         sess.scene_turn_count = sess.scene_turn_count + 1
 
 
 def _recent_window_for(turn_count: int) -> int:
-    """Adaptive verbatim window — see module-level constants for the bands."""
+    """根据当前回合数，返回应该保留多少条完整历史消息（自适应窗口）。"""
     if turn_count > 60:
         return RECENT_WINDOW_VERY_LONG
     if turn_count > 30:
@@ -239,10 +264,18 @@ async def run_turn(
     client: ModelClient,
     params: GenerationParams | None = None,
 ) -> AsyncIterator[ParseEvent]:
-    """Yield parse events to caller (for SSE streaming) while running a full turn:
-    builds prompt, streams model output, applies tags, persists messages.
+    """游戏引擎核心：处理一回合，流式产出解析事件。
 
-    Caller must call session.commit() after the generator is exhausted."""
+    【函数类型：async generator】
+      函数体内有 yield，所以这是一个 generator function。
+      加上 async 就变成 async generator，返回 AsyncIterator[ParseEvent]。
+      调用方用 async for ev in run_turn(...) 消费，每个 yield 暂停函数并把值传出去。
+      与普通函数的区别：不是"执行完毕再返回"，而是"边执行边产出"。
+
+    【调用方必须在 generator 耗尽后 commit DB session。】
+    """
+    # params=None 时使用默认参数（Python 惯用的"可选参数"写法）
+    # 【Java 对比】相当于方法重载中的无参版本，或 Optional.orElse(new GenerationParams())
     params = params or GenerationParams()
 
     sess = await session.get(GameSession, session_id)
