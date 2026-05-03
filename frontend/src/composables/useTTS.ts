@@ -94,6 +94,67 @@ export function useTTS() {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
   }
 
+  async function previewVoice(text: string, voice: string): Promise<void> {
+    if (!text.trim()) return
+    stop()
+    _aborted = false
+    _abortCtrl = new AbortController()
+    _speaking.value = true
+    try {
+      if (appStore.ttsMode === 'edge') {
+        const { voice: v, rate, pitch } = parseEdgeVoice(voice || appStore.ttsGmVoice)
+        const resp = await fetch(`${backendOrigin}/tts/builtin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: v, rate, pitch }),
+          signal: _abortCtrl.signal,
+        })
+        if (resp.ok && resp.status !== 204) {
+          const buf = await resp.arrayBuffer()
+          if (!_aborted) await _playAudioBytes(buf)
+        }
+      } else if (appStore.ttsMode === 'kokoro') {
+        const resp = await fetch(`${backendOrigin}/tts/kokoro/synthesize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: voice || appStore.ttsGmVoice || 'zf_xiaobei' }),
+          signal: _abortCtrl.signal,
+        })
+        if (resp.ok && resp.status !== 204) {
+          const buf = await resp.arrayBuffer()
+          if (!_aborted) await _playAudioBytes(buf)
+        }
+      } else if (appStore.ttsMode === 'webspeech') {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+          const voices = await _getVoices()
+          const utterance = new SpeechSynthesisUtterance(text)
+          const found = voices.find((v) => v.name === voice || v.voiceURI === voice) ?? null
+          if (found) utterance.voice = found
+          utterance.lang = found?.lang ?? 'zh-CN'
+          await new Promise<void>((resolve) => {
+            utterance.onend = () => resolve()
+            utterance.onerror = () => resolve()
+            window.speechSynthesis.speak(utterance)
+          })
+        }
+      } else {
+        // local proxy mode
+        const resp = await fetch(`${backendOrigin}/tts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_config_id: appStore.ttsModelConfigId, text, voice }),
+          signal: _abortCtrl.signal,
+        })
+        if (resp.ok) {
+          const buf = await resp.arrayBuffer()
+          if (!_aborted) await _playAudioBytes(buf)
+        }
+      }
+    } catch { /* ignore abort / network errors */ } finally {
+      _speaking.value = false
+    }
+  }
+
   async function _speakWebSpeech(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
     const voices = await _getVoices()
@@ -204,5 +265,5 @@ export function useTTS() {
     }
   }
 
-  return { playTurn, stop, speaking: _speaking }
+  return { playTurn, stop, speaking: _speaking, previewVoice }
 }
