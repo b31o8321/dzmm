@@ -127,3 +127,78 @@ async def index_world_async(
 ) -> None:
     """index_world 的异步包装 — 在线程池中运行（ChromaDB 是同步的）。"""
     await asyncio.to_thread(index_world, world_id, content_md, ollama_url, model)
+
+
+# ── 检索 ─────────────────────────────────────────────────
+def retrieve_world_context(
+    world_id: int,
+    query: str,
+    ollama_url: str,
+    model: str = _EMBED_MODEL,
+    k: int = _TOP_K,
+    _embedder: Embeddings | None = None,
+    app_dir: Path | None = None,
+) -> str:
+    """从 ChromaDB 检索与 query 最相关的 top-k 世界书片段，拼接后返回。
+
+    【学习点：向量相似度搜索】
+      query → 向量化 → 与库中所有向量计算余弦相似度 → 取 top-k 最近的文档
+      这就是 RAG（Retrieval-Augmented Generation）的核心："先检索再生成"。
+    """
+    import chromadb
+
+    _app_dir = app_dir if app_dir is not None else APP_DIR
+    embedder = _embedder or OllamaEmbedder(ollama_url, model)
+    client = chromadb.PersistentClient(path=_persist_dir(world_id, _app_dir))
+    col = client.get_collection(f"world_{world_id}")
+
+    count = col.count()
+    if count == 0:
+        return ""
+
+    query_embedding = embedder.embed_query(query)
+    results = col.query(
+        query_embeddings=[query_embedding],
+        n_results=min(k, count),
+    )
+    docs: list[str] = results["documents"][0]
+    return "\n\n---\n\n".join(docs)
+
+
+def get_world_md(
+    world_id: int,
+    content_md: str,
+    query: str,
+    ollama_url: str | None,
+    model: str = _EMBED_MODEL,
+    k: int = _TOP_K,
+    _embedder: Embeddings | None = None,
+    app_dir: Path | None = None,
+) -> str:
+    """决策函数：返回该回合应注入 Prompt 的世界书内容。
+
+    规则（按优先级）：
+    1. ollama_url 为 None → 返回全文（无法 embed）
+    2. content_md 长度 < 800 → 返回全文（不值得 RAG）
+    3. 未建立索引 → 返回全文（fallback，不报错）
+    4. 已建立索引 → 返回 top-k 检索结果；异常时 fallback 全文
+
+    【设计原则：优雅降级】
+      RAG 不可用时静默 fallback 到全文，保证游戏不中断。
+    """
+    _app_dir = app_dir if app_dir is not None else APP_DIR
+    text = content_md or ""
+    if not ollama_url or len(text) < _SHORT_WORLD_THRESHOLD:
+        return text
+    if not is_indexed(world_id, _app_dir):
+        return text
+    try:
+        return retrieve_world_context(
+            world_id, query, ollama_url, model, k, _embedder, _app_dir
+        )
+    except Exception as exc:
+        log.warning(
+            "world_rag: retrieval failed for world %d, falling back to full text: %s",
+            world_id, exc,
+        )
+        return text
