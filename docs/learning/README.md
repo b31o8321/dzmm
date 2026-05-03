@@ -11,7 +11,8 @@
 | [Vue3 前端实现](vue-frontend.md) | SSE 消费、Composable、Pinia Store、响应式原理 |
 | [Phase A：LangChain RAG 实现](langchain-rag.md) | OllamaEmbedder、RecursiveCharacterTextSplitter、ChromaDB、优雅降级 |
 | [Phase B：LangGraph 多 Agent GM 实现](langgraph-multiagent.md) | StateGraph、条件边、闭包注入、多 Agent 编排、后向兼容 |
-| [agent-eval.md](agent-eval.md) | Phase C：LLM-as-Judge 自主评测框架 |
+| [Phase C：自主 Agent 自动评测](agent-eval.md) | LLM-as-Judge、Player Agent、Judge Agent、评测编排 |
+| [TRPG 场景 LLM 优化策略](trpg-llm-optimization.md) | TRPG特殊性分析、RAG/多Agent/铁律/骰子/流式/三级解析的落地方案 |
 
 ## 一次回合走完整个调用链
 
