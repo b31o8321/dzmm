@@ -1,6 +1,9 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from httpx import ASGITransport, AsyncClient
 
+from dzmm.db.base import init_db, get_engine, async_session
+from dzmm.main import create_app
 from dzmm.tts.voice_map import (
     edge_voice_for_archetype,
     edge_prosody_for_archetype,
@@ -121,11 +124,6 @@ async def test_kokoro_synthesize_returns_wav_bytes(tmp_path):
 
 
 # --- API endpoint tests ---
-
-from httpx import ASGITransport, AsyncClient
-
-from dzmm.db.base import init_db, get_engine, async_session
-from dzmm.main import create_app
 
 
 @pytest.fixture

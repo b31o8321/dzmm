@@ -85,7 +85,10 @@ class BuiltinTtsRequest(BaseModel):
 
 @router.post("/builtin")
 async def builtin_tts(body: BuiltinTtsRequest):
-    audio = await edge_synthesize(body.text, body.voice, rate=body.rate, pitch=body.pitch)
+    try:
+        audio = await edge_synthesize(body.text, body.voice, rate=body.rate, pitch=body.pitch)
+    except Exception as e:
+        raise HTTPException(500, f"edge-tts synthesis failed: {e}")
     if not audio:
         return Response(status_code=204)
     return Response(content=audio, media_type="audio/mpeg")
