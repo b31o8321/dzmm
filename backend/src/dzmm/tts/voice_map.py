@@ -49,6 +49,30 @@ _KOKORO_MAP: dict[str, str] = {
 _KOKORO_DEFAULT = "zf_xiaobei"
 NARRATOR_KOKORO_VOICE = "zf_xiaobei"
 
+# CosyVoice-300M-Instruct: archetype → speaker preset
+# Available: 中文女 中文男 粤语女 日语男 英文女 英文男 韩语女
+_COSYVOICE_MAP: dict[str, str] = {
+    "导师":   "中文男",
+    "盟友":   "中文男",
+    "反派":   "中文男",
+    "神秘人": "中文男",
+    "商人":   "中文男",
+    "守卫":   "中文男",
+    "平民":   "中文女",
+    "智者":   "中文男",
+    "冷酷":   "中文女",
+    "温柔":   "中文女",
+    "活泼":   "中文女",
+    "邪恶":   "中文男",
+    "儿童":   "中文女",
+    "长老":   "中文男",
+    "武将":   "中文男",
+    "贵族":   "中文女",
+}
+
+_COSYVOICE_DEFAULT = "中文女"
+NARRATOR_COSYVOICE_VOICE = "中文女"
+
 
 def edge_voice_for_archetype(archetype: str) -> str:
     return _EDGE_MAP.get(archetype, _EDGE_DEFAULT)[0]
@@ -62,3 +86,7 @@ def edge_prosody_for_archetype(archetype: str) -> tuple[str, str]:
 
 def kokoro_voice_for_archetype(archetype: str) -> str:
     return _KOKORO_MAP.get(archetype, _KOKORO_DEFAULT)
+
+
+def cosyvoice_voice_for_archetype(archetype: str) -> str:
+    return _COSYVOICE_MAP.get(archetype, _COSYVOICE_DEFAULT)

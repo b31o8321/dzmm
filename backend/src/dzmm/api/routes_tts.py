@@ -1,5 +1,5 @@
 # backend/src/dzmm/api/routes_tts.py
-"""TTS routes: proxy (existing), edge-tts builtin, kokoro-onnx local."""
+"""TTS routes: proxy (existing), edge-tts builtin, kokoro-onnx local, cosyvoice sidecar."""
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -16,6 +16,7 @@ from dzmm.tts.kokoro_engine import (
     synthesize as kokoro_synthesize,
 )
 from dzmm.tts.voice_map import EDGE_VOICES, NARRATOR_EDGE_VOICE
+from dzmm.tts import cosyvoice_sidecar
 
 router = APIRouter(prefix="/tts", tags=["tts"])
 
@@ -125,3 +126,93 @@ async def kokoro_synth(body: KokoroSynthRequest):
     if not audio:
         return Response(status_code=204)
     return Response(content=audio, media_type="audio/wav")
+
+
+# ---------------------------------------------------------------------------
+# CosyVoice sidecar routes
+# ---------------------------------------------------------------------------
+
+import asyncio
+
+# Background install task handle — prevent concurrent installs.
+_cosy_install_task: asyncio.Task | None = None  # type: ignore[type-arg]
+_cosy_install_log: list[str] = []
+_cosy_install_error: str = ""
+
+
+@router.get("/cosyvoice/status")
+async def cosyvoice_status():
+    installing = _cosy_install_task is not None and not _cosy_install_task.done()
+    return {
+        "installed": cosyvoice_sidecar.is_installed(),
+        "running": cosyvoice_sidecar.is_running(),
+        "port": cosyvoice_sidecar.port(),
+        "installing": installing,
+        "install_log": _cosy_install_log[-20:],
+        "install_error": _cosy_install_error,
+    }
+
+
+@router.post("/cosyvoice/install")
+async def cosyvoice_install():
+    global _cosy_install_task, _cosy_install_log, _cosy_install_error
+    if _cosy_install_task and not _cosy_install_task.done():
+        return {"started": False, "detail": "install already in progress"}
+    _cosy_install_log = []
+    _cosy_install_error = ""
+
+    def _on_progress(msg: str) -> None:
+        _cosy_install_log.append(msg)
+
+    async def _run() -> None:
+        global _cosy_install_error
+        try:
+            await cosyvoice_sidecar.install(progress=_on_progress)
+        except Exception as e:
+            _cosy_install_error = str(e)
+
+    _cosy_install_task = asyncio.create_task(_run())
+    return {"started": True}
+
+
+@router.post("/cosyvoice/start")
+async def cosyvoice_start():
+    if not cosyvoice_sidecar.is_installed():
+        raise HTTPException(503, "CosyVoice not installed — run /tts/cosyvoice/install first")
+    try:
+        cosyvoice_sidecar.start()
+    except Exception as e:
+        raise HTTPException(500, f"start failed: {e}")
+    return {"running": True, "port": cosyvoice_sidecar.port()}
+
+
+@router.post("/cosyvoice/stop")
+async def cosyvoice_stop():
+    cosyvoice_sidecar.stop()
+    return {"running": False}
+
+
+class CosyVoiceProxyRequest(BaseModel):
+    text: str = Field(..., max_length=5000)
+    voice: str = Field("中文女", max_length=40)
+
+
+@router.post("/cosyvoice/proxy")
+async def cosyvoice_proxy(body: CosyVoiceProxyRequest):
+    """Proxy synthesis request to the CosyVoice sidecar."""
+    if not cosyvoice_sidecar.is_running():
+        raise HTTPException(503, "CosyVoice sidecar not running — start it first")
+    if not body.text.strip():
+        return Response(status_code=204)
+    url = f"http://127.0.0.1:{cosyvoice_sidecar.port()}/v1/audio/speech"
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(url, json={"input": body.text, "voice": body.voice})
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, f"sidecar error: {e.response.text}")
+    except httpx.RequestError as e:
+        raise HTTPException(503, f"sidecar unreachable: {e}")
+    if resp.status_code == 204:
+        return Response(status_code=204)
+    return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/wav"))

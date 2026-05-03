@@ -124,6 +124,17 @@ export function useTTS() {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
         }
+      } else if (appStore.ttsMode === 'cosyvoice') {
+        const resp = await fetch(`${backendOrigin}/tts/cosyvoice/proxy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: voice || appStore.ttsGmVoice || '中文女' }),
+          signal: _abortCtrl.signal,
+        })
+        if (resp.ok && resp.status !== 204) {
+          const buf = await resp.arrayBuffer()
+          if (!_aborted) await _playAudioBytes(buf)
+        }
       } else if (appStore.ttsMode === 'webspeech') {
         if (typeof window !== 'undefined' && window.speechSynthesis) {
           const voices = await _getVoices()
@@ -236,6 +247,25 @@ export function useTTS() {
     }
   }
 
+  async function _speakCosyVoice(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
+    for (const seg of segments) {
+      if (_aborted) break
+      const voice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? '中文女'
+      try {
+        const resp = await fetch(`${backendOrigin}/tts/cosyvoice/proxy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: seg.text, voice }),
+          signal: _abortCtrl?.signal,
+        })
+        if (!resp.ok || resp.status === 204) continue
+        const buf = await resp.arrayBuffer()
+        if (_aborted) break
+        await _playAudioBytes(buf)
+      } catch { /* skip segment */ }
+    }
+  }
+
   async function playTurn(rawContent: string | undefined, voiceMap: TtsVoiceMap): Promise<void> {
     if (!appStore.ttsEnabled || !rawContent) return
     if (appStore.muted) return
@@ -258,6 +288,8 @@ export function useTTS() {
         await _speakEdge(segments, voiceMap)
       } else if (appStore.ttsMode === 'kokoro') {
         await _speakKokoro(segments, voiceMap)
+      } else if (appStore.ttsMode === 'cosyvoice') {
+        await _speakCosyVoice(segments, voiceMap)
       } else {
         await _speakLocal(segments, voiceMap)
       }

@@ -74,7 +74,9 @@ hidden += ['numpy', 'soundfile', 'soundfile._soundfile']
 # phonemizer needs share/ g2p/festival files; language_tags needs JSON registry.
 # chromadb needs migration SQL files.
 # joblib test data excluded (65 files, not needed at runtime).
-datas = collect_data_files('kokoro_onnx')
+# cosyvoice_server_script.py runs in the isolated uv venv as a subprocess — bundle it.
+datas = [(str(src_root / 'dzmm' / 'tts' / 'cosyvoice_server_script.py'), 'dzmm/tts')]
+datas += collect_data_files('kokoro_onnx')
 datas += collect_data_files('phonemizer')
 datas += collect_data_files('language_tags')
 datas += collect_data_files('chromadb')

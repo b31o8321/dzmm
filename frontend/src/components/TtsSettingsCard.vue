@@ -31,6 +31,18 @@ const kokoroReady = ref<boolean | null>(null)
 const kokoroDownloading = ref(false)
 const kokoroError = ref('')
 
+// cosyvoice
+interface CosyStatus {
+  installed: boolean
+  running: boolean
+  port: number
+  installing: boolean
+  install_log: string[]
+  install_error: string
+}
+const cosyStatus = ref<CosyStatus | null>(null)
+let cosyPollTimer: ReturnType<typeof setInterval> | null = null
+
 const KOKORO_ZH_VOICES = [
   { value: 'zf_xiaobei', label: '小北（中文女，温柔）' },
   { value: 'zf_xiaoni',  label: '小妮（中文女，活泼）' },
@@ -52,12 +64,14 @@ onMounted(async () => {
   } catch { /* ignore */ }
 
   await refreshKokoroStatus()
+  await refreshCosyStatus()
 })
 
 onUnmounted(() => {
   if (typeof window !== 'undefined' && window.speechSynthesis) {
     window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
   }
+  if (cosyPollTimer) clearInterval(cosyPollTimer)
 })
 
 async function refreshKokoroStatus() {
@@ -66,6 +80,41 @@ async function refreshKokoroStatus() {
     if (r.ok) kokoroReady.value = (await r.json()).ready
     else kokoroReady.value = false
   } catch { kokoroReady.value = false }
+}
+
+async function refreshCosyStatus() {
+  try {
+    const r = await fetch(`${backendOrigin}/tts/cosyvoice/status`)
+    if (r.ok) cosyStatus.value = await r.json()
+  } catch { /* ignore */ }
+}
+
+async function cosyInstall() {
+  await fetch(`${backendOrigin}/tts/cosyvoice/install`, { method: 'POST' })
+  // Poll for progress every 2s while installing
+  if (cosyPollTimer) clearInterval(cosyPollTimer)
+  cosyPollTimer = setInterval(async () => {
+    await refreshCosyStatus()
+    if (cosyStatus.value && !cosyStatus.value.installing) {
+      clearInterval(cosyPollTimer!)
+      cosyPollTimer = null
+    }
+  }, 2000)
+  await refreshCosyStatus()
+}
+
+async function cosyStart() {
+  const r = await fetch(`${backendOrigin}/tts/cosyvoice/start`, { method: 'POST' })
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({ detail: r.statusText }))
+    alert(body.detail ?? '启动失败')
+  }
+  await refreshCosyStatus()
+}
+
+async function cosyStop() {
+  await fetch(`${backendOrigin}/tts/cosyvoice/stop`, { method: 'POST' })
+  await refreshCosyStatus()
 }
 
 async function downloadKokoro() {
@@ -108,9 +157,10 @@ const otherVoices = computed(() =>
 
       <template v-if="appStore.ttsEnabled">
         <el-form-item label="朗读模式">
-          <el-radio-group v-model="appStore.ttsMode" @change="appStore.saveTtsSettings">
+          <el-radio-group v-model="appStore.ttsMode" @change="appStore.saveTtsSettings" class="flex flex-col gap-1">
             <el-radio value="edge">内置 edge-tts（在线免费，Neural音色）</el-radio>
             <el-radio value="kokoro">本地 Kokoro（离线，需下载 ~82MB）</el-radio>
+            <el-radio value="cosyvoice">本地 CosyVoice（离线，需安装 ~2.5GB）</el-radio>
             <el-radio value="webspeech">浏览器内置（Web Speech API）</el-radio>
             <el-radio value="local">外部 TTS 服务（OpenAI 兼容）</el-radio>
           </el-radio-group>
@@ -157,6 +207,73 @@ const otherVoices = computed(() =>
           <el-form-item label="主角（PC）音色">
             <el-select v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="与旁白相同" clearable>
               <el-option v-for="v in KOKORO_ZH_VOICES" :key="v.value" :label="v.label" :value="v.value" />
+            </el-select>
+          </el-form-item>
+        </template>
+
+        <!-- cosyvoice mode -->
+        <template v-if="appStore.ttsMode === 'cosyvoice'">
+          <el-form-item label="安装状态">
+            <div class="flex flex-col gap-2 w-full">
+              <div class="flex items-center gap-3 flex-wrap">
+                <template v-if="cosyStatus">
+                  <el-tag v-if="cosyStatus.running" type="success">运行中（端口 {{ cosyStatus.port }}）</el-tag>
+                  <el-tag v-else-if="cosyStatus.installed" type="info">已安装，未启动</el-tag>
+                  <el-tag v-else-if="cosyStatus.installing" type="warning">安装中…</el-tag>
+                  <el-tag v-else type="danger">未安装</el-tag>
+
+                  <el-button
+                    v-if="!cosyStatus.installed && !cosyStatus.installing"
+                    type="primary" size="small"
+                    @click="cosyInstall"
+                  >安装（~2.5GB）</el-button>
+
+                  <el-button
+                    v-if="cosyStatus.installed && !cosyStatus.running"
+                    type="primary" size="small"
+                    @click="cosyStart"
+                  >启动</el-button>
+
+                  <el-button
+                    v-if="cosyStatus.running"
+                    type="danger" size="small"
+                    @click="cosyStop"
+                  >停止</el-button>
+
+                  <el-button size="small" text @click="refreshCosyStatus">刷新</el-button>
+                </template>
+                <span v-else class="text-xs text-slate-400">检测中…</span>
+              </div>
+
+              <!-- install progress log -->
+              <div v-if="cosyStatus?.installing || cosyStatus?.install_log.length" class="text-xs text-slate-500 bg-slate-50 rounded p-2 max-h-32 overflow-y-auto font-mono space-y-0.5">
+                <div v-for="(line, i) in cosyStatus?.install_log" :key="i">{{ line }}</div>
+                <div v-if="cosyStatus?.installing" class="animate-pulse">…</div>
+              </div>
+              <div v-if="cosyStatus?.install_error" class="text-xs text-red-500">{{ cosyStatus.install_error }}</div>
+
+              <div class="text-xs text-slate-400">
+                首次使用需 <strong>uv</strong>（<code>curl -LsSf https://astral.sh/uv/install.sh | sh</code>）；Windows 用 <code>winget install astral-sh.uv</code>。
+                安装完成后点击「启动」，每次重启应用需手动启动。
+              </div>
+            </div>
+          </el-form-item>
+          <el-form-item label="GM 旁白音色">
+            <el-select v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="中文女" clearable>
+              <el-option label="中文女" value="中文女" />
+              <el-option label="中文男" value="中文男" />
+              <el-option label="粤语女" value="粤语女" />
+              <el-option label="英文女" value="英文女" />
+              <el-option label="英文男" value="英文男" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="主角（PC）音色">
+            <el-select v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="与旁白相同" clearable>
+              <el-option label="中文女" value="中文女" />
+              <el-option label="中文男" value="中文男" />
+              <el-option label="粤语女" value="粤语女" />
+              <el-option label="英文女" value="英文女" />
+              <el-option label="英文男" value="英文男" />
             </el-select>
           </el-form-item>
         </template>
