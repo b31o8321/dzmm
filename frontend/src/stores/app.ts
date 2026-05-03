@@ -51,7 +51,9 @@ export const useAppStore = defineStore('app', () => {
   const tourStep = ref<number>(0) // 0 = hidden, 1..N = active step
 
   const ttsEnabled = ref(loadTtsSetting('enabled', false))
-  const ttsMode = ref<'webspeech' | 'local'>(loadTtsSetting('mode', 'webspeech') as 'webspeech' | 'local')
+  const ttsMode = ref<'webspeech' | 'local' | 'edge' | 'kokoro'>(
+    loadTtsSetting('mode', 'webspeech') as 'webspeech' | 'local' | 'edge' | 'kokoro'
+  )
   const ttsModelConfigId = ref(loadTtsSetting('model_config_id', 0))
   const ttsGmVoice = ref(loadTtsSetting('gm_voice', ''))
   const ttsPcVoice = ref(loadTtsSetting('pc_voice', ''))

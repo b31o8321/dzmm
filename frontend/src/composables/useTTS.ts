@@ -3,25 +3,22 @@ import { useAppStore } from '@/stores/app'
 import { backendOrigin } from '@/api/client'
 
 export interface TtsVoiceMap {
-  narrator: string   // GM narration voice
-  pc: string         // PC action voice
-  [npcName: string]: string  // per-NPC voice
+  narrator: string
+  pc: string
+  [npcName: string]: string
 }
 
 interface Segment {
-  speaker: string  // 'narrator' | 'pc' | npc name
+  speaker: string
   text: string
 }
 
-// Segment extraction from rawContent
-// rawContent format: <narrative>...</narrative><say speaker="X">...</say><pc_action>...</pc_action>
 const NARRATIVE_RE = /<narrative>([\s\S]*?)<\/narrative>/g
 const SAY_RE = /<say\s+speaker="([^"]+)">([\s\S]*?)<\/say>/g
 const PC_ACTION_RE = /<pc_action>([\s\S]*?)<\/pc_action>/g
 
 function parseSegments(rawContent: string): Segment[] {
   const all: { index: number; segment: Segment }[] = []
-
   let m: RegExpExecArray | null
 
   NARRATIVE_RE.lastIndex = 0
@@ -29,29 +26,30 @@ function parseSegments(rawContent: string): Segment[] {
     const text = m[1].trim()
     if (text) all.push({ index: m.index, segment: { speaker: 'narrator', text } })
   }
-
   SAY_RE.lastIndex = 0
   while ((m = SAY_RE.exec(rawContent))) {
     const text = m[2].trim()
     if (text) all.push({ index: m.index, segment: { speaker: m[1], text } })
   }
-
   PC_ACTION_RE.lastIndex = 0
   while ((m = PC_ACTION_RE.exec(rawContent))) {
     const text = m[1].trim()
     if (text) all.push({ index: m.index, segment: { speaker: 'pc', text } })
   }
-
   all.sort((a, b) => a.index - b.index)
   return all.map((x) => x.segment)
 }
 
-// Module-level AudioContext (reused across calls to avoid recreation)
+// Voice strings for edge mode can optionally encode rate+pitch:
+// "zh-CN-XiaomoNeural" or "zh-CN-XiaomoNeural|-10%|-3Hz"
+function parseEdgeVoice(v: string): { voice: string; rate: string; pitch: string } {
+  const parts = v.split('|')
+  return { voice: parts[0], rate: parts[1] ?? '+0%', pitch: parts[2] ?? '+0Hz' }
+}
+
 let _audioCtx: AudioContext | null = null
 function getAudioCtx(): AudioContext {
-  if (!_audioCtx || _audioCtx.state === 'closed') {
-    _audioCtx = new AudioContext()
-  }
+  if (!_audioCtx || _audioCtx.state === 'closed') _audioCtx = new AudioContext()
   return _audioCtx
 }
 
@@ -65,12 +63,23 @@ async function _getVoices(): Promise<SpeechSynthesisVoice[]> {
   const voices = window.speechSynthesis.getVoices()
   if (voices.length) return voices
   return new Promise((resolve) => {
-    window.speechSynthesis.addEventListener(
-      'voiceschanged',
-      () => resolve(window.speechSynthesis.getVoices()),
-      { once: true },
-    )
+    window.speechSynthesis.addEventListener('voiceschanged', () => resolve(window.speechSynthesis.getVoices()), { once: true })
   })
+}
+
+async function _playAudioBytes(audioData: ArrayBuffer): Promise<void> {
+  const ctx = getAudioCtx()
+  if (ctx.state === 'suspended') await ctx.resume()
+  const decoded = await ctx.decodeAudioData(audioData)
+  const source = ctx.createBufferSource()
+  source.buffer = decoded
+  source.connect(ctx.destination)
+  _activeSource = source
+  await new Promise<void>((resolve) => {
+    source.onended = () => resolve()
+    source.start()
+  })
+  _activeSource = null
 }
 
 export function useTTS() {
@@ -82,20 +91,16 @@ export function useTTS() {
     _activeSource?.stop()
     _activeSource = null
     _speaking.value = false
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel()
-    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
   }
 
   async function _speakWebSpeech(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
     const voices = await _getVoices()
-
     function findVoice(name: string): SpeechSynthesisVoice | null {
       if (!name) return null
       return voices.find((v) => v.name === name || v.voiceURI === name) ?? null
     }
-
     for (const seg of segments) {
       if (_aborted) break
       const voiceName = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? ''
@@ -103,7 +108,6 @@ export function useTTS() {
       const voice = findVoice(voiceName)
       if (voice) utterance.voice = voice
       utterance.lang = voice?.lang ?? 'zh-CN'
-
       await new Promise<void>((resolve) => {
         utterance.onend = () => resolve()
         utterance.onerror = () => resolve()
@@ -113,9 +117,6 @@ export function useTTS() {
   }
 
   async function _speakLocal(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
-    const ctx = getAudioCtx()
-    if (ctx.state === 'suspended') await ctx.resume()
-
     for (const seg of segments) {
       if (_aborted) break
       const voice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? 'default'
@@ -123,29 +124,47 @@ export function useTTS() {
         const resp = await fetch(`${backendOrigin}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model_config_id: appStore.ttsModelConfigId,
-            text: seg.text,
-            voice,
-          }),
+          body: JSON.stringify({ model_config_id: appStore.ttsModelConfigId, text: seg.text, voice }),
           signal: _abortCtrl?.signal,
         })
         if (!resp.ok) continue
-        const buf = await resp.arrayBuffer()
-        if (_aborted) break
-        const decoded = await ctx.decodeAudioData(buf)
-        const source = ctx.createBufferSource()
-        source.buffer = decoded
-        source.connect(ctx.destination)
-        _activeSource = source
-        await new Promise<void>((resolve) => {
-          source.onended = () => resolve()
-          source.start()
+        await _playAudioBytes(await resp.arrayBuffer())
+      } catch { /* skip segment */ }
+    }
+  }
+
+  async function _speakEdge(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
+    for (const seg of segments) {
+      if (_aborted) break
+      const rawVoice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? 'zh-CN-XiaoxiaoNeural'
+      const { voice, rate, pitch } = parseEdgeVoice(rawVoice)
+      try {
+        const resp = await fetch(`${backendOrigin}/tts/builtin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: seg.text, voice, rate, pitch }),
+          signal: _abortCtrl?.signal,
         })
-        _activeSource = null
-      } catch {
-        // skip segment on error — don't block gameplay
-      }
+        if (!resp.ok || resp.status === 204) continue
+        await _playAudioBytes(await resp.arrayBuffer())
+      } catch { /* skip segment */ }
+    }
+  }
+
+  async function _speakKokoro(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
+    for (const seg of segments) {
+      if (_aborted) break
+      const voice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? 'zf_xiaobei'
+      try {
+        const resp = await fetch(`${backendOrigin}/tts/kokoro/synthesize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: seg.text, voice }),
+          signal: _abortCtrl?.signal,
+        })
+        if (!resp.ok || resp.status === 204) continue
+        await _playAudioBytes(await resp.arrayBuffer())
+      } catch { /* skip segment */ }
     }
   }
 
@@ -167,6 +186,10 @@ export function useTTS() {
     try {
       if (appStore.ttsMode === 'webspeech') {
         await _speakWebSpeech(segments, voiceMap)
+      } else if (appStore.ttsMode === 'edge') {
+        await _speakEdge(segments, voiceMap)
+      } else if (appStore.ttsMode === 'kokoro') {
+        await _speakKokoro(segments, voiceMap)
       } else {
         await _speakLocal(segments, voiceMap)
       }
