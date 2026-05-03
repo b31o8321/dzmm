@@ -4,7 +4,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active development · current release **v0.2.7**. See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active development · current release **v0.4.0**. See [CHANGELOG](CHANGELOG.md) for the full history.
 
 ---
 
@@ -17,6 +17,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 - **Scene & NPC location tracking** — the GM records which location the PC is in, which NPCs are present, and what items exist in the scene. NPCs are cleared from a scene when they leave.
 - **NPC proactive behavior** — after a few turns of silence, NPCs with high eagerness scores will automatically reach out to the PC (no player input needed), keeping the world alive.
 - **Plot threads** — quests, hooks, and major events are tracked and re-injected into future prompts so the campaign stays coherent.
+- **RAG world book retrieval** — large world books are split into chunks and stored in a local vector database (ChromaDB). Each turn retrieves only the most relevant chunks, reducing prompt size for 7B models.
 - **Screenplay-driven pacing** — the GM is gently forced to advance main events every 1-2 turns; a "plot push" warning appears in key_facts when stalled.
 - **Dice system** — d20 + DC checks (standard mode); failures produce real consequences, not "nothing happens".
 - **Phone / tablet access** — opt-in LAN mode lets you play on any device on the same WiFi.

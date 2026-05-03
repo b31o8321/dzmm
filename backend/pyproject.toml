@@ -1,6 +1,6 @@
 [project]
 name = "dzmm"
-version = "0.3.0"
+version = "0.4.0"
 description = "AI dynamic TRPG text game backend"
 requires-python = ">=3.11"
 dependencies = [

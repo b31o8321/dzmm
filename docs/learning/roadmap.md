@@ -10,6 +10,7 @@
 - **v0.3.0** — 场景节奏控制（scene_turn_count + 压力指令）
 - **v0.3.0** — 骰子结果分支（success/fail 属性）
 - **v0.3.0** — 弱模型适配（JSON 三级降级）
+- **v0.4.0** — Phase A：LangChain RAG 世界书检索（OllamaEmbedder + ChromaDB + 自动重索引）
 
 ---
 

@@ -9,6 +9,7 @@
 | [Python 后端实现](python-backend.md) | async/await、SQLAlchemy、FastAPI、数据库迁移 |
 | [LLM 工程化实现](llm-engineering.md) | Prompt 设计、流式解析、上下文管理、弱模型容错 |
 | [Vue3 前端实现](vue-frontend.md) | SSE 消费、Composable、Pinia Store、响应式原理 |
+| [Phase A：LangChain RAG 实现](langchain-rag.md) | OllamaEmbedder、RecursiveCharacterTextSplitter、ChromaDB、优雅降级 |
 
 ## 一次回合走完整个调用链
 

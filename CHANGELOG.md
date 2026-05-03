@@ -11,6 +11,24 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.4.0] - 2026-05-03
+
+**Phase A — LangChain RAG 世界书检索**
+
+世界书 Markdown 分块向量化存入 ChromaDB；每回合检索 top-4 最相关片段注入 Prompt，减少本地 7B 模型的上下文压力，支持大型世界观。
+
+### 新增
+- **`service/world_rag.py`** — OllamaEmbedder（实现 LangChain Embeddings ABC）、`index_world()`（分块+向量化）、`retrieve_world_context()`（top-k 检索）、`get_world_md()`（优雅降级决策函数）
+- **`POST /worlds/{id}/reindex`** — 手动触发世界书重新索引（202 Accepted，后台异步）
+- **自动重索引** — 世界书 create/update 时 fire-and-forget 触发 `index_world_async()`
+- **`run_turn()` 集成** — 新增 `ollama_base_url` 参数；世界已索引时用 RAG 替代全文注入
+- **短世界书 fallback** — 世界书 < 800 字符或未索引时，静默回退到全文注入
+
+### 依赖新增
+- `langchain-text-splitters>=0.3` — RecursiveCharacterTextSplitter
+- `langchain-core>=0.3` — Embeddings ABC
+- `chromadb>=0.5` — 本地向量数据库（存储在 `~/.dzmm/chroma/{world_id}/`）
+
 ## [v0.2.2] - 2026-05-01
 
 **P1 GM/Prompt 改进**
