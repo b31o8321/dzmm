@@ -65,7 +65,7 @@ export interface GameStateBindings {
   applyStateChange: (content: string) => void
   applyNpcUpdate: (content: string) => void
   applyPcMood: (content: string) => void
-  pushDice: (d: { skill: string; target: string; result: string }) => void
+  pushDice: (d: { skill: string; target: string; result: string; success?: string; fail?: string }) => void
   threads: Ref<{ type: string; description: string; importance: number }[]>
 }
 
@@ -179,6 +179,8 @@ export function useGameTurn(
               skill: attrs.skill ?? '判定',
               target: attrs.target ?? '?',
               result: content.trim() || '?',
+              success: attrs.success || undefined,
+              fail: attrs.fail || undefined,
             })
           }
           else if (name === 'plot_event') {

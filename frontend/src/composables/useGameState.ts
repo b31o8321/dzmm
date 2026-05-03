@@ -8,7 +8,7 @@ export function useGameState() {
   const stats = reactive<Record<string, number>>({})
   const inventory = ref<string[]>([])
   const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null }[]>([])
-  const dice = ref<{ skill: string; target: string; result: string }[]>([])
+  const dice = ref<{ skill: string; target: string; result: string; success?: string; fail?: string }[]>([])
   const threads = ref<{ type: string; description: string; importance: number }[]>([])
   const pcMood = ref<Record<string, number>>({})
   const goals = ref<PCGoalItem[]>([])
@@ -90,7 +90,7 @@ export function useGameState() {
     }
   }
 
-  function pushDice(d: { skill: string; target: string; result: string }) {
+  function pushDice(d: { skill: string; target: string; result: string; success?: string; fail?: string }) {
     dice.value.unshift(d)
     if (dice.value.length > MAX_DICE) dice.value.length = MAX_DICE
   }
