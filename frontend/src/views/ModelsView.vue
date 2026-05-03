@@ -5,6 +5,7 @@ import { useModelConfigsStore } from '@/stores/modelConfigs'
 import type { ModelConfig, ModelConfigIn } from '@/api/types'
 
 const store = useModelConfigsStore()
+const recsOpen = ref(['recs'])
 const dialogOpen = ref(false)
 const editingId = ref<number | null>(null)
 const submitting = ref(false)
@@ -134,6 +135,37 @@ async function onTest(id: number) {
   }
 }
 
+function copyText(text: string) {
+  navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
+}
+
+const gmLocalModels = [
+  { id: 'qwen2.5:14b',       vram: '~10 GB', note: '中文叙事明显优于 7b，格式遵循稳定，推荐首选' },
+  { id: 'qwen2.5:32b',       vram: '~20 GB', note: '本地中文 RP 最佳，指令遵循和叙事质量均衡' },
+  { id: 'mistral-nemo:12b',  vram: '~8 GB',  note: '创意写作强，多语言，指令遵循好' },
+  { id: 'gemma3:12b',        vram: '~8 GB',  note: 'Google 最新，格式遵循稳定，创意性好' },
+  { id: 'llama3.1:8b',       vram: '~6 GB',  note: '效果中等，VRAM 有限时的最低可用选项' },
+]
+
+const gmCloudModels = [
+  { id: 'deepseek-chat',         baseUrl: 'https://api.deepseek.com/v1',       note: '即 DeepSeek-V3，中文 RP 性价比最高，注意勿用 deepseek-reasoner（r1）' },
+  { id: 'gpt-4o-mini',           baseUrl: 'https://api.openai.com/v1',         note: '稳定可靠，格式遵循极好，综合性价比高' },
+  { id: 'gpt-4o',                baseUrl: 'https://api.openai.com/v1',         note: '叙事质量最强，成本较高' },
+  { id: 'gemini-2.0-flash',      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', note: '速度快，中文可用，需 Google API Key' },
+  { id: 'claude-haiku-4-5-20251001', baseUrl: '（需 OpenAI 兼容转发层）',     note: 'Roleplay 细腻，直接调用建议用官方 SDK 而非此处' },
+]
+
+const ttsLocalServices = [
+  { name: 'openedai-speech (Kokoro)', baseUrl: 'http://localhost:8000', note: '高质量多音色，兼容 OpenAI /v1/audio/speech；推荐 Docker 部署' },
+  { name: 'AllTalk TTS',              baseUrl: 'http://localhost:7851', note: '支持声音克隆，本地 WebUI，Base URL 填到 /v1' },
+  { name: 'Kokoro-FastAPI',           baseUrl: 'http://localhost:8880', note: '轻量 Python 服务，仅 Kokoro 引擎，启动快' },
+]
+
+const ttsCloudModels = [
+  { id: 'tts-1',    baseUrl: 'https://api.openai.com/v1', note: '标准质量，延迟低；音色：alloy / echo / fable / onyx / nova / shimmer' },
+  { id: 'tts-1-hd', baseUrl: 'https://api.openai.com/v1', note: '高质量，略慢，同上 6 种音色' },
+]
+
 onMounted(() => store.refresh())
 </script>
 
@@ -144,14 +176,125 @@ onMounted(() => store.refresh())
       <el-button type="primary" @click="openCreate">+ 新增</el-button>
     </div>
 
-    <el-alert type="info" :closable="false" class="mb-4">
-      <template #title>
-        <span class="text-sm">
-          推荐模型：本地 <code>qwen2.5:7b</code> / <code>llama3.1:8b</code>；云端 <code>gpt-4o-mini</code> / <code>claude-haiku</code>。
-          <strong>避免</strong> <code>deepseek-r1</code> 等推理模型——它们会把输出全部放在 <code>&lt;think&gt;</code> 中，导致状态标签缺失。
-        </span>
-      </template>
-    </el-alert>
+    <el-collapse v-model="recsOpen" class="mb-4 border border-slate-200 rounded-lg overflow-hidden bg-white">
+      <el-collapse-item name="recs">
+        <template #title>
+          <span class="font-semibold text-slate-700 pl-1">按用途推荐模型</span>
+        </template>
+        <div class="px-4 pb-4">
+          <el-tabs>
+
+            <!-- GM 引擎 -->
+            <el-tab-pane label="GM 叙事引擎" name="gm">
+              <p class="text-xs text-slate-500 mb-3">
+                GM 引擎需要严格遵循输出格式（XML 状态标签）并保持叙事连贯性，跑团质量高度依赖模型能力。
+                <strong class="text-rose-600">避免推理模型</strong>（deepseek-r1、QwQ、qwen3 思考模式等）——思考过程会占满输出，状态标签全部丢失。
+              </p>
+
+              <p class="text-xs font-semibold text-slate-600 mb-2">本地模型（Ollama）</p>
+              <table class="w-full text-sm mb-4">
+                <thead>
+                  <tr class="border-b border-slate-200 text-xs text-slate-500">
+                    <th class="text-left py-1 pr-4 font-medium">模型</th>
+                    <th class="text-left py-1 pr-4 font-medium">显存需求</th>
+                    <th class="text-left py-1 font-medium">适用场景 / 说明</th>
+                  </tr>
+                </thead>
+                <tbody class="text-slate-700">
+                  <tr v-for="m in gmLocalModels" :key="m.id" class="border-b border-slate-100 last:border-0">
+                    <td class="py-1.5 pr-4">
+                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.id }}</code>
+                      <el-button
+                        link size="small"
+                        class="ml-1 text-xs text-slate-400"
+                        @click="copyText(`ollama pull ${m.id}`)"
+                      >复制拉取命令</el-button>
+                    </td>
+                    <td class="py-1.5 pr-4 text-xs text-slate-500 whitespace-nowrap">{{ m.vram }}</td>
+                    <td class="py-1.5 text-xs text-slate-600">{{ m.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p class="text-xs font-semibold text-slate-600 mb-2">云端模型（OpenAI 兼容接口）</p>
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-slate-200 text-xs text-slate-500">
+                    <th class="text-left py-1 pr-4 font-medium">模型 ID</th>
+                    <th class="text-left py-1 pr-4 font-medium">Base URL</th>
+                    <th class="text-left py-1 font-medium">说明</th>
+                  </tr>
+                </thead>
+                <tbody class="text-slate-700">
+                  <tr v-for="m in gmCloudModels" :key="m.id" class="border-b border-slate-100 last:border-0">
+                    <td class="py-1.5 pr-4">
+                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.id }}</code>
+                      <el-button link size="small" class="ml-1 text-xs text-slate-400" @click="copyText(m.id)">复制</el-button>
+                    </td>
+                    <td class="py-1.5 pr-4 text-xs text-slate-500">
+                      <code class="text-xs">{{ m.baseUrl }}</code>
+                    </td>
+                    <td class="py-1.5 text-xs text-slate-600">{{ m.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </el-tab-pane>
+
+            <!-- TTS -->
+            <el-tab-pane label="TTS 语音合成" name="tts">
+              <p class="text-xs text-slate-500 mb-3">
+                TTS 需要单独运行一个兼容 OpenAI <code>/v1/audio/speech</code> 接口的服务，在设置页开启并选择对应的模型配置。
+              </p>
+
+              <p class="text-xs font-semibold text-slate-600 mb-2">本地语音服务</p>
+              <table class="w-full text-sm mb-4">
+                <thead>
+                  <tr class="border-b border-slate-200 text-xs text-slate-500">
+                    <th class="text-left py-1 pr-4 font-medium">服务</th>
+                    <th class="text-left py-1 pr-4 font-medium">默认 Base URL</th>
+                    <th class="text-left py-1 font-medium">说明</th>
+                  </tr>
+                </thead>
+                <tbody class="text-slate-700">
+                  <tr v-for="m in ttsLocalServices" :key="m.name" class="border-b border-slate-100 last:border-0">
+                    <td class="py-1.5 pr-4 text-xs font-medium">{{ m.name }}</td>
+                    <td class="py-1.5 pr-4">
+                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.baseUrl }}</code>
+                      <el-button link size="small" class="ml-1 text-xs text-slate-400" @click="copyText(m.baseUrl)">复制</el-button>
+                    </td>
+                    <td class="py-1.5 text-xs text-slate-600">{{ m.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p class="text-xs font-semibold text-slate-600 mb-2">云端语音（OpenAI）</p>
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-slate-200 text-xs text-slate-500">
+                    <th class="text-left py-1 pr-4 font-medium">模型 ID</th>
+                    <th class="text-left py-1 pr-4 font-medium">Base URL</th>
+                    <th class="text-left py-1 font-medium">说明</th>
+                  </tr>
+                </thead>
+                <tbody class="text-slate-700">
+                  <tr v-for="m in ttsCloudModels" :key="m.id" class="border-b border-slate-100 last:border-0">
+                    <td class="py-1.5 pr-4">
+                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.id }}</code>
+                      <el-button link size="small" class="ml-1 text-xs text-slate-400" @click="copyText(m.id)">复制</el-button>
+                    </td>
+                    <td class="py-1.5 pr-4 text-xs text-slate-500">
+                      <code class="text-xs">{{ m.baseUrl }}</code>
+                    </td>
+                    <td class="py-1.5 text-xs text-slate-600">{{ m.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </el-tab-pane>
+
+          </el-tabs>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
 
     <el-table :data="store.items" v-loading="store.loading" border>
       <el-table-column prop="name" label="名称" width="160" />

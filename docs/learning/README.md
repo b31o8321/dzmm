@@ -10,6 +10,7 @@
 | [LLM 工程化实现](llm-engineering.md) | Prompt 设计、流式解析、上下文管理、弱模型容错 |
 | [Vue3 前端实现](vue-frontend.md) | SSE 消费、Composable、Pinia Store、响应式原理 |
 | [Phase A：LangChain RAG 实现](langchain-rag.md) | OllamaEmbedder、RecursiveCharacterTextSplitter、ChromaDB、优雅降级 |
+| [Phase B：LangGraph 多 Agent GM 实现](langgraph-multiagent.md) | StateGraph、条件边、闭包注入、多 Agent 编排、后向兼容 |
 
 ## 一次回合走完整个调用链
 

@@ -11,6 +11,7 @@
 - **v0.3.0** — 骰子结果分支（success/fail 属性）
 - **v0.3.0** — 弱模型适配（JSON 三级降级）
 - **v0.4.0** — Phase A：LangChain RAG 世界书检索（OllamaEmbedder + ChromaDB + 自动重索引）
+- **v0.5.0** — Phase B：LangGraph 多 Agent GM（StateGraph + 条件边 + NPC 后处理 Agent）
 
 ---
 

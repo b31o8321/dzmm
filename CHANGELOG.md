@@ -11,6 +11,23 @@
 
 历史版本（v0.1 - v0.13）属于测试期 PATCH 增量；自 0.0.14 起改用三位数显式标记。
 
+## [v0.5.0] - 2026-05-03
+
+**Phase B — LangGraph 多 Agent GM**
+
+GM 管线拆分为三阶段：LangGraph 规则预处理 Agent（StateGraph + 条件边）→ 主叙事流式生成（不变）→ NPC 后处理 Agent。通过 `use_graph` 会话设置开启。
+
+### 新增
+- **`service/gm_graph.py`** — LangGraph `StateGraph` 预处理图：`rules_node`（规则分析）→ 条件边（有检定 → `dice_enrich_node`，无检定 → END）→ 返回增强版 `key_facts`
+- **`run_npc_post_pass()`** — 主叙事完成后运行，检查在场 NPC 是否有遗漏反应，产出额外 `<npc_update>` 事件
+- **`prompts/rules_template.py`** — 规则预处理 Prompt（行动类型 + 技能检定 + 叙事指令，三行格式）
+- **`prompts/npc_react_template.py`** — NPC 后处理 Prompt（补充在场 NPC 未显示的反应）
+- **`use_graph` 会话设置** — 在 `session.settings_json` 中设 `"use_graph": true` 即可启用；默认 false，不影响现有行为
+- **向后兼容** — `director_pass` 设置保留，`use_graph` 和 `director_pass` 可独立选择
+
+### 依赖新增
+- `langgraph>=0.2` — StateGraph, 条件边, ainvoke
+
 ## [v0.4.0] - 2026-05-03
 
 **Phase A — LangChain RAG 世界书检索**
