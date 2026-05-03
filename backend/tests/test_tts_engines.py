@@ -85,3 +85,41 @@ async def test_edge_synthesize_empty_text_returns_empty():
         result = await edge_synthesize("", "zh-CN-XiaoxiaoNeural")
 
     assert result == b""
+
+
+from pathlib import Path
+
+
+def test_kokoro_model_ready_false_when_no_file(tmp_path):
+    from dzmm.tts.kokoro_engine import is_model_ready
+    assert is_model_ready(tmp_path) is False
+
+
+def test_kokoro_model_ready_true_when_files_exist(tmp_path):
+    from dzmm.tts.kokoro_engine import is_model_ready, MODEL_FILENAME, VOICES_FILENAME
+    (tmp_path / MODEL_FILENAME).write_bytes(b"fake")
+    (tmp_path / VOICES_FILENAME).write_bytes(b"fake")
+    assert is_model_ready(tmp_path) is True
+
+
+@pytest.mark.asyncio
+async def test_kokoro_synthesize_returns_wav_bytes(tmp_path):
+    """kokoro engine returns WAV bytes (numpy→soundfile)."""
+    import numpy as np
+    from dzmm.tts.kokoro_engine import synthesize as kokoro_synthesize, MODEL_FILENAME, VOICES_FILENAME
+
+    fake_samples = np.zeros(22050, dtype=np.float32)  # 1 second silence
+    fake_sample_rate = 22050
+
+    # Create dummy model files so is_model_ready returns True
+    (tmp_path / MODEL_FILENAME).write_bytes(b"fake")
+    (tmp_path / VOICES_FILENAME).write_bytes(b"fake")
+
+    mock_kokoro = MagicMock()
+    mock_kokoro.create.return_value = (fake_samples, fake_sample_rate)
+
+    with patch("dzmm.tts.kokoro_engine.Kokoro", return_value=mock_kokoro):
+        result = await kokoro_synthesize("你好", "zf_xiaobei", models_dir=tmp_path)
+
+    assert len(result) > 44  # at least WAV header (44 bytes)
+    assert result[:4] == b"RIFF"  # WAV magic bytes
