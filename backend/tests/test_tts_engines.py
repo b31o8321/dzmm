@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from dzmm.tts.voice_map import (
     edge_voice_for_archetype,
@@ -118,3 +118,59 @@ async def test_kokoro_synthesize_returns_wav_bytes(tmp_path):
 
     assert len(result) > 44  # at least WAV header (44 bytes)
     assert result[:4] == b"RIFF"  # WAV magic bytes
+
+
+# --- API endpoint tests ---
+
+from httpx import ASGITransport, AsyncClient
+
+from dzmm.db.base import init_db, get_engine, async_session
+from dzmm.main import create_app
+
+
+@pytest.fixture
+async def http(tmp_path):
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/t.db"
+    engine = get_engine(db_url)
+    await init_db(engine)
+    maker = async_session(engine)
+    app = create_app(maker)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_tts_voices_returns_list(http):
+    r = await http.get("/tts/voices")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert len(data) >= 8
+    first = data[0]
+    assert "voice" in first
+    assert "label" in first
+
+
+@pytest.mark.asyncio
+async def test_tts_builtin_edge_calls_engine(http):
+    with patch("dzmm.api.routes_tts.edge_synthesize", new=AsyncMock(return_value=b"mp3bytes")) as m:
+        r = await http.post("/tts/builtin", json={"text": "你好", "voice": "zh-CN-XiaoxiaoNeural"})
+    assert r.status_code == 200
+    assert r.content == b"mp3bytes"
+    m.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_tts_builtin_edge_empty_text_returns_204(http):
+    with patch("dzmm.api.routes_tts.edge_synthesize", new=AsyncMock(return_value=b"")):
+        r = await http.post("/tts/builtin", json={"text": "   ", "voice": "zh-CN-XiaoxiaoNeural"})
+    assert r.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_tts_kokoro_status_returns_ready_flag(http):
+    with patch("dzmm.api.routes_tts.is_kokoro_ready", return_value=False):
+        r = await http.get("/tts/kokoro/status")
+    assert r.status_code == 200
+    assert r.json()["ready"] is False
