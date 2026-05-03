@@ -749,13 +749,17 @@ async def test_key_facts_marks_completed_events(seeded):
 
 
 async def test_key_facts_omits_screenplay_when_none(seeded):
-    """Sessions without an active Screenplay (legacy / pre-v0.1.0) must not
-    surface the *injected* progress block. We can't simply assert the literal
-    header is absent, because rule 24 in the static prompt references it by
-    name. Instead we look for the unique signature of the actual injection:
-    the parenthesised subtitle '（GM 严格遵守主线，分支由 PC 探索触发）'
-    only appears in the injected block, never in the static template."""
+    """Legacy sessions (turn > 0, no Screenplay row) must not surface the
+    injected progress block. Unique signature: parenthesised subtitle
+    '（GM 严格遵守主线，分支由 PC 探索触发）' only appears in the injection."""
     engine, SessionMaker, sid = seeded
+    # Set turn_count=1 so _auto_generate_screenplay is not called (it only
+    # fires on turn 0). No Screenplay row exists, simulating a legacy session.
+    async with SessionMaker() as s:
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 1
+        await s.commit()
+
     captured = FakeClient("<narrative>x</narrative>")
     async with SessionMaker() as s:
         async for _ in run_turn(s, sid, "继续", captured):
@@ -763,10 +767,6 @@ async def test_key_facts_omits_screenplay_when_none(seeded):
         await s.commit()
 
     sys_msg = captured.last_messages[0].content
-    # Signature of the *injected* block (only emitted when an active
-    # screenplay exists). The plain text "## 当前剧本进度" alone isn't unique
-    # because iron rule 24 references it by name; the parenthesised subtitle
-    # and "本章主线（必须演完才能推进下章）" only live in the injection.
     assert "GM 严格遵守主线，分支由 PC 探索触发" not in sys_msg
     assert "本章主线（必须演完才能推进下章）" not in sys_msg
     assert "（推进规则：主线 [pending]" not in sys_msg

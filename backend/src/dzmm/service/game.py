@@ -157,11 +157,58 @@ async def _auto_generate_screenplay(
     if raw.endswith("```"):
         raw = raw.rsplit("\n", 1)[0]
 
+    data: dict | None = None
+    # First try direct parse
     try:
         data = json.loads(raw)
     except (ValueError, TypeError):
-        log.warning("auto_screenplay: JSON parse failed — proceeding without outline")
-        return
+        pass
+
+    # Fallback: regex-extract the outermost {...} block (handles leading/trailing text)
+    if data is None:
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            try:
+                data = json.loads(m.group())
+            except (ValueError, TypeError):
+                pass
+
+    if data is None:
+        log.warning("auto_screenplay: JSON parse failed — using fallback skeleton")
+        world_name = world.name or "未知世界"
+        data = {
+            "chapters": [
+                {
+                    "title": "第一章：开端",
+                    "summary": f"PC 踏入{world_name}，遭遇初始冲突，卷入主线事件。",
+                    "main_events": [
+                        {
+                            "description": "PC 与关键 NPC 相遇，接受主线任务",
+                            "keywords": ["任务", "开始", "相遇"],
+                            "criteria": "PC 明确了当前目标",
+                        }
+                    ],
+                    "optional_events": [],
+                    "main_npcs": [],
+                },
+                {
+                    "title": "第二章：发展",
+                    "summary": "主线矛盾激化，PC 面临关键抉择，迎来故事高潮。",
+                    "main_events": [
+                        {
+                            "description": "核心矛盾爆发，PC 必须做出重大决定",
+                            "keywords": ["冲突", "危机", "决断"],
+                            "criteria": "PC 解决了核心冲突",
+                        }
+                    ],
+                    "optional_events": [],
+                    "main_npcs": [],
+                },
+            ],
+            "main_characters": [],
+            "ending": "PC 完成使命，故事在此画上句号。",
+            "opening_hook": f"你站在{world_name}的某处，一段新的冒险即将开始……",
+        }
 
     chapters = data.get("chapters", [])
     main_characters = data.get("main_characters", [])
