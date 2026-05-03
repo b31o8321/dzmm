@@ -142,7 +142,7 @@ function close() {
         <div class="text-sm font-bold text-slate-700 mb-2">旁白 / 主角音色</div>
         <div v-if="appStore.ttsEnabled" class="flex items-center gap-3 flex-wrap">
           <span class="text-xs text-slate-500">
-            模式：<strong>{{ { edge: 'edge-tts', kokoro: 'Kokoro', webspeech: '浏览器', local: '外部服务' }[appStore.ttsMode] }}</strong>
+            模式：<strong>{{ { edge: 'edge-tts', kokoro: 'Kokoro', webspeech: '浏览器', local: '外部服务' }[appStore.ttsMode] ?? appStore.ttsMode }}</strong>
           </span>
           <span v-if="appStore.ttsGmVoice" class="text-xs text-slate-500">
             旁白：<code class="bg-slate-100 px-1 rounded text-xs">{{ appStore.ttsGmVoice }}</code>
