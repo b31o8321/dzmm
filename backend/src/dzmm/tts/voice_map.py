@@ -1,23 +1,26 @@
 """Archetype → TTS voice/prosody mappings for edge-tts and kokoro-onnx."""
 
 # edge-tts: archetype → (voice_name, rate_adjust, pitch_adjust_hz)
+# Only voices confirmed available as of 2026-05:
+#   zh-CN-XiaoxiaoNeural  XiaoyiNeural  YunjianNeural  YunxiNeural
+#   YunxiaNeural  YunyangNeural  liaoning-XiaobeiNeural  shaanxi-XiaoniNeural
 _EDGE_MAP: dict[str, tuple[str, str, str]] = {
-    "导师":  ("zh-CN-YunyeNeural",    "-5%",  "-2Hz"),
-    "盟友":  ("zh-CN-YunxiNeural",    "+0%",  "+0Hz"),
-    "反派":  ("zh-CN-YunyeNeural",    "+5%",  "-5Hz"),
-    "神秘人":("zh-CN-XiaoqiuNeural",  "-15%", "-3Hz"),
-    "商人":  ("zh-CN-YunyangNeural",  "+8%",  "+0Hz"),
-    "守卫":  ("zh-CN-YunfengNeural",  "+0%",  "-1Hz"),
-    "平民":  ("zh-CN-XiaozhenNeural", "+0%",  "+0Hz"),
-    "智者":  ("zh-CN-XiaoqiuNeural",  "-20%", "-4Hz"),
-    "冷酷":  ("zh-CN-XiaomoNeural",   "-10%", "-3Hz"),
-    "温柔":  ("zh-CN-XiaoxiaoNeural", "-5%",  "+2Hz"),
-    "活泼":  ("zh-CN-XiaohanNeural",  "+15%", "+3Hz"),
-    "邪恶":  ("zh-CN-YunyeNeural",    "+0%",  "-6Hz"),
-    "儿童":  ("zh-CN-XiaoshuangNeural","+15%","+5Hz"),
-    "长老":  ("zh-CN-XiaoqiuNeural",  "-20%", "-5Hz"),
-    "武将":  ("zh-CN-YunfengNeural",  "+5%",  "-2Hz"),
-    "贵族":  ("zh-CN-YunyangNeural",  "-5%",  "+0Hz"),
+    "导师":   ("zh-CN-YunjianNeural",  "-8%",  "-2Hz"),
+    "盟友":   ("zh-CN-YunxiNeural",    "+0%",  "+0Hz"),
+    "反派":   ("zh-CN-YunyangNeural",  "+5%",  "-5Hz"),
+    "神秘人": ("zh-CN-YunjianNeural",  "-15%", "-3Hz"),
+    "商人":   ("zh-CN-YunyangNeural",  "+8%",  "+0Hz"),
+    "守卫":   ("zh-CN-YunxiaNeural",   "+0%",  "-2Hz"),
+    "平民":   ("zh-CN-XiaoyiNeural",   "+0%",  "+0Hz"),
+    "智者":   ("zh-CN-YunjianNeural",  "-20%", "-4Hz"),
+    "冷酷":   ("zh-CN-XiaoxiaoNeural", "-10%", "-3Hz"),
+    "温柔":   ("zh-CN-XiaoxiaoNeural", "-5%",  "+2Hz"),
+    "活泼":   ("zh-CN-XiaoyiNeural",   "+15%", "+3Hz"),
+    "邪恶":   ("zh-CN-YunyangNeural",  "+0%",  "-6Hz"),
+    "儿童":   ("zh-CN-XiaoyiNeural",   "+15%", "+5Hz"),
+    "长老":   ("zh-CN-YunjianNeural",  "-20%", "-5Hz"),
+    "武将":   ("zh-CN-YunxiaNeural",   "+5%",  "-2Hz"),
+    "贵族":   ("zh-CN-YunyangNeural",  "-5%",  "+0Hz"),
 }
 
 _EDGE_DEFAULT = ("zh-CN-YunxiNeural", "+0%", "+0Hz")

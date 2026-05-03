@@ -79,19 +79,14 @@ async def direct_tts(body: DirectTtsRequest):
 
 
 _VOICE_LABELS = {
-    "zh-CN-XiaoxiaoNeural":   "晓晓（温柔/旁白）",
-    "zh-CN-XiaohanNeural":    "晓涵（活泼）",
-    "zh-CN-XiaomoNeural":     "晓墨（冷静）",
-    "zh-CN-XiaoqiuNeural":    "晓秋（沉稳/智者）",
-    "zh-CN-XiaoshuangNeural": "晓双（儿童）",
-    "zh-CN-XiaoxuanNeural":   "晓萱（成熟女）",
-    "zh-CN-XiaozhenNeural":   "晓甄（平民）",
-    "zh-CN-YunfengNeural":    "云枫（守卫/武将）",
-    "zh-CN-YunhaoNeural":     "云皓（青年男）",
-    "zh-CN-YunjianNeural":    "云健（叙事男）",
-    "zh-CN-YunxiNeural":      "云希（盟友）",
-    "zh-CN-YunyangNeural":    "云扬（商人/权威）",
-    "zh-CN-YunyeNeural":      "云野（导师/反派）",
+    "zh-CN-XiaoxiaoNeural":          "晓晓（温柔/旁白）",
+    "zh-CN-XiaoyiNeural":            "晓伊（活泼女）",
+    "zh-CN-YunjianNeural":           "云健（叙事/导师）",
+    "zh-CN-YunxiNeural":             "云希（盟友男）",
+    "zh-CN-YunxiaNeural":            "云夏（青年男）",
+    "zh-CN-YunyangNeural":           "云扬（商人/权威）",
+    "zh-CN-liaoning-XiaobeiNeural":  "晓北（东北女）",
+    "zh-CN-shaanxi-XiaoniNeural":    "晓妮（陕西女）",
 }
 
 

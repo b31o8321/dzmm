@@ -15,11 +15,11 @@ from dzmm.tts.voice_map import (
 
 
 def test_edge_known_archetypes():
-    assert edge_voice_for_archetype("冷酷") == "zh-CN-XiaomoNeural"
+    assert edge_voice_for_archetype("冷酷") == "zh-CN-XiaoxiaoNeural"
     assert edge_voice_for_archetype("温柔") == "zh-CN-XiaoxiaoNeural"
-    assert edge_voice_for_archetype("活泼") == "zh-CN-XiaohanNeural"
-    assert edge_voice_for_archetype("反派") == "zh-CN-YunyeNeural"
-    assert edge_voice_for_archetype("导师") == "zh-CN-YunyeNeural"
+    assert edge_voice_for_archetype("活泼") == "zh-CN-XiaoyiNeural"
+    assert edge_voice_for_archetype("反派") == "zh-CN-YunyangNeural"
+    assert edge_voice_for_archetype("导师") == "zh-CN-YunjianNeural"
 
 
 def test_edge_unknown_archetype_returns_default():
