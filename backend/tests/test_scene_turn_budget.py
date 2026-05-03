@@ -90,6 +90,7 @@ async def test_scene_turn_count_resets_on_location_enter(seeded):
         assert sess.scene_turn_count == 1
 
 
+@pytest.mark.xfail(reason="Task 3 not yet implemented")
 async def test_scene_pressure_appears_in_key_facts_above_threshold(seeded):
     """_build_key_facts injects scene pressure when scene_turn_count >= SCENE_SOFT_PRESSURE_TURNS."""
     SM, sid = seeded
@@ -104,6 +105,7 @@ async def test_scene_pressure_appears_in_key_facts_above_threshold(seeded):
     assert "场景时间提醒" in kf or "场景强推" in kf
 
 
+@pytest.mark.xfail(reason="Task 3 not yet implemented")
 async def test_scene_pressure_absent_below_threshold(seeded):
     """No scene pressure injected when scene_turn_count < SCENE_SOFT_PRESSURE_TURNS."""
     SM, sid = seeded

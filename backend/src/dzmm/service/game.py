@@ -76,12 +76,12 @@ def _update_scene_turn_count(sess, completed_tags: list) -> None:
     Reset to 1 if a location_enter tag was emitted (new scene),
     otherwise increment by 1."""
     location_entered = any(
-        getattr(t, "name", None) == "location_enter" for t in completed_tags
+        t.name == "location_enter" for t in completed_tags
     )
     if location_entered:
         sess.scene_turn_count = 1
     else:
-        sess.scene_turn_count = (sess.scene_turn_count or 0) + 1
+        sess.scene_turn_count = sess.scene_turn_count + 1
 
 
 def _recent_window_for(turn_count: int) -> int:
