@@ -210,3 +210,29 @@ async def test_run_eval_runs_correct_number_of_turns():
     assert len(turn_calls) == 10
     assert len(scores) == 2  # judge runs at turn 5 and turn 10
     assert all(isinstance(s, EvalScore) for s in scores)
+
+
+from dzmm.eval.report import generate_report
+
+
+def test_generate_report_contains_both_config_names():
+    scores_a = [
+        EvalScore(1, 10, "single_gm", 7.0, 1, 8.0, 9.0, "good"),
+        EvalScore(1, 20, "single_gm", 6.0, 2, 7.0, 8.0, "ok"),
+    ]
+    scores_b = [
+        EvalScore(2, 10, "multi_agent_gm", 8.0, 0, 9.0, 9.0, "excellent"),
+        EvalScore(2, 20, "multi_agent_gm", 8.5, 0, 8.5, 9.5, "great"),
+    ]
+    report = generate_report(scores_a, "single_gm", scores_b, "multi_agent_gm")
+    assert "single_gm" in report
+    assert "multi_agent_gm" in report
+    assert "plot_speed" in report.lower() or "剧情" in report
+    assert isinstance(report, str)
+    assert len(report) > 100
+
+
+def test_generate_report_handles_empty_scores():
+    report = generate_report([], "config_a", [], "config_b")
+    assert isinstance(report, str)
+    assert "config_a" in report or "config_b" in report
