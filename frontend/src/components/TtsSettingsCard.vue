@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { backendOrigin } from '@/api/client'
@@ -8,7 +8,17 @@ const appStore = useAppStore()
 const modelsStore = useModelConfigsStore()
 
 // webspeech
-const webSpeechVoices = ref<{ name: string; lang: string }[]>([])
+const webSpeechVoices = ref<{ name: string; lang: string; uri: string }[]>([])
+
+function handleVoicesChanged() {
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    webSpeechVoices.value = window.speechSynthesis.getVoices().map((v) => ({
+      name: v.name,
+      lang: v.lang,
+      uri: v.voiceURI,
+    }))
+  }
+}
 
 // edge-tts
 const edgeVoices = ref<{ voice: string; label: string }[]>([])
@@ -29,11 +39,8 @@ onMounted(async () => {
   await modelsStore.refresh()
 
   if (typeof window !== 'undefined' && window.speechSynthesis) {
-    const load = () => {
-      webSpeechVoices.value = window.speechSynthesis.getVoices().map((v) => ({ name: v.name, lang: v.lang }))
-    }
-    load()
-    window.speechSynthesis.onvoiceschanged = load
+    handleVoicesChanged()
+    window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged)
   }
 
   try {
@@ -44,10 +51,17 @@ onMounted(async () => {
   await refreshKokoroStatus()
 })
 
+onUnmounted(() => {
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
+  }
+})
+
 async function refreshKokoroStatus() {
   try {
     const r = await fetch(`${backendOrigin}/tts/kokoro/status`)
     if (r.ok) kokoroReady.value = (await r.json()).ready
+    else kokoroReady.value = false
   } catch { kokoroReady.value = false }
 }
 
@@ -76,7 +90,6 @@ const otherVoices = computed(() =>
   webSpeechVoices.value.filter((v) => !v.lang.startsWith('zh') && !v.lang.startsWith('cmn')),
 )
 
-function save() { appStore.saveTtsSettings() }
 </script>
 
 <template>
@@ -87,12 +100,12 @@ function save() { appStore.saveTtsSettings() }
     <el-form label-width="110px" class="space-y-2 text-sm">
 
       <el-form-item label="启用 TTS">
-        <el-switch v-model="appStore.ttsEnabled" @change="save" />
+        <el-switch v-model="appStore.ttsEnabled" @change="appStore.saveTtsSettings" />
       </el-form-item>
 
       <template v-if="appStore.ttsEnabled">
         <el-form-item label="朗读模式">
-          <el-radio-group v-model="appStore.ttsMode" @change="save">
+          <el-radio-group v-model="appStore.ttsMode" @change="appStore.saveTtsSettings">
             <el-radio value="edge">内置 edge-tts（在线免费，Neural音色）</el-radio>
             <el-radio value="kokoro">本地 Kokoro（离线，需下载 ~82MB）</el-radio>
             <el-radio value="webspeech">浏览器内置（Web Speech API）</el-radio>
@@ -103,18 +116,15 @@ function save() { appStore.saveTtsSettings() }
         <!-- edge-tts mode -->
         <template v-if="appStore.ttsMode === 'edge'">
           <el-form-item label="GM 旁白音色">
-            <el-select v-model="appStore.ttsGmVoice" @change="save" placeholder="晓晓（温柔/旁白）" clearable filterable>
+            <el-select v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="晓晓（温柔/旁白）" clearable filterable>
               <el-option v-for="v in edgeVoices" :key="v.voice" :label="v.label" :value="v.voice" />
             </el-select>
           </el-form-item>
           <el-form-item label="主角（PC）音色">
-            <el-select v-model="appStore.ttsPcVoice" @change="save" placeholder="与旁白相同" clearable filterable>
+            <el-select v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="与旁白相同" clearable filterable>
               <el-option v-for="v in edgeVoices" :key="v.voice" :label="v.label" :value="v.voice" />
             </el-select>
           </el-form-item>
-          <div class="text-xs text-slate-400 pl-1">
-            NPC 音色在游戏中「NPC 图鉴」里设置；新 NPC 会按性格原型自动分配。
-          </div>
         </template>
 
         <!-- kokoro mode -->
@@ -125,7 +135,7 @@ function save() { appStore.saveTtsSettings() }
               <el-tag v-else-if="kokoroReady === false" type="info">未下载</el-tag>
               <el-tag v-else type="warning">检测中…</el-tag>
               <el-button
-                v-if="!kokoroReady"
+                v-if="kokoroReady === false"
                 type="primary"
                 size="small"
                 :loading="kokoroDownloading"
@@ -137,12 +147,12 @@ function save() { appStore.saveTtsSettings() }
             <div v-if="kokoroError" class="text-xs text-red-500 mt-1">{{ kokoroError }}</div>
           </el-form-item>
           <el-form-item label="GM 旁白音色">
-            <el-select v-model="appStore.ttsGmVoice" @change="save" placeholder="小北（中文女，温柔）" clearable>
+            <el-select v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="小北（中文女，温柔）" clearable>
               <el-option v-for="v in KOKORO_ZH_VOICES" :key="v.value" :label="v.label" :value="v.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="主角（PC）音色">
-            <el-select v-model="appStore.ttsPcVoice" @change="save" placeholder="与旁白相同" clearable>
+            <el-select v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="与旁白相同" clearable>
               <el-option v-for="v in KOKORO_ZH_VOICES" :key="v.value" :label="v.label" :value="v.value" />
             </el-select>
           </el-form-item>
@@ -151,7 +161,7 @@ function save() { appStore.saveTtsSettings() }
         <!-- webspeech mode -->
         <template v-if="appStore.ttsMode === 'webspeech'">
           <el-form-item label="GM 旁白音色">
-            <el-select v-model="appStore.ttsGmVoice" @change="save" placeholder="系统默认" clearable filterable>
+            <el-select v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="系统默认" clearable filterable>
               <el-option-group v-if="chineseVoices.length" label="中文">
                 <el-option v-for="v in chineseVoices" :key="v.name" :label="v.name" :value="v.name" />
               </el-option-group>
@@ -161,7 +171,7 @@ function save() { appStore.saveTtsSettings() }
             </el-select>
           </el-form-item>
           <el-form-item label="主角（PC）音色">
-            <el-select v-model="appStore.ttsPcVoice" @change="save" placeholder="与旁白相同" clearable filterable>
+            <el-select v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="与旁白相同" clearable filterable>
               <el-option-group v-if="chineseVoices.length" label="中文">
                 <el-option v-for="v in chineseVoices" :key="v.name" :label="v.name" :value="v.name" />
               </el-option-group>
@@ -175,7 +185,7 @@ function save() { appStore.saveTtsSettings() }
         <!-- local proxy mode -->
         <template v-if="appStore.ttsMode === 'local'">
           <el-form-item label="TTS 模型配置">
-            <el-select v-model="appStore.ttsModelConfigId" @change="save" placeholder="选择模型配置">
+            <el-select v-model="appStore.ttsModelConfigId" @change="appStore.saveTtsSettings" placeholder="选择模型配置">
               <el-option v-for="m in modelsStore.items" :key="m.id" :label="`${m.name} (${m.model_name})`" :value="m.id" />
             </el-select>
             <div class="text-xs text-slate-400 mt-1">
@@ -183,10 +193,10 @@ function save() { appStore.saveTtsSettings() }
             </div>
           </el-form-item>
           <el-form-item label="GM 旁白音色">
-            <el-input v-model="appStore.ttsGmVoice" @change="save" placeholder="如 af_sky / zh_female_1" />
+            <el-input v-model="appStore.ttsGmVoice" @change="appStore.saveTtsSettings" placeholder="如 af_sky / zh_female_1" />
           </el-form-item>
           <el-form-item label="主角（PC）音色">
-            <el-input v-model="appStore.ttsPcVoice" @change="save" placeholder="如 zh_male_1" />
+            <el-input v-model="appStore.ttsPcVoice" @change="appStore.saveTtsSettings" placeholder="如 zh_male_1" />
           </el-form-item>
         </template>
 
