@@ -102,7 +102,7 @@ export function useTTS() {
     _speaking.value = true
     try {
       if (appStore.ttsMode === 'edge') {
-        const { voice: v, rate, pitch } = parseEdgeVoice(voice || appStore.ttsGmVoice)
+        const { voice: v, rate, pitch } = parseEdgeVoice(voice || appStore.ttsGmVoice || 'zh-CN-XiaoxiaoNeural')
         const resp = await fetch(`${backendOrigin}/tts/builtin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -127,6 +127,7 @@ export function useTTS() {
       } else if (appStore.ttsMode === 'webspeech') {
         if (typeof window !== 'undefined' && window.speechSynthesis) {
           const voices = await _getVoices()
+          if (_aborted) return
           const utterance = new SpeechSynthesisUtterance(text)
           const found = voices.find((v) => v.name === voice || v.voiceURI === voice) ?? null
           if (found) utterance.voice = found
