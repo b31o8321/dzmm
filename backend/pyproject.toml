@@ -16,6 +16,7 @@ dependencies = [
     "langchain-text-splitters>=0.3",
     "langchain-core>=0.3",
     "chromadb>=0.5",
+    "langgraph>=0.2",
 ]
 
 [project.optional-dependencies]
