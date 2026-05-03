@@ -43,3 +43,45 @@ def test_kokoro_unknown_archetype_returns_default():
 def test_narrator_voices_defined():
     assert NARRATOR_EDGE_VOICE.startswith("zh-CN-")
     assert NARRATOR_KOKORO_VOICE.startswith("z")
+
+
+import asyncio
+from unittest.mock import AsyncMock, patch, MagicMock
+
+
+@pytest.mark.asyncio
+async def test_edge_synthesize_returns_bytes():
+    """edge engine should return non-empty bytes on success."""
+    from dzmm.tts.edge_engine import synthesize as edge_synthesize
+
+    fake_chunk_audio = {"type": "audio", "data": b"fakemp3data"}
+    fake_chunk_meta = {"type": "WordBoundary", "data": {}}
+
+    async def fake_stream():
+        yield fake_chunk_meta
+        yield fake_chunk_audio
+
+    mock_communicate = MagicMock()
+    mock_communicate.stream = fake_stream
+
+    with patch("dzmm.tts.edge_engine.edge_tts.Communicate", return_value=mock_communicate):
+        result = await edge_synthesize("你好世界", "zh-CN-XiaoxiaoNeural")
+
+    assert result == b"fakemp3data"
+
+
+@pytest.mark.asyncio
+async def test_edge_synthesize_empty_text_returns_empty():
+    from dzmm.tts.edge_engine import synthesize as edge_synthesize
+
+    async def fake_stream():
+        return
+        yield  # make it an async generator
+
+    mock_communicate = MagicMock()
+    mock_communicate.stream = fake_stream
+
+    with patch("dzmm.tts.edge_engine.edge_tts.Communicate", return_value=mock_communicate):
+        result = await edge_synthesize("", "zh-CN-XiaoxiaoNeural")
+
+    assert result == b""

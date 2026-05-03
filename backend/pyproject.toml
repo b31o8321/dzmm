@@ -17,6 +17,9 @@ dependencies = [
     "langchain-core>=0.3",
     "chromadb>=0.5",
     "langgraph>=0.2",
+    "edge-tts>=6.1",
+    "kokoro-onnx>=0.4",
+    "soundfile>=0.12",
 ]
 
 [project.optional-dependencies]
