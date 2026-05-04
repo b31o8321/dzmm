@@ -89,6 +89,76 @@ async def patch_session_gm_model(
     return {"id": sess.id, "gm_model_config_id": sess.gm_model_config_id}
 
 
+class PatchDebugStateRequest(BaseModel):
+    doom_score: int | None = None
+    turn_count: int | None = None
+    scene_turn_count: int | None = None
+    stats_json: str | None = None
+    inventory_json: str | None = None
+
+
+@router.patch("/{session_id}/debug_state", status_code=200)
+async def patch_debug_state(
+    session_id: int,
+    body: PatchDebugStateRequest,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    import json as _j
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+
+    if body.doom_score is not None:
+        sess.doom_score = max(0, min(100, body.doom_score))
+    if body.turn_count is not None:
+        sess.turn_count = max(0, body.turn_count)
+    if body.scene_turn_count is not None:
+        sess.scene_turn_count = max(0, body.scene_turn_count)
+
+    if body.stats_json is not None or body.inventory_json is not None:
+        cs = (
+            await s.execute(select(CharState).where(CharState.session_id == session_id))
+        ).scalar_one_or_none()
+        if cs is None:
+            cs = CharState(session_id=session_id)
+            s.add(cs)
+        if body.stats_json is not None:
+            _j.loads(body.stats_json)  # validate JSON
+            cs.stats_json = body.stats_json
+        if body.inventory_json is not None:
+            _j.loads(body.inventory_json)  # validate JSON
+            cs.inventory_json = body.inventory_json
+
+    await s.commit()
+    return {
+        "doom_score": sess.doom_score,
+        "turn_count": sess.turn_count,
+        "scene_turn_count": sess.scene_turn_count,
+    }
+
+
+@router.get("/{session_id}/debug_state")
+async def get_debug_state(
+    session_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    import json as _j
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    cs = (
+        await s.execute(select(CharState).where(CharState.session_id == session_id))
+    ).scalar_one_or_none()
+    return {
+        "doom_score": sess.doom_score,
+        "turn_count": sess.turn_count,
+        "scene_turn_count": sess.scene_turn_count,
+        "settings": _j.loads(sess.settings_json or "{}"),
+        "stats": _j.loads(cs.stats_json if cs else "{}"),
+        "inventory": _j.loads(cs.inventory_json if cs else "[]"),
+    }
+
+
 @router.post("", response_model=SessionOut)
 async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_dep)):
     from dzmm.db.models import Character as CharacterRow

@@ -191,6 +191,29 @@ export const sessionsApi = {
     await api.patch(`/sessions/${sessionId}/settings`, settings)
   },
 
+  debugState: (sessionId: number) =>
+    api
+      .get<{
+        doom_score: number
+        turn_count: number
+        scene_turn_count: number
+        settings: Record<string, unknown>
+        stats: Record<string, number>
+        inventory: string[]
+      }>(`/sessions/${sessionId}/debug_state`)
+      .then((r) => r.data),
+
+  patchDebugState: (
+    sessionId: number,
+    body: {
+      doom_score?: number
+      turn_count?: number
+      scene_turn_count?: number
+      stats_json?: string
+      inventory_json?: string
+    },
+  ) => api.patch(`/sessions/${sessionId}/debug_state`, body).then((r) => r.data),
+
   messageDebug: (sessionId: number, msgId: number) =>
     api
       .get<{

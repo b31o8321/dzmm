@@ -27,6 +27,7 @@ import CharacterCardDrawer from '@/components/CharacterCardDrawer.vue'
 import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
 import MessageList from '@/components/game/MessageList.vue'
+import DebugPanel from '@/components/game/DebugPanel.vue'
 import { screenplayApi, type Screenplay } from '@/api/screenplay'
 import { archetypeEdgeMap } from '@/utils/ttsArchetype'
 
@@ -903,13 +904,19 @@ onUnmounted(() => {
     </section>
 
     <!-- Desktop: side panel always visible -->
-    <div class="hidden md:flex">
+    <div class="hidden md:flex md:flex-col">
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
                   :current-location="currentLocation"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
+      <!-- Debug stats panel — only visible in debug mode -->
+      <DebugPanel
+        v-if="debugStore.enabled"
+        :session-id="sessionId"
+        class="mt-3"
+      />
     </div>
 
     <!-- Mobile: floating toggle button, drawer slides in from right -->
