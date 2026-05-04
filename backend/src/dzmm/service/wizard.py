@@ -28,8 +28,10 @@ from dzmm.models.client import GenerationParams, ModelClient
 
 from dzmm.prompts.wizard_character import build_character_messages
 from dzmm.prompts.wizard_npcs import build_npcs_messages
+from dzmm.prompts.wizard_refine_theme import build_refine_theme_messages
 from dzmm.prompts.wizard_screenplay import build_wizard_screenplay_messages
 from dzmm.prompts.wizard_suggest import build_suggest_messages
+from dzmm.prompts.wizard_suggest_archetypes import build_suggest_archetypes_messages
 from dzmm.prompts.wizard_world_brief import build_world_brief_messages
 from dzmm.prompts.wizard_world_details import build_world_details_messages
 
@@ -435,6 +437,36 @@ async def stream_screenplay(
         yield "result", data
     except Exception as e:
         yield "error", {"message": f"剧本解析失败: {e}"}
+
+
+async def suggest_archetypes(world_md: str, client: ModelClient) -> dict:
+    """Generate 4 world-aware character archetype suggestions."""
+    async def _attempt():
+        raw = await _stream_text(
+            client, build_suggest_archetypes_messages(world_md), max_tokens=600,
+            json_mode=True,
+        )
+        data = json.loads(_extract_json(raw))
+        archetypes = data.get("archetypes", [])
+        validated = [
+            {"description": str(a["description"])[:60], "hook": str(a.get("hook", ""))[:60]}
+            for a in archetypes
+            if isinstance(a, dict) and a.get("description")
+        ]
+        if not validated:
+            raise ValueError("empty archetypes")
+        return {"archetypes": validated}
+    return await _with_retry(_attempt)
+
+
+async def refine_theme(genre: str, rough: str, client: ModelClient) -> dict:
+    """Refine a rough direction into a polished one-line theme."""
+    raw = await _stream_text(
+        client, build_refine_theme_messages(genre, rough), max_tokens=200
+    )
+    # Strip any accidental quotes or leading/trailing punctuation the model adds
+    theme = raw.strip().strip('"\'""')
+    return {"theme": theme}
 
 
 async def generate_suggestions(genre_hint: str, client: ModelClient) -> dict:

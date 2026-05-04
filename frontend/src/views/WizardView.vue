@@ -30,6 +30,7 @@ import {
 } from 'element-plus'
 import {
   wizardApi,
+  type ArchetypeSuggestion,
   type ThemeSuggestion,
   type WorldBrief,
   type WizardNPC,
@@ -558,11 +559,65 @@ async function doFinalize() {
   }
 }
 
-// ---- step 0: theme suggestions ----
+// ---- step 0: theme suggestions + theme refinement ----
 
 const suggestions = ref<ThemeSuggestion[]>([])
 const suggestLoading = ref(false)
 const suggestError = ref('')
+
+const refineLoading = ref(false)
+const refineError = ref('')
+
+async function refineTheme() {
+  if (!state.wizard_model_config_id) {
+    ElMessage.warning('请先选择「向导用模型」')
+    return
+  }
+  if (!state.theme.trim()) {
+    ElMessage.warning('请先输入大致方向')
+    return
+  }
+  refineLoading.value = true
+  refineError.value = ''
+  try {
+    const r = await wizardApi.refineTheme({
+      model_config_id: state.wizard_model_config_id,
+      genre: effectiveGenre.value,
+      rough: state.theme.trim(),
+    })
+    state.theme = r.theme
+  } catch (e: any) {
+    refineError.value = e?.message ?? '生成失败'
+  } finally {
+    refineLoading.value = false
+  }
+}
+
+// ---- step 3: archetype suggestions ----
+
+const archetypeSuggestions = ref<ArchetypeSuggestion[]>([])
+const archetypeSuggestLoading = ref(false)
+const archetypeSuggestError = ref('')
+
+async function loadArchetypeSuggestions() {
+  if (!state.wizard_model_config_id) {
+    ElMessage.warning('请先选择「向导用模型」')
+    return
+  }
+  archetypeSuggestLoading.value = true
+  archetypeSuggestError.value = ''
+  try {
+    const r = await wizardApi.suggestArchetypes({
+      model_config_id: state.wizard_model_config_id,
+      world_md: state.world_md,
+    })
+    archetypeSuggestions.value = r.archetypes
+  } catch (e: any) {
+    archetypeSuggestError.value = e?.message ?? '生成失败'
+  } finally {
+    archetypeSuggestLoading.value = false
+  }
+}
 
 async function loadSuggestions() {
   if (!state.wizard_model_config_id) {
@@ -596,6 +651,12 @@ function applySuggestion(s: ThemeSuggestion) {
 function gotoStep(n: number) {
   errorMsg.value = ''
   step.value = n
+  // Reset all editing flags so action buttons are always visible on re-entry
+  editing.brief = false
+  editing.world = false
+  editing.character = false
+  editing.npcs = false
+  editing.screenplay = false
 }
 
 async function startStep1() {
@@ -790,15 +851,24 @@ onBeforeUnmount(() => {
         </div>
 
         <div>
-          <div class="text-sm font-medium text-slate-700 mb-1">主题（一句话）</div>
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-sm font-medium text-slate-700">主题（一句话）</div>
+            <el-button
+              size="small"
+              link
+              :loading="refineLoading"
+              @click="refineTheme"
+            >✨ AI 补全</el-button>
+          </div>
           <el-input
             v-model="state.theme"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 4 }"
-            placeholder="例如：一座被永夜笼罩的港口，一个寻找妹妹的赏金猎人"
+            placeholder="输入大致方向，点「AI 补全」让 AI 帮你精炼。例如：警探追查失踪案"
             maxlength="500"
             show-word-limit
           />
+          <div v-if="refineError" class="text-xs text-red-500 mt-1">{{ refineError }}</div>
         </div>
 
         <!-- AI 灵感推荐 -->
@@ -976,9 +1046,9 @@ onBeforeUnmount(() => {
         @back="gotoStep(2)"
         @retry="generateCharacter"
       >
-        <!-- Archetype prompt always visible so user can tweak before regenerating -->
+        <!-- Archetype prompt + AI suggestions -->
         <div class="mb-4 p-3 bg-slate-50 rounded border border-slate-200 space-y-2">
-          <div class="text-xs font-medium text-slate-500">角色原型提示词（修改后点「重新生成」）</div>
+          <div class="text-xs font-medium text-slate-500">角色原型（修改后点「重新生成」）</div>
           <el-input
             v-model="state.archetype"
             type="textarea"
@@ -987,6 +1057,35 @@ onBeforeUnmount(() => {
             maxlength="200"
             show-word-limit
           />
+          <!-- AI archetype suggestions -->
+          <div class="pt-1">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs text-slate-400">✨ AI 推荐原型（基于已生成的世界观）</span>
+              <el-button
+                size="small"
+                link
+                :loading="archetypeSuggestLoading"
+                @click="loadArchetypeSuggestions"
+              >{{ archetypeSuggestions.length ? '换一批' : '获取推荐' }}</el-button>
+            </div>
+            <div v-if="archetypeSuggestError" class="text-xs text-red-500 mb-1">{{ archetypeSuggestError }}</div>
+            <div v-if="archetypeSuggestLoading" class="text-xs text-slate-400 text-center py-2">生成中…</div>
+            <div v-else-if="archetypeSuggestions.length" class="grid grid-cols-2 gap-1.5">
+              <button
+                v-for="(a, i) in archetypeSuggestions"
+                :key="i"
+                type="button"
+                class="text-left p-2 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+                @click="state.archetype = a.description"
+              >
+                <div class="text-xs font-medium text-slate-700 leading-5">{{ a.description }}</div>
+                <div class="text-xs text-slate-400 mt-0.5">{{ a.hook }}</div>
+              </button>
+            </div>
+            <div v-else class="text-xs text-slate-400 text-center py-1">
+              点「获取推荐」让 AI 根据世界观生成 4 个主角原型，点击即可填入
+            </div>
+          </div>
         </div>
         <div v-if="state.character_md" class="space-y-3">
           <div v-if="state.character_name">

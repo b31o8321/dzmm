@@ -59,6 +59,11 @@ export interface ThemeSuggestion {
   archetype: string
 }
 
+export interface ArchetypeSuggestion {
+  description: string
+  hook: string
+}
+
 export interface FinalizePayload {
   world: { name: string; content_md: string }
   character: { name: string; profile_md: string }
@@ -131,6 +136,16 @@ export const wizardApi = {
   suggest: (b: { model_config_id: number; genre?: string }) =>
     api
       .post<{ suggestions: ThemeSuggestion[] }>('/wizard/suggest', b, { timeout: 120_000 })
+      .then((r) => r.data),
+
+  suggestArchetypes: (b: { model_config_id: number; world_md: string }) =>
+    api
+      .post<{ archetypes: ArchetypeSuggestion[] }>('/wizard/suggest_archetypes', b, { timeout: 120_000 })
+      .then((r) => r.data),
+
+  refineTheme: (b: { model_config_id: number; genre: string; rough: string }) =>
+    api
+      .post<{ theme: string }>('/wizard/refine_theme', b, { timeout: 60_000 })
       .then((r) => r.data),
 
   finalize: (b: FinalizePayload) =>

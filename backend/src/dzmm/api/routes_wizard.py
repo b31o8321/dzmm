@@ -27,11 +27,13 @@ from dzmm.service.wizard import (
     generate_suggestions,
     generate_world_brief,
     generate_world_details,
+    refine_theme,
     stream_character,
     stream_npcs,
     stream_screenplay,
     stream_world_brief,
     stream_world_details,
+    suggest_archetypes,
 )
 
 router = APIRouter(prefix="/wizard", tags=["wizard"])
@@ -213,6 +215,31 @@ async def screenplay_stream(payload: dict, s: AsyncSession = Depends(get_session
         genre=str(payload.get("genre") or "悬疑探案"),
         client=client,
     ))
+
+
+@router.post("/suggest_archetypes")
+async def suggest_archetypes_route(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    try:
+        return await suggest_archetypes(
+            world_md=str(payload.get("world_md") or ""),
+            client=client,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"archetype suggestion failed: {e}") from e
+
+
+@router.post("/refine_theme")
+async def refine_theme_route(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    try:
+        return await refine_theme(
+            genre=str(payload.get("genre") or ""),
+            rough=str(payload.get("rough") or ""),
+            client=client,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"theme refinement failed: {e}") from e
 
 
 @router.post("/suggest")
