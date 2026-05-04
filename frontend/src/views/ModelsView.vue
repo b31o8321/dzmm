@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
+import { backendOrigin } from '@/api/client'
 import type { ModelConfig, ModelConfigIn } from '@/api/types'
 
 const store = useModelConfigsStore()
@@ -155,74 +156,150 @@ const gmCloudModels = [
   { id: 'claude-haiku-4-5-20251001', baseUrl: '（需 OpenAI 兼容转发层）',     note: 'Roleplay 细腻，直接调用建议用官方 SDK 而非此处' },
 ]
 
-const ttsBuiltinModes = [
-  {
-    name: 'edge-tts（内置，在线）',
-    desc: '微软 Azure Neural TTS，无需安装，需联网。中文 Neural 音色丰富，NPC 按性格原型自动分配。',
-    setup: '无需配置',
-  },
-  {
-    name: 'CosyVoice（本机离线）',
-    desc: '高质量中文 TTS，在设置页安装（需 uv 包管理器，下载 ~2.5GB）。安装完成后点「启动」使用。',
-    setup: '设置页点击「安装」',
-  },
-]
+// TTS external services with install/uninstall scripts (uv-based, no Docker required)
+interface TtsExternalService {
+  id: string
+  name: string
+  tier: number
+  platform: string
+  quality: string
+  baseUrl: string
+  defaultVoice: string
+  note: string
+  installScript: string
+  startScript: string
+  uninstallScript: string
+  healthPath: string
+}
 
-const ttsChineseModels = [
+const ttsExternalServices: TtsExternalService[] = [
   {
+    id: 'fish_speech',
     name: 'Fish-Speech',
-    platform: '跨平台',
+    tier: 3,
+    platform: '跨平台（macOS / Linux / Windows）',
     quality: '★★★★★',
-    baseUrl: 'http://localhost:8080/v1',
-    cmd: 'pip install fish-speech\nfish_speech server --listen 0.0.0.0:8080',
-    note: '最佳中文音质，支持零样本声音克隆；CPU/GPU 均可运行',
+    baseUrl: 'http://localhost:8080',
+    defaultVoice: 'default',
+    note: '最佳中文音质，支持零样本声音克隆。CPU 可运行（慢），有 GPU 速度快很多。',
+    installScript: `#!/bin/bash
+# Fish-Speech 安装脚本（需要 uv：curl -LsSf https://astral.sh/uv/install.sh | sh）
+set -e
+VENV="$HOME/.dzmm/fish_speech_env"
+echo "[1/2] 创建 Python 3.10 环境..."
+uv venv "$VENV" --python 3.10
+echo "[2/2] 安装 Fish-Speech..."
+uv pip install --python "$VENV/bin/python" fish-speech
+echo ""
+echo "✅ 安装完成！运行以下命令启动服务："
+echo "  bash ~/.dzmm/start_fish_speech.sh"`,
+    startScript: `#!/bin/bash
+# Fish-Speech 启动脚本
+VENV="$HOME/.dzmm/fish_speech_env"
+echo "正在启动 Fish-Speech（端口 8080）..."
+"$VENV/bin/python" -m fish_speech.api --listen 0.0.0.0:8080`,
+    uninstallScript: `#!/bin/bash
+# Fish-Speech 卸载脚本
+rm -rf "$HOME/.dzmm/fish_speech_env"
+rm -f "$HOME/.dzmm/start_fish_speech.sh"
+echo "✅ Fish-Speech 已卸载"`,
+    healthPath: '/health',
   },
   {
+    id: 'mlx_qwen3_tts',
     name: 'MLX-Qwen3-TTS',
-    platform: 'Apple Silicon',
+    tier: 3,
+    platform: 'Apple Silicon（M1/M2/M3/M4）',
     quality: '★★★★★',
-    baseUrl: 'http://localhost:8000/v1',
-    cmd: 'git clone https://github.com/bean980310/mlx-qwen3-tts-server\ncd mlx-qwen3-tts-server && pip install -r requirements.txt\npython server.py',
-    note: 'M 系芯片原生加速，0.2–0.3s/句；中文自然度极高；仅限 Apple Silicon',
-  },
-  {
-    name: 'ChatTTS-UI',
-    platform: '跨平台',
-    quality: '★★★★☆',
-    baseUrl: 'http://localhost:8080/v1',
-    cmd: 'docker run -p 8080:8080 2noise/chattts-ui',
-    note: '极自然中文，支持笑声/停顿等情感标记；内存约 4GB',
-  },
-  {
-    name: 'EmotiVoice',
-    platform: '跨平台',
-    quality: '★★★★☆',
-    baseUrl: 'http://localhost:8765/v1',
-    cmd: 'docker run -p 8765:8765 syq163/emotivoice',
-    note: '网易出品，中文情感 TTS，2000+ 说话人，支持指定情感',
-  },
-  {
-    name: 'CosyVoice（外部部署）',
-    platform: '跨平台',
-    quality: '★★★★☆',
-    baseUrl: 'http://192.168.1.x:5001/v1',
-    cmd: '# 见 dzmm「设置 → 语音」页面一键安装（本机）\n# 局域网机器：同上操作后在此填入局域网 IP',
-    note: '内置一键安装（本机）；也可在局域网性能机上部署后填入 IP',
-  },
-  {
-    name: 'openedai-speech',
-    platform: '跨平台（Docker）',
-    quality: '★★★★☆',
-    baseUrl: 'http://localhost:8000/v1',
-    cmd: 'docker run -p 8000:8000 ghcr.io/matatonic/openedai-speech',
-    note: 'Docker 一行启动，OpenAI 接口兼容；底层引擎可选 Kokoro / Piper',
+    baseUrl: 'http://localhost:8000',
+    defaultVoice: 'default',
+    note: '阿里 Qwen3-TTS，M 系芯片原生 MLX 加速，0.2–0.3s/句，中文自然度极高。仅限 Apple Silicon Mac。',
+    installScript: `#!/bin/bash
+# MLX-Qwen3-TTS 安装脚本（需要 uv + Apple Silicon Mac）
+set -e
+VENV="$HOME/.dzmm/mlx_tts_env"
+echo "[1/2] 创建 Python 3.11 环境..."
+uv venv "$VENV" --python 3.11
+echo "[2/2] 安装 MLX-Qwen3-TTS..."
+uv pip install --python "$VENV/bin/python" mlx-lm mlx-audio
+uv pip install --python "$VENV/bin/python" fastapi uvicorn huggingface_hub
+# 下载启动脚本
+cat > "$HOME/.dzmm/mlx_tts_server.py" << 'EOF'
+import asyncio, io, os
+from fastapi import FastAPI
+from fastapi.responses import Response
+from pydantic import BaseModel
+import mlx_audio, soundfile as sf, numpy as np
+
+app = FastAPI()
+_model = None
+
+def get_model():
+    global _model
+    if _model is None:
+        from mlx_audio.tts.models.qwen3 import Qwen3TTS
+        _model = Qwen3TTS.from_pretrained("Qwen/Qwen3-TTS-0.6B")
+    return _model
+
+class Req(BaseModel):
+    input: str
+    voice: str = "default"
+
+@app.post("/v1/audio/speech")
+async def synth(req: Req):
+    model = get_model()
+    audio = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: model.generate(req.input))
+    buf = io.BytesIO()
+    sf.write(buf, np.array(audio), 22050, format="WAV")
+    buf.seek(0)
+    return Response(content=buf.read(), media_type="audio/wav")
+
+@app.get("/health")
+def health(): return {"ok": True}
+EOF
+echo ""
+echo "✅ 安装完成！运行以下命令启动服务："
+echo "  $VENV/bin/python $HOME/.dzmm/mlx_tts_server.py"`,
+    startScript: `#!/bin/bash
+VENV="$HOME/.dzmm/mlx_tts_env"
+echo "正在启动 MLX-Qwen3-TTS（端口 8000）..."
+"$VENV/bin/python" "$HOME/.dzmm/mlx_tts_server.py"`,
+    uninstallScript: `#!/bin/bash
+rm -rf "$HOME/.dzmm/mlx_tts_env"
+rm -f "$HOME/.dzmm/mlx_tts_server.py"
+echo "✅ MLX-Qwen3-TTS 已卸载"`,
+    healthPath: '/health',
   },
 ]
 
-const ttsCloudModels = [
-  { id: 'tts-1',    baseUrl: 'https://api.openai.com/v1', note: '标准质量，延迟低；音色：alloy / echo / fable / onyx / nova / shimmer' },
-  { id: 'tts-1-hd', baseUrl: 'https://api.openai.com/v1', note: '高质量，略慢，同上 6 种音色' },
-]
+const ttsServiceStatus = ref<Record<string, 'idle' | 'checking' | 'ok' | 'fail'>>({})
+const ttsExpandedScript = ref<Record<string, 'install' | 'start' | 'uninstall' | null>>({})
+
+async function checkTtsService(svc: TtsExternalService) {
+  ttsServiceStatus.value[svc.id] = 'checking'
+  try {
+    const r = await fetch(`${backendOrigin}/tts/probe?url=${encodeURIComponent(svc.baseUrl)}`)
+    const data = await r.json()
+    ttsServiceStatus.value[svc.id] = data.ok ? 'ok' : 'fail'
+  } catch {
+    ttsServiceStatus.value[svc.id] = 'fail'
+  }
+}
+
+function downloadScript(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function toggleScript(id: string, type: 'install' | 'start' | 'uninstall') {
+  ttsExpandedScript.value[id] = ttsExpandedScript.value[id] === type ? null : type
+}
 
 onMounted(() => store.refresh())
 </script>
@@ -302,80 +379,146 @@ onMounted(() => store.refresh())
 
             <!-- TTS -->
             <el-tab-pane label="TTS 语音合成" name="tts">
-              <p class="text-xs text-slate-500 mb-3">在<strong>「设置」→「语音朗读」</strong>切换模式。</p>
+              <p class="text-xs text-slate-500 mb-4">在<strong>「设置」→「语音朗读」</strong>切换模式。按性能需求选择合适方案。</p>
 
-              <p class="text-xs font-semibold text-slate-600 mb-2">内置引擎（推荐）</p>
-              <table class="w-full text-sm mb-4">
-                <thead>
-                  <tr class="border-b border-slate-200 text-xs text-slate-500">
-                    <th class="text-left py-1 pr-4 font-medium">引擎</th>
-                    <th class="text-left py-1 pr-4 font-medium">配置方式</th>
-                    <th class="text-left py-1 font-medium">说明</th>
-                  </tr>
-                </thead>
-                <tbody class="text-slate-700">
-                  <tr v-for="m in ttsBuiltinModes" :key="m.name" class="border-b border-slate-100 last:border-0">
-                    <td class="py-1.5 pr-4 text-xs font-medium whitespace-nowrap">{{ m.name }}</td>
-                    <td class="py-1.5 pr-4 text-xs text-slate-500 whitespace-nowrap">{{ m.setup }}</td>
-                    <td class="py-1.5 text-xs text-slate-600">{{ m.desc }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <!-- Tier 1: 开箱即用 -->
+              <div class="mb-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <el-tag type="success" size="small">开箱即用</el-tag>
+                  <span class="text-xs text-slate-500">无需额外安装</span>
+                </div>
+                <div class="border border-slate-200 rounded-lg p-3 bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <span class="text-sm font-medium">edge-tts</span>
+                    <span class="text-xs text-slate-500 ml-2">微软在线语音 · 中文音色丰富 · 需联网</span>
+                  </div>
+                  <el-tag type="info" size="small">内置默认</el-tag>
+                </div>
+              </div>
 
-              <p class="text-xs font-semibold text-slate-600 mb-2">推荐中文 TTS 服务（「外部服务」模式）</p>
-              <table class="w-full text-sm mb-4">
-                <thead>
-                  <tr class="border-b border-slate-200 text-xs text-slate-500">
-                    <th class="text-left py-1 pr-3 font-medium">服务</th>
-                    <th class="text-left py-1 pr-3 font-medium">平台</th>
-                    <th class="text-left py-1 pr-3 font-medium">音质</th>
-                    <th class="text-left py-1 pr-3 font-medium">dzmm 填入地址</th>
-                    <th class="text-left py-1 pr-3 font-medium">启动命令</th>
-                    <th class="text-left py-1 font-medium">说明</th>
-                  </tr>
-                </thead>
-                <tbody class="text-slate-700">
-                  <tr v-for="m in ttsChineseModels" :key="m.name" class="border-b border-slate-100 last:border-0 align-top">
-                    <td class="py-2 pr-3 text-xs font-medium whitespace-nowrap">{{ m.name }}</td>
-                    <td class="py-2 pr-3 text-xs text-slate-500 whitespace-nowrap">{{ m.platform }}</td>
-                    <td class="py-2 pr-3 text-xs whitespace-nowrap">{{ m.quality }}</td>
-                    <td class="py-2 pr-3">
-                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.baseUrl }}</code>
-                      <el-button link size="small" class="ml-1 text-xs text-slate-400" @click="copyText(m.baseUrl)">复制</el-button>
-                    </td>
-                    <td class="py-2 pr-3">
-                      <div class="flex items-start gap-1">
-                        <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs leading-5 whitespace-pre">{{ m.cmd }}</code>
-                        <el-button link size="small" class="text-xs text-slate-400 shrink-0" @click="copyText(m.cmd)">复制</el-button>
+              <!-- Tier 2: 需要一定性能 -->
+              <div class="mb-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <el-tag type="warning" size="small">需要一定性能</el-tag>
+                  <span class="text-xs text-slate-500">本地运行，离线可用，效果更好</span>
+                </div>
+                <div class="border border-slate-200 rounded-lg p-3 bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <span class="text-sm font-medium">CosyVoice</span>
+                    <span class="text-xs text-slate-500 ml-2">阿里 300M 模型 · 7 种中文音色 · CPU 可运行</span>
+                  </div>
+                  <el-button size="small" @click="$router.push('/settings')">前往设置安装</el-button>
+                </div>
+              </div>
+
+              <!-- Tier 3: 需要很好的性能 -->
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <el-tag type="danger" size="small">需要较好性能</el-tag>
+                  <span class="text-xs text-slate-500">音质最佳，需要独立启动外部服务</span>
+                </div>
+                <div class="space-y-3">
+                  <div
+                    v-for="svc in ttsExternalServices"
+                    :key="svc.id"
+                    class="border border-slate-200 rounded-lg p-3 bg-white"
+                  >
+                    <!-- Header row -->
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="text-sm font-medium">{{ svc.name }}</span>
+                          <span class="text-xs text-slate-400">{{ svc.quality }}</span>
+                          <span class="text-xs text-slate-500">{{ svc.platform }}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ svc.note }}</p>
                       </div>
-                    </td>
-                    <td class="py-2 text-xs text-slate-600">{{ m.note }}</td>
-                  </tr>
-                </tbody>
-              </table>
+                      <!-- Status + check -->
+                      <div class="flex items-center gap-2 shrink-0">
+                        <el-tag
+                          v-if="ttsServiceStatus[svc.id] === 'ok'" type="success" size="small"
+                        >已连接</el-tag>
+                        <el-tag
+                          v-else-if="ttsServiceStatus[svc.id] === 'fail'" type="danger" size="small"
+                        >未运行</el-tag>
+                        <el-button
+                          size="small"
+                          :loading="ttsServiceStatus[svc.id] === 'checking'"
+                          @click="checkTtsService(svc)"
+                        >检查连接</el-button>
+                      </div>
+                    </div>
 
-              <p class="text-xs font-semibold text-slate-600 mb-2">云端语音（OpenAI）</p>
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-slate-200 text-xs text-slate-500">
-                    <th class="text-left py-1 pr-4 font-medium">模型 ID</th>
-                    <th class="text-left py-1 pr-4 font-medium">Base URL</th>
-                    <th class="text-left py-1 font-medium">说明</th>
-                  </tr>
-                </thead>
-                <tbody class="text-slate-700">
-                  <tr v-for="m in ttsCloudModels" :key="m.id" class="border-b border-slate-100 last:border-0">
-                    <td class="py-1.5 pr-4">
-                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.id }}</code>
-                      <el-button link size="small" class="ml-1 text-xs text-slate-400" @click="copyText(m.id)">复制</el-button>
-                    </td>
-                    <td class="py-1.5 pr-4 text-xs text-slate-500">
-                      <code class="text-xs">{{ m.baseUrl }}</code>
-                    </td>
-                    <td class="py-1.5 text-xs text-slate-600">{{ m.note }}</td>
-                  </tr>
-                </tbody>
-              </table>
+                    <!-- Base URL row -->
+                    <div class="flex items-center gap-2 mb-2">
+                      <span class="text-xs text-slate-500 shrink-0">Base URL：</span>
+                      <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs flex-1">{{ svc.baseUrl }}</code>
+                      <el-button type="button" link size="small" class="text-xs text-slate-400 shrink-0" @click="copyText(svc.baseUrl)">复制</el-button>
+                    </div>
+
+                    <!-- Script buttons -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <el-button
+                        type="button"
+                        size="small"
+                        :type="ttsExpandedScript[svc.id] === 'install' ? 'primary' : 'default'"
+                        plain
+                        @click="toggleScript(svc.id, 'install')"
+                      >安装脚本</el-button>
+                      <el-button
+                        type="button"
+                        size="small"
+                        :type="ttsExpandedScript[svc.id] === 'start' ? 'primary' : 'default'"
+                        plain
+                        @click="toggleScript(svc.id, 'start')"
+                      >启动脚本</el-button>
+                      <el-button
+                        type="button"
+                        size="small"
+                        :type="ttsExpandedScript[svc.id] === 'uninstall' ? 'danger' : 'default'"
+                        plain
+                        @click="toggleScript(svc.id, 'uninstall')"
+                      >卸载脚本</el-button>
+                    </div>
+
+                    <!-- Expanded script panel -->
+                    <div
+                      v-if="ttsExpandedScript[svc.id]"
+                      class="mt-2 bg-slate-900 rounded p-3 relative"
+                    >
+                      <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs text-slate-400">
+                          {{ ttsExpandedScript[svc.id] === 'install' ? '安装脚本' : ttsExpandedScript[svc.id] === 'start' ? '启动脚本' : '卸载脚本' }}
+                        </span>
+                        <div class="flex gap-2">
+                          <el-button
+                            type="button"
+                            link
+                            size="small"
+                            class="!text-slate-300 text-xs"
+                            @click="copyText(ttsExpandedScript[svc.id] === 'install' ? svc.installScript : ttsExpandedScript[svc.id] === 'start' ? svc.startScript : svc.uninstallScript)"
+                          >复制</el-button>
+                          <el-button
+                            type="button"
+                            link
+                            size="small"
+                            class="!text-slate-300 text-xs"
+                            @click="downloadScript(
+                              `${svc.id}_${ttsExpandedScript[svc.id]}.sh`,
+                              ttsExpandedScript[svc.id] === 'install' ? svc.installScript : ttsExpandedScript[svc.id] === 'start' ? svc.startScript : svc.uninstallScript
+                            )"
+                          >下载</el-button>
+                        </div>
+                      </div>
+                      <pre class="text-xs text-green-300 whitespace-pre-wrap font-mono leading-5 max-h-48 overflow-y-auto">{{
+                        ttsExpandedScript[svc.id] === 'install' ? svc.installScript
+                        : ttsExpandedScript[svc.id] === 'start' ? svc.startScript
+                        : svc.uninstallScript
+                      }}</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </el-tab-pane>
 
           </el-tabs>
