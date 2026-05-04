@@ -162,10 +162,11 @@ async function cosyStop() {
                   <el-tooltip placement="right" :width="280">
                     <template #content>
                       <div class="text-xs space-y-1">
-                        <div>前置：安装 <strong>uv</strong></div>
+                        <div>前置：安装 <strong>uv</strong>（跨平台 Python 包管理器）</div>
                         <div class="font-mono bg-black/20 px-1 rounded">curl -LsSf https://astral.sh/uv/install.sh | sh</div>
                         <div class="font-mono bg-black/20 px-1 rounded">winget install astral-sh.uv</div>
-                        <div class="mt-1">安装后点「启动」；每次重启应用需手动再启动。</div>
+                        <div class="mt-1">uv 装好后，点「安装（~2.5GB）」。安装完成后点此行旁边的「启动」按钮启动 CosyVoice 服务。</div>
+                        <div class="text-slate-300">每次重启应用后需手动回到此页再点「启动」。</div>
                       </div>
                     </template>
                     <span class="text-slate-400 cursor-help text-xs">安装说明 ?</span>
