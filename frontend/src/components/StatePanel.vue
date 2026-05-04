@@ -77,6 +77,24 @@ function npcAvatarColor(name: string): string {
       <div v-if="currentLocation.items?.length" class="text-xs text-slate-500 mt-1">
         <span class="font-medium">物品：</span>{{ currentLocation.items.map((i) => i.name).join('、') }}
       </div>
+      <!-- NPCs at this location -->
+      <div v-if="presentNpcs.length" class="mt-2 pt-2 border-t border-blue-200">
+        <div class="text-xs font-medium text-blue-700 mb-1">此处人物</div>
+        <ul class="space-y-0.5">
+          <li
+            v-for="n in presentNpcs"
+            :key="n.name"
+            class="flex items-center gap-1.5 text-xs"
+          >
+            <span
+              class="w-2 h-2 rounded-full flex-shrink-0"
+              :class="n.favor >= 20 ? 'bg-green-400' : n.favor <= -20 ? 'bg-red-400' : 'bg-slate-300'"
+            />
+            <span class="text-slate-700 font-medium">{{ n.name }}</span>
+            <span v-if="n.state" class="text-slate-400 truncate">· {{ n.state }}</span>
+          </li>
+        </ul>
+      </div>
     </div>
     <section>
       <h3 class="font-bold text-slate-700 mb-2">角色状态</h3>
