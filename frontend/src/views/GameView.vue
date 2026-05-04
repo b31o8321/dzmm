@@ -728,15 +728,27 @@ onUnmounted(() => {
                 <div class="font-medium text-slate-600 text-xs mb-1">播放语音</div>
                 <div class="flex items-center justify-between">
                   <span class="text-slate-700">旁白</span>
-                  <el-switch size="small" v-model="appStore.ttsNarratorEnabled" @change="appStore.saveTtsSettings()" />
+                  <el-switch
+                    size="small"
+                    :model-value="appStore.ttsNarratorEnabled"
+                    @change="(v: boolean) => { appStore.ttsNarratorEnabled = v; appStore.saveTtsSettings() }"
+                  />
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-slate-700">PC 行动</span>
-                  <el-switch size="small" v-model="appStore.ttsPcEnabled" @change="appStore.saveTtsSettings()" />
+                  <el-switch
+                    size="small"
+                    :model-value="appStore.ttsPcEnabled"
+                    @change="(v: boolean) => { appStore.ttsPcEnabled = v; appStore.saveTtsSettings() }"
+                  />
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-slate-700">NPC 对话</span>
-                  <el-switch size="small" v-model="appStore.ttsNpcEnabled" @change="appStore.saveTtsSettings()" />
+                  <el-switch
+                    size="small"
+                    :model-value="appStore.ttsNpcEnabled"
+                    @change="(v: boolean) => { appStore.ttsNpcEnabled = v; appStore.saveTtsSettings() }"
+                  />
                 </div>
               </div>
             </el-popover>
