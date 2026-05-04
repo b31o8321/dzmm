@@ -158,13 +158,13 @@ const gmCloudModels = [
 const ttsBuiltinModes = [
   {
     name: 'edge-tts（内置，在线）',
-    desc: '微软 Neural TTS，免费，无需安装，需联网。中文音色丰富（13+ Neural voices），NPC 按性格原型自动分配音色。在设置页选择「内置 edge-tts」即可使用。',
+    desc: '微软 Azure Neural TTS，无需安装，需联网。中文 Neural 音色丰富，NPC 按性格原型自动分配。',
     setup: '无需配置',
   },
   {
-    name: 'Kokoro-ONNX（内置，离线）',
-    desc: '本地 ONNX 模型，~82MB，一次下载后完全离线。中文音色 4 种（小北、小妮、云希、云冬）。在设置页选择「本地 Kokoro」并点击下载。',
-    setup: '设置页点击「立即下载」',
+    name: 'CosyVoice（本机离线）',
+    desc: '高质量中文 TTS，在设置页安装（需 uv 包管理器，下载 ~2.5GB）。安装完成后点「启动」使用。',
+    setup: '设置页点击「安装」',
   },
 ]
 
@@ -199,10 +199,12 @@ onMounted(() => store.refresh())
 
             <!-- GM 引擎 -->
             <el-tab-pane label="GM 叙事引擎" name="gm">
-              <p class="text-xs text-slate-500 mb-3">
-                GM 引擎需要严格遵循输出格式（XML 状态标签）并保持叙事连贯性，跑团质量高度依赖模型能力。
-                <strong class="text-rose-600">避免推理模型</strong>（deepseek-r1、QwQ、qwen3 思考模式等）——思考过程会占满输出，状态标签全部丢失。
-              </p>
+              <div class="flex items-center gap-2 mb-3">
+                <el-tag type="danger" size="small">避免推理模型</el-tag>
+                <el-tooltip content="deepseek-r1、QwQ、qwen3 思考模式等推理模型会用思考过程占满输出，导致 XML 状态标签全部丢失，游戏无法正常运行。" placement="right" :width="300">
+                  <span class="text-xs text-slate-500 cursor-help">deepseek-r1 / QwQ / qwen3 思考模式 — 会破坏输出格式 ?</span>
+                </el-tooltip>
+              </div>
 
               <p class="text-xs font-semibold text-slate-600 mb-2">本地模型（Ollama）</p>
               <table class="w-full text-sm mb-4">
@@ -255,9 +257,7 @@ onMounted(() => store.refresh())
 
             <!-- TTS -->
             <el-tab-pane label="TTS 语音合成" name="tts">
-              <p class="text-xs text-slate-500 mb-3">
-                DZMM 支持三种 TTS 模式，可在<strong>「设置」→「语音朗读」</strong>切换。内置模式无需额外配置。
-              </p>
+              <p class="text-xs text-slate-500 mb-3">在<strong>「设置」→「语音朗读」</strong>切换模式。</p>
 
               <p class="text-xs font-semibold text-slate-600 mb-2">内置引擎（推荐）</p>
               <table class="w-full text-sm mb-4">
@@ -277,10 +277,7 @@ onMounted(() => store.refresh())
                 </tbody>
               </table>
 
-              <p class="text-xs font-semibold text-slate-600 mb-2">外部 TTS 服务（OpenAI 兼容接口，「外部服务」模式）</p>
-              <p class="text-xs text-slate-500 mb-2">
-                选择「外部 TTS 服务」模式时，需在此页面添加一条模型配置，填写服务的 Base URL 与模型名。
-              </p>
+              <p class="text-xs font-semibold text-slate-600 mb-2">外部 TTS 服务（「外部服务」模式，OpenAI 兼容接口）</p>
               <table class="w-full text-sm mb-4">
                 <thead>
                   <tr class="border-b border-slate-200 text-xs text-slate-500">

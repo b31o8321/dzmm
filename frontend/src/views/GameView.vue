@@ -27,7 +27,7 @@ import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
 import MessageList from '@/components/game/MessageList.vue'
 import { screenplayApi, type Screenplay } from '@/api/screenplay'
-import { archetypeEdgeMap, archetypeKokoroMap } from '@/utils/ttsArchetype'
+import { archetypeEdgeMap } from '@/utils/ttsArchetype'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -231,8 +231,6 @@ function buildVoiceMap(npcList: Npc[]): TtsVoiceMap {
       map[npc.name] = npc.tts_voice
     } else if (appStore.ttsMode === 'edge' && npc.archetype) {
       if (archetypeEdgeMap[npc.archetype]) map[npc.name] = archetypeEdgeMap[npc.archetype]
-    } else if (appStore.ttsMode === 'kokoro' && npc.archetype) {
-      if (archetypeKokoroMap[npc.archetype]) map[npc.name] = archetypeKokoroMap[npc.archetype]
     }
   }
   return map

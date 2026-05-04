@@ -3,7 +3,7 @@ import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { sessionsApi, type Npc } from '@/api/sessions'
 import { useAppStore } from '@/stores/app'
-import { archetypeEdgeMap, archetypeKokoroMap } from '@/utils/ttsArchetype'
+import { archetypeEdgeMap } from '@/utils/ttsArchetype'
 import { useTTS } from '@/composables/useTTS'
 
 const edgeVoiceOptions = [
@@ -19,16 +19,6 @@ const edgeVoiceOptions = [
   { voice: 'zh-CN-YunyeNeural',      label: '云野（导师/反派）' },
 ]
 
-const kokoroVoiceOptions = [
-  { value: 'zf_xiaobei',  label: '小北（女，温柔）' },
-  { value: 'zf_xiaoni',   label: '小妮（女，活泼）' },
-  { value: 'zf_xiaoxiao', label: '晓晓（女，沉稳）' },
-  { value: 'zf_xiaoyi',   label: '晓伊（女，明快）' },
-  { value: 'zm_yunjian',  label: '云健（男，低沉）' },
-  { value: 'zm_yunxi',    label: '云希（男，稳重）' },
-  { value: 'zm_yunxia',   label: '云夏（男，青年）' },
-  { value: 'zm_yunyang',  label: '云扬（男，权威）' },
-]
 
 const props = defineProps<{
   modelValue: boolean
@@ -111,21 +101,11 @@ const autoVoiceLabel = computed(() => {
   return edgeVoiceOptions.find((v) => v.voice === voice)?.label ?? voice
 })
 
-const autoKokoroVoiceLabel = computed(() => {
-  const arch = local.value?.archetype ?? ''
-  const voice = archetypeKokoroMap[arch] ?? 'zf_xiaobei'
-  return kokoroVoiceOptions.find((v) => v.value === voice)?.label ?? voice
-})
-
 const { previewVoice, speaking: ttsSpeaking } = useTTS()
 
 const effectiveEdgeVoice = computed(() =>
   local.value?.tts_voice ||
   (local.value?.archetype ? archetypeEdgeMap[local.value.archetype] ?? 'zh-CN-XiaoxiaoNeural' : 'zh-CN-XiaoxiaoNeural')
-)
-const effectiveKokoroVoice = computed(() =>
-  local.value?.tts_voice ||
-  (local.value?.archetype ? archetypeKokoroMap[local.value.archetype] ?? 'zf_xiaobei' : 'zf_xiaobei')
 )
 
 const affinityEntries = computed(() => {
@@ -343,31 +323,7 @@ function npcAvatarColor(name: string): string {
           </div>
         </template>
 
-        <!-- kokoro mode: dropdown -->
-        <template v-else-if="appStore.ttsMode === 'kokoro'">
-          <div class="flex items-center gap-2">
-            <el-select
-              style="flex:1"
-              :model-value="local.tts_voice ?? ''"
-              :disabled="voiceSaving"
-              placeholder="自动（按性格原型）"
-              clearable
-              filterable
-              @change="(v: string) => saveVoice(v)"
-              @clear="saveVoice('')"
-            >
-              <el-option label="自动（按性格原型）" value="" />
-              <el-option v-for="v in kokoroVoiceOptions" :key="v.value" :label="v.label" :value="v.value" />
-            </el-select>
-            <el-button size="small" circle :loading="ttsSpeaking"
-              title="试听" @click="previewVoice(local.name + '，你好', effectiveKokoroVoice)">🔊</el-button>
-          </div>
-          <div class="text-xs text-slate-400 mt-1">
-            留空则根据「{{ local.archetype || '性格原型' }}」自动分配：{{ autoKokoroVoiceLabel }}
-          </div>
-        </template>
-
-        <!-- webspeech / local: free text -->
+        <!-- cosyvoice / local: free text -->
         <template v-else>
           <div class="flex items-center gap-2">
             <el-input
@@ -383,7 +339,7 @@ function npcAvatarColor(name: string): string {
               title="试听" @click="previewVoice(local.name + '，你好', local.tts_voice || '')">🔊</el-button>
           </div>
           <div class="text-xs text-slate-400 mt-1">
-            本地模式填 voice 参数名（如 af_sky）；Web Speech 填音色全名。
+            填 voice 参数名，如 CosyVoice 填「中文男」，外部服务填对应音色 ID。
           </div>
         </template>
       </section>

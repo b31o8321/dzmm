@@ -42,7 +42,7 @@ function parseSegments(rawContent: string): Segment[] {
 }
 
 // Voice strings for edge mode can optionally encode rate+pitch:
-// "zh-CN-XiaomoNeural" or "zh-CN-XiaomoNeural|-10%|-3Hz"
+// "zh-CN-XiaoxiaoNeural" or "zh-CN-XiaoxiaoNeural|-10%|-3Hz"
 function parseEdgeVoice(v: string): { voice: string; rate: string; pitch: string } {
   const parts = v.split('|')
   return { voice: parts[0], rate: parts[1] ?? '+0%', pitch: parts[2] ?? '+0Hz' }
@@ -58,15 +58,6 @@ const _speaking = ref(false)
 let _aborted = false
 let _abortCtrl: AbortController | null = null
 let _activeSource: AudioBufferSourceNode | null = null
-
-async function _getVoices(): Promise<SpeechSynthesisVoice[]> {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return []
-  const voices = window.speechSynthesis.getVoices()
-  if (voices.length) return voices
-  return new Promise((resolve) => {
-    window.speechSynthesis.addEventListener('voiceschanged', () => resolve(window.speechSynthesis.getVoices()), { once: true })
-  })
-}
 
 async function _playAudioBytes(audioData: ArrayBuffer): Promise<void> {
   const ctx = getAudioCtx()
@@ -92,7 +83,6 @@ export function useTTS() {
     _activeSource?.stop()
     _activeSource = null
     _speaking.value = false
-    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
   }
 
   async function previewVoice(text: string, voice: string): Promise<void> {
@@ -116,20 +106,6 @@ export function useTTS() {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
         }
-      } else if (appStore.ttsMode === 'kokoro') {
-        const resp = await fetch(`${backendOrigin}/tts/kokoro/synthesize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: voice || appStore.ttsGmVoice || 'zf_xiaobei' }),
-          signal: _abortCtrl.signal,
-        })
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => '')
-          ElMessage.error(`Kokoro 合成失败 (${resp.status})${errText ? ': ' + errText.slice(0, 120) : ''}`)
-        } else if (resp.status !== 204) {
-          const buf = await resp.arrayBuffer()
-          if (!_aborted) await _playAudioBytes(buf)
-        }
       } else if (appStore.ttsMode === 'cosyvoice') {
         const resp = await fetch(`${backendOrigin}/tts/cosyvoice/proxy`, {
           method: 'POST',
@@ -143,22 +119,8 @@ export function useTTS() {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
         }
-      } else if (appStore.ttsMode === 'webspeech') {
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-          const voices = await _getVoices()
-          if (_aborted) return
-          const utterance = new SpeechSynthesisUtterance(text)
-          const found = voices.find((v) => v.name === voice || v.voiceURI === voice) ?? null
-          if (found) utterance.voice = found
-          utterance.lang = found?.lang ?? 'zh-CN'
-          await new Promise<void>((resolve) => {
-            utterance.onend = () => resolve()
-            utterance.onerror = () => resolve()
-            window.speechSynthesis.speak(utterance)
-          })
-        }
       } else {
-        // local proxy mode: prefer direct URL if set, fall back to model config
+        // local: prefer direct URL if set, fall back to model config
         const directUrl = appStore.ttsDirectUrl?.trim()
         if (directUrl) {
           const resp = await fetch(`${backendOrigin}/tts/direct`, {
@@ -167,7 +129,9 @@ export function useTTS() {
             body: JSON.stringify({ url: directUrl, text, voice: voice || appStore.ttsGmVoice || 'default' }),
             signal: _abortCtrl.signal,
           })
-          if (resp.ok && resp.status !== 204) {
+          if (!resp.ok) {
+            ElMessage.error(`TTS 合成失败 (${resp.status})`)
+          } else if (resp.status !== 204) {
             const buf = await resp.arrayBuffer()
             if (!_aborted) await _playAudioBytes(buf)
           }
@@ -178,7 +142,9 @@ export function useTTS() {
             body: JSON.stringify({ model_config_id: appStore.ttsModelConfigId, text, voice }),
             signal: _abortCtrl.signal,
           })
-          if (resp.ok) {
+          if (!resp.ok) {
+            ElMessage.error(`TTS 合成失败 (${resp.status})`)
+          } else if (resp.ok) {
             const buf = await resp.arrayBuffer()
             if (!_aborted) await _playAudioBytes(buf)
           }
@@ -186,28 +152,6 @@ export function useTTS() {
       }
     } catch { /* ignore abort / network errors */ } finally {
       _speaking.value = false
-    }
-  }
-
-  async function _speakWebSpeech(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return
-    const voices = await _getVoices()
-    function findVoice(name: string): SpeechSynthesisVoice | null {
-      if (!name) return null
-      return voices.find((v) => v.name === name || v.voiceURI === name) ?? null
-    }
-    for (const seg of segments) {
-      if (_aborted) break
-      const voiceName = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? ''
-      const utterance = new SpeechSynthesisUtterance(seg.text)
-      const voice = findVoice(voiceName)
-      if (voice) utterance.voice = voice
-      utterance.lang = voice?.lang ?? 'zh-CN'
-      await new Promise<void>((resolve) => {
-        utterance.onend = () => resolve()
-        utterance.onerror = () => resolve()
-        window.speechSynthesis.speak(utterance)
-      })
     }
   }
 
@@ -254,25 +198,6 @@ export function useTTS() {
     }
   }
 
-  async function _speakKokoro(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
-    for (const seg of segments) {
-      if (_aborted) break
-      const voice = voiceMap[seg.speaker] ?? voiceMap['narrator'] ?? 'zf_xiaobei'
-      try {
-        const resp = await fetch(`${backendOrigin}/tts/kokoro/synthesize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: seg.text, voice }),
-          signal: _abortCtrl?.signal,
-        })
-        if (!resp.ok || resp.status === 204) continue
-        const buf = await resp.arrayBuffer()
-        if (_aborted) break
-        await _playAudioBytes(buf)
-      } catch { /* skip segment */ }
-    }
-  }
-
   async function _speakCosyVoice(segments: Segment[], voiceMap: TtsVoiceMap): Promise<void> {
     for (const seg of segments) {
       if (_aborted) break
@@ -308,12 +233,8 @@ export function useTTS() {
     }
 
     try {
-      if (appStore.ttsMode === 'webspeech') {
-        await _speakWebSpeech(segments, voiceMap)
-      } else if (appStore.ttsMode === 'edge') {
+      if (appStore.ttsMode === 'edge') {
         await _speakEdge(segments, voiceMap)
-      } else if (appStore.ttsMode === 'kokoro') {
-        await _speakKokoro(segments, voiceMap)
       } else if (appStore.ttsMode === 'cosyvoice') {
         await _speakCosyVoice(segments, voiceMap)
       } else {
