@@ -118,7 +118,7 @@ async function toggleSetting(key: 'narrative_polish' | 'director_pass', val: boo
 
 watch(() => debugStore.enabled, (val) => {
   sessionsApi.updateSettings(sessionId, { debug_mode: val }).catch(() => {})
-}, { immediate: true })
+})
 const levelUpAutoShown = ref(false)
 
 const xpThreshold = computed(() => {

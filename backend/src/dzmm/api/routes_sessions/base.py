@@ -2,6 +2,7 @@
 
 DELETE cascades through every per-session table since SQLite FKs aren't
 enabled on this schema."""
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -44,18 +45,17 @@ async def patch_session_settings(
     body: PatchSettingsRequest,
     s: AsyncSession = Depends(get_session_dep),
 ):
-    import json as _json
     sess = await s.get(GameSession, session_id)
     if sess is None:
         raise HTTPException(404, "session not found")
-    settings = _json.loads(sess.settings_json or "{}")
+    settings = json.loads(sess.settings_json or "{}")
     if body.narrative_polish is not None:
         settings["narrative_polish"] = body.narrative_polish
     if body.director_pass is not None:
         settings["director_pass"] = body.director_pass
     if body.debug_mode is not None:
         settings["debug_mode"] = body.debug_mode
-    sess.settings_json = _json.dumps(settings)
+    sess.settings_json = json.dumps(settings)
     await s.commit()
     return {"id": sess.id, "settings": settings}
 
@@ -65,11 +65,10 @@ async def get_session_settings(
     session_id: int,
     s: AsyncSession = Depends(get_session_dep),
 ):
-    import json as _json
     sess = await s.get(GameSession, session_id)
     if sess is None:
         raise HTTPException(404, "session not found")
-    return {"id": sess.id, "settings": _json.loads(sess.settings_json or "{}")}
+    return {"id": sess.id, "settings": json.loads(sess.settings_json or "{}")}
 
 
 @router.patch("/{session_id}/gm_model")
@@ -103,7 +102,6 @@ async def patch_debug_state(
     body: PatchDebugStateRequest,
     s: AsyncSession = Depends(get_session_dep),
 ):
-    import json as _j
     sess = await s.get(GameSession, session_id)
     if sess is None:
         raise HTTPException(404, "session not found")
@@ -123,10 +121,10 @@ async def patch_debug_state(
             cs = CharState(session_id=session_id)
             s.add(cs)
         if body.stats_json is not None:
-            _j.loads(body.stats_json)  # validate JSON
+            json.loads(body.stats_json)  # validate JSON
             cs.stats_json = body.stats_json
         if body.inventory_json is not None:
-            _j.loads(body.inventory_json)  # validate JSON
+            json.loads(body.inventory_json)  # validate JSON
             cs.inventory_json = body.inventory_json
 
     await s.commit()
@@ -142,7 +140,6 @@ async def get_debug_state(
     session_id: int,
     s: AsyncSession = Depends(get_session_dep),
 ):
-    import json as _j
     sess = await s.get(GameSession, session_id)
     if sess is None:
         raise HTTPException(404, "session not found")
@@ -153,9 +150,9 @@ async def get_debug_state(
         "doom_score": sess.doom_score,
         "turn_count": sess.turn_count,
         "scene_turn_count": sess.scene_turn_count,
-        "settings": _j.loads(sess.settings_json or "{}"),
-        "stats": _j.loads(cs.stats_json if cs else "{}"),
-        "inventory": _j.loads(cs.inventory_json if cs else "[]"),
+        "settings": json.loads(sess.settings_json or "{}"),
+        "stats": json.loads(cs.stats_json if cs else "{}"),
+        "inventory": json.loads(cs.inventory_json if cs else "[]"),
     }
 
 
