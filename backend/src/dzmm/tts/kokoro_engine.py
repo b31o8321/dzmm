@@ -72,7 +72,8 @@ async def synthesize(
         return b""
 
     kokoro = _get_instance(d)
-    lang = "z" if voice.startswith("z") else "a"
+    # Map voice prefix to espeak language code: z* = Mandarin (cmn), a* = English (en-us)
+    lang = "cmn" if voice.startswith("z") else "en-us"
 
     loop = asyncio.get_running_loop()
     samples, sample_rate = await loop.run_in_executor(

@@ -158,12 +158,14 @@ const otherVoices = computed(() =>
 
       <template v-if="appStore.ttsEnabled">
         <el-form-item label="朗读模式">
-          <el-radio-group v-model="appStore.ttsMode" @change="appStore.saveTtsSettings" class="flex flex-col gap-1">
-            <el-radio value="edge">内置 edge-tts（在线免费，Neural音色）</el-radio>
-            <el-radio value="kokoro">本地 Kokoro（离线，需下载 ~82MB）</el-radio>
-            <el-radio value="cosyvoice">本地 CosyVoice（离线，需安装 ~2.5GB）</el-radio>
-            <el-radio value="webspeech">浏览器内置（Web Speech API）</el-radio>
-            <el-radio value="local">外部 TTS 服务（OpenAI 兼容）</el-radio>
+          <el-radio-group v-model="appStore.ttsMode" @change="appStore.saveTtsSettings">
+            <div class="flex flex-col gap-2">
+              <el-radio value="edge">内置 edge-tts（在线免费，Neural音色）</el-radio>
+              <el-radio value="kokoro">本地 Kokoro（离线，需下载 ~82MB）</el-radio>
+              <el-radio value="cosyvoice">本地 CosyVoice（离线，需安装 ~2.5GB）</el-radio>
+              <el-radio value="webspeech">浏览器内置（Web Speech API）</el-radio>
+              <el-radio value="local">外部 TTS 服务（OpenAI 兼容）</el-radio>
+            </div>
           </el-radio-group>
         </el-form-item>
 
