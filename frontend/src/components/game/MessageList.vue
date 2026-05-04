@@ -4,11 +4,14 @@ import { ElButton } from 'element-plus'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 import type { Turn } from '@/composables/useGameTurn'
+import { useDebugStore } from '@/stores/debug'
+import { sessionsApi } from '@/api/sessions'
 
 const props = defineProps<{
   turns: Turn[]
   characterName?: string
   sending?: boolean
+  sessionId: number
 }>()
 
 const emit = defineEmits<{
@@ -17,6 +20,23 @@ const emit = defineEmits<{
 }>()
 
 const logEl = ref<HTMLElement | null>(null)
+
+const debug = useDebugStore()
+const debugDialogOpen = ref(false)
+interface DebugInfo { prompt: object[]; response: string; tokensIn: number; tokensOut: number }
+const debugInfo = ref<DebugInfo | null>(null)
+
+async function openDebug(turn: Turn) {
+  if (!turn.msgId) return
+  const d = await sessionsApi.messageDebug(props.sessionId, turn.msgId)
+  debugInfo.value = {
+    prompt: d.prompt_json ? JSON.parse(d.prompt_json) : [],
+    response: d.content,
+    tokensIn: d.tokens_in,
+    tokensOut: d.tokens_out,
+  }
+  debugDialogOpen.value = true
+}
 
 // Parse <narrative>, <say speaker="..">, <pc_action> tags from raw GM content
 // into an ordered list of parts. Falls back to a single narration block when
@@ -111,7 +131,17 @@ defineExpose({ logEl })
       输入第一个行动开始跑团（例如：「(开始游戏)」让 GM 给你开局描写）
     </div>
     <article v-for="(t, i) in turns" :key="i" class="space-y-2">
-      <div class="text-sm text-slate-500 font-medium">▶ {{ t.action }}</div>
+      <div class="text-sm text-slate-500 font-medium">
+        ▶ {{ t.action }}
+        <button
+          v-if="debug.enabled && t.msgId"
+          class="text-xs text-slate-400 hover:text-slate-600 ml-1"
+          title="查看LLM原始数据"
+          @click="openDebug(t)"
+        >
+          🐛
+        </button>
+      </div>
       <div class="relative bg-white rounded shadow-sm p-4">
         <!-- Loading state: waiting for first LLM token -->
         <template v-if="i === turns.length - 1 && isLastTurnLoading">
@@ -161,4 +191,41 @@ defineExpose({ logEl })
       </div>
     </article>
   </div>
+
+  <el-dialog
+    v-model="debugDialogOpen"
+    title="LLM 原始数据"
+    width="80%"
+  >
+    <div v-if="debugInfo" class="space-y-4 text-xs font-mono">
+      <div>
+        <div class="font-bold text-slate-600 mb-1">
+          发送给 LLM（{{ debugInfo.tokensIn }} tokens in）
+        </div>
+        <div class="bg-slate-50 border rounded p-2 max-h-64 overflow-auto whitespace-pre-wrap">
+          <template v-if="debugInfo.prompt.length">
+            <div
+              v-for="(msg, i) in debugInfo.prompt"
+              :key="i"
+              class="mb-2 border-b border-slate-200 pb-2"
+            >
+              <span class="font-bold" :class="(msg as any).role === 'system' ? 'text-purple-600' : (msg as any).role === 'user' ? 'text-blue-600' : 'text-green-600'">
+                [{{ (msg as any).role }}]
+              </span>
+              {{ (msg as any).content }}
+            </div>
+          </template>
+          <span v-else class="text-slate-400">未记录（需开启 debug_mode 会话设置）</span>
+        </div>
+      </div>
+      <div>
+        <div class="font-bold text-slate-600 mb-1">
+          LLM 返回（{{ debugInfo.tokensOut }} tokens out）
+        </div>
+        <div class="bg-slate-50 border rounded p-2 max-h-64 overflow-auto whitespace-pre-wrap">
+          {{ debugInfo.response }}
+        </div>
+      </div>
+    </div>
+  </el-dialog>
 </template>

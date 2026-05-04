@@ -229,7 +229,19 @@ async def take_turn(
                 yield {"event": "summarize_error",
                        "data": json.dumps({"message": str(e)}, ensure_ascii=False)}
 
-        yield {"event": "done", "data": "{}"}  # 告知前端本回合完全结束
+        async with session_maker() as _s2:
+            _last_id = (
+                await _s2.execute(
+                    select(MessageRow.id)
+                    .where(
+                        MessageRow.session_id == session_id,
+                        MessageRow.role == "assistant",
+                    )
+                    .order_by(MessageRow.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        yield {"event": "done", "data": json.dumps({"assistant_msg_id": _last_id})}  # 告知前端本回合完全结束
 
     # EventSourceResponse 把 async generator 包装成 HTTP SSE 响应
     return EventSourceResponse(event_stream())

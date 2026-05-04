@@ -5,7 +5,7 @@ export interface TurnHandlers {
   onNarrative?: (text: string) => void
   onTag?: (name: string, attrs: Record<string, string>, content: string) => void
   onError?: (message: string) => void
-  onDone?: () => void
+  onDone?: (doneData?: { assistant_msg_id?: number }) => void
 }
 
 /**
@@ -78,8 +78,11 @@ function dispatch(block: string, h: TurnHandlers) {
     case 'summarize_error':
       h.onError?.(parsed.message ?? 'error')
       break
-    case 'done':
-      h.onDone?.()
+    case 'done': {
+      let doneData: { assistant_msg_id?: number } = {}
+      try { doneData = parsed ?? {} } catch { /* ignore */ }
+      h.onDone?.(doneData)
       break
+    }
   }
 }

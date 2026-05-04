@@ -259,6 +259,34 @@ async def _auto_generate_screenplay(
     )
 
 
+_XML_TAG_RE = re.compile(r"<(narrative|say|pc_action|state_change|location_enter)\b")
+
+def _check_xml_drift(recent_messages: list) -> str:
+    """Return a format reminder string if recent assistant messages lack XML tags.
+
+    After summarization, the context loses XML-formatted examples.  When the
+    LLM sees only plain-text assistant turns, it drifts to plain-text output.
+    Detecting ≥2 consecutive plain-text assistant messages triggers a reminder
+    injected into the current user action.
+    """
+    plain_count = 0
+    for msg in reversed(recent_messages):
+        if msg.role != "assistant":
+            continue
+        if _XML_TAG_RE.search(msg.content):
+            break  # found a properly-formatted turn — no drift
+        plain_count += 1
+        if plain_count >= 2:
+            return (
+                "\n\n[GM 格式提醒] 请严格使用 XML 标签格式输出本回合内容："
+                "旁白用 <narrative>…</narrative>，"
+                "PC 行动用 <pc_action>…</pc_action>，"
+                "NPC 对话用 <say speaker=\"NPC名\">…</say>。"
+                "不要输出纯文本。"
+            )
+    return ""
+
+
 async def run_turn(
     session: AsyncSession,
     session_id: int,
@@ -365,9 +393,19 @@ async def run_turn(
             "保持当前场景的人物/地点/事件与消息历史一致，不要重置剧情或重新介绍已出现的 NPC。\n\n"
         ) + key_facts
 
+    # XML format drift detection: if recent assistant messages lack <narrative>
+    # tags (usually after summarization removes XML-formatted examples from
+    # context), inject a compact reminder so the model realigns.
+    xml_reminder = _check_xml_drift(recent)
+
     rules_mode = json.loads(world.rules_json or '{"mode":"light"}').get("mode", "light")
 
     character_md = _format_character_card(char)
+
+    action_with_reminder = user_action
+    if xml_reminder:
+        action_with_reminder = user_action + "\n\n" + xml_reminder
+        log.info("injecting XML format reminder for session %d (drift detected)", session_id)
 
     msgs = build_gm_messages(
         world_md=get_world_md(
@@ -383,8 +421,15 @@ async def run_turn(
         story_summary=story_summary,
         key_facts=key_facts,
         recent_messages=recent,
-        current_action=user_action,
+        current_action=action_with_reminder,
     )
+
+    _debug_prompt_json = ""
+    if settings.get("debug_mode"):
+        _debug_prompt_json = json.dumps(
+            [{"role": m.role, "content": m.content} for m in msgs],
+            ensure_ascii=False,
+        )
 
     # v0.2.1 — long-context observability. Estimate prompt token cost and
     # emit a warning event when the total crosses ~12k (most local 7B models
@@ -512,6 +557,7 @@ async def run_turn(
         session_id=session_id, role="assistant", content=full_output, turn=next_turn,
         tokens_in=usage.input_tokens, tokens_out=usage.output_tokens,
         events_json=json.dumps(events_payload, ensure_ascii=False),
+        prompt_json=_debug_prompt_json,
     ))
 
     await apply_tags(

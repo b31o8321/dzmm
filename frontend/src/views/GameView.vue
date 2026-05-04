@@ -11,6 +11,7 @@ import { useAudio } from '@/composables/useAudio'
 import { useTTS, type TtsVoiceMap, type TtsSpeakerFilter } from '@/composables/useTTS'
 import { useModelCheck } from '@/composables/useModelCheck'
 import { useAppStore } from '@/stores/app'
+import { useDebugStore } from '@/stores/debug'
 import { useGameState, MAX_DICE } from '@/composables/useGameState'
 import {
   useGameTurn,
@@ -43,6 +44,7 @@ const showModelBanner = computed(
   () => (modelOk.value === false || modelCheckError.value) && !modelBannerDismissed.value
 )
 const appStore = useAppStore()
+const debugStore = useDebugStore()
 const { playTurn, stop: stopTts, speaking } = useTTS()
 const version = __APP_VERSION__
 
@@ -112,6 +114,10 @@ async function toggleSetting(key: 'narrative_polish' | 'director_pass', val: boo
     ElMessage.error(e.message ?? '保存失败')
   }
 }
+
+watch(() => debugStore.enabled, (val) => {
+  sessionsApi.patchSettings(sessionId, { debug_mode: val }).catch(() => {})
+}, { immediate: true })
 const levelUpAutoShown = ref(false)
 
 const xpThreshold = computed(() => {
@@ -833,6 +839,7 @@ onUnmounted(() => {
         :turns="turns"
         :character-name="character?.name"
         :sending="sending"
+        :session-id="sessionId"
         :style="{ fontSize: fontSize + 'px', fontFamily }"
         @choose="(c: string) => sendActionDirect(c)"
         @open-events="(t: Turn) => openEvents(t)"

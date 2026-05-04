@@ -35,6 +35,7 @@ class PatchGmModelRequest(BaseModel):
 class PatchSettingsRequest(BaseModel):
     narrative_polish: bool | None = None
     director_pass: bool | None = None
+    debug_mode: bool | None = None
 
 
 @router.patch("/{session_id}/settings")
@@ -52,6 +53,8 @@ async def patch_session_settings(
         settings["narrative_polish"] = body.narrative_polish
     if body.director_pass is not None:
         settings["director_pass"] = body.director_pass
+    if body.debug_mode is not None:
+        settings["debug_mode"] = body.debug_mode
     sess.settings_json = _json.dumps(settings)
     await s.commit()
     return {"id": sess.id, "settings": settings}

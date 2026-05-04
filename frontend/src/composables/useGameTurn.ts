@@ -58,6 +58,7 @@ export interface Turn {
   events: MessageEvent[] // 本回合的结构化事件（dice/state_change 等）
   turn: number         // 回合序号
   rawContent?: string  // 原始内容（含 XML 标签，用于重建对话气泡）
+  msgId?: number       // debug: 对应数据库 Message.id（assistant 行），用于 debug 查看 prompt
 }
 
 // ── 正则表达式常量（预编译，性能更好）──────────────────────
@@ -148,7 +149,10 @@ export function useGameTurn(
       turn: turnCount.value + 1,
     })
     currentTurn.value = turn
-    const sayBuffer: string[] = []  // 缓存说话标签，等叙事结束后统一处理
+    // rawContent 分段构建，保持文档顺序（旁白 + 对话交织）
+    type RawPart = { kind: 'narr'; text: string } | { kind: 'tag'; text: string }
+    const rawParts: RawPart[] = []
+    let pendingNarr = ''  // 累积旁白，遇到对话标签时 flush
 
     // 清空上一回合的选项（玩家已经做了选择，旧选项过时了）
     for (const t of turns.value) t.choices = []
@@ -162,17 +166,26 @@ export function useGameTurn(
         // ── 叙事流处理 ──────────────────────────────────
         onNarrative: (text) => {
           turn.narrative += text    // 累积叙事文本（触发响应式更新 → UI 实时显示）
+          pendingNarr += text       // 同步追加到 rawContent 旁白缓冲
           hooks.onScroll?.()
         },
 
         // ── 结构化标签处理 ──────────────────────────────
         onTag: (name, attrs, content) => {
-          // 把 say/pc_action 标签缓冲，等回合结束后重建对话气泡
-          if (name === 'say') {
-            const speakerAttr = attrs.speaker ? ` speaker="${attrs.speaker}"` : ''
-            sayBuffer.push(`<say${speakerAttr}>${content}</say>`)
-          } else if (name === 'pc_action') {
-            sayBuffer.push(`<pc_action>${content}</pc_action>`)
+          // say/pc_action：先 flush 待处理旁白，再追加对话标签（保持文档顺序）
+          if (name === 'say' || name === 'pc_action') {
+            if (pendingNarr) {
+              rawParts.push({ kind: 'narr', text: pendingNarr })
+              pendingNarr = ''
+            }
+            if (name === 'say') {
+              const speakerAttr = attrs.speaker ? ` speaker="${attrs.speaker}"` : ''
+              rawParts.push({ kind: 'tag', text: `<say${speakerAttr}>${content}</say>` })
+            } else {
+              // Strip leading "#name：" placeholder that some 7B models emit
+              const cleaned = content.replace(/^[#□★]\s*[\S]+[：:]\s*/, '').trim() || content
+              rawParts.push({ kind: 'tag', text: `<pc_action>${cleaned}</pc_action>` })
+            }
           }
 
           // 记录结构化事件（显示在消息旁边的小图标里）
@@ -266,8 +279,11 @@ export function useGameTurn(
           ElMessage.warning(msg)   // 其他错误作为警告弹窗
         },
 
-        onDone: () => {
+        onDone: (doneData?: { assistant_msg_id?: number }) => {
           // ── 回合结束的收尾工作 ──────────────────────────
+          if (doneData?.assistant_msg_id) {
+            turn.msgId = doneData.assistant_msg_id
+          }
           turnCount.value += 1
 
           // GM 有时忘记用 <choices> 标签，直接把选项写在 narrative 里
@@ -280,19 +296,27 @@ export function useGameTurn(
           // 清理叙事文本（移除意外混入的 XML 标签）
           turn.narrative = cleanNarrative(turn.narrative)
 
-          // 把缓冲的 say/pc_action 标签追加到 rawContent
-          if (sayBuffer.length) {
-            turn.rawContent = (turn.rawContent ?? '') + sayBuffer.join('')
-          }
-
           // 检测本回合的场景氛围（用于背景音乐/UI 色调）
           sceneMood.value = detectSceneMood(turn.narrative)
 
-          // 把清理后的叙事包装成 <narrative> 标签，存入 rawContent
-          // rawContent 是重建对话气泡的数据源
-          if (turn.narrative) {
-            turn.rawContent =
-              `<narrative>${turn.narrative}</narrative>` + (turn.rawContent ?? '')
+          // 把剩余旁白 flush 进 rawParts（对话全在旁白之后时）
+          if (pendingNarr) {
+            rawParts.push({ kind: 'narr', text: pendingNarr })
+            pendingNarr = ''
+          }
+
+          // 构建 rawContent：按文档顺序交织旁白和对话，保持 TTS 播放顺序正确
+          if (rawParts.length) {
+            turn.rawContent = rawParts
+              .map((p) =>
+                p.kind === 'narr'
+                  ? `<narrative>${p.text}</narrative>`
+                  : p.text,
+              )
+              .join('')
+          } else if (turn.narrative) {
+            // 降级：没有对话标签时，全部作为旁白（格式崩溃时的兜底）
+            turn.rawContent = `<narrative>${turn.narrative}</narrative>`
           }
 
           refreshTokens()      // 异步刷新 token 统计（fire-and-forget）

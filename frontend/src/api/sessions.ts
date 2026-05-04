@@ -185,10 +185,27 @@ export const sessionsApi = {
 
   async updateSettings(
     sessionId: number,
-    settings: { narrative_polish?: boolean; director_pass?: boolean },
+    settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean },
   ): Promise<void> {
     await api.patch(`/sessions/${sessionId}/settings`, settings)
   },
+
+  messageDebug: (sessionId: number, msgId: number) =>
+    api
+      .get<{
+        id: number
+        turn: number
+        prompt_json: string
+        content: string
+        tokens_in: number
+        tokens_out: number
+      }>(`/sessions/${sessionId}/messages/${msgId}/debug`)
+      .then((r) => r.data),
+
+  patchSettings: (
+    sessionId: number,
+    settings: { debug_mode?: boolean; narrative_polish?: boolean; director_pass?: boolean },
+  ) => api.patch(`/sessions/${sessionId}/settings`, settings).then((r) => r.data),
 
   async suggestActions(
     sessionId: number,

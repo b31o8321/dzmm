@@ -45,6 +45,25 @@ async def get_messages(session_id: int, s: AsyncSession = Depends(get_session_de
     ]
 
 
+@router.get("/{session_id}/messages/{msg_id}/debug")
+async def get_message_debug(
+    session_id: int,
+    msg_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    msg = await s.get(MessageRow, msg_id)
+    if msg is None or msg.session_id != session_id:
+        raise HTTPException(404, "message not found")
+    return {
+        "id": msg.id,
+        "turn": msg.turn,
+        "prompt_json": msg.prompt_json or "",
+        "content": msg.content,
+        "tokens_in": msg.tokens_in,
+        "tokens_out": msg.tokens_out,
+    }
+
+
 @router.get("/{session_id}/state")
 async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep)):
     """Return current PC state, NPCs, and active plot threads.
