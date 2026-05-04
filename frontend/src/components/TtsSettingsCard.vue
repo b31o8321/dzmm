@@ -45,10 +45,14 @@ const cosyStatus = ref<CosyStatus | null>(null)
 let cosyPollTimer: ReturnType<typeof setInterval> | null = null
 
 const KOKORO_ZH_VOICES = [
-  { value: 'zf_xiaobei', label: '小北（中文女，温柔）' },
-  { value: 'zf_xiaoni',  label: '小妮（中文女，活泼）' },
-  { value: 'zm_yunxi',   label: '云希（中文男，稳重）' },
-  { value: 'zm_yundong', label: '云动（中文男，低沉）' },
+  { value: 'zf_xiaobei',  label: '小北（女，温柔）' },
+  { value: 'zf_xiaoni',   label: '小妮（女，活泼）' },
+  { value: 'zf_xiaoxiao', label: '晓晓（女，沉稳）' },
+  { value: 'zf_xiaoyi',   label: '晓伊（女，明快）' },
+  { value: 'zm_yunjian',  label: '云健（男，低沉）' },
+  { value: 'zm_yunxi',    label: '云希（男，稳重）' },
+  { value: 'zm_yunxia',   label: '云夏（男，青年）' },
+  { value: 'zm_yunyang',  label: '云扬（男，权威）' },
 ]
 
 onMounted(async () => {

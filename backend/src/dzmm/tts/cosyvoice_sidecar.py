@@ -115,6 +115,8 @@ async def _run(args: list[str], err_prefix: str, cwd: Path | None = None) -> Non
 
 async def install(progress: Callable[[str], None] | None = None) -> None:
     """Install CosyVoice environment. Raises RuntimeError on failure."""
+    import re
+
     def _emit(msg: str) -> None:
         if progress:
             progress(msg)
@@ -129,19 +131,7 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
             "uv venv failed",
         )
 
-    # 2. Install PyTorch CPU (user can swap for CUDA after install)
-    _emit("安装 PyTorch CPU（~300MB）…")
-    await _run(
-        [
-            str(uv), "pip", "install",
-            "--python", str(_python_exe()),
-            "torch", "torchaudio",
-            "--index-url", "https://download.pytorch.org/whl/cpu",
-        ],
-        "PyTorch install failed",
-    )
-
-    # 3. Clone CosyVoice source (not pip-installable; lacks pyproject.toml)
+    # 2. Clone CosyVoice source first so we can read its requirements.txt
     _emit("克隆 CosyVoice 源码…")
     if not (_COSYVOICE_SRC_DIR / "cosyvoice").is_dir():
         if _COSYVOICE_SRC_DIR.exists():
@@ -156,20 +146,59 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
             cwd=APP_DIR,
         )
 
-    # 4. Install dependencies from the repo's requirements.txt
+    # 3. Install PyTorch CPU pinned to the version CosyVoice needs.
+    #    Read torch version from requirements.txt; fall back to 2.3.1.
     req_file = _COSYVOICE_SRC_DIR / "requirements.txt"
+    torch_ver = "2.3.1"
     if req_file.exists():
-        _emit("安装 CosyVoice 依赖（requirements.txt，约 500MB）…")
+        for line in req_file.read_text().splitlines():
+            m = re.match(r'^torch==([\d.]+)', line.strip())
+            if m:
+                torch_ver = m.group(1)
+                break
+
+    _emit(f"安装 PyTorch {torch_ver} CPU（~300MB）…")
+    await _run(
+        [
+            str(uv), "pip", "install",
+            "--python", str(_python_exe()),
+            f"torch=={torch_ver}", f"torchaudio=={torch_ver}",
+            "--index-url", "https://download.pytorch.org/whl/cpu",
+        ],
+        "PyTorch install failed",
+    )
+
+    # 4. Install CosyVoice requirements, excluding:
+    #    - torch/torchaudio (already installed above)
+    #    - --extra-index-url / --index-url lines (we manage indexes ourselves)
+    #    Add --index-strategy unsafe-best-match so uv searches all indexes for
+    #    packages like onnxruntime==1.18.0 that only exist on a non-PyPI index.
+    if req_file.exists():
+        _emit("安装 CosyVoice 依赖（约 500MB）…")
+        skip_re = re.compile(
+            r'^\s*(--(extra-)?index-url|--find-links)|'
+            r'^\s*torch(audio)?\s*[=<>!@]',
+            re.I,
+        )
+        filtered = [l for l in req_file.read_text().splitlines()
+                    if l.strip() and not l.strip().startswith('#') and not skip_re.match(l)]
+        filtered_req = APP_DIR / "_cosy_req_filtered.txt"
+        filtered_req.write_text('\n'.join(filtered))
         await _run(
             [
                 str(uv), "pip", "install",
                 "--python", str(_python_exe()),
-                "-r", str(req_file),
+                "--extra-index-url",
+                "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/",
+                "--index-strategy", "unsafe-best-match",
+                "-r", str(filtered_req),
             ],
             "requirements install failed",
         )
+        filtered_req.unlink(missing_ok=True)
 
-    # 5. Install server runtime deps
+    # 5. Install server runtime deps (fastapi/uvicorn/modelscope may already be
+    #    in requirements.txt but we ensure they're present regardless)
     _emit("安装服务器运行时依赖…")
     await _run(
         [

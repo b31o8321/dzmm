@@ -29,24 +29,26 @@ NARRATOR_EDGE_VOICE = "zh-CN-XiaoxiaoNeural"  # audiobook-style narrator
 # All distinct edge voice names (for validation/listing)
 EDGE_VOICES: list[str] = sorted({v for v, _, _ in _EDGE_MAP.values()} | {NARRATOR_EDGE_VOICE})
 
-# kokoro-onnx: archetype → voice (zh voices: zf_xiaobei, zf_xiaoni, zm_yunxi, zm_yundong)
+# kokoro-onnx v1.0 zh voices (confirmed present in voices-v1.0.bin):
+#   zf_xiaobei  zf_xiaoni  zf_xiaoxiao  zf_xiaoyi
+#   zm_yunjian  zm_yunxi   zm_yunxia    zm_yunyang
 _KOKORO_MAP: dict[str, str] = {
-    "导师":   "zm_yunxi",
+    "导师":   "zm_yunyang",
     "盟友":   "zm_yunxi",
-    "反派":   "zm_yundong",
-    "神秘人": "zm_yundong",
-    "商人":   "zm_yunxi",
-    "守卫":   "zm_yundong",
+    "反派":   "zm_yunyang",
+    "神秘人": "zm_yunjian",
+    "商人":   "zm_yunyang",
+    "守卫":   "zm_yunxia",
     "平民":   "zf_xiaobei",
-    "智者":   "zm_yunxi",
-    "冷酷":   "zf_xiaobei",
+    "智者":   "zm_yunjian",
+    "冷酷":   "zf_xiaoxiao",
     "温柔":   "zf_xiaobei",
     "活泼":   "zf_xiaoni",
-    "邪恶":   "zm_yundong",
-    "儿童":   "zf_xiaoni",
-    "长老":   "zm_yunxi",
-    "武将":   "zm_yundong",
-    "贵族":   "zf_xiaobei",
+    "邪恶":   "zm_yunyang",
+    "儿童":   "zf_xiaoyi",
+    "长老":   "zm_yunjian",
+    "武将":   "zm_yunxia",
+    "贵族":   "zf_xiaoxiao",
 }
 
 _KOKORO_DEFAULT = "zf_xiaobei"

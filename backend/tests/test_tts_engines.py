@@ -36,13 +36,15 @@ def test_edge_prosody_returns_tuple():
 def test_kokoro_known_archetypes():
     assert kokoro_voice_for_archetype("温柔") == "zf_xiaobei"
     assert kokoro_voice_for_archetype("活泼") == "zf_xiaoni"
-    assert kokoro_voice_for_archetype("导师") == "zm_yunxi"
-    assert kokoro_voice_for_archetype("反派") == "zm_yundong"
+    assert kokoro_voice_for_archetype("导师") == "zm_yunyang"
+    assert kokoro_voice_for_archetype("反派") == "zm_yunyang"
+    assert kokoro_voice_for_archetype("智者") == "zm_yunjian"
 
 
 def test_kokoro_unknown_archetype_returns_default():
     v = kokoro_voice_for_archetype("未知")
-    assert v in ("zf_xiaobei", "zf_xiaoni", "zm_yunxi", "zm_yundong")
+    assert v in ("zf_xiaobei", "zf_xiaoni", "zm_yunxi", "zm_yunyang",
+                 "zm_yunjian", "zm_yunxia", "zf_xiaoxiao", "zf_xiaoyi")
 
 
 def test_narrator_voices_defined():
