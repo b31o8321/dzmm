@@ -8,7 +8,11 @@ World + Character + Session + pinned NPCs + Screenplay atomically.
 The session dependency is reused from `routes_sessions` so the FastAPI
 override applied in `main.py` covers this router automatically.
 """
+import json
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, Depends, HTTPException
+from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.routes_sessions import get_session_dep
@@ -23,6 +27,11 @@ from dzmm.service.wizard import (
     generate_suggestions,
     generate_world_brief,
     generate_world_details,
+    stream_character,
+    stream_npcs,
+    stream_screenplay,
+    stream_world_brief,
+    stream_world_details,
 )
 
 router = APIRouter(prefix="/wizard", tags=["wizard"])
@@ -142,6 +151,68 @@ async def npc_single(
         )
     except ValueError as e:
         raise HTTPException(502, f"NPC generation parse failed: {e}")
+
+
+def _sse(gen):
+    """Wrap an async generator of (event_type, data_dict) into EventSourceResponse."""
+    async def _wrap() -> AsyncIterator[dict]:
+        try:
+            async for ev_type, data in gen:
+                yield {"event": ev_type, "data": json.dumps(data, ensure_ascii=False)}
+        except Exception as e:
+            yield {"event": "error", "data": json.dumps({"message": str(e)})}
+    return EventSourceResponse(_wrap())
+
+
+@router.post("/world_brief/stream")
+async def world_brief_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return _sse(stream_world_brief(
+        genre=str(payload.get("genre") or "悬疑探案"),
+        theme=str(payload.get("theme") or ""),
+        client=client,
+    ))
+
+
+@router.post("/world_details/stream")
+async def world_details_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return _sse(stream_world_details(
+        brief_md=str(payload.get("brief_md") or ""),
+        client=client,
+    ))
+
+
+@router.post("/character/stream")
+async def character_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return _sse(stream_character(
+        world_md=str(payload.get("world_md") or ""),
+        archetype=str(payload.get("archetype") or ""),
+        client=client,
+    ))
+
+
+@router.post("/npcs/stream")
+async def npcs_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return _sse(stream_npcs(
+        world_md=str(payload.get("world_md") or ""),
+        character_md=str(payload.get("character_md") or ""),
+        client=client,
+    ))
+
+
+@router.post("/screenplay/stream")
+async def screenplay_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return _sse(stream_screenplay(
+        world_md=str(payload.get("world_md") or ""),
+        character_md=str(payload.get("character_md") or ""),
+        npcs=list(payload.get("npcs") or []),
+        genre=str(payload.get("genre") or "悬疑探案"),
+        client=client,
+    ))
 
 
 @router.post("/suggest")

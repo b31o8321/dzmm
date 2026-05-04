@@ -42,6 +42,33 @@ def _strip_fence(text: str) -> str:
     return m.group(1).strip() if m else text
 
 
+def _extract_json(text: str) -> str:
+    """Extract the outermost {...} block from text.
+
+    More robust than _strip_fence: handles "Here is your JSON:\\n{...}",
+    trailing commentary, and partial markdown fences.
+    """
+    text = text.strip()
+    # Try fence strip first
+    m = _FENCE_RE.match(text)
+    if m:
+        text = m.group(1).strip()
+    # Walk forward to find the first '{' and its matching '}'
+    start = text.find("{")
+    if start == -1:
+        return text
+    depth = 0
+    for i, ch in enumerate(text[start:], start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    # Truncated JSON: return from '{' to end (caller handles parse error)
+    return text[start:]
+
+
 def _parse_section(md: str, header: str) -> str:
     """Extract the body of a `## <header>` section in `md`. Stops at the next
     `##` heading or end-of-string. Returns "" if not found."""
@@ -186,9 +213,9 @@ async def generate_screenplay_from_wizard(
                 npcs=list(npcs or []),
                 genre=genre,
             ),
-            max_tokens=2500,
+            max_tokens=4000,
         )
-        cleaned = _strip_fence(raw)
+        cleaned = _extract_json(raw)
         try:
             data = json.loads(cleaned)
         except json.JSONDecodeError as e:
@@ -300,6 +327,97 @@ async def finalize_wizard(
     await session.flush()
 
     return sess.id
+
+
+# ---------------------------------------------------------------------------
+# Streaming variants — yield (event_type, data_dict) pairs for SSE endpoints.
+# Protocol:  "delta"  → {"text": "..."}   raw token chunk
+#            "result" → {...parsed data...} on success
+#            "error"  → {"message": "..."}  on failure
+# ---------------------------------------------------------------------------
+
+from collections.abc import AsyncGenerator  # noqa: E402 (local import fine here)
+
+_StreamYield = AsyncGenerator[tuple[str, dict], None]
+
+
+async def stream_world_brief(genre: str, theme: str, client: ModelClient) -> _StreamYield:
+    messages = build_world_brief_messages(genre, theme)
+    chunks: list[str] = []
+    async for ch in client.stream(messages, GenerationParams(max_tokens=800, temperature=0.85)):
+        if ch.delta:
+            chunks.append(ch.delta)
+            yield "delta", {"text": ch.delta}
+    raw = "".join(chunks).strip()
+    name = _parse_section(raw, "名字") or _parse_section(raw, "世界名") or ""
+    setting = _parse_section(raw, "年代与地点") or _parse_section(raw, "年代") or ""
+    conflict = _parse_section(raw, "核心冲突") or _parse_section(raw, "冲突") or ""
+    yield "result", {"name": name, "setting": setting, "conflict": conflict, "raw_md": raw}
+
+
+async def stream_world_details(brief_md: str, client: ModelClient) -> _StreamYield:
+    messages = build_world_details_messages(brief_md)
+    chunks: list[str] = []
+    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85)):
+        if ch.delta:
+            chunks.append(ch.delta)
+            yield "delta", {"text": ch.delta}
+    world_md = "".join(chunks).strip()
+    yield "result", {"world_md": world_md}
+
+
+async def stream_character(world_md: str, archetype: str, client: ModelClient) -> _StreamYield:
+    effective = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
+    messages = build_character_messages(world_md, effective)
+    chunks: list[str] = []
+    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85)):
+        if ch.delta:
+            chunks.append(ch.delta)
+            yield "delta", {"text": ch.delta}
+    profile = "".join(chunks).strip()
+    info = _parse_section(profile, "基本信息")
+    nm = re.search(r"姓名[:：]\s*([^\s\n]+)", info) or re.search(r"姓名[:：]\s*([^\s\n]+)", profile)
+    name = nm.group(1).strip("*` ") if nm else "(未命名)"
+    yield "result", {"name": name, "profile_md": profile}
+
+
+async def stream_npcs(world_md: str, character_md: str, client: ModelClient) -> _StreamYield:
+    messages = build_npcs_messages(world_md, character_md)
+    chunks: list[str] = []
+    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85)):
+        if ch.delta:
+            chunks.append(ch.delta)
+            yield "delta", {"text": ch.delta}
+    raw = "".join(chunks).strip()
+    try:
+        data = json.loads(_extract_json(raw))
+        if not isinstance(data, list):
+            raise ValueError("NPCs must be a list")
+        npcs = [n for n in data if isinstance(n, dict) and n.get("name")]
+        yield "result", {"npcs": npcs}
+    except Exception as e:
+        yield "error", {"message": f"NPC 解析失败: {e}"}
+
+
+async def stream_screenplay(
+    world_md: str, character_md: str, npcs: list, genre: str, client: ModelClient,
+) -> _StreamYield:
+    messages = build_wizard_screenplay_messages(
+        world_md=world_md, character_md=character_md, npcs=list(npcs or []), genre=genre,
+    )
+    chunks: list[str] = []
+    async for ch in client.stream(messages, GenerationParams(max_tokens=4000, temperature=0.85)):
+        if ch.delta:
+            chunks.append(ch.delta)
+            yield "delta", {"text": ch.delta}
+    raw = "".join(chunks).strip()
+    try:
+        data = json.loads(_extract_json(raw))
+        if not isinstance(data, dict):
+            raise ValueError("screenplay root must be object")
+        yield "result", data
+    except Exception as e:
+        yield "error", {"message": f"剧本解析失败: {e}"}
 
 
 async def generate_suggestions(genre_hint: str, client: ModelClient) -> dict:

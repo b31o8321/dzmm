@@ -35,6 +35,7 @@ import {
   type WizardNPC,
   type WizardScreenplay,
 } from '@/api/wizard'
+import { streamWizardStep } from '@/composables/useWizardStream'
 import { KNOWN_GENRES } from '@/api/screenplay'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { useModelCheck } from '@/composables/useModelCheck'
@@ -142,6 +143,15 @@ const editing = reactive({
   screenplay: false,
 })
 
+// live streaming text per step (cleared at the start of each generation)
+const streamText = reactive({
+  brief: '',
+  world: '',
+  character: '',
+  npcs: '',
+  screenplay: '',
+})
+
 // ---- timer (reused across loading states) ----
 
 const elapsed = ref(0)
@@ -209,18 +219,25 @@ async function generateBrief() {
   const mid = ensureWizardModel()
   if (!mid) return
   state.world_brief = null
+  streamText.brief = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
   try {
-    state.world_brief = await wizardApi.worldBrief({
-      model_config_id: mid,
-      genre: effectiveGenre.value,
-      theme: state.theme.trim(),
-    })
-    state.raw_outputs['world_brief'] = state.world_brief?.raw_md ?? ''
-    saveDraft()
-    editing.brief = false
+    await streamWizardStep(
+      '/wizard/world_brief/stream',
+      { model_config_id: mid, genre: effectiveGenre.value, theme: state.theme.trim() },
+      {
+        onDelta: (t) => { streamText.brief += t },
+        onResult: (data: WorldBrief) => {
+          state.world_brief = data
+          state.raw_outputs['world_brief'] = data.raw_md ?? ''
+          saveDraft()
+          editing.brief = false
+        },
+        onError: (msg) => { errorMsg.value = msg },
+      },
+    )
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
   } finally {
@@ -249,18 +266,25 @@ async function generateWorldDetails() {
     return
   }
   state.world_md = ''
+  streamText.world = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
   try {
-    const r = await wizardApi.worldDetails({
-      model_config_id: mid,
-      brief_md: state.world_brief.raw_md,
-    })
-    state.world_md = r.world_md
-    state.raw_outputs['world_details'] = r.world_md
-    saveDraft()
-    editing.world = false
+    await streamWizardStep(
+      '/wizard/world_details/stream',
+      { model_config_id: mid, brief_md: state.world_brief.raw_md },
+      {
+        onDelta: (t) => { streamText.world += t },
+        onResult: (data: { world_md: string }) => {
+          state.world_md = data.world_md
+          state.raw_outputs['world_details'] = data.world_md
+          saveDraft()
+          editing.world = false
+        },
+        onError: (msg) => { errorMsg.value = msg },
+      },
+    )
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
   } finally {
@@ -285,20 +309,26 @@ async function generateCharacter() {
   }
   state.character_md = ''
   state.character_name = ''
+  streamText.character = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
   try {
-    const r = await wizardApi.character({
-      model_config_id: mid,
-      world_md: state.world_md,
-      archetype: state.archetype.trim(),
-    })
-    state.character_name = r.name
-    state.character_md = r.profile_md
-    state.raw_outputs['character'] = r.profile_md
-    saveDraft()
-    editing.character = false
+    await streamWizardStep(
+      '/wizard/character/stream',
+      { model_config_id: mid, world_md: state.world_md, archetype: state.archetype.trim() },
+      {
+        onDelta: (t) => { streamText.character += t },
+        onResult: (data: { name: string; profile_md: string }) => {
+          state.character_name = data.name
+          state.character_md = data.profile_md
+          state.raw_outputs['character'] = data.profile_md
+          saveDraft()
+          editing.character = false
+        },
+        onError: (msg) => { errorMsg.value = msg },
+      },
+    )
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
   } finally {
@@ -318,20 +348,26 @@ async function generateNpcs() {
   if (!mid) return
   state.npcs = []
   state.screenplay = null
+  streamText.npcs = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
   try {
-    const r = await wizardApi.npcs({
-      model_config_id: mid,
-      world_md: state.world_md,
-      character_md: state.character_md,
-    })
-    state.npcs = r.npcs
-    state.pinned_npc_names = r.npcs.map((n) => n.name) // pin all by default
-    state.raw_outputs['npcs'] = JSON.stringify(r.npcs, null, 2)
-    saveDraft()
-    editing.npcs = false
+    await streamWizardStep(
+      '/wizard/npcs/stream',
+      { model_config_id: mid, world_md: state.world_md, character_md: state.character_md },
+      {
+        onDelta: (t) => { streamText.npcs += t },
+        onResult: (data: { npcs: WizardNPC[] }) => {
+          state.npcs = data.npcs
+          state.pinned_npc_names = data.npcs.map((n) => n.name)
+          state.raw_outputs['npcs'] = JSON.stringify(data.npcs, null, 2)
+          saveDraft()
+          editing.npcs = false
+        },
+        onError: (msg) => { errorMsg.value = msg },
+      },
+    )
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
   } finally {
@@ -427,20 +463,31 @@ async function generateScreenplay() {
   const mid = ensureWizardModel()
   if (!mid) return
   state.screenplay = null
+  streamText.screenplay = ''
   loading.value = true
   errorMsg.value = ''
   startTimer()
   try {
-    state.screenplay = await wizardApi.screenplay({
-      model_config_id: mid,
-      world_md: state.world_md,
-      character_md: state.character_md,
-      npcs: state.npcs.filter((n) => isPinned(n.name)),
-      genre: effectiveGenre.value,
-    })
-    state.raw_outputs['screenplay'] = JSON.stringify(state.screenplay, null, 2)
-    saveDraft()
-    editing.screenplay = false
+    await streamWizardStep(
+      '/wizard/screenplay/stream',
+      {
+        model_config_id: mid,
+        world_md: state.world_md,
+        character_md: state.character_md,
+        npcs: state.npcs.filter((n) => isPinned(n.name)),
+        genre: effectiveGenre.value,
+      },
+      {
+        onDelta: (t) => { streamText.screenplay += t },
+        onResult: (data: WizardScreenplay) => {
+          state.screenplay = data
+          state.raw_outputs['screenplay'] = JSON.stringify(data, null, 2)
+          saveDraft()
+          editing.screenplay = false
+        },
+        onError: (msg) => { errorMsg.value = msg },
+      },
+    )
   } catch (e: any) {
     errorMsg.value = e?.message ?? String(e)
   } finally {
@@ -814,6 +861,7 @@ onBeforeUnmount(() => {
         :tip="currentTip"
         :error="errorMsg"
         :editing="editing.brief"
+        :stream-text="streamText.brief"
         :content="state.world_brief?.raw_md ?? ''"
         @update:content="(v) => state.world_brief && (state.world_brief.raw_md = v)"
         @edit="editing.brief = true"
@@ -884,6 +932,7 @@ onBeforeUnmount(() => {
         :tip="currentTip"
         :error="errorMsg"
         :editing="editing.world"
+        :stream-text="streamText.world"
         :content="state.world_md"
         @update:content="(v) => (state.world_md = v)"
         @edit="editing.world = true"
@@ -915,6 +964,7 @@ onBeforeUnmount(() => {
         :tip="currentTip"
         :error="errorMsg"
         :editing="editing.character"
+        :stream-text="streamText.character"
         :content="state.character_md"
         :can-regenerate="!!state.archetype.trim()"
         :accept-label="state.character_md ? '⏩ 接受继续' : '⏩ 生成角色卡'"
@@ -969,6 +1019,7 @@ onBeforeUnmount(() => {
         :tip="currentTip"
         :error="errorMsg"
         :editing="false"
+        :stream-text="streamText.npcs"
         :can-edit="false"
         :can-handwrite="false"
         @regenerate="generateNpcs"
@@ -1079,6 +1130,7 @@ onBeforeUnmount(() => {
         :tip="currentTip"
         :error="errorMsg"
         :editing="editing.screenplay"
+        :stream-text="streamText.screenplay"
         :content="screenplayDraft"
         @update:content="(v) => (screenplayDraft = v)"
         @edit="editing.screenplay = true"

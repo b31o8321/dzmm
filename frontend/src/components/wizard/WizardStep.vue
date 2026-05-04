@@ -38,6 +38,7 @@ const props = withDefaults(
     elapsed?: number
     tip?: string
     error?: string
+    streamText?: string   // live streaming text; shown instead of spinner when non-empty
     canBack?: boolean
     canEdit?: boolean
     canRegenerate?: boolean
@@ -52,6 +53,7 @@ const props = withDefaults(
     elapsed: 0,
     tip: '',
     error: '',
+    streamText: '',
     canBack: true,
     canEdit: true,
     canRegenerate: true,
@@ -81,8 +83,18 @@ const localContent = computed({
   <div class="space-y-4">
     <div class="text-xl font-bold text-slate-800">{{ title }}</div>
 
-    <!-- generating state -->
-    <div v-if="loading" class="space-y-3 bg-white border border-slate-200 rounded p-6">
+    <!-- streaming live text (replaces spinner once tokens arrive) -->
+    <div v-if="loading && streamText" class="bg-white border border-slate-200 rounded overflow-hidden">
+      <div class="flex items-center gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+        <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        <span class="text-xs text-slate-500">生成中… {{ elapsed }}s</span>
+        <span v-if="tip" class="text-xs text-slate-400 ml-2 truncate">💡 {{ tip }}</span>
+      </div>
+      <pre class="p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono leading-6 max-h-[28rem] overflow-y-auto">{{ streamText }}<span class="inline-block w-1.5 h-4 bg-slate-400 animate-pulse align-text-bottom ml-0.5" /></pre>
+    </div>
+
+    <!-- generating state (no stream yet — initial wait or non-streaming step) -->
+    <div v-else-if="loading" class="space-y-3 bg-white border border-slate-200 rounded p-6">
       <div class="text-sm text-slate-600">⏳ 生成中... 已用 {{ elapsed }}s / 通常 30-60s</div>
       <div v-if="tip" class="text-xs text-slate-500 min-h-[2.5rem]">💡 {{ tip }}</div>
       <el-progress
@@ -135,19 +147,19 @@ const localContent = computed({
     </div>
 
     <!-- actions -->
-    <div v-if="!loading && !error" class="flex flex-wrap gap-2">
-      <el-button v-if="canBack" @click="emit('back')">⬅ 返回</el-button>
-      <el-button v-if="canEdit && !editing" @click="emit('edit')">
+    <div v-if="!error" class="flex flex-wrap gap-2">
+      <el-button v-if="canBack" :disabled="loading" @click="emit('back')">⬅ 返回</el-button>
+      <el-button v-if="canEdit && !editing && !loading" @click="emit('edit')">
         ✏️ 编辑
       </el-button>
-      <el-button v-if="canRegenerate && !editing" @click="emit('regenerate')">
+      <el-button v-if="canRegenerate && !editing && !loading" @click="emit('regenerate')">
         🔄 重新生成
       </el-button>
-      <el-button v-if="canHandwrite && !editing" @click="emit('handwrite')">
+      <el-button v-if="canHandwrite && !editing && !loading" @click="emit('handwrite')">
         ✏️ 我自己写
       </el-button>
       <div class="flex-1" />
-      <el-button v-if="canAccept" type="primary" @click="emit('accept')">
+      <el-button v-if="canAccept && !loading" type="primary" @click="emit('accept')">
         {{ acceptLabel }}
       </el-button>
     </div>
