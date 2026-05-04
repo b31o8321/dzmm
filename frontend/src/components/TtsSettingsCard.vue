@@ -280,6 +280,7 @@ const otherVoices = computed(() =>
               <!-- collapsible log -->
               <div v-if="cosyStatus?.install_log?.length">
                 <button
+                  type="button"
                   class="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 cursor-pointer select-none"
                   @click="showCosyLog = !showCosyLog"
                 >
@@ -415,6 +416,7 @@ const otherVoices = computed(() =>
         <el-divider />
         <div>
           <button
+            type="button"
             class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 cursor-pointer select-none"
             @click="showGuide = !showGuide"
           >
