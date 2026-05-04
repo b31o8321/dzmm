@@ -208,8 +208,10 @@ async function cosyStop() {
               <el-option label="中文女" value="中文女" />
               <el-option label="中文男" value="中文男" />
               <el-option label="粤语女" value="粤语女" />
+              <el-option label="日语男" value="日语男" />
               <el-option label="英文女" value="英文女" />
               <el-option label="英文男" value="英文男" />
+              <el-option label="韩语女" value="韩语女" />
             </el-select>
           </el-form-item>
           <el-form-item label="主角（PC）音色">
@@ -218,8 +220,10 @@ async function cosyStop() {
               <el-option label="中文女" value="中文女" />
               <el-option label="中文男" value="中文男" />
               <el-option label="粤语女" value="粤语女" />
+              <el-option label="日语男" value="日语男" />
               <el-option label="英文女" value="英文女" />
               <el-option label="英文男" value="英文男" />
+              <el-option label="韩语女" value="韩语女" />
             </el-select>
           </el-form-item>
         </template>

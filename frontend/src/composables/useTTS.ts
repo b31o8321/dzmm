@@ -114,7 +114,9 @@ export function useTTS() {
           signal: _abortCtrl.signal,
         })
         if (!resp.ok) {
-          ElMessage.error(`CosyVoice 合成失败 (${resp.status})`)
+          const detail = await resp.json().catch(() => null)
+          const msg = detail?.detail ?? resp.statusText
+          ElMessage.error(resp.status === 503 ? `CosyVoice 未启动，请在设置页点「启动」` : `CosyVoice 合成失败 (${resp.status}): ${msg}`)
         } else if (resp.status !== 204) {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
