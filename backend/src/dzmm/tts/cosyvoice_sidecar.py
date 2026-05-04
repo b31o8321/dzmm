@@ -85,7 +85,7 @@ def is_installed() -> bool:
     return (
         _python_exe().exists()
         and (_COSYVOICE_SRC_DIR / "cosyvoice").is_dir()
-        and (_MODEL_DIR / "cosyvoice2.yaml").exists()
+        and (_MODEL_DIR / "cosyvoice.yaml").exists()
     )
 
 
