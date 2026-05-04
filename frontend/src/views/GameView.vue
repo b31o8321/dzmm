@@ -8,7 +8,7 @@ import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
-import { useTTS, type TtsVoiceMap } from '@/composables/useTTS'
+import { useTTS, type TtsVoiceMap, type TtsSpeakerFilter } from '@/composables/useTTS'
 import { useModelCheck } from '@/composables/useModelCheck'
 import { useAppStore } from '@/stores/app'
 import { useGameState, MAX_DICE } from '@/composables/useGameState'
@@ -189,10 +189,15 @@ const {
     if (appStore.ttsEnabled && !appStore.muted) {
       const raw = currentTurn.value?.rawContent
       if (raw) {
+        const filter: TtsSpeakerFilter = {
+          narratorEnabled: appStore.ttsNarratorEnabled,
+          pcEnabled: appStore.ttsPcEnabled,
+          npcEnabled: appStore.ttsNpcEnabled,
+        }
         sessionsApi.npcs(sessionId).then((npcList) => {
-          playTurn(raw, buildVoiceMap(npcList))
+          playTurn(raw, buildVoiceMap(npcList), filter)
         }).catch(() => {
-          playTurn(raw, buildVoiceMap([]))
+          playTurn(raw, buildVoiceMap([]), filter)
         })
       }
     }
@@ -713,6 +718,29 @@ onUnmounted(() => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <!-- TTS speaker filter — visible when TTS enabled -->
+          <template v-if="appStore.ttsEnabled">
+            <el-popover placement="bottom-end" :width="180" trigger="click">
+              <template #reference>
+                <button class="text-slate-400 hover:text-slate-600 text-sm px-1" title="语音设置">🔊</button>
+              </template>
+              <div class="text-sm space-y-2">
+                <div class="font-medium text-slate-600 text-xs mb-1">播放语音</div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-700">旁白</span>
+                  <el-switch size="small" v-model="appStore.ttsNarratorEnabled" @change="appStore.saveTtsSettings()" />
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-700">PC 行动</span>
+                  <el-switch size="small" v-model="appStore.ttsPcEnabled" @change="appStore.saveTtsSettings()" />
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-700">NPC 对话</span>
+                  <el-switch size="small" v-model="appStore.ttsNpcEnabled" @change="appStore.saveTtsSettings()" />
+                </div>
+              </div>
+            </el-popover>
+          </template>
           <button
             v-if="appStore.ttsEnabled && speaking"
             type="button"

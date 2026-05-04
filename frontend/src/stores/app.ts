@@ -60,6 +60,9 @@ export const useAppStore = defineStore('app', () => {
   const ttsPcVoice = ref(loadTtsSetting('pc_voice', ''))
   // Direct URL for external/LAN TTS service (OpenAI-compatible base URL, e.g. http://192.168.1.5:5001)
   const ttsDirectUrl = ref(loadTtsSetting('direct_url', ''))
+  const ttsNarratorEnabled = ref(loadTtsSetting('narrator_enabled', true))
+  const ttsPcEnabled = ref(loadTtsSetting('pc_enabled', true))
+  const ttsNpcEnabled = ref(loadTtsSetting('npc_enabled', true))
 
   function saveTtsSettings() {
     try {
@@ -69,6 +72,9 @@ export const useAppStore = defineStore('app', () => {
       localStorage.setItem('dzmm.tts.gm_voice', ttsGmVoice.value)
       localStorage.setItem('dzmm.tts.pc_voice', ttsPcVoice.value)
       localStorage.setItem('dzmm.tts.direct_url', ttsDirectUrl.value)
+      localStorage.setItem('dzmm.tts.narrator_enabled', ttsNarratorEnabled.value ? '1' : '0')
+      localStorage.setItem('dzmm.tts.pc_enabled', ttsPcEnabled.value ? '1' : '0')
+      localStorage.setItem('dzmm.tts.npc_enabled', ttsNpcEnabled.value ? '1' : '0')
     } catch { /* ignore */ }
   }
 
@@ -107,6 +113,9 @@ export const useAppStore = defineStore('app', () => {
     ttsGmVoice,
     ttsPcVoice,
     ttsDirectUrl,
+    ttsNarratorEnabled,
+    ttsPcEnabled,
+    ttsNpcEnabled,
     saveTtsSettings,
   }
 })

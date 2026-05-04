@@ -9,6 +9,12 @@ export interface TtsVoiceMap {
   [npcName: string]: string
 }
 
+export interface TtsSpeakerFilter {
+  narratorEnabled: boolean
+  pcEnabled: boolean
+  npcEnabled: boolean
+}
+
 interface Segment {
   speaker: string
   text: string
@@ -219,7 +225,7 @@ export function useTTS() {
     }
   }
 
-  async function playTurn(rawContent: string | undefined, voiceMap: TtsVoiceMap): Promise<void> {
+  async function playTurn(rawContent: string | undefined, voiceMap: TtsVoiceMap, filter?: TtsSpeakerFilter): Promise<void> {
     if (!appStore.ttsEnabled || !rawContent) return
     if (appStore.muted) return
 
@@ -228,7 +234,14 @@ export function useTTS() {
     _abortCtrl = new AbortController()
     _speaking.value = true
 
-    const segments = parseSegments(rawContent)
+    let segments = parseSegments(rawContent)
+    if (filter) {
+      segments = segments.filter((seg) => {
+        if (seg.speaker === 'narrator') return filter.narratorEnabled
+        if (seg.speaker === 'pc') return filter.pcEnabled
+        return filter.npcEnabled
+      })
+    }
     if (!segments.length) {
       _speaking.value = false
       return
