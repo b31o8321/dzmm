@@ -143,6 +143,11 @@ export const wizardApi = {
       .post<{ archetypes: ArchetypeSuggestion[] }>('/wizard/suggest_archetypes', b, { timeout: 120_000 })
       .then((r) => r.data),
 
+  suggestNpcs: (b: { model_config_id: number; world_md: string; character_md: string }) =>
+    api
+      .post<{ npcs: WizardNPC[] }>('/wizard/suggest_npcs', b, { timeout: 120_000 })
+      .then((r) => r.data),
+
   refineTheme: (b: { model_config_id: number; genre: string; rough: string }) =>
     api
       .post<{ theme: string }>('/wizard/refine_theme', b, { timeout: 60_000 })

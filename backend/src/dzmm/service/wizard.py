@@ -32,6 +32,7 @@ from dzmm.prompts.wizard_refine_theme import build_refine_theme_messages
 from dzmm.prompts.wizard_screenplay import build_wizard_screenplay_messages
 from dzmm.prompts.wizard_suggest import build_suggest_messages
 from dzmm.prompts.wizard_suggest_archetypes import build_suggest_archetypes_messages
+from dzmm.prompts.wizard_suggest_npcs import build_suggest_npcs_messages
 from dzmm.prompts.wizard_world_brief import build_world_brief_messages
 from dzmm.prompts.wizard_world_details import build_world_details_messages
 
@@ -456,6 +457,31 @@ async def suggest_archetypes(world_md: str, client: ModelClient) -> dict:
         if not validated:
             raise ValueError("empty archetypes")
         return {"archetypes": validated}
+    return await _with_retry(_attempt)
+
+
+async def suggest_npcs(world_md: str, character_md: str, client: ModelClient) -> dict:
+    """Generate 4 world+character-aware NPC suggestions."""
+    async def _attempt():
+        raw = await _stream_text(
+            client, build_suggest_npcs_messages(world_md, character_md), max_tokens=800,
+            json_mode=True,
+        )
+        data = json.loads(_extract_json(raw))
+        npcs = data.get("npcs", [])
+        validated = [
+            {
+                "name": str(n["name"])[:20],
+                "role": str(n.get("role", ""))[:20],
+                "description": str(n.get("description", ""))[:200],
+                "motivation": str(n.get("motivation", ""))[:100],
+            }
+            for n in npcs
+            if isinstance(n, dict) and n.get("name")
+        ]
+        if not validated:
+            raise ValueError("empty npcs")
+        return {"npcs": validated}
     return await _with_retry(_attempt)
 
 

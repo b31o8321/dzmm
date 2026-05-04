@@ -29,6 +29,7 @@ from dzmm.service.wizard import (
     generate_world_details,
     refine_theme,
     stream_character,
+    suggest_npcs,
     stream_npcs,
     stream_screenplay,
     stream_world_brief,
@@ -227,6 +228,19 @@ async def suggest_archetypes_route(payload: dict, s: AsyncSession = Depends(get_
         )
     except Exception as e:
         raise HTTPException(502, f"archetype suggestion failed: {e}") from e
+
+
+@router.post("/suggest_npcs")
+async def suggest_npcs_route(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    try:
+        return await suggest_npcs(
+            world_md=str(payload.get("world_md") or ""),
+            character_md=str(payload.get("character_md") or ""),
+            client=client,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"NPC suggestion failed: {e}") from e
 
 
 @router.post("/refine_theme")

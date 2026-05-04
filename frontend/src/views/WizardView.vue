@@ -559,6 +559,44 @@ async function doFinalize() {
   }
 }
 
+// ---- step 4: NPC suggestions ----
+
+const npcSuggestions = ref<WizardNPC[]>([])
+const npcSuggestLoading = ref(false)
+const npcSuggestError = ref('')
+
+async function loadNpcSuggestions() {
+  if (!state.wizard_model_config_id) {
+    ElMessage.warning('请先选择「向导用模型」')
+    return
+  }
+  npcSuggestLoading.value = true
+  npcSuggestError.value = ''
+  try {
+    const r = await wizardApi.suggestNpcs({
+      model_config_id: state.wizard_model_config_id,
+      world_md: state.world_md,
+      character_md: state.character_md,
+    })
+    npcSuggestions.value = r.npcs
+  } catch (e: any) {
+    npcSuggestError.value = e?.message ?? '生成失败'
+  } finally {
+    npcSuggestLoading.value = false
+  }
+}
+
+function addSuggestedNpc(npc: WizardNPC) {
+  // Avoid duplicates by name
+  if (state.npcs.some((n) => n.name === npc.name)) {
+    ElMessage.info(`${npc.name} 已在列表中`)
+    return
+  }
+  state.npcs.push({ ...npc })
+  state.pinned_npc_names.push(npc.name)
+  saveDraft()
+}
+
 // ---- step 0: theme suggestions + theme refinement ----
 
 const suggestions = ref<ThemeSuggestion[]>([])
@@ -1156,9 +1194,43 @@ onBeforeUnmount(() => {
           <div v-if="state.npcs.length === 0" class="text-sm text-slate-500">
             （还没生成 NPC）
           </div>
+          <!-- NPC suggestions panel -->
+          <div class="mt-3 border border-slate-200 rounded-lg p-3 bg-slate-50">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-slate-600">✨ AI 推荐 NPC</span>
+              <el-button
+                size="small"
+                link
+                :loading="npcSuggestLoading"
+                @click="loadNpcSuggestions"
+              >{{ npcSuggestions.length ? '换一批' : '获取推荐' }}</el-button>
+            </div>
+            <div v-if="npcSuggestError" class="text-xs text-red-500 mb-1">{{ npcSuggestError }}</div>
+            <div v-if="npcSuggestLoading" class="text-xs text-slate-400 text-center py-2">生成中…</div>
+            <div v-else-if="npcSuggestions.length" class="grid grid-cols-2 gap-1.5">
+              <button
+                v-for="(npc, i) in npcSuggestions"
+                :key="i"
+                type="button"
+                class="text-left p-2 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+                :class="{ 'opacity-50 cursor-default': state.npcs.some(n => n.name === npc.name) }"
+                @click="addSuggestedNpc(npc)"
+              >
+                <div class="flex items-center gap-1 mb-0.5">
+                  <span class="text-xs font-bold text-slate-800">{{ npc.name }}</span>
+                  <el-tag size="small" type="info" effect="plain">{{ npc.role }}</el-tag>
+                </div>
+                <div class="text-xs text-slate-500 leading-4">{{ npc.description }}</div>
+              </button>
+            </div>
+            <div v-else class="text-xs text-slate-400 text-center py-1">
+              点「获取推荐」让 AI 根据世界观和主角生成 4 个 NPC，点击即可加入列表
+            </div>
+          </div>
+
           <!-- Add NPC actions -->
-          <div class="flex gap-2 mt-3">
-            <el-button size="small" @click="npcHintDialog = true" :loading="npcGenerating">✨ AI 生成一个</el-button>
+          <div class="flex gap-2 mt-2">
+            <el-button size="small" @click="npcHintDialog = true" :loading="npcGenerating">✍️ 自定义生成</el-button>
             <el-button size="small" @click="addBlankNpc">📝 手动添加</el-button>
           </div>
         </div>
