@@ -71,9 +71,6 @@ function npcAvatarColor(name: string): string {
       <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5">
         {{ currentLocation.description }}
       </div>
-      <div v-if="presentNpcs.length" class="text-xs text-slate-600 mt-1">
-        在场：{{ presentNpcs.map((n) => n.name).join('、') }}
-      </div>
       <div v-if="currentLocation.items?.length" class="text-xs text-slate-500 mt-1">
         <span class="font-medium">物品：</span>{{ currentLocation.items.map((i) => i.name).join('、') }}
       </div>

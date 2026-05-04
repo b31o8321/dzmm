@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watch, nextTick, ref, computed } from 'vue'
-import { ElButton } from 'element-plus'
+import { ElButton, ElMessage } from 'element-plus'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
 import type { Turn } from '@/composables/useGameTurn'
@@ -28,14 +28,18 @@ const debugInfo = ref<DebugInfo | null>(null)
 
 async function openDebug(turn: Turn) {
   if (!turn.msgId) return
-  const d = await sessionsApi.messageDebug(props.sessionId, turn.msgId)
-  debugInfo.value = {
-    prompt: d.prompt_json ? JSON.parse(d.prompt_json) : [],
-    response: d.content,
-    tokensIn: d.tokens_in,
-    tokensOut: d.tokens_out,
+  try {
+    const d = await sessionsApi.messageDebug(props.sessionId, turn.msgId)
+    debugInfo.value = {
+      prompt: d.prompt_json ? JSON.parse(d.prompt_json) : [],
+      response: d.content,
+      tokensIn: d.tokens_in,
+      tokensOut: d.tokens_out,
+    }
+    debugDialogOpen.value = true
+  } catch (e: any) {
+    ElMessage.error('加载调试数据失败: ' + (e?.message ?? ''))
   }
-  debugDialogOpen.value = true
 }
 
 // Parse <narrative>, <say speaker="..">, <pc_action> tags from raw GM content

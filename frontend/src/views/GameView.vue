@@ -117,8 +117,10 @@ async function toggleSetting(key: 'narrative_polish' | 'director_pass', val: boo
 }
 
 watch(() => debugStore.enabled, (val) => {
-  sessionsApi.updateSettings(sessionId, { debug_mode: val }).catch(() => {})
-})
+  if (val) {
+    sessionsApi.updateSettings(sessionId, { debug_mode: true }).catch(() => {})
+  }
+}, { immediate: true })
 const levelUpAutoShown = ref(false)
 
 const xpThreshold = computed(() => {
@@ -578,6 +580,7 @@ onMounted(async () => {
           events: m.events ?? [],
           turn: m.turn,
           rawContent: m.content,
+          msgId: m.id,
         })
         pendingUser = null
       }
