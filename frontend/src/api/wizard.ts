@@ -53,6 +53,12 @@ export interface WizardCharacter {
   profile_md: string
 }
 
+export interface ThemeSuggestion {
+  genre: string
+  theme: string
+  archetype: string
+}
+
 export interface FinalizePayload {
   world: { name: string; content_md: string }
   character: { name: string; profile_md: string }
@@ -120,6 +126,11 @@ export const wizardApi = {
   }) =>
     api
       .post<WizardScreenplay>('/wizard/screenplay', b, { timeout: 600_000 })
+      .then((r) => r.data),
+
+  suggest: (b: { model_config_id: number; genre?: string }) =>
+    api
+      .post<{ suggestions: ThemeSuggestion[] }>('/wizard/suggest', b, { timeout: 120_000 })
       .then((r) => r.data),
 
   finalize: (b: FinalizePayload) =>

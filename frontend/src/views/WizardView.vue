@@ -30,6 +30,7 @@ import {
 } from 'element-plus'
 import {
   wizardApi,
+  type ThemeSuggestion,
   type WorldBrief,
   type WizardNPC,
   type WizardScreenplay,
@@ -510,6 +511,39 @@ async function doFinalize() {
   }
 }
 
+// ---- step 0: theme suggestions ----
+
+const suggestions = ref<ThemeSuggestion[]>([])
+const suggestLoading = ref(false)
+const suggestError = ref('')
+
+async function loadSuggestions() {
+  if (!state.wizard_model_config_id) {
+    ElMessage.warning('请先选择「向导用模型」再获取灵感推荐')
+    return
+  }
+  suggestLoading.value = true
+  suggestError.value = ''
+  try {
+    const r = await wizardApi.suggest({
+      model_config_id: state.wizard_model_config_id,
+      genre: state.genre !== '自定义' ? state.genre : '',
+    })
+    suggestions.value = r.suggestions
+  } catch (e: any) {
+    suggestError.value = e?.message ?? '生成失败'
+  } finally {
+    suggestLoading.value = false
+  }
+}
+
+function applySuggestion(s: ThemeSuggestion) {
+  state.genre = '自定义'
+  state.custom_genre = s.genre
+  state.theme = s.theme
+  state.archetype = s.archetype
+}
+
 // ---- nav helpers ----
 
 function gotoStep(n: number) {
@@ -718,6 +752,38 @@ onBeforeUnmount(() => {
             maxlength="500"
             show-word-limit
           />
+        </div>
+
+        <!-- AI 灵感推荐 -->
+        <div class="border border-slate-200 rounded-lg p-3 bg-slate-50">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-medium text-slate-700">✨ AI 灵感推荐</div>
+            <el-button
+              size="small"
+              :loading="suggestLoading"
+              @click="loadSuggestions"
+            >{{ suggestions.length ? '换一批' : '获取推荐' }}</el-button>
+          </div>
+          <div v-if="suggestError" class="text-xs text-red-500 mb-2">{{ suggestError }}</div>
+          <div v-if="suggestLoading" class="text-xs text-slate-400 py-3 text-center">AI 正在构思故事方案…</div>
+          <div v-else-if="suggestions.length" class="grid grid-cols-2 gap-2">
+            <button
+              v-for="(s, i) in suggestions"
+              :key="i"
+              type="button"
+              class="text-left p-2.5 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+              @click="applySuggestion(s)"
+            >
+              <div class="flex items-center gap-1.5 mb-1">
+                <el-tag size="small" type="info" effect="plain">{{ s.genre }}</el-tag>
+              </div>
+              <div class="text-xs text-slate-700 leading-5 mb-1.5">{{ s.theme }}</div>
+              <div class="text-xs text-slate-400">主角：{{ s.archetype }}</div>
+            </button>
+          </div>
+          <div v-else class="text-xs text-slate-400 text-center py-2">
+            点「获取推荐」让 AI 生成题材+主题+主角原型套餐，点击即可一键填入
+          </div>
         </div>
 
         <div>

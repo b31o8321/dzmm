@@ -20,6 +20,7 @@ from dzmm.service.wizard import (
     generate_npcs,
     generate_screenplay_from_wizard,
     generate_single_npc,
+    generate_suggestions,
     generate_world_brief,
     generate_world_details,
 )
@@ -141,6 +142,21 @@ async def npc_single(
         )
     except ValueError as e:
         raise HTTPException(502, f"NPC generation parse failed: {e}")
+
+
+@router.post("/suggest")
+async def suggest(
+    payload: dict,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    try:
+        return await generate_suggestions(
+            genre_hint=str(payload.get("genre") or ""),
+            client=client,
+        )
+    except (ValueError, Exception) as e:
+        raise HTTPException(502, f"suggestion generation failed: {e}") from e
 
 
 @router.post("/finalize")

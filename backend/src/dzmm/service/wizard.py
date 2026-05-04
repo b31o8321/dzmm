@@ -29,6 +29,7 @@ from dzmm.models.client import GenerationParams, ModelClient
 from dzmm.prompts.wizard_character import build_character_messages
 from dzmm.prompts.wizard_npcs import build_npcs_messages
 from dzmm.prompts.wizard_screenplay import build_wizard_screenplay_messages
+from dzmm.prompts.wizard_suggest import build_suggest_messages
 from dzmm.prompts.wizard_world_brief import build_world_brief_messages
 from dzmm.prompts.wizard_world_details import build_world_details_messages
 
@@ -299,3 +300,25 @@ async def finalize_wizard(
     await session.flush()
 
     return sess.id
+
+
+async def generate_suggestions(genre_hint: str, client: ModelClient) -> dict:
+    """Generate 4 creative game scenario packages (genre + theme + archetype)."""
+    async def _attempt():
+        raw = await _stream_text(
+            client, build_suggest_messages(genre_hint), max_tokens=800
+        )
+        data = json.loads(_strip_fence(raw))
+        suggestions = data.get("suggestions", [])
+        validated = []
+        for s in suggestions:
+            if isinstance(s, dict) and s.get("genre") and s.get("theme") and s.get("archetype"):
+                validated.append({
+                    "genre": str(s["genre"])[:20],
+                    "theme": str(s["theme"])[:200],
+                    "archetype": str(s["archetype"])[:100],
+                })
+        if not validated:
+            raise ValueError("empty suggestions")
+        return {"suggestions": validated}
+    return await _with_retry(_attempt)
