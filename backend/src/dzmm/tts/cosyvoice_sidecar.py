@@ -101,11 +101,12 @@ def port() -> int:
 # Install
 # ---------------------------------------------------------------------------
 
-async def _run(args: list[str], err_prefix: str) -> None:
+async def _run(args: list[str], err_prefix: str, cwd: Path | None = None) -> None:
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        cwd=str(cwd or APP_DIR),  # always use a known-good directory
     )
     _, stderr = await proc.communicate()
     if proc.returncode != 0:
@@ -152,6 +153,7 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
                 str(_COSYVOICE_SRC_DIR),
             ],
             "git clone failed",
+            cwd=APP_DIR,
         )
 
     # 4. Install dependencies from the repo's requirements.txt
@@ -192,6 +194,7 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,
+        cwd=str(APP_DIR),
     )
     _, stderr = await proc.communicate()
     if proc.returncode != 0:
