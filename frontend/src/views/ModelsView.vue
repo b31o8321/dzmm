@@ -459,21 +459,18 @@ onMounted(() => store.refresh())
                     <!-- Script buttons -->
                     <div class="flex items-center gap-2 flex-wrap">
                       <el-button
-                        type="button"
                         size="small"
                         :type="ttsExpandedScript[svc.id] === 'install' ? 'primary' : 'default'"
                         plain
                         @click="toggleScript(svc.id, 'install')"
                       >安装脚本</el-button>
                       <el-button
-                        type="button"
                         size="small"
                         :type="ttsExpandedScript[svc.id] === 'start' ? 'primary' : 'default'"
                         plain
                         @click="toggleScript(svc.id, 'start')"
                       >启动脚本</el-button>
                       <el-button
-                        type="button"
                         size="small"
                         :type="ttsExpandedScript[svc.id] === 'uninstall' ? 'danger' : 'default'"
                         plain
