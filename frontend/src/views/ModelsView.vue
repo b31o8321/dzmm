@@ -174,7 +174,6 @@ const ttsChineseModels = [
     platform: '跨平台',
     quality: '★★★★★',
     baseUrl: 'http://localhost:8080/v1',
-    voices: 'default（支持克隆）',
     cmd: 'pip install fish-speech\nfish_speech server --listen 0.0.0.0:8080',
     note: '最佳中文音质，支持零样本声音克隆；CPU/GPU 均可运行',
   },
@@ -183,17 +182,31 @@ const ttsChineseModels = [
     platform: 'Apple Silicon',
     quality: '★★★★★',
     baseUrl: 'http://localhost:8000/v1',
-    voices: 'default',
-    cmd: 'git clone https://github.com/bean980310/mlx-qwen3-tts-server\ncd mlx-qwen3-tts-server\npip install -r requirements.txt\npython server.py',
+    cmd: 'git clone https://github.com/bean980310/mlx-qwen3-tts-server\ncd mlx-qwen3-tts-server && pip install -r requirements.txt\npython server.py',
     note: 'M 系芯片原生加速，0.2–0.3s/句；中文自然度极高；仅限 Apple Silicon',
+  },
+  {
+    name: 'ChatTTS-UI',
+    platform: '跨平台',
+    quality: '★★★★☆',
+    baseUrl: 'http://localhost:8080/v1',
+    cmd: 'docker run -p 8080:8080 2noise/chattts-ui',
+    note: '极自然中文，支持笑声/停顿等情感标记；内存约 4GB',
+  },
+  {
+    name: 'EmotiVoice',
+    platform: '跨平台',
+    quality: '★★★★☆',
+    baseUrl: 'http://localhost:8765/v1',
+    cmd: 'docker run -p 8765:8765 syq163/emotivoice',
+    note: '网易出品，中文情感 TTS，2000+ 说话人，支持指定情感',
   },
   {
     name: 'CosyVoice（外部部署）',
     platform: '跨平台',
     quality: '★★★★☆',
     baseUrl: 'http://192.168.1.x:5001/v1',
-    voices: '中文女 / 中文男 / 粤语女 等',
-    cmd: '# 见 dzmm「设置 → 语音」页面一键安装\n# 或手动：uv venv cosy-env --python 3.10\n# uv pip install fastapi uvicorn modelscope',
+    cmd: '# 见 dzmm「设置 → 语音」页面一键安装（本机）\n# 局域网机器：同上操作后在此填入局域网 IP',
     note: '内置一键安装（本机）；也可在局域网性能机上部署后填入 IP',
   },
   {
@@ -201,7 +214,6 @@ const ttsChineseModels = [
     platform: '跨平台（Docker）',
     quality: '★★★★☆',
     baseUrl: 'http://localhost:8000/v1',
-    voices: 'alloy / echo / fable / onyx / nova / shimmer',
     cmd: 'docker run -p 8000:8000 ghcr.io/matatonic/openedai-speech',
     note: 'Docker 一行启动，OpenAI 接口兼容；底层引擎可选 Kokoro / Piper',
   },
@@ -317,7 +329,7 @@ onMounted(() => store.refresh())
                     <th class="text-left py-1 pr-3 font-medium">服务</th>
                     <th class="text-left py-1 pr-3 font-medium">平台</th>
                     <th class="text-left py-1 pr-3 font-medium">音质</th>
-                    <th class="text-left py-1 pr-3 font-medium">Base URL</th>
+                    <th class="text-left py-1 pr-3 font-medium">dzmm 填入地址</th>
                     <th class="text-left py-1 pr-3 font-medium">启动命令</th>
                     <th class="text-left py-1 font-medium">说明</th>
                   </tr>

@@ -26,9 +26,16 @@ VALID_VOICES = {"中文女", "中文男", "粤语女", "日语男", "英文女",
 
 def _load_model(model_dir: str) -> None:
     global _cosyvoice, _model_dir
-    from cosyvoice.cli.cosyvoice import CosyVoice2
+    import pathlib
+    # CosyVoice-300M-Instruct is a v1 model (cosyvoice.yaml); use CosyVoice class.
+    # CosyVoice2 models have cosyvoice2.yaml.
+    if (pathlib.Path(model_dir) / "cosyvoice2.yaml").exists():
+        from cosyvoice.cli.cosyvoice import CosyVoice2
+        _cosyvoice = CosyVoice2(model_dir, load_jit=False)
+    else:
+        from cosyvoice.cli.cosyvoice import CosyVoice
+        _cosyvoice = CosyVoice(model_dir, load_jit=False)
     _model_dir = model_dir
-    _cosyvoice = CosyVoice2(model_dir, load_jit=False, load_onnx=False)
 
 
 class SpeechRequest(BaseModel):
@@ -45,11 +52,16 @@ async def synthesize(req: SpeechRequest) -> Response:
         return Response(status_code=204)
     voice = req.voice if req.voice in VALID_VOICES else "中文女"
     try:
-        import torchaudio
+        import soundfile as sf
+        import numpy as np
         buf = io.BytesIO()
         for result in _cosyvoice.inference_sft(req.input, voice, stream=False):
-            torchaudio.save(buf, result["tts_speech"], _cosyvoice.sample_rate, format="wav")
-            break  # first chunk is the full output for non-streaming
+            audio = result["tts_speech"]
+            # tensor shape: (1, N) or (N,) → numpy float32
+            if hasattr(audio, "numpy"):
+                audio = audio.squeeze().numpy()
+            sf.write(buf, audio, _cosyvoice.sample_rate, format="WAV", subtype="PCM_16")
+            break
         buf.seek(0)
         return Response(content=buf.read(), media_type="audio/wav")
     except Exception as e:

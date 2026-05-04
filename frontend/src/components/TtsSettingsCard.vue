@@ -26,7 +26,7 @@ const cosyStatus = ref<CosyStatus | null>(null)
 let cosyPollTimer: ReturnType<typeof setInterval> | null = null
 const showCosyLog = ref(false)
 
-const COSY_TOTAL_STEPS = 6
+const COSY_TOTAL_STEPS = 8
 const cosyInstallPct = computed(() => {
   if (!cosyStatus.value?.installing && cosyStatus.value?.installed) return 100
   const n = cosyStatus.value?.install_log?.length ?? 0

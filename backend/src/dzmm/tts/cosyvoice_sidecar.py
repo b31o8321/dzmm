@@ -146,7 +146,15 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
             cwd=APP_DIR,
         )
 
-    # 3. Install PyTorch CPU pinned to the version CosyVoice needs.
+    # 3. Init git submodules (third_party/Matcha-TTS is required but not in the clone)
+    _emit("初始化 Matcha-TTS 子模块…")
+    await _run(
+        ["git", "submodule", "update", "--init", "--depth", "1"],
+        "submodule init failed",
+        cwd=_COSYVOICE_SRC_DIR,
+    )
+
+    # 4. Install PyTorch CPU pinned to the version CosyVoice needs.
     #    Read torch version from requirements.txt; fall back to 2.3.1.
     req_file = _COSYVOICE_SRC_DIR / "requirements.txt"
     torch_ver = "2.3.1"
@@ -198,7 +206,20 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
         )
         filtered_req.unlink(missing_ok=True)
 
-    # 5. Install server runtime deps (fastapi/uvicorn/modelscope may already be
+    # 5. Install openai-whisper with --no-build-isolation so setup.py can find
+    #    pkg_resources (which lives in the venv, not the isolated build env).
+    _emit("安装 Whisper（语音前端）…")
+    await _run(
+        [
+            str(uv), "pip", "install",
+            "--python", str(_python_exe()),
+            "--no-build-isolation",
+            "openai-whisper==20231117",
+        ],
+        "whisper install failed",
+    )
+
+    # 6. Install server runtime deps (fastapi/uvicorn/modelscope may already be
     #    in requirements.txt but we ensure they're present regardless)
     _emit("安装服务器运行时依赖…")
     await _run(
@@ -210,7 +231,7 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
         "server deps install failed",
     )
 
-    # 6. Download model (~1.8 GB via modelscope)
+    # 7. Download model (~1.8 GB via modelscope)
     _emit("下载 CosyVoice-300M-Instruct 模型（约 1.8GB）…")
     _MODEL_DIR.mkdir(parents=True, exist_ok=True)
     dl_code = (
@@ -238,11 +259,16 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
 # ---------------------------------------------------------------------------
 
 def _subprocess_env() -> dict[str, str]:
-    """Build env dict with PYTHONPATH pointing at the cloned CosyVoice source."""
+    """Build env dict with PYTHONPATH for CosyVoice source + third_party."""
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
-    src = str(_COSYVOICE_SRC_DIR)
-    env["PYTHONPATH"] = (src + os.pathsep + existing) if existing else src
+    # CosyVoice uses third_party/Matcha-TTS in-tree; it's not a pip package.
+    paths = [
+        str(_COSYVOICE_SRC_DIR),
+        str(_COSYVOICE_SRC_DIR / "third_party" / "Matcha-TTS"),
+    ]
+    extra = os.pathsep.join(paths)
+    env["PYTHONPATH"] = (extra + os.pathsep + existing) if existing else extra
     return env
 
 
@@ -253,9 +279,11 @@ def start() -> None:
     if not is_installed():
         raise RuntimeError("CosyVoice not installed — call install() first")
 
+    log_path = APP_DIR / "cosyvoice_sidecar.log"
+    _log_file = open(log_path, "w", encoding="utf-8")  # noqa: SIM115
     kwargs: dict = {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stdout": _log_file,
+        "stderr": _log_file,
         "env": _subprocess_env(),
     }
     if platform.system() == "Windows":
