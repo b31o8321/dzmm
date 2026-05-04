@@ -173,13 +173,14 @@ export const sessionsApi = {
     })
   },
 
-  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean }> {
-    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean } }>(
+  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean; debug_mode?: boolean }> {
+    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean } }>(
       `/sessions/${sessionId}/settings`,
     )
     return {
       narrative_polish: r.data.settings?.narrative_polish ?? false,
       director_pass: r.data.settings?.director_pass ?? false,
+      debug_mode: r.data.settings?.debug_mode,
     }
   },
 
@@ -201,11 +202,6 @@ export const sessionsApi = {
         tokens_out: number
       }>(`/sessions/${sessionId}/messages/${msgId}/debug`)
       .then((r) => r.data),
-
-  patchSettings: (
-    sessionId: number,
-    settings: { debug_mode?: boolean; narrative_polish?: boolean; director_pass?: boolean },
-  ) => api.patch(`/sessions/${sessionId}/settings`, settings).then((r) => r.data),
 
   async suggestActions(
     sessionId: number,
