@@ -177,7 +177,8 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
         _emit("安装 CosyVoice 依赖（约 500MB）…")
         skip_re = re.compile(
             r'^\s*(--(extra-)?index-url|--find-links)|'
-            r'^\s*torch(audio)?\s*[=<>!@]',
+            r'^\s*torch(audio)?\s*[=<>!@]|'
+            r'^\s*openai-whisper',  # no pkg_resources in uv isolated build
             re.I,
         )
         filtered = [l for l in req_file.read_text().splitlines()

@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useAppStore } from '@/stores/app'
 import { backendOrigin } from '@/api/client'
 
@@ -109,7 +110,9 @@ export function useTTS() {
           body: JSON.stringify({ text, voice: v, rate, pitch }),
           signal: _abortCtrl.signal,
         })
-        if (resp.ok && resp.status !== 204) {
+        if (!resp.ok) {
+          ElMessage.error(`Edge TTS 合成失败 (${resp.status})`)
+        } else if (resp.status !== 204) {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
         }
@@ -120,7 +123,10 @@ export function useTTS() {
           body: JSON.stringify({ text, voice: voice || appStore.ttsGmVoice || 'zf_xiaobei' }),
           signal: _abortCtrl.signal,
         })
-        if (resp.ok && resp.status !== 204) {
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => '')
+          ElMessage.error(`Kokoro 合成失败 (${resp.status})${errText ? ': ' + errText.slice(0, 120) : ''}`)
+        } else if (resp.status !== 204) {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
         }
@@ -131,7 +137,9 @@ export function useTTS() {
           body: JSON.stringify({ text, voice: voice || appStore.ttsGmVoice || '中文女' }),
           signal: _abortCtrl.signal,
         })
-        if (resp.ok && resp.status !== 204) {
+        if (!resp.ok) {
+          ElMessage.error(`CosyVoice 合成失败 (${resp.status})`)
+        } else if (resp.status !== 204) {
           const buf = await resp.arrayBuffer()
           if (!_aborted) await _playAudioBytes(buf)
         }
