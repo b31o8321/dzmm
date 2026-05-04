@@ -42,11 +42,16 @@ def _strip_fence(text: str) -> str:
     return m.group(1).strip() if m else text
 
 
-def _extract_json(text: str) -> str:
-    """Extract the outermost {...} block from text.
+_TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
 
-    More robust than _strip_fence: handles "Here is your JSON:\\n{...}",
-    trailing commentary, and partial markdown fences.
+
+def _extract_json(text: str) -> str:
+    """Extract the outermost {...} block from text and clean it.
+
+    Handles:
+    - "Here is your JSON:\\n{...}" prefix text
+    - trailing markdown fences
+    - trailing commas before } or ] (common local-model quirk)
     """
     text = text.strip()
     # Try fence strip first
@@ -64,9 +69,11 @@ def _extract_json(text: str) -> str:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                return text[start : i + 1]
-    # Truncated JSON: return from '{' to end (caller handles parse error)
-    return text[start:]
+                extracted = text[start : i + 1]
+                # Strip trailing commas before } or ]
+                return _TRAILING_COMMA_RE.sub(r"\1", extracted)
+    # Truncated JSON: return from '{' to end and still clean trailing commas
+    return _TRAILING_COMMA_RE.sub(r"\1", text[start:])
 
 
 def _parse_section(md: str, header: str) -> str:
