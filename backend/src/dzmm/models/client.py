@@ -37,6 +37,7 @@ class GenerationParams(BaseModel):
     max_tokens: int = 1500     # 单次生成的最大 token 数
     top_p: float = 0.95        # 核采样概率阈值
     stop: list[str] | None = None  # 遇到这些字符串时停止生成；None=不限制
+    json_mode: bool = False    # 强制 JSON 输出（Ollama: format=json; OpenAI: response_format）
 
 
 class TokenUsage(BaseModel):

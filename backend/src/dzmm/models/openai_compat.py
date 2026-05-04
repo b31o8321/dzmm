@@ -46,6 +46,8 @@ class OpenAICompatClient(ModelClient):
         }
         if params.stop:
             payload["stop"] = params.stop
+        if params.json_mode:
+            payload["response_format"] = {"type": "json_object"}
 
         headers = {"Content-Type": "application/json"}
         # LM Studio (and some local servers) accept any / no Authorization

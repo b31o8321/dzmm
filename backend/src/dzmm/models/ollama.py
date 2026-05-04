@@ -30,7 +30,7 @@ class OllamaClient(ModelClient):
         messages: list[Message],
         params: GenerationParams,
     ) -> AsyncIterator[StreamChunk]:
-        payload = {
+        payload: dict = {
             "model": self.model,
             "messages": [m.model_dump() for m in messages],
             "stream": True,
@@ -42,6 +42,8 @@ class OllamaClient(ModelClient):
                 "num_ctx": 8192,
             },
         }
+        if params.json_mode:
+            payload["format"] = "json"
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream(

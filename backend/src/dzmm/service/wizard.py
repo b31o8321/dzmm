@@ -43,15 +43,19 @@ def _strip_fence(text: str) -> str:
 
 
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
+# Python-style literals that some models emit instead of JSON literals
+_PY_BOOL_RE = re.compile(r"\bTrue\b|\bFalse\b|\bNone\b")
+_PY_BOOL_MAP = {"True": "true", "False": "false", "None": "null"}
 
 
 def _extract_json(text: str) -> str:
     """Extract the outermost {...} block from text and clean it.
 
-    Handles:
-    - "Here is your JSON:\\n{...}" prefix text
-    - trailing markdown fences
-    - trailing commas before } or ] (common local-model quirk)
+    Handles common local-model quirks:
+    - Prefix text ("Here is your JSON:\\n{...}")
+    - Trailing markdown fences
+    - Trailing commas before } or ]
+    - Python-style True/False/None instead of true/false/null
     """
     text = text.strip()
     # Try fence strip first
@@ -70,10 +74,12 @@ def _extract_json(text: str) -> str:
             depth -= 1
             if depth == 0:
                 extracted = text[start : i + 1]
-                # Strip trailing commas before } or ]
-                return _TRAILING_COMMA_RE.sub(r"\1", extracted)
-    # Truncated JSON: return from '{' to end and still clean trailing commas
-    return _TRAILING_COMMA_RE.sub(r"\1", text[start:])
+                extracted = _TRAILING_COMMA_RE.sub(r"\1", extracted)
+                extracted = _PY_BOOL_RE.sub(lambda m: _PY_BOOL_MAP[m.group()], extracted)
+                return extracted
+    # Truncated JSON: return from '{' to end and still clean
+    tail = _TRAILING_COMMA_RE.sub(r"\1", text[start:])
+    return _PY_BOOL_RE.sub(lambda m: _PY_BOOL_MAP[m.group()], tail)
 
 
 def _parse_section(md: str, header: str) -> str:
@@ -87,10 +93,12 @@ def _parse_section(md: str, header: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-async def _stream_text(client: ModelClient, messages, max_tokens: int) -> str:
+async def _stream_text(
+    client: ModelClient, messages, max_tokens: int, json_mode: bool = False
+) -> str:
     chunks: list[str] = []
     async for ch in client.stream(
-        messages, GenerationParams(max_tokens=max_tokens, temperature=0.85)
+        messages, GenerationParams(max_tokens=max_tokens, temperature=0.85, json_mode=json_mode)
     ):
         if ch.delta:
             chunks.append(ch.delta)
@@ -156,7 +164,8 @@ async def generate_npcs(
 ) -> dict:
     async def _attempt():
         raw = await _stream_text(
-            client, build_npcs_messages(world_md, character_md), max_tokens=1500
+            client, build_npcs_messages(world_md, character_md), max_tokens=1800,
+            json_mode=True,
         )
         cleaned = _strip_fence(raw)
         try:
@@ -221,6 +230,7 @@ async def generate_screenplay_from_wizard(
                 genre=genre,
             ),
             max_tokens=4000,
+            json_mode=True,
         )
         cleaned = _extract_json(raw)
         try:
@@ -391,7 +401,7 @@ async def stream_character(world_md: str, archetype: str, client: ModelClient) -
 async def stream_npcs(world_md: str, character_md: str, client: ModelClient) -> _StreamYield:
     messages = build_npcs_messages(world_md, character_md)
     chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85)):
+    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85, json_mode=True)):
         if ch.delta:
             chunks.append(ch.delta)
             yield "delta", {"text": ch.delta}
@@ -413,7 +423,7 @@ async def stream_screenplay(
         world_md=world_md, character_md=character_md, npcs=list(npcs or []), genre=genre,
     )
     chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=4000, temperature=0.85)):
+    async for ch in client.stream(messages, GenerationParams(max_tokens=4000, temperature=0.85, json_mode=True)):
         if ch.delta:
             chunks.append(ch.delta)
             yield "delta", {"text": ch.delta}
