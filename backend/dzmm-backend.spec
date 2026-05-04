@@ -63,8 +63,11 @@ hidden += ['edge_tts', 'edge_tts.communicate', 'edge_tts.exceptions']
 # kokoro-onnx: ONNX-based TTS, no torch required.
 # numpy + onnxruntime are hard imports of kokoro_onnx — must not be excluded.
 # phonemizer + joblib are transitive deps pulled in by kokoro_onnx.tokenizer.
+# espeakng_loader ships its own espeak-ng-data directory; must be bundled or
+# get_data_path() raises "data path not exists" at runtime.
 hidden += collect_submodules('kokoro_onnx')
 hidden += collect_submodules('phonemizer')
+hidden += collect_submodules('espeakng_loader')
 hidden += collect_submodules('joblib')
 hidden += collect_submodules('onnxruntime')
 hidden += ['numpy', 'soundfile', 'soundfile._soundfile']
@@ -72,12 +75,14 @@ hidden += ['numpy', 'soundfile', 'soundfile._soundfile']
 # Data files: non-Python assets that packages read at runtime.
 # kokoro_onnx reads config.json (get_vocab()) on import.
 # phonemizer needs share/ g2p/festival files; language_tags needs JSON registry.
+# espeakng_loader needs its bundled espeak-ng-data/ voice/dict files.
 # chromadb needs migration SQL files.
 # joblib test data excluded (65 files, not needed at runtime).
 # cosyvoice_server_script.py runs in the isolated uv venv as a subprocess — bundle it.
 datas = [(str(src_root / 'dzmm' / 'tts' / 'cosyvoice_server_script.py'), 'dzmm/tts')]
 datas += collect_data_files('kokoro_onnx')
 datas += collect_data_files('phonemizer')
+datas += collect_data_files('espeakng_loader')
 datas += collect_data_files('language_tags')
 datas += collect_data_files('chromadb')
 datas += [(src, dst) for src, dst in collect_data_files('joblib') if '/test/' not in src]

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { backendOrigin } from '@/api/client'
@@ -43,6 +43,15 @@ interface CosyStatus {
 }
 const cosyStatus = ref<CosyStatus | null>(null)
 let cosyPollTimer: ReturnType<typeof setInterval> | null = null
+const showCosyLog = ref(false)
+
+// 6 install steps; derive rough % from log length
+const COSY_TOTAL_STEPS = 6
+const cosyInstallPct = computed(() => {
+  if (!cosyStatus.value?.installing && cosyStatus.value?.installed) return 100
+  const n = cosyStatus.value?.install_log?.length ?? 0
+  return Math.min(Math.round((n / COSY_TOTAL_STEPS) * 95), 95)
+})
 
 const KOKORO_ZH_VOICES = [
   { value: 'zf_xiaobei',  label: '小北（女，温柔）' },
@@ -254,11 +263,35 @@ const otherVoices = computed(() =>
                 <span v-else class="text-xs text-slate-400">检测中…</span>
               </div>
 
-              <!-- install progress log -->
-              <div v-if="cosyStatus?.installing || cosyStatus?.install_log.length" class="text-xs text-slate-500 bg-slate-50 rounded p-2 max-h-32 overflow-y-auto font-mono space-y-0.5">
-                <div v-for="(line, i) in cosyStatus?.install_log" :key="i">{{ line }}</div>
-                <div v-if="cosyStatus?.installing" class="animate-pulse">…</div>
+              <!-- install progress bar -->
+              <template v-if="cosyStatus?.installing">
+                <el-progress
+                  :percentage="cosyInstallPct"
+                  :striped="true"
+                  :striped-flow="true"
+                  :duration="8"
+                  status=""
+                />
+                <div class="text-xs text-slate-500 animate-pulse">
+                  {{ cosyStatus.install_log[cosyStatus.install_log.length - 1] || '准备中…' }}
+                </div>
+              </template>
+
+              <!-- collapsible log -->
+              <div v-if="cosyStatus?.install_log?.length">
+                <button
+                  class="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 cursor-pointer select-none"
+                  @click="showCosyLog = !showCosyLog"
+                >
+                  <span>{{ showCosyLog ? '▾' : '▸' }}</span>
+                  <span>详细日志（{{ cosyStatus.install_log.length }} 行）</span>
+                </button>
+                <div v-if="showCosyLog" class="mt-1 text-xs text-slate-500 bg-slate-50 rounded p-2 max-h-40 overflow-y-auto font-mono space-y-0.5">
+                  <div v-for="(line, i) in cosyStatus.install_log" :key="i">{{ line }}</div>
+                  <div v-if="cosyStatus.installing" class="animate-pulse text-slate-400">…</div>
+                </div>
               </div>
+
               <div v-if="cosyStatus?.install_error" class="text-xs text-red-500">{{ cosyStatus.install_error }}</div>
 
               <div class="text-xs text-slate-400">
