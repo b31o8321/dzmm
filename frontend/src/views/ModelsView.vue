@@ -168,10 +168,43 @@ const ttsBuiltinModes = [
   },
 ]
 
-const ttsLocalServices = [
-  { name: 'openedai-speech (Kokoro)', baseUrl: 'http://localhost:8000', note: '高质量多音色，兼容 OpenAI /v1/audio/speech；推荐 Docker 部署' },
-  { name: 'AllTalk TTS',              baseUrl: 'http://localhost:7851', note: '支持声音克隆，本地 WebUI，Base URL 填到 /v1' },
-  { name: 'Kokoro-FastAPI',           baseUrl: 'http://localhost:8880', note: '轻量 Python 服务，仅 Kokoro 引擎，启动快' },
+const ttsChineseModels = [
+  {
+    name: 'Fish-Speech',
+    platform: '跨平台',
+    quality: '★★★★★',
+    baseUrl: 'http://localhost:8080/v1',
+    voices: 'default（支持克隆）',
+    cmd: 'pip install fish-speech\nfish_speech server --listen 0.0.0.0:8080',
+    note: '最佳中文音质，支持零样本声音克隆；CPU/GPU 均可运行',
+  },
+  {
+    name: 'MLX-Qwen3-TTS',
+    platform: 'Apple Silicon',
+    quality: '★★★★★',
+    baseUrl: 'http://localhost:8000/v1',
+    voices: 'default',
+    cmd: 'git clone https://github.com/bean980310/mlx-qwen3-tts-server\ncd mlx-qwen3-tts-server\npip install -r requirements.txt\npython server.py',
+    note: 'M 系芯片原生加速，0.2–0.3s/句；中文自然度极高；仅限 Apple Silicon',
+  },
+  {
+    name: 'CosyVoice（外部部署）',
+    platform: '跨平台',
+    quality: '★★★★☆',
+    baseUrl: 'http://192.168.1.x:5001/v1',
+    voices: '中文女 / 中文男 / 粤语女 等',
+    cmd: '# 见 dzmm「设置 → 语音」页面一键安装\n# 或手动：uv venv cosy-env --python 3.10\n# uv pip install fastapi uvicorn modelscope',
+    note: '内置一键安装（本机）；也可在局域网性能机上部署后填入 IP',
+  },
+  {
+    name: 'openedai-speech',
+    platform: '跨平台（Docker）',
+    quality: '★★★★☆',
+    baseUrl: 'http://localhost:8000/v1',
+    voices: 'alloy / echo / fable / onyx / nova / shimmer',
+    cmd: 'docker run -p 8000:8000 ghcr.io/matatonic/openedai-speech',
+    note: 'Docker 一行启动，OpenAI 接口兼容；底层引擎可选 Kokoro / Piper',
+  },
 ]
 
 const ttsCloudModels = [
@@ -277,23 +310,34 @@ onMounted(() => store.refresh())
                 </tbody>
               </table>
 
-              <p class="text-xs font-semibold text-slate-600 mb-2">外部 TTS 服务（「外部服务」模式，OpenAI 兼容接口）</p>
+              <p class="text-xs font-semibold text-slate-600 mb-2">推荐中文 TTS 服务（「外部服务」模式）</p>
               <table class="w-full text-sm mb-4">
                 <thead>
                   <tr class="border-b border-slate-200 text-xs text-slate-500">
-                    <th class="text-left py-1 pr-4 font-medium">服务</th>
-                    <th class="text-left py-1 pr-4 font-medium">默认 Base URL</th>
+                    <th class="text-left py-1 pr-3 font-medium">服务</th>
+                    <th class="text-left py-1 pr-3 font-medium">平台</th>
+                    <th class="text-left py-1 pr-3 font-medium">音质</th>
+                    <th class="text-left py-1 pr-3 font-medium">Base URL</th>
+                    <th class="text-left py-1 pr-3 font-medium">启动命令</th>
                     <th class="text-left py-1 font-medium">说明</th>
                   </tr>
                 </thead>
                 <tbody class="text-slate-700">
-                  <tr v-for="m in ttsLocalServices" :key="m.name" class="border-b border-slate-100 last:border-0">
-                    <td class="py-1.5 pr-4 text-xs font-medium">{{ m.name }}</td>
-                    <td class="py-1.5 pr-4">
+                  <tr v-for="m in ttsChineseModels" :key="m.name" class="border-b border-slate-100 last:border-0 align-top">
+                    <td class="py-2 pr-3 text-xs font-medium whitespace-nowrap">{{ m.name }}</td>
+                    <td class="py-2 pr-3 text-xs text-slate-500 whitespace-nowrap">{{ m.platform }}</td>
+                    <td class="py-2 pr-3 text-xs whitespace-nowrap">{{ m.quality }}</td>
+                    <td class="py-2 pr-3">
                       <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs">{{ m.baseUrl }}</code>
                       <el-button link size="small" class="ml-1 text-xs text-slate-400" @click="copyText(m.baseUrl)">复制</el-button>
                     </td>
-                    <td class="py-1.5 text-xs text-slate-600">{{ m.note }}</td>
+                    <td class="py-2 pr-3">
+                      <div class="flex items-start gap-1">
+                        <code class="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-xs leading-5 whitespace-pre">{{ m.cmd }}</code>
+                        <el-button link size="small" class="text-xs text-slate-400 shrink-0" @click="copyText(m.cmd)">复制</el-button>
+                      </div>
+                    </td>
+                    <td class="py-2 text-xs text-slate-600">{{ m.note }}</td>
                   </tr>
                 </tbody>
               </table>
