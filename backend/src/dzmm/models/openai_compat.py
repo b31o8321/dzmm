@@ -1,4 +1,6 @@
+import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 
 import httpx
@@ -10,6 +12,27 @@ from dzmm.models.client import (
     StreamChunk,
     TokenUsage,
 )
+
+log = logging.getLogger(__name__)
+
+# 429 backoff: respect Retry-After when present, otherwise grow exponentially
+# from 1.5s. 4 attempts total (= 3 retries) tolerates short rate-limit bursts
+# from cloud providers (Zhipu / OpenAI / Moonshot) without making the user wait
+# more than ~10s in the worst case.
+_MAX_429_RETRIES = 3
+_429_BASE_DELAY = 1.5
+_429_MAX_DELAY = 8.0
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    """RFC 7231: Retry-After is either delta-seconds or HTTP-date. We only
+    handle delta-seconds (the common case for cloud LLM providers)."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value.strip()))
+    except (TypeError, ValueError):
+        return None
 
 
 class OpenAICompatClient(ModelClient):
@@ -44,6 +67,12 @@ class OpenAICompatClient(ModelClient):
         params: GenerationParams,
         use_json_mode: bool,
     ) -> AsyncIterator[StreamChunk]:
+        """Stream with 429 retry. Retries are only safe BEFORE the first chunk
+        is yielded — once we've started streaming to the caller, retrying
+        would produce duplicate output. So 429s mid-stream are surfaced as
+        errors (rare; cloud providers normally apply rate limit at request
+        admission, not mid-response).
+        """
         payload: dict = {
             "model": self.model,
             "messages": [m.model_dump() for m in messages],
@@ -58,6 +87,27 @@ class OpenAICompatClient(ModelClient):
         if use_json_mode:
             payload["response_format"] = {"type": "json_object"}
 
+        attempt = 0
+        while True:
+            try:
+                async for chunk in self._do_request(payload):
+                    yield chunk
+                return  # success
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 429 or attempt >= _MAX_429_RETRIES:
+                    raise
+                retry_after = _parse_retry_after(exc.response.headers.get("Retry-After"))
+                delay = retry_after if retry_after is not None else min(
+                    _429_BASE_DELAY * (2 ** attempt), _429_MAX_DELAY,
+                )
+                attempt += 1
+                log.info(
+                    "openai_compat 429 from %s (attempt %d/%d); sleeping %.1fs before retry",
+                    self.base_url, attempt, _MAX_429_RETRIES, delay,
+                )
+                await asyncio.sleep(delay)
+
+    async def _do_request(self, payload: dict) -> AsyncIterator[StreamChunk]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream(
                 "POST",
@@ -65,6 +115,11 @@ class OpenAICompatClient(ModelClient):
                 json=payload,
                 headers=self._build_headers(),
             ) as resp:
+                if resp.status_code == 429:
+                    # Read body so the connection can be reused / closed cleanly,
+                    # then raise so the retry layer in _raw_stream can react.
+                    await resp.aread()
+                    resp.raise_for_status()  # raises HTTPStatusError
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if not line or not line.startswith("data: "):
