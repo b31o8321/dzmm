@@ -162,3 +162,120 @@ async def test_stream_429_gives_up_after_max_retries(client, monkeypatch):
         ):
             pass
     assert exc_info.value.response.status_code == 429
+
+
+@respx.mock
+async def test_concurrency_gate_releases_on_early_break():
+    """If consumer breaks out mid-stream (e.g. user disconnects), the gate
+    must release so subsequent calls aren't blocked. Without explicit aclose
+    this would only release on GC — verify the try/finally path works."""
+    import asyncio
+    gate = asyncio.Semaphore(1)
+    client = OpenAICompatClient(
+        name="test", base_url="https://api.example.com/v1",
+        api_key="sk-test", model="test-model", timeout=5.0,
+        concurrency_gate=gate,
+    )
+
+    body = (
+        sse({"choices": [{"delta": {"content": "first"}, "finish_reason": None}]})
+        + sse({"choices": [{"delta": {"content": " second"}, "finish_reason": None}]})
+        + sse({"choices": [{"delta": {"content": " third"}, "finish_reason": "stop"}]})
+        + "data: [DONE]\n\n"
+    )
+    respx.post("https://api.example.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, text=body)
+    )
+
+    # First call: break after first chunk, then explicitly aclose.
+    gen = client.stream([Message(role="user", content="hi")], GenerationParams())
+    try:
+        async for _ch in gen:
+            break  # bail mid-stream
+    finally:
+        await gen.aclose()  # essential for prompt release
+
+    # Gate must be released — try acquiring with a tiny timeout.
+    try:
+        await asyncio.wait_for(gate.acquire(), timeout=0.5)
+        gate.release()  # success: pretend we're a follow-up caller
+    except asyncio.TimeoutError:
+        pytest.fail("semaphore was not released after consumer break + aclose")
+
+
+@respx.mock
+async def test_concurrency_gate_releases_on_early_break_NO_aclose():
+    """SCARY case: consumer breaks WITHOUT calling aclose. Documents whether
+    Python's GC-based async-gen finalization actually releases the semaphore
+    promptly. Currently expected to FAIL (semaphore held until GC) — if it
+    passes, great; if it fails, we've confirmed the leak path."""
+    import asyncio
+    import gc
+    gate = asyncio.Semaphore(1)
+    client = OpenAICompatClient(
+        name="test", base_url="https://api.example.com/v1",
+        api_key="sk-test", model="test-model", timeout=5.0,
+        concurrency_gate=gate,
+    )
+
+    body = (
+        sse({"choices": [{"delta": {"content": "first"}, "finish_reason": None}]})
+        + sse({"choices": [{"delta": {"content": " second"}, "finish_reason": "stop"}]})
+        + "data: [DONE]\n\n"
+    )
+    respx.post("https://api.example.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, text=body)
+    )
+
+    async def consume_and_break():
+        async for _ch in client.stream(
+            [Message(role="user", content="hi")], GenerationParams(),
+        ):
+            return  # exit without aclose
+    await consume_and_break()
+
+    # Force GC + give the event loop a tick to run finalizers
+    gc.collect()
+    await asyncio.sleep(0)
+    gc.collect()
+    await asyncio.sleep(0.1)
+
+    # Try to acquire — if leaked, this times out.
+    try:
+        await asyncio.wait_for(gate.acquire(), timeout=0.5)
+        gate.release()
+    except asyncio.TimeoutError:
+        pytest.fail(
+            "LEAK CONFIRMED: semaphore not released after early break without "
+            "explicit aclose(). Need a stronger pattern (e.g. ownership in caller)."
+        )
+
+
+@respx.mock
+async def test_concurrency_gate_releases_on_exception():
+    """If the inner stream raises (after first chunk), the gate must still
+    release so the next caller can proceed."""
+    import asyncio
+    gate = asyncio.Semaphore(1)
+    client = OpenAICompatClient(
+        name="test", base_url="https://api.example.com/v1",
+        api_key="sk-test", model="test-model", timeout=5.0,
+        concurrency_gate=gate,
+    )
+
+    respx.post("https://api.example.com/v1/chat/completions").mock(
+        return_value=httpx.Response(500, json={"error": "boom"})
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        async for _ch in client.stream(
+            [Message(role="user", content="hi")], GenerationParams(),
+        ):
+            pass
+
+    # Gate must be released even though the request failed.
+    try:
+        await asyncio.wait_for(gate.acquire(), timeout=0.5)
+        gate.release()
+    except asyncio.TimeoutError:
+        pytest.fail("semaphore was not released after request failure")

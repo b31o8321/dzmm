@@ -164,12 +164,54 @@ class OpenAICompatClient(ModelClient):
             async for chunk in self._stream_inner(messages, params):
                 yield chunk
             return
+
         # Hold the gate for the entire stream — including retries and all chunk
         # iteration. The provider's concurrency limit applies to the wire-level
         # request, so we must own the slot from request start to last chunk.
-        async with self._concurrency_gate:
+        #
+        # We use explicit acquire/release (instead of `async with`) plus
+        # logging so leaks are diagnosable: a missing "released" line means
+        # the consumer broke iteration without aclose-ing this generator.
+        # Async generators' finally clauses run on:
+        #   - natural completion (full iteration) — common path
+        #   - explicit aclose() (e.g. anyio TaskGroup cancellation) — works
+        #   - GeneratorExit injected by GC — eventually works, but delayed
+        #     until next GC cycle, which under high load can leave the
+        #     semaphore held for many seconds.
+        import time
+        wait_t0 = time.monotonic()
+        await self._concurrency_gate.acquire()
+        wait_ms = int((time.monotonic() - wait_t0) * 1000)
+        acquire_t0 = time.monotonic()
+        held_for_warned = False
+        log.info(
+            "openai_compat: gate ACQUIRED for %s (waited %dms)",
+            self.base_url, wait_ms,
+        )
+        try:
             async for chunk in self._stream_inner(messages, params):
+                if not held_for_warned and (time.monotonic() - acquire_t0) > 60.0:
+                    log.warning(
+                        "openai_compat: gate held >60s for %s/%s — possible stuck stream",
+                        self.base_url, self.model,
+                    )
+                    held_for_warned = True
                 yield chunk
+        except BaseException as e:
+            # Catch BaseException (incl. GeneratorExit / CancelledError) so we
+            # log when an early exit happens — the most likely leak path.
+            log.info(
+                "openai_compat: gate path exiting via %s for %s",
+                type(e).__name__, self.base_url,
+            )
+            raise
+        finally:
+            held_ms = int((time.monotonic() - acquire_t0) * 1000)
+            self._concurrency_gate.release()
+            log.info(
+                "openai_compat: gate RELEASED after %dms for %s",
+                held_ms, self.base_url,
+            )
 
     async def _stream_inner(
         self,
