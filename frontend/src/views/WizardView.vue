@@ -73,6 +73,13 @@ interface State {
   pinned_npc_names: string[]
   // step 5
   screenplay: WizardScreenplay | null
+  chapterBgmAssetIds: (number | null)[]
+  // step 6 scene resources
+  sceneAssets: Array<{
+    name: string
+    sceneAssetId: number | null
+    ambientAssetId: number | null
+  }>
   // debug
   raw_outputs: Record<string, string>
 }
@@ -94,6 +101,8 @@ const state = reactive<State>({
   npcs: [],
   pinned_npc_names: [],
   screenplay: null,
+  chapterBgmAssetIds: [],
+  sceneAssets: [],
   raw_outputs: {},
 })
 
@@ -487,6 +496,10 @@ async function generateScreenplay() {
         onResult: (data: WizardScreenplay) => {
           state.screenplay = data
           state.raw_outputs['screenplay'] = JSON.stringify(data, null, 2)
+          // Resize chapterBgmAssetIds to match chapter count (preserve existing selections)
+          while (state.chapterBgmAssetIds.length < data.chapters.length) {
+            state.chapterBgmAssetIds.push(null)
+          }
           saveDraft()
           editing.screenplay = false
         },
@@ -498,6 +511,12 @@ async function generateScreenplay() {
   } finally {
     clearTimer()
     loading.value = false
+  }
+}
+
+function ensureBgmSlot(idx: number) {
+  while (state.chapterBgmAssetIds.length <= idx) {
+    state.chapterBgmAssetIds.push(null)
   }
 }
 
@@ -569,6 +588,25 @@ async function doFinalize() {
             await assetsApi.attach(npc.avatarAssetId, 'npc', npcId, 'avatar').catch(() => {})
           }
         }
+      }
+    }
+
+    // Attach per-chapter BGM to the session
+    for (let i = 0; i < state.chapterBgmAssetIds.length; i++) {
+      const aid = state.chapterBgmAssetIds[i]
+      if (aid != null) {
+        await assetsApi.attach(aid, 'session', r.session_id, 'chapter_bgm', { chapter: i + 1 }).catch(() => {})
+      }
+    }
+
+    // Attach scene assets (background image + ambient audio per location)
+    for (const sa of state.sceneAssets) {
+      if (!sa.name.trim()) continue
+      if (sa.sceneAssetId != null) {
+        await assetsApi.attach(sa.sceneAssetId, 'session', r.session_id, 'scene', { location: sa.name.trim() }).catch(() => {})
+      }
+      if (sa.ambientAssetId != null) {
+        await assetsApi.attach(sa.ambientAssetId, 'session', r.session_id, 'ambient', { location: sa.name.trim() }).catch(() => {})
       }
     }
 
@@ -1379,6 +1417,15 @@ onBeforeUnmount(() => {
                 <div v-if="ch.optional_events?.length" class="text-xs text-slate-400 mt-1">
                   支线：{{ (ch.optional_events || []).join(' / ') }}
                 </div>
+                <div class="mt-3 pt-3 border-t border-slate-100">
+                  <AssetPicker
+                    :model-value="state.chapterBgmAssetIds[i] ?? null"
+                    kind="audio"
+                    category="bgm"
+                    label="本章默认 BGM（可选）"
+                    @update:model-value="(v: number | null) => { ensureBgmSlot(i); state.chapterBgmAssetIds[i] = v }"
+                  />
+                </div>
               </el-card>
             </div>
           </div>
@@ -1481,6 +1528,41 @@ onBeforeUnmount(() => {
                 {{ ch.title || `第 ${i + 1} 章` }}
               </li>
             </ul>
+          </div>
+        </el-card>
+
+        <!-- Scene Assets (optional) -->
+        <el-card shadow="never" class="!border-slate-200">
+          <template #header>
+            <div class="font-bold">🏞️ 场景资源（可选）</div>
+          </template>
+          <div class="space-y-3">
+            <div class="text-xs text-slate-500">为关键场所设定专属背景图和环境音。留空则不影响创建。</div>
+            <div
+              v-for="(sa, i) in state.sceneAssets"
+              :key="i"
+              class="border border-slate-200 rounded p-3 space-y-2"
+            >
+              <div class="flex gap-2 items-center">
+                <el-input
+                  v-model="sa.name"
+                  placeholder="场所名（如：清风茶寮）"
+                  size="small"
+                  class="flex-1"
+                />
+                <el-button size="small" link type="danger" @click="state.sceneAssets.splice(i, 1)">删除</el-button>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <AssetPicker v-model="sa.sceneAssetId" kind="image" category="scene" label="场景图" />
+                <AssetPicker v-model="sa.ambientAssetId" kind="audio" category="ambient" label="环境音" />
+              </div>
+            </div>
+            <el-button
+              size="small"
+              @click="state.sceneAssets.push({ name: '', sceneAssetId: null, ambientAssetId: null })"
+            >
+              + 添加场所
+            </el-button>
           </div>
         </el-card>
 
