@@ -2,26 +2,51 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElButton, ElInput, ElTag, ElProgress, ElMessage, ElDialog } from 'element-plus'
-import { screenplayApi, type Screenplay, type CompletedEvent } from '@/api/screenplay'
+import { screenplayApi, type Screenplay, type CompletedEvent, type ScreenplayRevision } from '@/api/screenplay'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
 const router = useRouter()
 
 const screenplay = ref<Screenplay | null>(null)
+const revisions = ref<ScreenplayRevision[]>([])
 const loading = ref(true)
 const decisionOpen = ref(false)
 const decisionText = ref('')
+const processingRevId = ref<number | null>(null)
+
+async function loadRevisions() {
+  try {
+    revisions.value = await screenplayApi.revisions(sessionId)
+  } catch {
+    revisions.value = []
+  }
+}
 
 onMounted(async () => {
   try {
     screenplay.value = await screenplayApi.getActive(sessionId)
+    await loadRevisions()
   } catch (e) {
     ElMessage.warning('当前 session 还没有剧本')
   } finally {
     loading.value = false
   }
 })
+
+async function processRevision(revId: number) {
+  processingRevId.value = revId
+  try {
+    const r = await screenplayApi.processRevision(sessionId, revId)
+    ElMessage.success(`大纲已重写：${r.diff_summary}`)
+    screenplay.value = await screenplayApi.getActive(sessionId)
+    await loadRevisions()
+  } catch (e: any) {
+    ElMessage.error(`重写失败：${e?.message ?? e}`)
+  } finally {
+    processingRevId.value = null
+  }
+}
 
 const currentChapter = computed(() => {
   if (!screenplay.value) return null
@@ -54,10 +79,12 @@ async function submitDecision() {
     return
   }
   try {
-    await screenplayApi.markDecision(sessionId, t)
-    ElMessage.success('已标记为重大决定，下次大纲更新时会反映')
+    const r = await screenplayApi.markDecision(sessionId, t)
+    ElMessage.success(r.diff_summary ? `大纲已重写：${r.diff_summary}` : '已标记')
     decisionOpen.value = false
     decisionText.value = ''
+    screenplay.value = await screenplayApi.getActive(sessionId)
+    await loadRevisions()
   } catch (e: any) {
     ElMessage.error(`标记失败：${e?.message ?? e}`)
   }
@@ -154,9 +181,41 @@ function backToGame() {
         <div class="text-sm text-slate-700">{{ screenplay.ending_md }}</div>
       </div>
 
+      <!-- 待处理的 plot_turn（GM 自动标记） -->
+      <div v-if="revisions.some((r) => r.pending)"
+           class="bg-orange-50 border border-orange-200 rounded p-4 space-y-2">
+        <div class="text-sm font-bold text-orange-900">⚡ 待处理的剧情转折</div>
+        <div class="text-xs text-orange-700">GM 标记的重大转折，点击重写大纲让后续章节反映这些决定。</div>
+        <div v-for="r in revisions.filter((rv) => rv.pending)" :key="r.id"
+             class="bg-white border border-orange-200 rounded p-2 flex items-center justify-between gap-2">
+          <div class="text-sm flex-1 min-w-0">
+            <div class="text-xs text-slate-400">回合 {{ r.trigger_turn }}</div>
+            <div class="text-slate-700 truncate">{{ r.trigger_description }}</div>
+          </div>
+          <el-button
+            type="primary"
+            size="small"
+            :loading="processingRevId === r.id"
+            @click="processRevision(r.id)"
+          >🔄 重写</el-button>
+        </div>
+      </div>
+
+      <!-- 改写历史（已处理的 revisions） -->
+      <div v-if="revisions.some((r) => !r.pending)"
+           class="bg-slate-50 border border-slate-200 rounded p-4 space-y-2">
+        <div class="text-sm font-bold text-slate-700">📝 改写历史</div>
+        <div v-for="r in revisions.filter((rv) => !rv.pending)" :key="r.id"
+             class="bg-white border border-slate-200 rounded p-2 text-xs">
+          <div class="text-slate-400">回合 {{ r.trigger_turn }} · {{ r.created_at?.slice(0, 16).replace('T', ' ') }}</div>
+          <div class="text-slate-700 mt-0.5">{{ r.trigger_description }}</div>
+          <div class="text-slate-500 mt-1 italic">→ {{ r.diff_summary }}</div>
+        </div>
+      </div>
+
       <!-- 标记重大决策 -->
       <div class="border-t pt-4">
-        <el-button @click="decisionOpen = true">⚡ 这是重要决定（标记后影响后续大纲）</el-button>
+        <el-button @click="decisionOpen = true">⚡ 这是重要决定（标记后立即重写大纲）</el-button>
       </div>
 
       <el-dialog v-model="decisionOpen" title="标记重大决定" width="500px">

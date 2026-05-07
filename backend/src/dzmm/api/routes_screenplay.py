@@ -13,7 +13,11 @@ from dzmm.db.models import (
     Session as GameSession,
 )
 from dzmm.models.factory import build_client
-from dzmm.service.screenplay import generate_screenplay, get_active_screenplay
+from dzmm.service.screenplay import (
+    generate_screenplay,
+    get_active_screenplay,
+    rewrite_screenplay_after_decision,
+)
 
 router = APIRouter(prefix="/sessions", tags=["screenplay"])
 
@@ -94,19 +98,33 @@ async def mark_decision(
     if sp is None:
         raise HTTPException(404, "no active screenplay")
     sess = await s.get(GameSession, session_id)
+    description = str(payload.get("description") or "玩家手动标记")[:500]
     rev = ScreenplayRevision(
         screenplay_id=sp.id,
         revision_num=1,
         trigger_turn=sess.turn_count if sess else 0,
-        trigger_description=str(payload.get("description") or "玩家手动标记")[:500],
+        trigger_description=description,
         before_chapters_json=sp.chapters_json,
         after_chapters_json=sp.chapters_json,
-        diff_summary="(player-marked, pending rewrite)",
+        diff_summary="(rewriting…)",
     )
     s.add(rev)
     await s.commit()
     await s.refresh(rev)
-    return {"ok": True, "revision_id": rev.id}
+
+    # Synchronously rewrite — caller is willing to wait (UI shows a spinner)
+    cfg = await s.get(ModelConfig, sess.gm_model_config_id) if sess else None
+    if cfg is not None:
+        client = _build_outliner_client(cfg)
+        await rewrite_screenplay_after_decision(s, session_id, rev.id, description, client)
+        await s.commit()
+        await s.refresh(rev)
+
+    return {
+        "ok": True,
+        "revision_id": rev.id,
+        "diff_summary": rev.diff_summary,
+    }
 
 
 @router.post("/{session_id}/screenplay/continue")
@@ -160,7 +178,48 @@ async def list_revisions(
             "trigger_turn": r.trigger_turn,
             "trigger_description": r.trigger_description,
             "diff_summary": r.diff_summary,
+            # Pending = before == after AND placeholder summary; the frontend
+            # uses this to surface a "重写" button on revisions that haven't
+            # been processed yet (typically GM-emitted <plot_turn>).
+            "pending": (r.before_chapters_json == r.after_chapters_json)
+                and ("pending" in (r.diff_summary or "").lower()
+                     or "rewriting" in (r.diff_summary or "").lower()),
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
         for r in rows
     ]
+
+
+@router.post("/{session_id}/screenplay/revisions/{rev_id}/process")
+async def process_revision(
+    session_id: int,
+    rev_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    """Run outliner rewrite on a previously-stashed revision (e.g. one created
+    by a GM-emitted <plot_turn impact="major">). Idempotent: re-processing a
+    completed revision overwrites the after_chapters_json with a fresh rewrite.
+    """
+    rev = await s.get(ScreenplayRevision, rev_id)
+    if rev is None:
+        raise HTTPException(404, "revision not found")
+    sp = await s.get(Screenplay, rev.screenplay_id)
+    if sp is None or sp.session_id != session_id:
+        raise HTTPException(404, "revision/session mismatch")
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    cfg = await s.get(ModelConfig, sess.gm_model_config_id)
+    if cfg is None:
+        raise HTTPException(400, "GM model config missing")
+
+    client = _build_outliner_client(cfg)
+    result = await rewrite_screenplay_after_decision(
+        s, session_id, rev.id, rev.trigger_description, client,
+    )
+    if result is None:
+        await s.commit()
+        raise HTTPException(500, "rewrite failed (see backend logs)")
+    await s.commit()
+    await s.refresh(rev)
+    return {"ok": True, "revision_id": rev.id, "diff_summary": rev.diff_summary}

@@ -95,3 +95,82 @@ def build_outliner_messages(
         Message(role="system", content=_OUTLINER_SYSTEM),
         Message(role="user", content="\n".join(user_lines)),
     ]
+
+
+_REWRITE_SYSTEM = """你是一位经验丰富的 TRPG 编剧，正在**改写现有剧本**。
+玩家做了一个重大决定，会影响剧情走向；你的任务是基于这个决定**重写未完成的章节**。
+
+# 输出格式（必须严格的 JSON，不要 markdown 代码块包裹）
+
+{
+  "chapters": [<整套新章节，结构与初版相同：title/summary/main_events/optional_events/main_npcs>],
+  "main_characters": [<可选：新增或修改的 NPC>],
+  "ending": "<可能修改的结局>",
+  "diff_summary": "<60-120 字总结：相比原版改了什么、为什么>"
+}
+
+# 改写约束（重要）
+
+1. **已完成的章节不可改**——保持 1..N（current_chapter-1）不动；只重写从 current_chapter 起到结尾
+2. **已发生的事件是事实**——剧情方向可变，但不能让历史回滚
+3. **PC 决定的影响要可见**——新章节里至少 1-2 处情节直接由这个决定衍生（NPC 反应 / 新势力出现 / 旧线断裂等）
+4. **章节数量保持** 3-5 章，不要因重写大幅扩张或塌缩
+5. **diff_summary** 用第三人称写，给玩家看的，例如「PC 选择投靠魔王后，第 3-5 章重心从拯救公主转为颠覆王权，新增暗影教团作为对手势力」
+
+# 强约束
+- 输出必须是合法 JSON
+- chapters 字段是完整 chapters 数组（包括未改动的 1..current_chapter-1）
+- 不要 markdown 代码块标记 ```json
+"""
+
+
+def build_rewrite_messages(
+    world_name: str,
+    world_md: str,
+    character_name: str,
+    character_md: str,
+    genre: str,
+    current_chapters_json: str,
+    current_chapter: int,
+    completed_events_summary: str,
+    decision_description: str,
+    custom_prompt: str = "",
+) -> list[Message]:
+    """Messages for major-plot-turn rewrite. Reuses _REWRITE_SYSTEM and feeds
+    current outline + history + decision so the model can produce a partial
+    rewrite (preserving completed chapters)."""
+    user_lines = [
+        f"# 世界：{world_name}",
+        world_md.strip()[:1000],
+        "",
+        f"# PC：{character_name}",
+        character_md.strip()[:800],
+        "",
+        f"# 故事类型：{genre}",
+    ]
+    if genre in KNOWN_GENRES:
+        user_lines.append(f"类型说明：{KNOWN_GENRES[genre]}")
+    user_lines.extend([
+        "",
+        f"# 当前章节进度：第 {current_chapter} 章",
+        "",
+        "# 现有大纲（chapters JSON，作为上下文，重写时保留 1..current_chapter-1 章）",
+        current_chapters_json[:4000],
+    ])
+    if completed_events_summary.strip():
+        user_lines.extend(["", "# 已完成的关键事件（不可回滚）", completed_events_summary.strip()[:1000]])
+    user_lines.extend([
+        "",
+        "# 玩家刚做出的重大决定（重写起点）",
+        decision_description.strip()[:800],
+    ])
+    if custom_prompt.strip():
+        user_lines.extend(["", "# 玩家自定义补充", custom_prompt.strip()[:500]])
+    user_lines.extend([
+        "",
+        "现在输出改写后的完整 JSON。",
+    ])
+    return [
+        Message(role="system", content=_REWRITE_SYSTEM),
+        Message(role="user", content="\n".join(user_lines)),
+    ]

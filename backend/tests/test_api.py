@@ -1133,12 +1133,19 @@ async def test_post_mark_decision_records_revision(http, app, monkeypatch):
     body = r.json()
     assert body["ok"] is True
     assert isinstance(body["revision_id"], int)
+    # mark_decision now triggers an immediate outliner rewrite (v0.7+); the stub
+    # client returns _STUB_SCREENPLAY_OUTPUT which has no diff_summary, so the
+    # service falls back to the auto-generated description-based summary.
+    assert "陈子轩" in body["diff_summary"] or "改写" in body["diff_summary"]
 
     SessionMaker = app.state.session_maker
     async with SessionMaker() as s:
         rev = (await s.execute(_select(_ScreenplayRevision))).scalar_one()
         assert rev.trigger_description == "PC 杀了线人陈子轩"
-        assert rev.diff_summary == "(player-marked, pending rewrite)"
+        # after_chapters_json was filled by the rewrite, so it should differ
+        # from the placeholder "rewriting…" state.
+        assert "pending" not in rev.diff_summary.lower()
+        assert "rewriting" not in rev.diff_summary.lower()
 
 
 async def test_post_screenplay_continue_creates_v2(http, app, monkeypatch):

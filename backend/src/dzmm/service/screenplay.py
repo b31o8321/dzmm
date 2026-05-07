@@ -10,11 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.db.models import (
     Character,
     Screenplay,
+    ScreenplayRevision,
     Session as GameSession,
     World,
 )
 from dzmm.models.client import GenerationParams, ModelClient
-from dzmm.prompts.outliner_template import build_outliner_messages
+from dzmm.prompts.outliner_template import build_outliner_messages, build_rewrite_messages
 
 log = logging.getLogger(__name__)
 
@@ -145,3 +146,107 @@ async def get_active_screenplay(session: AsyncSession, session_id: int) -> Scree
         .order_by(Screenplay.version.desc())
     )
     return (await session.execute(stmt)).scalars().first()
+
+
+async def rewrite_screenplay_after_decision(
+    session: AsyncSession,
+    session_id: int,
+    revision_id: int,
+    decision_description: str,
+    client: ModelClient,
+) -> ScreenplayRevision | None:
+    """Call outliner LLM to rewrite the active screenplay's chapters from
+    current_chapter onward, fill in the revision row's after_chapters_json
+    and diff_summary, and update the screenplay's chapters_json in place.
+
+    Idempotent: returns the revision if rewrite succeeded, else None (and
+    the revision keeps its placeholder diff_summary so the caller can see
+    it never completed).
+    """
+    rev = await session.get(ScreenplayRevision, revision_id)
+    if rev is None:
+        return None
+    sp = await session.get(Screenplay, rev.screenplay_id)
+    if sp is None or sp.status != "active":
+        return None
+    sess = await session.get(GameSession, session_id)
+    if sess is None:
+        return None
+    world = await session.get(World, sess.world_id) if sess.world_id else None
+    char = await session.get(Character, sess.character_id) if sess.character_id else None
+
+    completed_events = []
+    try:
+        completed_events = json.loads(sp.completed_events_json or "[]")
+    except (ValueError, TypeError):
+        pass
+    completed_summary_lines = [
+        f"- 第 {ev.get('chapter', '?')} 章 {ev.get('type', '')} 事件 #{ev.get('event_idx', '?')}（回合 {ev.get('turn', '?')}）"
+        for ev in completed_events[:20]
+    ]
+    completed_summary = "\n".join(completed_summary_lines)
+
+    messages = build_rewrite_messages(
+        world_name=world.name if world else "",
+        world_md=world.content_md if world else "",
+        character_name=char.name if char else "",
+        character_md=char.profile_md if char else "",
+        genre=sp.genre or "悬疑探案",
+        current_chapters_json=sp.chapters_json or "[]",
+        current_chapter=sp.current_chapter,
+        completed_events_summary=completed_summary,
+        decision_description=decision_description,
+        custom_prompt=sp.custom_prompt or "",
+    )
+
+    from dzmm.service.activity_log import log_event
+    import time as _time
+
+    log_event(session_id, "screenplay_rewrite_start",
+              screenplay_id=sp.id, revision_id=rev.id,
+              trigger=decision_description[:100])
+    start = _time.monotonic()
+
+    raw_chunks: list[str] = []
+    try:
+        async for chunk in client.stream(messages, GenerationParams(max_tokens=2000, temperature=0.7)):
+            if chunk.delta:
+                raw_chunks.append(chunk.delta)
+    except Exception as e:
+        log_event(session_id, "screenplay_rewrite_error",
+                  duration_ms=int((_time.monotonic() - start) * 1000),
+                  revision_id=rev.id, error=str(e)[:200])
+        return None
+    raw = "".join(raw_chunks)
+    duration_ms = int((_time.monotonic() - start) * 1000)
+
+    try:
+        data = _parse_outline_json(raw)
+    except ValueError as e:
+        log_event(session_id, "screenplay_rewrite_error",
+                  duration_ms=duration_ms, raw_chars=len(raw),
+                  revision_id=rev.id, error=f"parse: {e}"[:200])
+        return None
+
+    new_chapters_json = json.dumps(data["chapters"], ensure_ascii=False)
+    diff_summary = str(data.get("diff_summary") or "")[:500]
+    if not diff_summary:
+        diff_summary = f"基于决定『{decision_description[:80]}』改写第 {sp.current_chapter} 章起后续章节"
+
+    rev.after_chapters_json = new_chapters_json
+    rev.diff_summary = diff_summary
+    sp.chapters_json = new_chapters_json
+    if data.get("ending"):
+        sp.ending_md = str(data["ending"])[:2000]
+    if data.get("main_characters"):
+        sp.main_characters_json = json.dumps(data["main_characters"], ensure_ascii=False)
+
+    log_event(session_id, "screenplay_rewrite_end",
+              duration_ms=duration_ms, raw_chars=len(raw),
+              revision_id=rev.id, screenplay_id=sp.id,
+              num_chapters=len(data["chapters"]))
+    log.info(
+        "rewrote screenplay %d (revision %d) for session %d (%dms, %d chars, %d chapters)",
+        sp.id, rev.id, session_id, duration_ms, len(raw), len(data["chapters"]),
+    )
+    return rev

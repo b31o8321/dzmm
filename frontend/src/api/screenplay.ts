@@ -60,7 +60,27 @@ export const screenplayApi = {
       })
       .then((r) => r.data),
   revisions: (id: number) =>
-    api.get(`/sessions/${id}/screenplay/revisions`).then((r) => r.data),
+    api
+      .get<ScreenplayRevision[]>(`/sessions/${id}/screenplay/revisions`)
+      .then((r) => r.data),
+  processRevision: (id: number, revId: number) =>
+    api
+      .post<{ ok: boolean; revision_id: number; diff_summary: string }>(
+        `/sessions/${id}/screenplay/revisions/${revId}/process`,
+        {},
+        { timeout: 600_000 },
+      )
+      .then((r) => r.data),
+}
+
+export interface ScreenplayRevision {
+  id: number
+  revision_num: number
+  trigger_turn: number
+  trigger_description: string
+  diff_summary: string
+  pending: boolean
+  created_at: string | null
 }
 
 export const KNOWN_GENRES: { key: string; label: string; desc: string }[] = [
