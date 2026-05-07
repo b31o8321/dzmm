@@ -92,3 +92,28 @@ export type TurnEvent =
   | { type: 'parse_error'; message: string }
   | { type: 'summarize_error'; message: string }
   | { type: 'done' }
+
+// ── Dice Event types ──────────────────────────────────────────
+
+export type DiceCategory =
+  | 'combat' | 'stealth' | 'persuasion' | 'arcane'
+  | 'athletics' | 'perception' | 'knowledge' | 'generic'
+
+export type DiceOutcome = 'crit_success' | 'success' | 'fail' | 'crit_fail'
+
+export interface DiceReaction {
+  speaker: string
+  mood: string
+  text: string
+}
+
+export interface DiceEvent {
+  category: DiceCategory
+  outcome: DiceOutcome
+  dc: number
+  pc_roll: number
+  modifier: number
+  scene_text: string
+  reactions: DiceReaction[]
+  description: string  // legacy fallback
+}

@@ -3,9 +3,11 @@ import { watch, nextTick, ref, computed } from 'vue'
 import { ElButton, ElMessage } from 'element-plus'
 import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
 import MarkdownView from '@/components/MarkdownView.vue'
+import DiceShowcase from '@/components/game/DiceShowcase.vue'
 import type { Turn } from '@/composables/useGameTurn'
 import { useDebugStore } from '@/stores/debug'
 import { sessionsApi } from '@/api/sessions'
+import { parseDiceEvent } from '@/utils/diceParse'
 
 const props = defineProps<{
   turns: Turn[]
@@ -172,14 +174,22 @@ defineExpose({ logEl })
           />
         </template>
         <MarkdownView v-else :source="t.narrative" />
+        <!-- Inline dice showcase: one card per dice event, rendered sequentially -->
+        <template v-if="t.events && t.events.some(ev => ev.type === 'dice')">
+          <DiceShowcase
+            v-for="(ev, ei) in t.events.filter(ev => ev.type === 'dice')"
+            :key="'dice-' + ei"
+            :dice="parseDiceEvent(ev)"
+          />
+        </template>
         <el-button
-          v-if="t.events && t.events.length > 0"
+          v-if="t.events && t.events.filter(ev => ev.type !== 'dice').length > 0"
           size="small"
           link
           class="!absolute bottom-1 right-1 text-xs"
           @click="emit('open-events', t)"
         >
-          🎲 {{ t.events.length }}
+          ⚙️ {{ t.events.filter(ev => ev.type !== 'dice').length }}
         </el-button>
       </div>
       <div v-if="t.choices.length && i === turns.length - 1" class="space-y-1">
