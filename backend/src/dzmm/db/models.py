@@ -107,6 +107,7 @@ class Session(Base):
 
     doom_score: Mapped[int] = mapped_column(Integer, default=0)           # 厄运值 0-100
     scene_turn_count: Mapped[int] = mapped_column(Integer, default=0)     # 当前场景已停留回合数
+    world_time_json: Mapped[str] = mapped_column(Text, default='{"day": 1, "period": "morning", "weather": "clear"}')
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
@@ -276,6 +277,43 @@ class ScreenplayRevision(Base):
     before_chapters_json: Mapped[str] = mapped_column(Text, default="[]")
     after_chapters_json: Mapped[str] = mapped_column(Text, default="[]")
     diff_summary: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+
+# ── 资源库 ────────────────────────────────────────────────
+# 存储图片、音频、字体等资源文件的元数据。
+# 支持本地文件、HTTP 链接、内置资源三种来源。
+class Asset(Base):
+    __tablename__ = "assets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20))           # image | audio | font
+    source: Mapped[str] = mapped_column(String(20), default="local")  # local | http | builtin
+    file_path: Mapped[str] = mapped_column(Text, default="")          # absolute path under app_dir or builtin/
+    url: Mapped[str] = mapped_column(Text, default="")                # populated when source=http
+    mime: Mapped[str] = mapped_column(String(60), default="")
+    width: Mapped[int] = mapped_column(default=0)           # 0 for non-image
+    height: Mapped[int] = mapped_column(default=0)
+    duration_ms: Mapped[int] = mapped_column(default=0)     # 0 for non-audio
+    tag_json: Mapped[str] = mapped_column(Text, default="{}")
+    title: Mapped[str] = mapped_column(String(200), default="")
+    uploaded_by: Mapped[str] = mapped_column(String(20), default="user")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+
+# ── 资源链接（多对多） ────────────────────────────────────
+# 将资源附加到游戏内各类对象（世界、角色、NPC、剧本等）。
+class AssetLink(Base):
+    __tablename__ = "asset_links"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id"))
+    owner_type: Mapped[str] = mapped_column(String(20))     # world | character | npc | screenplay | chapter | location | session
+    owner_id: Mapped[int] = mapped_column()
+    slot: Mapped[str] = mapped_column(String(40))           # cover | avatar | bgm | ambient | scene
+    extra_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )

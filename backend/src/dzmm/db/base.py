@@ -118,6 +118,12 @@ _V031_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V032_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "sessions": [
+        ("world_time_json", "world_time_json TEXT NOT NULL DEFAULT '{\"day\": 1, \"period\": \"morning\", \"weather\": \"clear\"}'"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -191,4 +197,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V030_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V031_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V032_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
