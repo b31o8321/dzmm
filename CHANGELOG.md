@@ -2,6 +2,61 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.8.0] - 2026-05-07
+
+**沉浸感 Pack — 资源系统 / Wizard 集成 / 自动播放 / 时间日历 / 快捷动作 / NSFW 开关**
+
+围绕一个底座（资源系统）+ 五个产品级功能展开：玩家在 Wizard 阶段一次性把美术、音乐、场景资源都设好；进入游戏后按 location/chapter 自动切换；GM 可推进世界时间；输入框给 8 个快捷动作；会话独立 NSFW 自由度。
+
+### 新增
+
+#### 🎨 资源系统底座
+- **`Asset` 表 + `AssetLink` 多对多** —— 任意 owner（world / character / npc / screenplay / chapter / location / session）可挂载图像 / 音频，按 `slot` 区分用途（cover / avatar / bgm / ambient / scene）；支持 `local`/`builtin`/`http` 三种来源
+- **`/assets` API** —— list / upload / serve / delete / attach / by_owner 6 个端点
+- **builtin 素材包脚手架** —— `packaging/assets/builtin/` 目录树 + `manifest.json` 自动播种机制；v0.8.0 不打包二进制资源（CC0 curated pack 留作 follow-up），系统对仅用户上传的场景已完全可用
+- **`<AssetPicker>` Vue 组件** —— 通用：上传 / 库选 / 清除；`archetypeFilter` 让匹配的 builtin 头像排序靠前
+
+#### ✨ Wizard 资源集成
+- **Step 2** 世界封面图（attach 到 world）
+- **Step 4** 每个 NPC 的头像（archetype-aware 排序，attach 到 npc）
+- **Step 5** 每章节默认 BGM（attach 到 session，slot=`chapter_bgm`，extra=`{chapter}`）
+- **Step 6 review** 新增「场景资源」区域：用户可手动添加场所，每个挂场景图 + 环境音
+- `finalize_wizard` 返回 `{session_id, world_id, npc_ids}` 让前端拿到 ID 做 attach
+
+#### 🎬 游戏中自动播放
+- **`SceneBackdrop.vue`** —— 当前场景图作为半透明背景，0.7s fade transition
+- **`useAmbientAudio` composable** —— BGM + ambient 双轨独立 crossfade（2s requestAnimationFrame）
+- **`<location_enter>` 触发** —— 加载该 location 的 scene + ambient
+- **`<chapter_advance/>` 触发** —— 切换该章节的 BGM
+- **`<bgm mood="..."/>` 标签** —— GM 可显式切换 BGM 情绪（tense / calm / battle / exploration / sad / triumphant）
+
+#### 🕐 时间 / 日历系统
+- **`Session.world_time_json`** = `{day, period, weather}`，默认 `{1, "morning", "clear"}`
+- **`<time_advance hours / period / weather / day />`** 标签 —— 推进世界时间（4h/period 步进，跨 midnight 自动 day+1）
+- **GM prompt** 注入 `## 当前时间` 段；新增铁律：长途旅行 / 休息 / 过夜 / 跨场景必须 `<time_advance>`
+- **StatePanel 顶部显示** —— 「🕐 第 N 天 · 黄昏 · 阴」
+
+#### ⚡ 快捷动作模板
+- 输入框 chips 从 4 项扩到 8 项：⚔️ 行动 / 🔍 调查 / 💬 交谈 / 🥷 隐匿 / ⚔️ 攻击 / ⏳ 等待 / 🎒 物品 / 🎲 技能
+- 点击后预填到输入框 + 光标定位
+
+#### 🔞 内容自由度（NSFW）
+- **会话设置** `content_level: safe | mature | unrestricted`
+- **GM prompt** 按级别注入「## 内容尺度」指令（safe 默认；mature 允许暴力 / 亲密 / 黑暗主题；unrestricted 完全开放）
+- SessionsView 创建对话 + GameView 设置对话都有下拉选择
+
+### 数据库
+- 新表：`assets`（13 列含 kind / source / file_path / mime / dimensions / tag_json）+ `asset_links`（owner_type/id/slot/extra_json）
+- 新列：`sessions.world_time_json`
+- `_V032_MIGRATIONS` additive，可从 v0.7 直升
+
+### 测试
+- `tests/test_assets.py` 5 项（list / upload / mime guard / attach / delete cascade）
+- `tests/test_world_time.py` 13 项（formatter + handler 各 case）
+- 总后端测试 412 → 430
+
+---
+
 ## [v0.7.0] - 2026-05-07
 
 **TTS 全面重构 · Debug 工具链 · Wizard AI 助手 · LLM 兼容性加固**
