@@ -54,6 +54,7 @@ from dzmm.prompts.gm_template import build_gm_messages
 from dzmm.prompts.outliner_template import build_outliner_messages
 from dzmm.prompts.polish_template import build_polish_messages
 from dzmm.service.gm_graph import run_npc_post_pass, run_pre_pass
+from dzmm.service.screenplay import get_active_screenplay
 from dzmm.service.world_rag import get_world_md
 from dzmm.service.activity_log import log_event
 from dzmm.service.npc_initiative import find_initiative_npc
@@ -428,6 +429,19 @@ async def run_turn(
         action_with_reminder = user_action + "\n\n" + xml_reminder
         log.info("injecting XML format reminder for session %d (drift detected)", session_id)
 
+    # v0.9.1 token reduction: inject only the conditional tag docs that
+    # could plausibly fire this turn. Saves ~600-1500 tokens / 普通回合.
+    sp_active = await get_active_screenplay(session, session_id)
+    has_screenplay = sp_active is not None
+    has_factions = (
+        await session.execute(
+            select(Faction.id).where(Faction.session_id == session_id).limit(1)
+        )
+    ).scalar_one_or_none() is not None
+    # Combat: any combat_start within the last 5 turns OR a combat_start
+    # without a matching combat_end in events_json
+    has_combat_recent = await _detect_combat_recent(session, session_id, sess.turn_count)
+
     msgs = build_gm_messages(
         world_md=get_world_md(
             world.id,
@@ -443,6 +457,9 @@ async def run_turn(
         key_facts=key_facts,
         recent_messages=recent,
         current_action=action_with_reminder,
+        has_screenplay=has_screenplay,
+        has_factions=has_factions,
+        has_combat_recent=has_combat_recent,
     )
 
     _debug_prompt_json = ""
@@ -717,6 +734,51 @@ from dzmm.service.npc_dossier import (
     _format_npc_short,
     _npc_revealed,
 )
+
+
+async def _detect_combat_recent(
+    session: AsyncSession, session_id: int, current_turn: int
+) -> bool:
+    """True if any combat_start event happened in the last 5 turns AND no
+    later combat_end has closed it. Used to decide whether to inject the
+    combat tag docs into the GM prompt."""
+    if current_turn < 1:
+        return False
+    rows = (await session.execute(
+        select(MessageRow.events_json)
+        .where(
+            MessageRow.session_id == session_id,
+            MessageRow.role == "assistant",
+            MessageRow.turn >= max(1, current_turn - 5),
+        )
+        .order_by(MessageRow.turn.asc(), MessageRow.id.asc())
+    )).scalars().all()
+    open_combats = 0
+    for raw in rows:
+        if not raw:
+            continue
+        try:
+            evs = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(evs, list):
+            continue
+        for ev in evs:
+            if not isinstance(ev, dict):
+                continue
+            t = ev.get("type")
+            if t == "combat_start":
+                open_combats += 1
+            elif t == "combat_end" and open_combats > 0:
+                open_combats -= 1
+    # Inject combat docs if there's an open combat OR a recent battle (whether closed)
+    if open_combats > 0:
+        return True
+    # Closed combats in last 5 turns — still useful so GM can re-open if needed
+    for raw in rows:
+        if raw and "combat_start" in raw:
+            return True
+    return False
 
 
 def _render_event(ev: "str | dict") -> str:

@@ -39,6 +39,68 @@ _STYLE_HINTS = {
 
 from dzmm.prompts.gm_few_shot import FEW_SHOT_EXAMPLE as _FEW_SHOT_EXAMPLE
 
+
+# Tag docs that only matter in specific game states. Pulling them out of the
+# always-injected system template saves ~600-1500 tokens / 普通回合.
+# Each block is a self-contained markdown section with header.
+
+_TAG_BLOCK_SCREENPLAY = """
+<chapter_advance/>
+本章 main_events 全部演完后输出，推进到下一章；先 emit 最后一个 <event_complete>，再 emit <chapter_advance/>。
+
+<event_complete chapter="N" event="M" type="main|optional"/>
+某个事件演完时输出。chapter 从 1 起，event 索引从 0 起；type 须为 main 或 optional。重复 emit 幂等。
+
+<plot_turn impact="major|minor" description="...">
+PC 关键决策时记录。impact="major" 触发后端重写后续章节（杀关键 NPC / 选阵营 / 放弃主线 等）；
+impact="minor" 仅作观察。description 一句话说明发生了什么。
+</plot_turn>
+
+<ending/>
+完结条件达成时输出，状态切换为 concluded。**只在故事真正结束时 emit**。"""
+
+_TAG_BLOCK_TIME = """
+<time_advance hours="N" period="dawn|morning|noon|afternoon|dusk|night|midnight" weather="..." day="N"/>
+推进世界时间。hours 按 4h/period 步进；period / day 可显式覆盖；weather 短语 ≤30 字。跨午夜自动 day+1。"""
+
+_TAG_BLOCK_COMBAT = """
+<combat_start>[{{"name":"敌人A","hp":18,"max_hp":18}}, ...]</combat_start>
+开启战斗模式。前端切 CombatPanel 聚合视图；后续 category="combat" 的 dice 被聚合，HP 按 dice outcome 衰减。
+战斗开始时同步 emit `<bgm mood="battle"/>`。
+
+<combat_end winner="pc|enemy|flee|draw"/>
+关闭战斗模式。winner: pc=PC胜 / enemy=PC败 / flee=PC逃脱 / draw=平局。"""
+
+_TAG_BLOCK_FACTION = """
+<faction_create name="X" ideology="一句立场" hostile_to='["Y"]' allied_to='["Z"]'>
+30-80 字背景描述
+</faction_create>
+出现新势力时 emit。hostile_to / allied_to 可省略；JSON 数组用单引号包裹 attribute。
+
+<faction_change name="X" rep_delta="-10"/>
+PC 名声变化（-20..+20 合理）；最终 clamp 到 -100..100。"""
+
+
+def _select_conditional_tags(
+    *,
+    has_screenplay: bool,
+    has_factions: bool,
+    has_combat_recent: bool,
+    has_time: bool = True,
+) -> str:
+    """Pick which optional tag-doc blocks to inject this turn. Less context-
+    irrelevant doc → smaller prompts → fewer tokens billed."""
+    parts: list[str] = []
+    if has_screenplay:
+        parts.append(_TAG_BLOCK_SCREENPLAY)
+    if has_time:
+        parts.append(_TAG_BLOCK_TIME)
+    if has_combat_recent:
+        parts.append(_TAG_BLOCK_COMBAT)
+    if has_factions:
+        parts.append(_TAG_BLOCK_FACTION)
+    return "\n".join(parts)
+
 _SYSTEM_TEMPLATE = """# 你的身份
 你是一位专业的 TRPG 跑团主持人（GM）。你的职责：
 - 推动剧情、描写场景与氛围
@@ -401,10 +463,6 @@ NPC 的对白用此标签包，引语用「」。可连续多个 <say> 表现来
 重要：importance=1（日常细节）不 emit 此标签，直接写进 narrative 即可。
 每回合最多 emit 1 个 plot_event（只取最重要的那件事）。
 
-<era_begin name="第 N 章：副标题">
-描述这一章在情绪/地点/势力上的总体变化。
-</era_begin>
-
 <character_xp delta="正整数">
 玩家完成了关键任务、克服了重大挑战、骰子大成功，应该奖励经验值。一句话说明理由。
 典型值：完成支线 +20，主线节点 +50，章节高潮 +100。
@@ -450,48 +508,8 @@ doom 是后台暗中累积的"末日值"，玩家不直接看到；累计过阈�
 不会重复创建记录。地点类型不限：室内、街区、建筑、地牢房间等均可。
 
 <bgm mood="tense|calm|battle|exploration|sad|triumphant"/>
-（可选）切换背景音乐情绪，前端会平滑过渡。短场景剧烈波动时使用，无需每回合 emit。
-
-<combat_start>[{{"name":"敌人A","hp":18,"max_hp":18}}, {{"name":"敌人B","hp":12,"max_hp":12}}]</combat_start>
-开启战斗模式。enemies 列表是 JSON 数组，至少含 name + hp（max_hp 可省略，默认等于 hp）。
-前端切换到 CombatPanel 聚合视图；后续 category="combat" 的 dice 会被聚合显示，HP 根据
-dice outcome 衰减。战斗开始时同步 emit `<bgm mood="battle"/>`。
-
-<combat_end winner="pc|enemy|flee|draw"/>
-关闭战斗模式。winner 必须填：pc=PC 一方胜；enemy=PC 败/死亡；flee=PC 逃脱；draw=平局/谈判结束。
-
-<faction_create name="X" ideology="一句立场" hostile_to='["Y"]' allied_to='["Z"]'>
-  30-80 字背景描述
-</faction_create>
-出现新势力时 emit。hostile_to / allied_to 可以省略（默认空）；JSON 数组要用单引号包裹
-attribute（attribute 正则仅识别双引号 value，所以单引号嵌套）。
-
-<faction_change name="X" rep_delta="-10"/>
-PC 名声/关系变化（-20..+20 合理，超过表示重大事件）；最终 reputation 自动 clamp 到 -100..100。
-
-<time_advance hours="N" period="dawn|morning|noon|afternoon|dusk|night|midnight" weather="..." day="N"/>
-推进世界时间。hours 优先按 4h/period 步进；period / day 可显式覆盖；weather 自由短语（≤30字）。
-跨午夜会自动 day+1。
-
-<chapter_advance/>
-本章 main_events 全部演完后输出此自闭合标签，推进到下一章。系统会把 Screenplay.current_chapter +1。
-若已是最后一章则无效；通常应在本回合先 emit 最后一个 <event_complete>，再 emit <chapter_advance/>。
-
-<event_complete chapter="N" event="M" type="main|optional"/>
-某个 main_event 或 optional_event 演完时输出。chapter 跟「## 当前剧本进度」展示的章号一致（从 1 起），
-event 索引从 0 开始按列表顺序。type 必须是 main 或 optional，要与剧本中的归类匹配。
-重复 emit 同一 (chapter, event, type) 是幂等的，不会重复计数。
-
-<plot_turn impact="major|minor" description="...">
-PC 做出关键决策时记录。impact="major" 会触发后端把后续章节重写以反应这个决策
-（杀关键 NPC、选阵营、放弃主线、达成阶段性目标 等），description 一句话说明发生了什么。
-impact="minor" 仅作观察记录，不重写大纲——日常的小取舍用这个。
-</plot_turn>
-
-<ending/>
-完结条件（见「## 当前剧本进度」末尾「完结条件」段）达成时输出。Screenplay 状态切换为
-concluded，玩家可从同一 session 续写新章。**只在故事真的结束时 emit**——不要为了演一个章节高潮提前关闭剧本。
-
+（可选）切换背景音乐情绪，前端会平滑过渡。短场景剧烈波动时使用。
+{conditional_tags}
 # 开局规则
 若剧情摘要为空（首轮），输出一段 600-1000 字的开局：交代 PC（{character_name}）当下所处环境、感官细节、身份处境、引子事件，停在 PC 必须做决定的瞬间，等待玩家行动。
 {example}
@@ -561,6 +579,9 @@ def build_gm_messages(
     recent_messages: list[Message],
     current_action: str,
     character_name: str | None = None,
+    has_screenplay: bool = True,
+    has_factions: bool = False,
+    has_combat_recent: bool = False,
 ) -> list[Message]:
     rules_detail = _RULES_DESCRIPTIONS.get(rules_mode, _RULES_DESCRIPTIONS["light"])
     style_detail = _STYLE_HINTS.get(style, _STYLE_HINTS["realistic"])
@@ -574,6 +595,12 @@ def build_gm_messages(
     # into _SYSTEM_TEMPLATE below, so no further escaping is needed.
     example_text = _FEW_SHOT_EXAMPLE.format(character_name=pc_name)
 
+    conditional_tags = _select_conditional_tags(
+        has_screenplay=has_screenplay,
+        has_factions=has_factions,
+        has_combat_recent=has_combat_recent,
+    )
+
     system = _SYSTEM_TEMPLATE.format(
         world=world_md.strip() or "（未提供）",
         rules_label=rules_mode,
@@ -586,6 +613,7 @@ def build_gm_messages(
         story_summary=story_summary.strip() or "（暂无，首次互动）",
         key_facts=key_facts.strip() or "（暂无）",
         example=example_text,
+        conditional_tags=conditional_tags,
     )
 
     messages: list[Message] = [Message(role="system", content=system)]

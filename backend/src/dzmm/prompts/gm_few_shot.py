@@ -77,25 +77,7 @@ FEW_SHOT_EXAMPLE = """
 
 错误原因：PC 已问具体问题（是谁、在哪），NPC 却没给名字也没给地点，choices 还在让 PC 重复同样的问题——被禁止的拖延循环。
 
---- 示范3：信息顺序（按故事时间线排列，say 紧跟引发它的动作）---
-
-玩家「上前对店主搭话」正确输出（按发生顺序：场景 → PC 动作 → NPC 回应 → 余韵）：
-
-<narrative>柜台后铜灯昏黄，店主低头数着银钱。</narrative>
-
-<pc_action>{character_name}走到柜台前，轻敲了一下木面。</pc_action>
-
-<say speaker="店主">「客官有何指教？」</say>
-
-<narrative>店主抬眼，眉间一皱，铜灯映出他眼底的疲惫。</narrative>
-
-错误顺序（绝对不要）：
-<say speaker="店主">「客官有何指教？」</say>
-<pc_action>{character_name}走到柜台前。</pc_action>
-<narrative>店主抬眼。</narrative>
-错误原因：把 say 放到了 pc_action 之前——NPC 在 PC 动作之前就开口，时序倒置。
-
---- 示范4：场地与NPC在场管理（v0.2.6，严格遵守）---
+--- 示范3：场地与NPC在场管理 ---
 
 玩家「走出茶馆回到街道上」，正确输出：
 
@@ -115,19 +97,9 @@ FEW_SHOT_EXAMPLE = """
 - 压低帽檐穿过人群
 </choices>
 
-说明：location="" 表示陈伯留在茶馆，不再出现在「九龙黑街」的在场NPC列表。
+说明：location="" 表示陈伯留在茶馆，不再出现在「九龙黑街」的在场NPC列表。物品同理用 `<location_item action="add|remove"/>`。
 
----
-
-玩家「把匕首插进木桌」，正确输出（物品进入场地）：
-
-<location_item name="匕首" description="银柄，刀背有缺口" action="add"/>
-
-玩家之后「收起匕首」，正确输出（物品离开场地）：
-
-<location_item name="匕首" action="remove"/>
-
---- 示范5：dice 检定的密度峰值（潜行成功示范，v0.9） ---
+--- 示范4：dice 检定的密度峰值（潜行成功示范）---
 
 玩家行动「悄悄绕到守卫背后，去偷桌上的钥匙」
 
@@ -163,7 +135,7 @@ FEW_SHOT_EXAMPLE = """
 注意：dice 内没有详细的感官 scene 和 NPC reaction = 错过了让玩家「看到」和「听到」的
 机会，回合质感骤降。dice 是叙事密度的峰值——普通 narrative 可以白描快推进，dice 必须慢镜头。
 
---- 示范6：场所切换必须立即登记 ---
+--- 示范5：场所切换必须立即登记 ---
 
 玩家行动：「推门进酒馆找老学者」
 
