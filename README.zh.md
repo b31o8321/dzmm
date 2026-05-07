@@ -4,7 +4,7 @@
 
 > **English** → [README.md](README.md)
 
-> **状态：** 活跃开发中 · 当前版本 **v0.2.7**。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
+> **状态：** 活跃开发中 · 当前版本 **v0.7.0**。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
 
 ---
 

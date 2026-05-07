@@ -2,6 +2,67 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.7.0] - 2026-05-07
+
+**TTS 全面重构 · Debug 工具链 · Wizard AI 助手 · LLM 兼容性加固**
+
+自 v0.6.0 以来积累的 70 余个 commit 一次性发版，覆盖四条主线：本地 TTS 引擎全面接入 + 局域网直连、Konami 触发的 Debug 工具链（LLM 原始数据查看 + 数值编辑器）、Wizard 创角全程 AI 推荐、本地 LLM（LM Studio / Ollama）兼容性 / 解析鲁棒性。
+
+### 新增
+
+#### 🔊 TTS 系统重构（多引擎 + 局域网）
+- **内置 4 种 TTS 模式** —— `edge-tts`（云端微软声音）/ `kokoro-onnx`（本地 ONNX）/ `cosyvoice`（本地 sidecar，uv 隔离环境）/ 局域网直连 OpenAI 兼容服务（`direct URL`）
+- **`packaging/tts/`** —— Kokoro / CosyVoice 一键安装 / 启动 / 卸载脚本，跨平台（macOS / Windows / Linux）
+- **TTS Settings 卡片三层 UI** —— 模式切换 / 音色下拉 / 安装 - 启动 - 卸载状态机；含中文 TTS 推荐（CosyVoice / ChatTTS / EmotiVoice / Qwen3-TTS）
+- **NPC / PC 自动音色** —— `voice_map.ts` 把 `archetype` 映射到合适的 edge/kokoro 音色，NPC 创建对话框自动填默认值；CharacterCardDrawer 显示 PC 音色 + 试听按钮
+- **每说话人过滤**（旁白 / PC / NPC 三个独立开关）—— 游戏页 🔊 弹层切换，配置写 localStorage
+- **`GET /tts/probe`** —— 检测外部 TTS 服务是否可达（依次试 `/health`、`/v1/models`、`/`），方便 LAN 模式排查
+
+#### 🐛 Debug 工具链（Konami 触发）
+- **Konami 码激活**（`stores/debug.ts`）—— `↑↑↓↓←→←→BA` 切换 debug 模式，状态写 localStorage
+- **每回合 LLM 原始数据查看** —— GM 卡片右上 🐛 按钮 → 弹窗显示完整 prompt（按 role 分色）+ 原始 response + token 计数；通过 `messages.prompt_json` 列持久化
+- **数值编辑器**（`DebugPanel.vue`）—— 厄运值滑条（0-100）/ turn_count / scene_turn_count / PC 属性逐项编辑，独立保存按钮
+- **后端 API** —— `GET / PATCH /sessions/{id}/debug_state`、`debug_mode` 加入 `PatchSettingsRequest`、`/messages/{id}/debug` 返回完整 prompt+response
+
+#### ✨ Wizard 创角 AI 助手
+- **AI 灵感推荐** —— 自动生成 4 套「题材 + 主题 + 主角原型」组合，可「换一批」（`generate_suggestions`）
+- **Step 4 NPC AI 面板** —— 点击 AI 推荐 NPC 直接加入列表，无需复制粘贴
+- **archetype suggestions + theme refine** —— 题材 / 主题 / 原型独立 LLM 生成
+- **流式 wizard** —— 世界书 / 角色 / NPC / 剧本生成全部走 SSE，进度可视
+- **角色启动物品强制含货币** —— 适配世界观：奇幻金币 / 现代港元 / 科幻积分卡等
+
+#### 🤖 LLM 兼容性 / 解析鲁棒性
+- **LM Studio `response_format` fallback** —— 不支持 `{"type":"json_object"}` 的本地服务器返回 400 时自动重试无 json_mode，per-instance 缓存判定结果
+- **JSON 解析器加固** —— `_extract_json` 同时支持 `{...}` 和 `[...]` 根；折叠模型回写的 `{{ }}` 双重大括号；strip trailing commas；Python 字面量（`True`/`False`/`None`）→ JSON
+- **`_unwrap_npc_list`** —— 兼容裸数组、`{"npcs": [...]}`、`{"NPCs": [...]}`、`{"characters": [...]}` 等多种返回形态
+- **outliner template 修复** —— `_OUTLINER_SYSTEM` 是普通字符串而非 f-string，移除 `{{`/`}}` 转义，否则模型会照抄回 `{{"chapters":...}}`
+- **NPC per-NPC 并发** —— `run_npc_post_pass` 改为 `asyncio.gather` 逐 NPC 并行，独立 prompt 含完整 character profile（Phase B 增强）
+- **Ollama 模型可用性检查** —— `GET /model_configs/{id}/check`、Wizard 横幅提示模型未拉取、SessionView 显示「修复」对话框
+
+### 改进
+
+- **NPC 在场显示** —— StatePanel 新增「此处人物」段，按 `current_location` 过滤当前场所 NPC，附 favor 颜色点 + 状态文本
+- **`updateSettings` 整合** —— 移除重复的 `patchSettings`，单一 API 方法支持 `narrative_polish` / `director_pass` / `debug_mode`
+- **TTS UI 简化** —— 删除 WebSpeech / 旧 Kokoro 模式，两层 UI（mode + voice）
+- **CosyVoice 修复** —— `is_installed` 文件名修正（cosyvoice.yaml 而非 cosyvoice2.yaml）、503 提示加可执行操作、cwd 修复、依赖跳过 `openai-whisper`
+- **Tauri Spec 修复** —— `bundle espeakng_loader / kokoro_onnx / phonemizer / language_tags` 数据文件、langchain/langgraph hidden imports
+- **Pinia 配合 Element Plus** —— 三个 TTS 开关从 `v-model="store.x"` 改为 `:model-value` + `@change` 显式 setter（避免绕过 store 边界）
+
+### 修复
+
+- **PC 对话开头多余 `#`** —— `useGameTurn.ts` 在 `pc_action` 事件处剥离 `#name：` 前缀
+- **rawContent 顺序错乱** —— GM narrative + say 现在按文档顺序交错（之前总是 narrative 先于所有 dialogue）
+- **XML 格式漂移** —— 老对局 summary 后 GM 改回纯文本，`_check_xml_drift` 检测连续 ≥2 条无 XML 的 assistant 消息时自动注入格式提醒
+- **Debug 历史回放** —— `Turn` 重建时从 `MessageRow.id` 填 `msgId`，🐛 按钮在重新加载的会话上也可用
+- **Cargo.lock 滞后** —— app version `0.1.0` → `0.7.0` 同步
+
+### 依赖新增
+
+- 后端：`edge-tts>=6.1`、`kokoro-onnx`（本地 ONNX 引擎）；CosyVoice 通过 sidecar 隔离不入主依赖
+- 打包：`numpy`、`onnxruntime`、`soundfile`、`espeakng_loader` 加入 PyInstaller hidden imports
+
+---
+
 ## [v0.6.0] - 2026-05-03
 
 **Phase C — 自主 Agent 自动评测**
