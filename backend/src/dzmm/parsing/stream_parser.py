@@ -46,6 +46,8 @@ KNOWN_TAGS: set[str] = {
     "plot_turn",
     "ending",
     "location_enter",
+    "bgm",
+    "time_advance",
 }
 
 # 只有 narrative 标签需要"流式"输出（边到边推给前端显示）；

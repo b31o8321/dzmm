@@ -417,6 +417,9 @@ doom 是后台暗中累积的"末日值"，玩家不直接看到；累计过阈�
 并在玩家侧边栏显示。同一地点多次到访时重复 emit，tag 会更新"最近到访回合"，
 不会重复创建记录。地点类型不限：室内、街区、建筑、地牢房间等均可。
 
+<bgm mood="tense|calm|battle|exploration|sad|triumphant"/>
+（可选）切换背景音乐情绪，前端会平滑过渡。短场景剧烈波动时使用，无需每回合 emit。
+
 <chapter_advance/>
 本章 main_events 全部演完后输出此自闭合标签，推进到下一章。系统会把 Screenplay.current_chapter +1。
 若已是最后一章则无效；通常应在本回合先 emit 最后一个 <event_complete>，再 emit <chapter_advance/>。

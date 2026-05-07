@@ -8,6 +8,7 @@ import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
+import { useAmbientAudio } from '@/composables/useAmbientAudio'
 import { useTTS, type TtsVoiceMap, type TtsSpeakerFilter } from '@/composables/useTTS'
 import { useModelCheck } from '@/composables/useModelCheck'
 import { useAppStore } from '@/stores/app'
@@ -19,6 +20,8 @@ import {
   extractChoices,
   type Turn,
 } from '@/composables/useGameTurn'
+import SceneBackdrop from '@/components/game/SceneBackdrop.vue'
+import { assetsApi } from '@/api/assets'
 import StatePanel from '@/components/StatePanel.vue'
 import CharacterAvatar from '@/components/CharacterAvatar.vue'
 import LevelUpDialog from '@/components/LevelUpDialog.vue'
@@ -48,6 +51,9 @@ const showModelBanner = computed(
 const appStore = useAppStore()
 const debugStore = useDebugStore()
 const { playTurn, stop: stopTts, speaking } = useTTS()
+const { setBgm: setAmbientBgm, setAmbient, bgmVolume: ambientBgmVolume, ambientVolume } = useAmbientAudio()
+const sceneImageUrl = ref<string | null>(null)
+const apiBase = import.meta.env.VITE_API_BASE ?? ''
 const version = __APP_VERSION__
 
 const FONT_SIZE_KEY = 'dzmm_game_font_size'
@@ -213,6 +219,11 @@ const {
     }
   },
   onNpcInitiative: (npcName) => onInitiativeTrigger(npcName),
+  onLocationEnter: (name) => applyLocationAssets(name),
+  onBgmChange: (mood) => applyBgmByMood(mood),
+  onChapterAdvance: () => {
+    if (screenplay.value) applyChapterBgm(screenplay.value.current_chapter)
+  },
 })
 
 const npcDialogOpen = ref(false)
@@ -221,6 +232,11 @@ const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
 const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
+
+// Apply chapter BGM whenever screenplay loads or chapter changes
+watch(() => screenplay.value?.current_chapter, (ch) => {
+  if (ch != null) applyChapterBgm(ch)
+}, { immediate: true })
 
 async function refreshNpcLocations() {
   try {
@@ -261,6 +277,43 @@ async function refreshLocations() {
   } catch {
     /* ignore */
   }
+}
+
+async function applyLocationAssets(locationName: string) {
+  if (!locationName) return
+  try {
+    const links = await assetsApi.byOwner('session', sessionId)
+    const norm = (s: string) => s.toLowerCase().trim()
+    const target = norm(locationName)
+    const sceneLink = links.find(
+      (l) => l.slot === 'scene' && norm(String(l.extra.location ?? '')) === target,
+    )
+    const ambientLink = links.find(
+      (l) => l.slot === 'ambient' && norm(String(l.extra.location ?? '')) === target,
+    )
+    sceneImageUrl.value = sceneLink ? `${apiBase}${sceneLink.asset.url}` : null
+    setAmbient(ambientLink ? `${apiBase}${ambientLink.asset.url}` : null)
+  } catch {
+    // fail silently — assets are optional
+  }
+}
+
+async function applyChapterBgm(chapterNum: number) {
+  try {
+    const links = await assetsApi.byOwner('session', sessionId, 'chapter_bgm')
+    const link = links.find((l) => l.extra.chapter === chapterNum)
+    setAmbientBgm(link ? `${apiBase}${link.asset.url}` : null)
+  } catch {
+    /* silent */
+  }
+}
+
+async function applyBgmByMood(mood: string) {
+  try {
+    const all = await assetsApi.list({ kind: 'audio', category: 'bgm' })
+    const match = all.find((a) => (a.tag as { mood?: string }).mood === mood)
+    if (match) setAmbientBgm(`${apiBase}${match.url}`)
+  } catch { /* silent */ }
 }
 
 const modelSwitchOpen = ref(false)
@@ -657,7 +710,8 @@ onUnmounted(() => {
 
 <template>
   <div class="flex h-full">
-    <section class="flex-1 flex flex-col bg-slate-50 transition-colors duration-700" :class="`mood-${sceneMood}`">
+    <section class="flex-1 flex flex-col bg-slate-50 transition-colors duration-700 relative" :class="`mood-${sceneMood}`">
+      <SceneBackdrop :image-url="sceneImageUrl" />
       <header class="px-6 py-3 border-b bg-white flex items-center justify-between">
         <div class="flex items-center gap-3 flex-wrap">
           <CharacterAvatar

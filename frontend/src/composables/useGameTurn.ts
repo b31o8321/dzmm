@@ -113,6 +113,9 @@ export interface UseGameTurnHooks {
   onScroll?: () => void           // 有新文本时滚动到底部
   onTurnDone?: () => void         // 回合结束后执行（如刷新 NPC 列表）
   onNpcInitiative?: (npcName: string) => void  // NPC 主动出场时触发
+  onLocationEnter?: (locationName: string) => void  // 玩家进入新地点时触发
+  onBgmChange?: (mood: string) => void              // GM 切换背景音乐情绪时触发
+  onChapterAdvance?: () => void                      // 章节推进时触发
 }
 
 
@@ -266,6 +269,18 @@ export function useGameTurn(
           else if (name === 'npc_initiative') {
             // NPC 主动出场：通知 GameView 触发 NPC tick（让 NPC 说话）
             hooks.onNpcInitiative?.(attrs.npc ?? '')
+          }
+          else if (name === 'location_enter') {
+            // 玩家进入新地点：通知 GameView 加载场景图和环境音
+            hooks.onLocationEnter?.(attrs.name ?? '')
+          }
+          else if (name === 'bgm') {
+            // GM 切换背景音乐情绪：通知 GameView 切换 BGM
+            hooks.onBgmChange?.(attrs.mood ?? '')
+          }
+          else if (name === 'chapter_advance') {
+            // 章节推进：通知 GameView 重新加载章节 BGM
+            hooks.onChapterAdvance?.()
           }
         },
 
