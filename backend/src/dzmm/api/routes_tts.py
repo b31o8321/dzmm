@@ -59,6 +59,20 @@ class DirectTtsRequest(BaseModel):
     model: str = Field("tts-1", max_length=120)
 
 
+@router.get("/probe")
+async def probe_tts(url: str):
+    """Check if an external TTS service is reachable (tries /health then /v1/models)."""
+    base = url.rstrip("/")
+    async with httpx.AsyncClient(timeout=5) as client:
+        for path in ("/health", "/v1/models", "/"):
+            try:
+                r = await client.get(f"{base}{path}")
+                return {"ok": True, "status": r.status_code, "url": f"{base}{path}"}
+            except httpx.RequestError:
+                continue
+    return {"ok": False, "status": None, "url": base}
+
+
 @router.post("/direct")
 async def direct_tts(body: DirectTtsRequest):
     """Proxy synthesis to an arbitrary OpenAI-compatible TTS endpoint (LAN or localhost)."""
