@@ -2,6 +2,62 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.9.0] - 2026-05-07
+
+**深度 Pack — Dice 演出 / NPC 长期记忆 / 派系系统 / 战斗聚合 / 大事记**
+
+主轴：让每次 dice 检定从「一行字」升格成「叙事密度峰值」——感官细节 + NPC 反应 + 翻滚动画。配套铁律改 GM 节奏：非 dice 回合白描快推进，dice 回合慢镜头。同时给 NPC 长期记忆 + 派系厚度，让世界从面变成体。
+
+### 新增
+
+#### 🎲 Dice 演出系统
+- **`<dice>` 三段式 schema** —— 机制层（category + outcome + d20 + DC）+ `<scene>` 子标签（2-4 句感官细节）+ `<reaction speaker mood>` 子标签（NPC 反应）
+- **7 类 dice category** —— combat / stealth / persuasion / arcane / athletics / perception / knowledge / generic
+- **4 级结果** —— crit_success（金色 + 闪光）/ success / fail / crit_fail（红色 + 阴影）
+- **DiceShowcase 组件** —— 三段式卡片，stage-sequenced 动画揭示（翻滚 0-800ms → 结果 800ms → scene 1100ms → reactions 1500ms 起逐条）
+- **D20Roll SVG 组件** —— 六边形 d20 + animate-spin 翻滚 + 数字弹出
+- **铁律 31** —— dice 必须详写：scene 不可少，相关 NPC 在场必须 reaction
+- **铁律 32** —— 节奏倾斜：非 dice 回合白描，dice 回合慢镜头；不要每段都堆细节
+- **新示范5** —— gm_few_shot 加 stealth 成功正面示例 + bare-dice 反面示例
+
+#### ⚔️ Combat 聚合视图
+- **`<combat_start>` / `<combat_end winner="..."/>`** 标签 —— enemies 列表（JSON 数组）作为内容
+- **CombatPanel 组件** —— 跨回合包裹 combat_start..combat_end 之间的所有 turn 卡片，header 显示「⚔️ 战斗中」+ HP 条（PC + 每个敌人）
+- **TurnArticle 抽出** —— 把 MessageList 里的单回合渲染独立成可复用组件，便于 CombatPanel 包裹
+
+#### 🧠 NPC 长期记忆（ChromaDB）
+- 每个 NPC 一个 `npc_mem_{npc_id}` collection（存储路径 `~/.dzmm/chroma_npc/`）
+- 每次 `<say>` 后 `asyncio.create_task` 异步把内容嵌入对应 NPC 的 collection（速度不阻塞 SSE）
+- `_build_key_facts` 时对在场 NPC（最多 4 个）retrieve top-3 与当前行动相关的回忆，注入「## XXX 私人记忆（仅 GM 可见）」段
+- 完全 fail-soft：Ollama / ChromaDB 任意环节出错都静默降级（记忆是软增强，不能阻塞主流程）
+
+#### ⚖️ 派系 / 势力系统
+- **`factions` 表** —— name / ideology / description / leader_npc_id / pc_reputation (-100..100) / hostile_to / allied_to
+- **NPC.faction_id** 列 —— 每个 NPC 可关联到一个派系
+- **`<faction_create name ideology hostile_to allied_to>...</faction_create>`** —— 创建派系（idempotent by name）
+- **`<faction_change name="X" rep_delta="N"/>`** —— PC 名声变化（自动 clamp ±100）
+- **GET /sessions/{id}/factions** —— 列出该会话的所有派系
+- **FactionGraph 组件** —— StatePanel ⚖️ 势力 抽屉，按口碑配色（盟友绿 / 敌人红 / 中立灰），显示 hostile_to/allied_to 关系
+- **GM prompt 注入「## 势力关系」段** —— PC 在各派系中的口碑 + 立场
+- **铁律 27** —— NPC 行为应与所属派系利益一致
+
+#### 📅 历史时间线抽屉
+- **Timeline 组件** —— StatePanel 📅 大事记 抽屉，按 turn 时间轴展示 plot_event（new_quest / hook_introduced / major_event / location_entered / hook_resolved），按 type 配色 + 图标
+- 复用现有 `threads` prop，不新增 API 调用
+
+### 数据库
+- 新表：`factions`（10 列）
+- 新列：`npcs.faction_id`（nullable FK to factions）
+- `_V033_MIGRATIONS` additive，可从 v0.8 直升
+
+### 测试
+- `tests/test_stream_parser.py` +3（dice nested / legacy / combat+faction tags）
+- `tests/test_npc_memory.py` 8 项（graceful degradation）
+- `tests/test_factions.py` 5 项（list / create+change / idempotent / clamp / JSON 解析）
+- 总后端测试 430 → 446
+
+---
+
 ## [v0.8.0] - 2026-05-07
 
 **沉浸感 Pack — 资源系统 / Wizard 集成 / 自动播放 / 时间日历 / 快捷动作 / NSFW 开关**

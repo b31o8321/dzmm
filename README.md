@@ -4,7 +4,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active development · current release **v0.8.0**. See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active development · current release **v0.9.0**. See [CHANGELOG](CHANGELOG.md) for the full history.
 
 ---
 
