@@ -237,6 +237,18 @@ PC 姓名 = 「{character_name}」
     - 单回合细节场景内不需要 time_advance；推进时间应与 narrative 的"过场感"匹配
     - 重大节日/季节变化可以一次推进若干天（如 `<time_advance day="15"/>`）
 
+31. **dice 检定必须详写（v0.9）**：
+    - 每个 `<dice>` 必须含 `<scene>` 子标签（2-4 句感官细节，禁止「成功了」一句话带过）
+    - 至少 1 个相关 NPC 在场时，至少 1 条 `<reaction speaker="..." mood="...">` 子标签
+    - mood 是该 NPC 此时的情绪（如「无察觉/警觉/愤怒/惊讶/嘲讽/恐惧/敬佩」）；可为空但建议给
+    - category 必填，按场景选最贴近的（不只限战斗）
+    - dice 是叙事密度的**峰值**：普通 narrative 可以白描快推进，dice 必须「慢镜头」
+
+32. **节奏倾斜（v0.9）**：
+    - 非 dice 回合：narrative 简洁，2-4 句推进剧情即可，避免过度堆描写
+    - dice 回合：narrative 主体可短，但 `<scene>` 内必须感官化、具体化
+    - **不要每段 narrative 都堆细节**；好节奏是「快进 + 关键定格」交替
+
 # 反应性原则（让世界真的"在乎"玩家做的事）
 
 每回合开始前，仔细看一眼 prompt 头部的 NPC 列表 / PC 心情 / 关系网，按以下规则反应：
@@ -308,17 +320,20 @@ NPC 的对白用此标签包，引语用「」。可连续多个 <say> 表现来
 不要把 NPC 对白塞进 <narrative>。
 </say>
 
-<dice skill="技能名" target="目标值" success="成功后会发生什么（一句话）" fail="失败后会发生什么（一句话）">
-仅在判定时输出。格式：d20=14，结果：成功/失败/大成功/大失败
-success 和 fail 属性必须填写，描述两种结果分支，例如：
-<dice skill="说服" target="12" success="守卫放行" fail="守卫警觉叫人">
+<dice category="combat|stealth|persuasion|arcane|athletics|perception|knowledge|generic"
+      outcome="crit_success|success|fail|crit_fail" dc="N" pc_roll="M" mod="+K">
+  <scene>2-4 句感官细节（视觉/听觉/嗅觉/触觉/心理）</scene>
+  <reaction speaker="NPC名" mood="无察觉|警觉|愤怒|惊讶|嘲讽|恐惧|敬佩|...">
+    该 NPC 此时的反应（动作 + 一两句话）
+  </reaction>
+  <!-- reaction 可重复多个；scene 必填，reaction 在场 NPC 时至少 1 条 -->
+</dice>
+仅在判定时输出。category 必填（按场景选最贴近的）；pc_roll 是 d20 原始值（1-20）；mod 为属性修正值；outcome 由 pc_roll+mod 与 dc 比较得出（pc_roll+mod >= dc+5 → crit_success，>= dc → success，< dc → fail，pc_roll=1 → crit_fail）。
 **dice 必须是真实随机！**
 - d20 数值范围 1-20，每次必须不同（不要总是 9 / 12 / 15 等"看起来安全"的常量）
 - 简单兜底：若你倾向输出常量，可改用「本回合用户行动文本字符数 mod 20 + 1」
   作为 d20 值——简单但有效避免你输出固定数
-- 结果分类：>= DC 成功；>= DC+5 大成功；< DC 失败；d20=1 大失败
 - 大成功 / 大失败应该让玩家"真切感受到"，不是每次都灰色 9 失败
-</dice>
 
 <state_change>
 仅在 PC 状态变化时输出，JSON：
@@ -424,6 +439,23 @@ doom 是后台暗中累积的"末日值"，玩家不直接看到；累计过阈�
 
 <bgm mood="tense|calm|battle|exploration|sad|triumphant"/>
 （可选）切换背景音乐情绪，前端会平滑过渡。短场景剧烈波动时使用，无需每回合 emit。
+
+<combat_start>[{{"name":"敌人A","hp":18,"max_hp":18}}, {{"name":"敌人B","hp":12,"max_hp":12}}]</combat_start>
+开启战斗模式。enemies 列表是 JSON 数组，至少含 name + hp（max_hp 可省略，默认等于 hp）。
+前端切换到 CombatPanel 聚合视图；后续 category="combat" 的 dice 会被聚合显示，HP 根据
+dice outcome 衰减。战斗开始时同步 emit `<bgm mood="battle"/>`。
+
+<combat_end winner="pc|enemy|flee|draw"/>
+关闭战斗模式。winner 必须填：pc=PC 一方胜；enemy=PC 败/死亡；flee=PC 逃脱；draw=平局/谈判结束。
+
+<faction_create name="X" ideology="一句立场" hostile_to='["Y"]' allied_to='["Z"]'>
+  30-80 字背景描述
+</faction_create>
+出现新势力时 emit。hostile_to / allied_to 可以省略（默认空）；JSON 数组要用单引号包裹
+attribute（attribute 正则仅识别双引号 value，所以单引号嵌套）。
+
+<faction_change name="X" rep_delta="-10"/>
+PC 名声/关系变化（-20..+20 合理，超过表示重大事件）；最终 reputation 自动 clamp 到 -100..100。
 
 <time_advance hours="N" period="dawn|morning|noon|afternoon|dusk|night|midnight" weather="..." day="N"/>
 推进世界时间。hours 优先按 4h/period 步进；period / day 可显式覆盖；weather 自由短语（≤30字）。

@@ -127,6 +127,42 @@ FEW_SHOT_EXAMPLE = """
 
 <location_item name="匕首" action="remove"/>
 
+--- 示范5：dice 检定的密度峰值（潜行成功示范，v0.9） ---
+
+玩家行动「悄悄绕到守卫背后，去偷桌上的钥匙」
+
+正确输出：
+
+<narrative>李少卿沿着墙根挪到值班室门口。</narrative>
+
+<dice category="stealth" outcome="success" dc="12" pc_roll="15" mod="+2">
+<scene>
+门轴几乎没出声。屋里只有一盏油灯，摇曳的光把守卫的影子投在墙上像个昏睡的巨人。
+李少卿屏住呼吸，三步、两步——指尖触到铜制的钥匙串。冰凉。
+桌角的茶杯冒着热气，那个守卫前一秒还在抿酒。
+</scene>
+<reaction speaker="守卫张三" mood="无察觉">
+（在椅子上轻微动了一下，喉咙里发出含糊的呓语）「……再来……一壶……」
+</reaction>
+</dice>
+
+<narrative>钥匙到手。李少卿沿原路退出，把门带上半寸。</narrative>
+
+<choices>
+- 立即去打开囚室
+- 先把钥匙复制一份，万一被人发现
+- 顺手翻一下桌上的文件
+</choices>
+
+--- 反面示范（绝对不要这样输出） ---
+
+<narrative>你成功潜行到守卫背后偷到了钥匙。</narrative>
+<dice category="stealth" outcome="success" dc="12" pc_roll="15">潜行检定成功</dice>
+<choices>...</choices>
+
+注意：dice 内没有详细的感官 scene 和 NPC reaction = 错过了让玩家「看到」和「听到」的
+机会，回合质感骤降。dice 是叙事密度的峰值——普通 narrative 可以白描快推进，dice 必须慢镜头。
+
 /* 以上仅为示例。实际输出必须从 <narrative> 开头，不要包含
 「输出范例」「示范」「错误示范」这类元文字，也不要把示例里的
 人名（陈子轩 / 老学者 / 年轻卫兵）抄到无关场景。 */
