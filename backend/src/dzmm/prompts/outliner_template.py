@@ -17,34 +17,34 @@ _OUTLINER_SYSTEM = """你是一位经验丰富的 TRPG 编剧。你的任务是�
 
 # 输出格式（必须严格的 JSON，不要 markdown 代码块包裹）
 
-{{
+{
   "chapters": [
-    {{
+    {
       "title": "第一章：副标题",
       "summary": "本章 50-80 字概要",
       "main_events": [
-        {{
+        {
           "description": "主线事件描述（20-40字）",
           "keywords": ["触发关键词1", "关键词2", "关键词3"],
           "criteria": "完成标准：具体可判断的一句话（15-25字）"
-        }}
+        }
       ],
       "optional_events": [
-        {{
+        {
           "description": "支线事件描述",
           "keywords": ["关键词1", "关键词2"],
           "criteria": "完成标准"
-        }}
+        }
       ],
       "main_npcs": ["本章重要 NPC 名"]
-    }}
+    }
   ],
   "main_characters": [
-    {{"name": "NPC 名", "role": "盟友/对手/导师/...", "description": "30-60 字", "intro_chapter": 1}}
+    {"name": "NPC 名", "role": "盟友/对手/导师/...", "description": "30-60 字", "intro_chapter": 1}
   ],
   "ending": "60-100 字描述故事的最终高潮和闭幕条件",
   "opening_hook": "100-200 字开篇引子，给玩家看作为开局，**绝不剧透后续章节**——只交代起点环境、PC 处境、最初的契机"
-}}
+}
 
 # 章节数量
 3-5 章。少于 3 章故事单薄，多于 5 章节奏拖沓。
