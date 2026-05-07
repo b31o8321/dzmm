@@ -2,6 +2,12 @@ from dzmm.models.client import Message
 from dzmm.prompts.gm_template import build_gm_messages
 
 
+def _all_sys(msgs):
+    """Join all system messages content (v0.9.1: static + dynamic split)."""
+    return "\n\n".join(m.content for m in msgs if m.role == "system")
+
+
+
 def test_system_message_contains_world_and_character():
     msgs = build_gm_messages(
         world_md="赛博朋克末世，企业掌权。",
@@ -14,13 +20,13 @@ def test_system_message_contains_world_and_character():
         recent_messages=[],
         current_action="环顾四周",
     )
-    sys_msg = msgs[0]
-    assert sys_msg.role == "system"
-    assert "赛博朋克" in sys_msg.content
-    assert "Riku" in sys_msg.content
-    assert "义体黑客" in sys_msg.content
-    assert "<narrative>" in sys_msg.content
-    assert "不替 PC 做决定" in sys_msg.content
+    assert msgs[0].role == "system"
+    sys_text = _all_sys(msgs)
+    assert "赛博朋克" in sys_text
+    assert "Riku" in sys_text
+    assert "义体黑客" in sys_text
+    assert "<narrative>" in sys_text
+    assert "不替 PC 做决定" in sys_text
 
 
 def test_user_message_is_current_action():
@@ -44,7 +50,7 @@ def test_dice_rule_emphasizes_randomness():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     assert "<dice" in sys_text and "d20" in sys_text
     # At least one explicit randomness-cue must appear in the dice block.
     cues = ["随机", "每次不同", "常量"]
@@ -64,11 +70,12 @@ def test_recent_messages_inserted_between_system_and_action():
         story_summary="", key_facts="",
         recent_messages=history, current_action="向前走",
     )
+    # v0.9.1: prompt is now system(static) + system(dynamic) + history + user
     roles = [m.role for m in msgs]
-    assert roles == ["system", "user", "assistant", "user"]
-    assert msgs[1].content == "开门"
-    assert msgs[2].content == "<narrative>门打开了</narrative>"
-    assert msgs[3].content == "向前走"
+    assert roles == ["system", "system", "user", "assistant", "user"]
+    assert msgs[2].content == "开门"
+    assert msgs[3].content == "<narrative>门打开了</narrative>"
+    assert msgs[4].content == "向前走"
 
 
 def test_summary_and_key_facts_included_when_present():
@@ -79,7 +86,7 @@ def test_summary_and_key_facts_included_when_present():
         key_facts="进行中任务：取回芯片",
         recent_messages=[], current_action="去酒吧",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "PC 已击败山猫" in sys
     assert "进行中任务" in sys
 
@@ -91,7 +98,7 @@ def test_opening_hint_when_no_history():
         story_summary="", key_facts="",
         recent_messages=[], current_action="(开始游戏)",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "开局" in sys
 
 
@@ -102,7 +109,7 @@ def test_rules_mode_light_disables_dice_requirement():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "轻量化" in sys
 
 
@@ -116,8 +123,10 @@ def test_format_reinforcement_at_end():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content.rstrip()
-    last_paragraph = sys.split("\n\n")[-1]
+    # v0.9.1: prompt split into static prefix + dynamic block. Format
+    # reminder lives at the end of the static prefix (msgs[0]).
+    static_prompt = msgs[0].content.rstrip()
+    last_paragraph = static_prompt.split("\n\n")[-1]
     assert "<narrative>" in last_paragraph
     assert "必须" in last_paragraph or "立即" in last_paragraph
 
@@ -129,7 +138,7 @@ def test_plot_event_format_in_prompt():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "<plot_event" in sys
     assert "plot_event" in sys
 
@@ -141,7 +150,7 @@ def test_standard_rules_emits_dice_instructions():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "d20" in sys
     assert "DC" in sys
 
@@ -153,7 +162,7 @@ def test_light_rules_explicitly_no_dice():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "不要输出 <dice>" in sys
 
 
@@ -164,7 +173,7 @@ def test_character_xp_documented():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     # Tag is documented in the format spec
     assert "<character_xp" in sys
     # And mentioned in the behavior rules
@@ -178,7 +187,7 @@ def test_pc_goal_documented():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "<pc_goal" in sys
     assert "PC 目标" in sys or "玩家明确表达意图" in sys
 
@@ -190,7 +199,7 @@ def test_pc_mood_documented():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "<pc_mood>" in sys
     assert "PC 心情" in sys
 
@@ -202,7 +211,7 @@ def test_npc_relation_documented():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "<npc_relation" in sys
     assert "NPC 关系" in sys
 
@@ -214,7 +223,7 @@ def test_npc_emotion_field_documented():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     # The npc_update emotion field is documented with the 5 axes.
     assert "anger" in sys
     assert "love" in sys
@@ -230,7 +239,7 @@ def test_emotion_mood_relation_behavior_rules_present():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     # Emotion threshold still present in reactive principles
     assert "≥70" in sys
     # emotion field still documented in npc_update format
@@ -248,7 +257,7 @@ def test_few_shot_example_present():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "输出范例" in sys
     assert "</narrative>" in sys
     assert "</state_change>" in sys
@@ -263,7 +272,7 @@ def test_reactivity_principles_present():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "反应性原则" in sys
     # 关键提示词必须出现
     assert "情绪" in sys
@@ -279,7 +288,7 @@ def test_reactivity_addresses_pc_goals():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     # 反应性原则那一节应该说到 PC 目标
     reactivity_section_idx = sys.find("反应性原则")
     assert reactivity_section_idx >= 0
@@ -295,7 +304,7 @@ def test_reactivity_emphasizes_action_not_telling():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     # 关键约束：show don't tell
     assert "用动作和对话" in sys or "show don" in sys.lower() or "动作" in sys
 
@@ -315,7 +324,7 @@ def test_pc_name_lock_in_system_prompt():
         recent_messages=[], current_action="x",
         character_name="沈三川",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     assert "沈三川" in sys_text
     # 强约束词：永远 / 不可改 至少一个出现
     assert "永远" in sys_text or "不可改" in sys_text
@@ -330,7 +339,7 @@ def test_pc_name_lock_via_character_md_extraction():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     assert "沈三川" in sys_text
 
 
@@ -342,7 +351,7 @@ def test_npc_reactivity_baseline_rule():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     assert "搭话" in sys_text or "提问" in sys_text
     assert "反应兜底" in sys_text or "必须有可被感知" in sys_text or "NPC 反应兜底" in sys_text
 
@@ -355,30 +364,30 @@ def test_input_perspective_rule():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     assert "导演视角" in sys_text and ("代入视角" in sys_text or "第一人称" in sys_text)
 
 
 def test_say_tag_documented():
     """问题 9 — 引入 <say speaker="..."> 与 <pc_action> 区分对白主体。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "<say speaker" in sys_text
     assert "pc_action" in sys_text
 
 
 def test_hidden_event_tag_documented():
     """问题 10 — <hidden_event> 隐性事件标签必须被文档化。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "hidden_event" in sys_text
     assert "consequence" in sys_text
     assert "玩家" in sys_text and (
@@ -388,24 +397,24 @@ def test_hidden_event_tag_documented():
 
 def test_narrative_length_guidance():
     """问题 5 — narrative 描写过短。必须明示字数与丰度要求。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "200" in sys_text or "300" in sys_text or "400" in sys_text
     assert "钩子" in sys_text or "线索" in sys_text or "推" in sys_text
 
 
 def test_npc_update_first_mention_rule():
     """问题 7 — NPC 首次提名必须 emit npc_update 自动登记档案。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert (
         "首次提名" in sys_text
         or "首次提到" in sys_text
@@ -415,12 +424,12 @@ def test_npc_update_first_mention_rule():
 
 def test_output_order_rule_present():
     """问题 9 — 输出顺序：narrative → pc_action → say 自然交错。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "发生顺序" in sys_text or "顺序" in sys_text
     # 至少一处明确说 narrative + pc_action + say 三种共存
     assert "pc_action" in sys_text and "<say" in sys_text and "<narrative>" in sys_text
@@ -428,12 +437,12 @@ def test_output_order_rule_present():
 
 def test_few_shot_uses_new_tags():
     """范例必须升级到使用 say / pc_action / hidden_event 等新标签。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="standard", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     # 范例段中包含至少一个 say / pc_action / hidden_event
     example_idx = sys_text.find("输出范例")
     assert example_idx >= 0
@@ -456,7 +465,7 @@ def test_pc_hook_rule_present():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     assert "PC 钩子" in sys_text
     assert "能力" in sys_text and "物品" in sys_text and "弱点" in sys_text
     # 节奏数字必须明示
@@ -465,12 +474,12 @@ def test_pc_hook_rule_present():
 
 def test_numerical_anchoring_rule_present():
     """铁律 21/PC钩子 — DC参考、能力/物品/弱点的钩子规则。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     # DC reference still present in dice format docs
     assert "DC" in sys_text
     # PC hooks rule still present in secondary rules
@@ -484,12 +493,12 @@ def test_numerical_anchoring_rule_present():
 
 def test_rule_information_progress_present():
     """铁律 4 — 关键信息必须直给，禁止拖延。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "关键信息" in sys_text or "告诉我" in sys_text
     assert "本回合" in sys_text  # 推进义务
     assert "时机未到" in sys_text or "以后再说" in sys_text  # 拖延禁止
@@ -497,24 +506,24 @@ def test_rule_information_progress_present():
 
 def test_rule_world_state_progress_present():
     """铁律 23 — 每回合世界状态必须前进。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "世界状态" in sys_text or "前进" in sys_text
     assert "原地循环" in sys_text or "重复" in sys_text  # 防原地
 
 
 def test_rule_name_self_check_present():
     """铁律 1 — PC 姓名锁，不能漂移。"""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "漂移" in sys_text  # name drift is forbidden
     assert "不替 PC" in sys_text or "不替 PC 做决定" in sys_text
 
@@ -529,7 +538,7 @@ def test_few_shot_example_uses_actual_pc_name():
         recent_messages=[], current_action="x",
         character_name="测试主角",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
 
     # 实际 PC 名必须出现在范例中
     assert "测试主角" in sys_text
@@ -550,7 +559,7 @@ def test_few_shot_example_pc_name_substituted_from_md():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys_text = msgs[0].content
+    sys_text = _all_sys(msgs)
     example_idx = sys_text.find("输出范例")
     assert example_idx >= 0
     example_section = sys_text[example_idx:]
@@ -566,12 +575,12 @@ def test_few_shot_example_pc_name_substituted_from_md():
 
 
 def test_rule_22_explicit_question_patterns():
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "告诉我" in sys_text or "是谁" in sys_text
     # forbidden delay phrases listed:
     assert "时机未到" in sys_text or "以后再说" in sys_text
@@ -580,24 +589,24 @@ def test_rule_22_explicit_question_patterns():
 
 
 def test_rule_22_repeated_question_must_repeat_answer():
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     # key info must be given directly; forbidden delay phrases must be named
     assert "时机未到" in sys_text or "以后再说" in sys_text
 
 
 def test_few_shot_includes_correct_information_example():
     """The new example demonstrates a question→answer flow with a concrete name."""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     # The good example should mention 陈子轩 + 清风茶寮 + 九龙黑街 (concrete proper nouns)
     assert "陈子轩" in sys_text
     assert "清风茶寮" in sys_text or "九龙黑街" in sys_text
@@ -605,12 +614,12 @@ def test_few_shot_includes_correct_information_example():
 
 def test_few_shot_includes_anti_pattern():
     """The example should also call out the wrong pattern by name."""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "错误示范" in sys_text or "错误原因" in sys_text
     assert "拖延" in sys_text or "循环" in sys_text
 
@@ -623,12 +632,12 @@ def test_few_shot_includes_anti_pattern():
 def test_gm_prompt_documents_screenplay_tags():
     """All four screenplay-driven tags must appear in the tag dictionary so
     the GM has a reference for syntax + when to emit each one."""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     assert "<chapter_advance" in sys_text
     assert "<event_complete" in sys_text
     assert "<plot_turn" in sys_text
@@ -640,12 +649,12 @@ def test_gm_prompt_documents_screenplay_tags():
 def test_gm_prompt_rule_24_screenplay_obedience():
     """Iron rule 7 (was 24) must explicitly tell the GM to follow '## 当前剧本进度'
     and emit the right tags as main events get played out."""
-    sys_text = build_gm_messages(
+    sys_text = _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
     # Rule 23 mentions screenplay + advance behavior
     assert "23." in sys_text
     assert "剧本进度" in sys_text
@@ -658,12 +667,12 @@ def test_gm_prompt_rule_24_screenplay_obedience():
 
 
 def _build_default_sys() -> str:
-    return build_gm_messages(
+    return _all_sys(build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
-    )[0].content
+    ))
 
 
 def test_rule_24_force_progress_present():
@@ -728,7 +737,7 @@ def test_choices_require_risk_differentiation():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "风险" in sys or "代价" in sys or "后果" in sys
     assert "高风险" in sys or "低风险" in sys or "风险档" in sys
 
@@ -742,7 +751,7 @@ def test_plot_event_throttle_rules_present():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "importance=1" in sys or 'importance="1"' in sys
     assert "每回合最多" in sys or "单回合最多" in sys or "max 1" in sys.lower()
 
@@ -756,7 +765,7 @@ def test_iron_law_29_plausibility_check_present():
         story_summary="", key_facts="",
         recent_messages=[], current_action="x",
     )
-    sys = msgs[0].content
+    sys = _all_sys(msgs)
     assert "29." in sys
     assert "穿越" in sys or "可信度" in sys or "根本没有路径" in sys
 

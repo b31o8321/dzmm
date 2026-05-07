@@ -156,10 +156,13 @@ async def test_character_level_injected_in_prompt(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
-    # Default level is 1; verify the GM sees it.
-    assert "Lv 1" in sys_msg
-    assert "等级" in sys_msg
+    # v0.9.1: prompt is split into static prefix + dynamic block + history.
+    # character_md (containing 等级 / Lv N) lives in the dynamic block.
+    all_system_text = "\n\n".join(
+        m.content for m in captured.last_messages if m.role == "system"
+    )
+    assert "Lv 1" in all_system_text
+    assert "等级" in all_system_text
 
 
 async def test_plot_threads_appear_in_next_prompt(seeded):
@@ -184,7 +187,7 @@ async def test_plot_threads_appear_in_next_prompt(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "神秘地图" in sys_msg
     assert "进行中的剧情线" in sys_msg or "hook_introduced" in sys_msg
 
@@ -237,7 +240,7 @@ async def test_pinned_npc_always_in_prompt(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "御坂雪" in sys_msg
     assert "外柔内刚的文学少女" in sys_msg
     assert "查清祖母遗物里咒符的来源" in sys_msg
@@ -267,7 +270,7 @@ async def test_pc_mood_appears_in_next_prompt(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "PC 当前心情" in sys_msg
     assert "tense" in sys_msg
     assert "60" in sys_msg
@@ -294,7 +297,7 @@ async def test_npc_relation_appears_in_next_prompt(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "NPC 关系" in sys_msg
     assert "御坂雪" in sys_msg
     assert "卫兵长" in sys_msg
@@ -311,7 +314,7 @@ async def test_key_facts_includes_pc_name_lock(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # Riku is the seeded PC name.
     assert "Riku" in sys_msg
     assert "PC 身份" in sys_msg
@@ -344,7 +347,7 @@ async def test_key_facts_includes_active_hidden_events(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "暗中状态" in sys_msg
     assert "小菱" in sys_msg
     assert "injury" in sys_msg
@@ -378,7 +381,7 @@ async def test_key_facts_skips_resolved_hidden_events(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # The key_facts injection lists each active event as a bullet:
     # "- [小菱·injury·t+N] ..."
     # That bullet must NOT appear when only resolved events exist. The static
@@ -473,7 +476,7 @@ async def test_key_facts_includes_pc_hooks_section(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "PC 钩子" in sys_msg
     assert "剑术" in sys_msg
     assert "玉佩" in sys_msg
@@ -496,7 +499,7 @@ async def test_key_facts_skips_hooks_when_profile_empty(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # The static system template mentions "PC 钩子" in rule 20 itself; the
     # injected key_facts section uses the heading "## PC 钩子（用上它们）" with
     # concrete bullet rows. Only the latter should be absent when profile is empty.
@@ -527,7 +530,7 @@ async def test_key_facts_includes_pc_numerical_state(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "PC 当前数值" in sys_msg
     assert "Lv 3" in sys_msg
     assert "力量=14" in sys_msg
@@ -560,7 +563,7 @@ async def test_key_facts_filters_unrevealed_npc_fields(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # Name must surface so GM can refer to the NPC.
     assert "小菱" in sys_msg
     # Hidden field values must NOT leak.
@@ -593,7 +596,7 @@ async def test_key_facts_includes_revealed_npc_fields(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "小菱" in sys_msg
     assert "已知的公开身份描述" in sys_msg
 
@@ -644,7 +647,7 @@ async def test_recall_drains_after_one_use(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "御坂雪" in sys_msg
     assert "外柔内刚的文学少女" in sys_msg
 
@@ -691,7 +694,7 @@ async def test_key_facts_injects_screenplay_progress(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "## 当前剧本进度" in sys_msg
     assert "第一章" in sys_msg
     assert "迷雾码头" in sys_msg
@@ -739,7 +742,7 @@ async def test_key_facts_marks_completed_events(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # The completed event_idx=0 must display as [done] 事件零, the other as
     # [pending] 事件一. We assert both signatures appear in order.
     done_idx = sys_msg.find("[done] 事件零")
@@ -766,7 +769,7 @@ async def test_key_facts_omits_screenplay_when_none(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     assert "GM 严格遵守主线，分支由 PC 探索触发" not in sys_msg
     assert "本章主线（必须演完才能推进下章）" not in sys_msg
     assert "（推进规则：主线 [pending]" not in sys_msg
@@ -818,7 +821,7 @@ async def test_key_facts_force_progress_after_3_turns_stuck(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # Use a header signature unique to the *injected* block — rule 24 in the
     # static template merely references the name 「⚠️ 剧情强推」 in prose,
     # so we anchor on the parenthesised "已 N 回合无主线进展" subtitle which
@@ -867,7 +870,7 @@ async def test_key_facts_no_force_when_recent_progress(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # Anchor on the *injected* header signature — rule 24 in the static
     # template references 「⚠️ 剧情强推」 in prose, so a bare substring
     # check would falsely fire. The unique signature is the parenthesised
@@ -912,7 +915,7 @@ async def test_key_facts_force_progress_uses_legacy_estimate(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # At turn 72 (>= 6) urgency escalates to ❗❗ 极度紧急; the shared subtitle
     # "已 N 回合无主线进展" uniquely identifies the injected block regardless.
     assert "回合无主线进展）" in sys_msg
@@ -951,7 +954,7 @@ async def test_force_advance_includes_emit_tag(seeded):
             pass
         await s.commit()
 
-    sys_msg = captured.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
     # The force-advance block must include the event_complete emit tag
     assert "event_complete" in sys_msg
     assert 'chapter="1"' in sys_msg
@@ -1062,7 +1065,7 @@ async def test_key_facts_warns_on_stuck_d20(seeded):
             pass
         await s.commit()
 
-    sys_msg = client.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in client.last_messages if m.role == "system")
     assert "Dice 警告" in sys_msg
     assert "d20=9" in sys_msg
 
@@ -1088,7 +1091,7 @@ async def test_key_facts_no_dice_warning_when_varied(seeded):
             pass
         await s.commit()
 
-    sys_msg = client.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in client.last_messages if m.role == "system")
     assert "Dice 警告" not in sys_msg
 
 
@@ -1113,7 +1116,7 @@ async def test_key_facts_no_dice_warning_when_only_two_same(seeded):
             pass
         await s.commit()
 
-    sys_msg = client.last_messages[0].content
+    sys_msg = "\n".join(m.content for m in client.last_messages if m.role == "system")
     assert "Dice 警告" not in sys_msg
 
 

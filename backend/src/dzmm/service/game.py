@@ -686,12 +686,39 @@ def _extract_pc_hooks(profile_md: str) -> dict[str, list[str]]:
     return out
 
 
+_CHARACTER_MD_BUDGET = 1200  # chars; trim wizard-generated profiles past this
+
+
+def _truncate_character_md(profile: str, budget: int = _CHARACTER_MD_BUDGET) -> str:
+    """Trim long PC profiles down to a ~budget character cap by keeping the
+    head (basic info + opening sections) and dropping later sections. Hooks
+    (abilities / items / weaknesses) are already extracted into key_facts
+    by _extract_pc_hooks, so trimming here doesn't lose the GM-actionable
+    parts — it just drops the prose-heavy backstory tail.
+
+    Strategy: if profile fits, return as-is; else cut at the last `\n## ` /
+    `\n# ` heading boundary that fits within budget; if no such boundary,
+    hard-cut at budget chars + ellipsis marker.
+    """
+    if len(profile) <= budget:
+        return profile
+    # Try to cut at a markdown section boundary
+    head = profile[:budget]
+    # Find last "\n## " or "\n# " inside head
+    cut = max(head.rfind("\n## "), head.rfind("\n# "))
+    if cut > budget // 2:  # only honor if reasonably far in
+        return profile[:cut].rstrip() + "\n\n（…后续详细背景已省略，详细钩子见 key_facts）"
+    return profile[:budget].rstrip() + "…\n\n（…profile 已截断，详细钩子见 key_facts）"
+
+
 def _format_character_card(char: Character) -> str:
     """Prepend `等级: Lv N` so the GM knows PC progression when narrating
-    challenges, NPC reactions, and XP awards."""
+    challenges, NPC reactions, and XP awards. Long profiles are truncated
+    (see _truncate_character_md)."""
     profile = (char.profile_md or "").strip()
     level_line = f"等级: Lv {char.level}"
     if profile:
+        profile = _truncate_character_md(profile)
         return f"{level_line}\n\n{profile}"
     return level_line
 
