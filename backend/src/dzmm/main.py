@@ -82,10 +82,26 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
 
 
 async def build_default_app() -> FastAPI:
+    import logging
+    from dzmm.config import APP_DIR
     from dzmm.seed_data import seed_if_empty
+    from dzmm.service.assets import init_paths as init_asset_paths, seed_builtin_assets
+
+    log = logging.getLogger(__name__)
 
     engine = get_engine()
     await init_db(engine)
     session_maker = async_session(engine)
     await seed_if_empty(session_maker)
+
+    # Resolve builtin assets dir (next to repo packaging/)
+    _pkg_root = Path(__file__).resolve().parent.parent.parent.parent  # repo root
+    builtin_dir = _pkg_root / "packaging" / "assets" / "builtin"
+    init_asset_paths(APP_DIR, builtin_dir)
+
+    async with session_maker() as _seed_session:
+        n_seeded = await seed_builtin_assets(_seed_session)
+        if n_seeded > 0:
+            log.info("seeded %d builtin assets", n_seeded)
+
     return create_app(session_maker)
