@@ -4,7 +4,7 @@ import { ElMessage, ElInput } from 'element-plus'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorldsStore } from '@/stores/worlds'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
-import { sessionsApi, type MessageRow, type Npc, type LocationItem } from '@/api/sessions'
+import { sessionsApi, type MessageRow, type Npc, type LocationItem, type WorldTime } from '@/api/sessions'
 import { charactersApi } from '@/api/characters'
 import type { Character } from '@/api/types'
 import { useAudio } from '@/composables/useAudio'
@@ -200,6 +200,7 @@ const {
     refreshGoals()  // pick up <pc_goal> add/complete
     refreshLocations()  // pick up <location_enter> updates
     refreshNpcLocations()  // pick up <npc_update location="..."> changes
+    refreshWorldTime()  // pick up <time_advance> updates
     refreshSuggestions()
     // TTS: speak the completed turn with per-speaker voices
     if (appStore.ttsEnabled && !appStore.muted) {
@@ -232,6 +233,7 @@ const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
 const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
+const worldTime = ref<WorldTime | null>(null)
 
 // Apply chapter BGM whenever screenplay loads or chapter changes
 watch(() => screenplay.value?.current_chapter, (ch) => {
@@ -277,6 +279,13 @@ async function refreshLocations() {
   } catch {
     /* ignore */
   }
+}
+
+async function refreshWorldTime() {
+  try {
+    const st = await sessionsApi.state(sessionId)
+    if (st.world_time) worldTime.value = { ...st.world_time }
+  } catch { /* ignore */ }
 }
 
 async function applyLocationAssets(locationName: string) {
@@ -586,6 +595,7 @@ onMounted(async () => {
     npcs.value = st.npcs.map((n) => ({ ...n }))
     threads.value = st.threads
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
+    if (st.world_time) worldTime.value = { ...st.world_time }
   } catch {
     /* ignore — fall through to the end-of-mount rehydrate below */
   }
@@ -663,6 +673,7 @@ onMounted(async () => {
     npcs.value = st.npcs.map((n) => ({ ...n }))
     threads.value = st.threads
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
+    if (st.world_time) worldTime.value = { ...st.world_time }
 
     // Augment with pinned flag and current_location from /npcs endpoint.
     try {
@@ -967,6 +978,7 @@ onUnmounted(() => {
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
                   :current-location="currentLocation"
+                  :world-time="worldTime ?? undefined"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
       <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
@@ -1006,6 +1018,7 @@ onUnmounted(() => {
                     :dice="dice" :threads="threads" :goals="goals"
                     :pc-mood="pcMood"
                     :current-location="currentLocation"
+                    :world-time="worldTime ?? undefined"
                     @select-npc="openNpcDetail"
                     @goal-status="updateGoal" />
         <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />

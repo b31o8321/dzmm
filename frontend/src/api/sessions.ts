@@ -18,10 +18,17 @@ export interface MessageRow {
   parts_json?: string | null
 }
 
+export interface WorldTime {
+  day: number
+  period: string
+  weather: string
+}
+
 export interface SessionState {
   stats: Record<string, number>
   inventory: string[]
   pc_mood?: Record<string, number>
+  world_time?: WorldTime
   npcs: { name: string; favor: number; state: string }[]
   threads: { type: string; description: string; importance: number }[]
 }

@@ -33,6 +33,7 @@ from dzmm.service.state_apply.doom import _apply_doom
 from dzmm.service.state_apply.location import _apply_location_enter
 from dzmm.service.state_apply.location_item import _apply_location_item
 from dzmm.service.state_apply.state_change import _apply_state_change
+from dzmm.service.state_apply.world_time import _apply_time_advance
 
 # Re-export for callers that imported these names from `_impl` directly
 # (e.g. via the `from _impl import *` wildcard in __init__.py).
@@ -91,3 +92,5 @@ async def apply_tags(
             await _apply_location_enter(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "location_item":
             await _apply_location_item(session, session_id, current_turn, tag.attrs, tag.content)
+        elif tag.name == "time_advance":
+            await _apply_time_advance(session, session_id, tag.attrs)

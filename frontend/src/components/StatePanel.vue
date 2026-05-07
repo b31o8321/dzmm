@@ -17,7 +17,21 @@ const props = defineProps<{
     description: string
     items?: { name: string; description: string }[]
   } | null
+  worldTime?: { day: number; period: string; weather: string }
 }>()
+
+const PERIOD_CN: Record<string, string> = {
+  dawn: '凌晨', morning: '上午', noon: '正午',
+  afternoon: '下午', dusk: '黄昏', night: '夜晚', midnight: '深夜',
+}
+
+const worldTimeStr = computed(() => {
+  if (!props.worldTime) return ''
+  const period = PERIOD_CN[props.worldTime.period] ?? props.worldTime.period
+  const parts = [`第 ${props.worldTime.day} 天`, period]
+  if (props.worldTime.weather) parts.push(props.worldTime.weather)
+  return parts.join(' · ')
+})
 
 const presentNpcs = computed(() =>
   props.currentLocation
@@ -65,6 +79,9 @@ function npcAvatarColor(name: string): string {
 
 <template>
   <aside class="w-80 bg-white border-l p-4 flex flex-col gap-4 overflow-auto">
+    <div v-if="worldTimeStr" class="text-xs text-slate-500 border-b pb-1.5 mb-2">
+      🕐 {{ worldTimeStr }}
+    </div>
     <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm mb-2">
       <span class="text-slate-500 text-xs">当前场所</span>
       <div class="font-bold text-blue-800">📍 {{ currentLocation.name }}</div>

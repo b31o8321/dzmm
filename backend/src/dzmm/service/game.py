@@ -57,6 +57,7 @@ from dzmm.service.world_rag import get_world_md
 from dzmm.service.activity_log import log_event
 from dzmm.service.npc_initiative import find_initiative_npc
 from dzmm.service.state_apply import apply_tags
+from dzmm.service.state_apply.world_time import format_world_time_cn
 from dzmm.service.state_apply.dice_monitor import (
     build_stuck_warning,
     detect_stuck_dice,
@@ -789,6 +790,13 @@ async def _build_key_facts(
             "无论后文如何，PC 的姓名必须始终是上面这个，不得改名、不得替换、不得简称为别的名字。"
         )
         parts.append("\n".join(identity_lines))
+
+    # v0.8 T11 — world time: inject current in-world day/period/weather so GM
+    # knows when to advance time and can reference it in narrative.
+    if sess is not None:
+        wt_str = format_world_time_cn(sess.world_time_json)
+        if wt_str:
+            parts.append(f"\n## 当前时间\n{wt_str}")
 
     if pinned_npcs:
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")

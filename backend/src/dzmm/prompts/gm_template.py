@@ -232,6 +232,11 @@ PC 姓名 = 「{character_name}」
     重新给出 3 个当下实际可执行的 choices，不在 narrative 里扮演 PC"清醒过来"或"放弃"。
     判断依据：「此刻场景里是否存在通向该行动的具体路径？」→ 有则演，无则拒。
 
+30. **合理推进时间（v0.8）**：
+    - 长途旅行、休息、过夜、跨场景过场，必须 emit `<time_advance>`，不要让世界永远停在第一天上午
+    - 单回合细节场景内不需要 time_advance；推进时间应与 narrative 的"过场感"匹配
+    - 重大节日/季节变化可以一次推进若干天（如 `<time_advance day="15"/>`）
+
 # 反应性原则（让世界真的"在乎"玩家做的事）
 
 每回合开始前，仔细看一眼 prompt 头部的 NPC 列表 / PC 心情 / 关系网，按以下规则反应：
@@ -419,6 +424,10 @@ doom 是后台暗中累积的"末日值"，玩家不直接看到；累计过阈�
 
 <bgm mood="tense|calm|battle|exploration|sad|triumphant"/>
 （可选）切换背景音乐情绪，前端会平滑过渡。短场景剧烈波动时使用，无需每回合 emit。
+
+<time_advance hours="N" period="dawn|morning|noon|afternoon|dusk|night|midnight" weather="..." day="N"/>
+推进世界时间。hours 优先按 4h/period 步进；period / day 可显式覆盖；weather 自由短语（≤30字）。
+跨午夜会自动 day+1。
 
 <chapter_advance/>
 本章 main_events 全部演完后输出此自闭合标签，推进到下一章。系统会把 Screenplay.current_chapter +1。

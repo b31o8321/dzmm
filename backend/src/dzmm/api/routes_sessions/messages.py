@@ -107,10 +107,21 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
     except (TypeError, ValueError):
         pc_mood = {}
 
+    try:
+        world_time = json.loads(sess.world_time_json or "{}")
+        if not isinstance(world_time, dict):
+            world_time = {}
+    except (TypeError, ValueError):
+        world_time = {}
+    world_time.setdefault("day", 1)
+    world_time.setdefault("period", "morning")
+    world_time.setdefault("weather", "clear")
+
     return {
         "stats": stats,
         "inventory": inventory,
         "pc_mood": pc_mood,
+        "world_time": world_time,
         "npcs": [
             {"name": n.name, "favor": n.favor, "state": n.state}
             for n in npc_rows
