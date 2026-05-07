@@ -341,7 +341,11 @@ async def run_turn(
         if existing_sp is None:
             await _auto_generate_screenplay(session, sess, world, char, client)
 
-    key_facts = await _build_key_facts(session, session_id, sess.turn_count, char)
+    key_facts = await _build_key_facts(
+        session, session_id, sess.turn_count, char,
+        ollama_base_url=ollama_base_url,
+        user_action=user_action,
+    )
 
     settings = json.loads(sess.settings_json or "{}")
 
@@ -552,6 +556,28 @@ async def run_turn(
 
     next_turn = sess.turn_count + 1
 
+    # v0.9 T6 — NPC long-term memory: record <say> lines asynchronously.
+    # Build name→id map, then fire-and-forget one task per qualifying say tag.
+    if ollama_base_url and completed_tags:
+        from dzmm.service.npc_memory import record_memory as _record_npc_memory
+        npc_rows_for_mem = (
+            await session.execute(
+                select(NPC).where(NPC.session_id == session_id)
+            )
+        ).scalars().all()
+        name_to_npc_id: dict[str, int] = {
+            n.name: n.id for n in npc_rows_for_mem if n.name and n.id
+        }
+        for _tag in completed_tags:
+            if _tag.name == "say":
+                _speaker = _tag.attrs.get("speaker", "") if _tag.attrs else ""
+                _npc_id = name_to_npc_id.get(_speaker)
+                _text = (_tag.content or "").strip()
+                if _npc_id and 20 < len(_text) <= 300:
+                    asyncio.create_task(
+                        _record_npc_memory(_npc_id, next_turn, _text, ollama_base_url)
+                    )
+
     session.add(MessageRow(
         session_id=session_id, role="user", content=user_action, turn=next_turn,
     ))
@@ -712,6 +738,8 @@ async def _build_key_facts(
     session_id: int,
     current_turn: int,
     character: Character | None = None,
+    ollama_base_url: str | None = None,
+    user_action: str = "",
 ) -> str:
     """Build NPC + plot context with a 3-pass union:
     1. Pinned NPCs (no limit) — full dossier
@@ -817,6 +845,22 @@ async def _build_key_facts(
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")
         for n in pinned_npcs:
             parts.append(_format_npc_dossier(n))
+
+    # v0.9 T6 — NPC long-term memory: inject top-k recalled lines per pinned
+    # NPC that match the current user action. Fire-and-forget on failure.
+    if ollama_base_url and user_action and pinned_npcs:
+        from dzmm.service.npc_memory import retrieve_memories as _retrieve_npc_memory
+        for npc in list(pinned_npcs)[:4]:
+            try:
+                mems = await _retrieve_npc_memory(npc.id, user_action, ollama_base_url)
+                if mems:
+                    parts.append(
+                        f"\n## {npc.name} 私人记忆（仅 GM 可见，NPC 行为应一致）"
+                    )
+                    for m in mems:
+                        parts.append(f"- {m}")
+            except Exception:  # noqa: BLE001
+                pass
 
     if recent_filtered:
         parts.append("\nNPC 列表：" if not pinned_npcs else "\n最近出现的其他 NPC：")

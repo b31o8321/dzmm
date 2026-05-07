@@ -104,6 +104,9 @@ async def build_default_app() -> FastAPI:
     builtin_dir = _pkg_root / "packaging" / "assets" / "builtin"
     init_asset_paths(APP_DIR, builtin_dir)
 
+    from dzmm.service.npc_memory import init_npc_memory
+    init_npc_memory(APP_DIR)
+
     async with session_maker() as _seed_session:
         n_seeded = await seed_builtin_assets(_seed_session)
         if n_seeded > 0:
