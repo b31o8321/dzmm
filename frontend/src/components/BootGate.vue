@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElDialog, ElButton } from 'element-plus'
-import { api, pingBackend } from '@/api/client'
+import { api, pingBackend, fetchHealth } from '@/api/client'
 import { useAppStore } from '@/stores/app'
 
 interface SystemStatus {
@@ -154,6 +154,24 @@ async function bootAfterBackendStarted() {
     }
     await new Promise((r) => setTimeout(r, 500))
   }
+
+  // Detect frontend/backend version skew. Shipped as a sidecar binary, the
+  // backend can lag the frontend after a partial rebuild — surface a warning
+  // banner so the user knows to repackage instead of debugging "missing route"
+  // errors silently.
+  fetchHealth(2000).then((h) => {
+    if (!h) return
+    const feVer = __APP_VERSION__
+    if (h.version && h.version !== feVer) {
+      logIt('frontend', 'warn', `版本不一致：前端 v${feVer}，后端 v${h.version}`)
+      ElMessage({
+        message: `⚠️ 后端 v${h.version} 与前端 v${feVer} 不一致，可能缺少新功能。请重新打包：python packaging/build.py`,
+        type: 'warning',
+        duration: 0,
+        showClose: true,
+      })
+    }
+  })
 
   if (await ensureOllama()) {
     phase.value = 'ready'
