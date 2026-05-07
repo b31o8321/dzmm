@@ -925,6 +925,7 @@ onUnmounted(() => {
         :character-name="character?.name"
         :sending="sending"
         :session-id="sessionId"
+        :stats="stats"
         :style="{ fontSize: fontSize + 'px', fontFamily }"
         @choose="(c: string) => sendActionDirect(c)"
         @open-events="(t: Turn) => openEvents(t)"

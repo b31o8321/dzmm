@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import { watch, nextTick, ref, computed } from 'vue'
 import { ElButton, ElMessage } from 'element-plus'
-import SpeakerBubble, { type Part } from '@/components/SpeakerBubble.vue'
-import MarkdownView from '@/components/MarkdownView.vue'
-import DiceShowcase from '@/components/game/DiceShowcase.vue'
+import CombatPanel from '@/components/game/CombatPanel.vue'
+import TurnArticle from '@/components/game/TurnArticle.vue'
 import type { Turn } from '@/composables/useGameTurn'
 import { useDebugStore } from '@/stores/debug'
 import { sessionsApi } from '@/api/sessions'
-import { parseDiceEvent } from '@/utils/diceParse'
 
 const props = defineProps<{
   turns: Turn[]
   characterName?: string
   sending?: boolean
   sessionId: number
+  stats?: Record<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -44,65 +43,79 @@ async function openDebug(turn: Turn) {
   }
 }
 
-// Parse <narrative>, <say speaker="..">, <pc_action> tags from raw GM content
-// into an ordered list of parts. Falls back to a single narration block when
-// no tags are found, so legacy messages still render.
-const PARTS_TAG_RE =
-  /<(narrative|narriative|say|pc_action)\b([^>]*)>([\s\S]*?)<\/(?:narrative|narriative|say|pc_action)>/gi
-const SPEAKER_ATTR_RE = /speaker="([^"]*)"/i
+// ── Combat segment types ───────────────────────────────────
 
-function parseParts(content: string): Part[] {
-  const parts: Part[] = []
-  PARTS_TAG_RE.lastIndex = 0
-  let m: RegExpExecArray | null
-  while ((m = PARTS_TAG_RE.exec(content)) !== null) {
-    const tag = m[1].toLowerCase()
-    const attrs = m[2] ?? ''
-    const text = (m[3] ?? '').trim()
-    if (!text) continue
-    if (tag === 'narrative' || tag === 'narriative') {
-      parts.push({ type: 'narration', text })
-    } else if (tag === 'say') {
-      const sm = SPEAKER_ATTR_RE.exec(attrs)
-      parts.push({ type: 'dialogue', speaker: sm?.[1], text })
-    } else if (tag === 'pc_action') {
-      parts.push({ type: 'pc_action', text })
-    }
-  }
-  if (parts.length === 0) {
-    const cleaned = content.trim()
-    if (cleaned) parts.push({ type: 'narration', text: cleaned })
-  }
-  return parts
+interface CombatBlock {
+  kind: 'combat'
+  startTurn: number
+  endTurn: number | null
+  enemies: Array<{ name: string; hp: number; max_hp?: number }>
+  winner?: string
+  turnIndices: number[]
 }
 
-// Compose what the chat bubble actually renders. Two states must coexist:
-//   - Streaming: t.narrative grows token-by-token via onNarrative; once GM
-//     emits the first <say>/<pc_action> close, onTag populates t.rawContent
-//     (which does NOT contain narrative). We must keep showing t.narrative
-//     so the live text doesn't vanish mid-stream.
-//   - Rehydrated history (onMounted) / post-onDone: rawContent holds the full
-//     payload including <narrative>...</narrative>. parseParts handles it; we
-//     skip its narration parts when t.narrative is already non-empty to avoid
-//     double-rendering.
-function displayParts(t: Turn): Part[] {
-  const parts: Part[] = []
-  const liveNarrative = t.narrative && t.narrative.trim()
-  if (liveNarrative) {
-    parts.push({ type: 'narration', text: t.narrative })
-  }
-  if (t.rawContent) {
-    for (const p of parseParts(t.rawContent)) {
-      if (liveNarrative && p.type === 'narration') continue
-      parts.push(p)
-    }
-  }
-  return parts
+interface NormalSeg {
+  kind: 'turn'
+  turnIdx: number
 }
+
+type Segment = CombatBlock | NormalSeg
+
+function parseEnemies(content: string): Array<{ name: string; hp: number; max_hp?: number }> {
+  try {
+    const arr = JSON.parse((content || '').trim())
+    if (Array.isArray(arr)) {
+      return arr
+        .map((e: any) => ({
+          name: String(e.name ?? ''),
+          hp: Number(e.hp ?? 0),
+          max_hp: e.max_hp != null ? Number(e.max_hp) : Number(e.hp ?? 0),
+        }))
+        .filter((e) => e.name)
+    }
+  } catch { /* malformed or legacy — return empty */ }
+  return []
+}
+
+const segments = computed<Segment[]>(() => {
+  const out: Segment[] = []
+  let combat: CombatBlock | null = null
+  for (let i = 0; i < props.turns.length; i++) {
+    const t = props.turns[i]
+    let openedThisTurn = false
+    for (const ev of t.events ?? []) {
+      if (ev.type === 'combat_start' && combat == null) {
+        combat = {
+          kind: 'combat',
+          startTurn: t.turn,
+          endTurn: null,
+          enemies: parseEnemies(String(ev.content ?? '')),
+          turnIndices: [i],
+        }
+        out.push(combat)
+        openedThisTurn = true
+      }
+      if (ev.type === 'combat_end' && combat != null) {
+        combat.endTurn = t.turn
+        combat.winner = ev.payload?.winner
+        combat = null
+      }
+    }
+    if (combat != null && !openedThisTurn) {
+      // Still in combat — add this turn to the block
+      combat.turnIndices.push(i)
+    } else if (combat == null && !openedThisTurn) {
+      // Normal (non-combat) turn
+      out.push({ kind: 'turn', turnIdx: i })
+    }
+    // If openedThisTurn: turn is already registered inside the combat block
+  }
+  return out
+})
 
 const recentPlotEvents = computed(() => {
   const events: string[] = []
-  const slice = props.turns.slice(0, -1).slice(-5)  // last 5 prior turns
+  const slice = props.turns.slice(0, -1).slice(-5)
   for (const t of slice) {
     for (const e of t.events ?? []) {
       if (e.type === 'plot_event' && e.content) {
@@ -110,7 +123,7 @@ const recentPlotEvents = computed(() => {
       }
     }
   }
-  return events.slice(-3)  // most recent 3 plot events
+  return events.slice(-3)
 })
 
 const isLastTurnLoading = computed(() => {
@@ -118,6 +131,10 @@ const isLastTurnLoading = computed(() => {
   const last = props.turns[props.turns.length - 1]
   return !!last && !last.narrative
 })
+
+// PC HP from stats
+const pcHp = computed(() => props.stats?.hp ?? props.stats?.HP ?? 0)
+const pcMaxHp = computed(() => props.stats?.max_hp ?? props.stats?.maxHp ?? props.stats?.max_HP ?? 0)
 
 // Auto-scroll to bottom whenever a new turn appears.
 watch(
@@ -136,74 +153,49 @@ defineExpose({ logEl })
     <div v-if="!turns.length" class="text-slate-400 italic">
       输入第一个行动开始跑团（例如：「(开始游戏)」让 GM 给你开局描写）
     </div>
-    <article v-for="(t, i) in turns" :key="i" class="space-y-2">
-      <div class="text-sm text-slate-500 font-medium">
-        ▶ {{ t.action }}
-        <button
-          v-if="debug.enabled && t.msgId"
-          class="text-xs text-slate-400 hover:text-slate-600 ml-1"
-          title="查看LLM原始数据"
-          @click="openDebug(t)"
-        >
-          🐛
-        </button>
-      </div>
-      <div class="relative bg-white rounded shadow-sm p-4">
-        <!-- Loading state: waiting for first LLM token -->
-        <template v-if="i === turns.length - 1 && isLastTurnLoading">
-          <div class="space-y-3">
-            <div class="flex items-center gap-2 text-slate-500 text-sm animate-pulse">
-              <span>⚔️ 行动中…</span>
-            </div>
-            <div v-if="recentPlotEvents.length" class="border-t pt-2 space-y-1">
-              <div class="text-xs text-slate-400 mb-1">— 近期事件 —</div>
-              <div
-                v-for="(ev, ei) in recentPlotEvents"
-                :key="ei"
-                class="text-xs text-slate-500 leading-relaxed"
-              >{{ ev }}</div>
-            </div>
-          </div>
-        </template>
-        <template v-else-if="displayParts(t).length">
-          <SpeakerBubble
-            v-for="(part, pi) in displayParts(t)"
-            :key="pi"
-            :part="part"
-            :pc-name="characterName"
-          />
-        </template>
-        <MarkdownView v-else :source="t.narrative" />
-        <!-- Inline dice showcase: one card per dice event, rendered sequentially -->
-        <template v-if="t.events && t.events.some(ev => ev.type === 'dice')">
-          <DiceShowcase
-            v-for="(ev, ei) in t.events.filter(ev => ev.type === 'dice')"
-            :key="'dice-' + ei"
-            :dice="parseDiceEvent(ev)"
-          />
-        </template>
-        <el-button
-          v-if="t.events && t.events.filter(ev => ev.type !== 'dice').length > 0"
-          size="small"
-          link
-          class="!absolute bottom-1 right-1 text-xs"
-          @click="emit('open-events', t)"
-        >
-          ⚙️ {{ t.events.filter(ev => ev.type !== 'dice').length }}
-        </el-button>
-      </div>
-      <div v-if="t.choices.length && i === turns.length - 1" class="space-y-1">
-        <button
-          v-for="(c, ci) in t.choices"
-          :key="ci"
-          type="button"
-          class="block w-full text-left bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded px-3 py-2 text-sm text-slate-700 transition"
-          @click="emit('choose', c)"
-        >
-          ▶ {{ c }}
-        </button>
-      </div>
-    </article>
+
+    <template v-for="(seg, si) in segments" :key="si">
+      <!-- Combat block: wrap covered turn cards in CombatPanel -->
+      <CombatPanel
+        v-if="seg.kind === 'combat'"
+        :enemies="seg.enemies"
+        :pc-hp="pcHp"
+        :pc-max-hp="pcMaxHp"
+        :ended="seg.endTurn != null"
+        :winner="seg.winner"
+        :turn-span="{ start: seg.startTurn, end: seg.endTurn }"
+      >
+        <TurnArticle
+          v-for="ti in seg.turnIndices"
+          :key="ti"
+          :turn="turns[ti]"
+          :turn-idx="ti"
+          :total-turns="turns.length"
+          :is-last-turn-loading="isLastTurnLoading"
+          :recent-plot-events="recentPlotEvents"
+          :character-name="characterName"
+          :session-id="sessionId"
+          @choose="emit('choose', $event)"
+          @open-events="emit('open-events', $event)"
+          @open-debug="openDebug($event)"
+        />
+      </CombatPanel>
+
+      <!-- Normal turn -->
+      <TurnArticle
+        v-else
+        :turn="turns[seg.turnIdx]"
+        :turn-idx="seg.turnIdx"
+        :total-turns="turns.length"
+        :is-last-turn-loading="isLastTurnLoading"
+        :recent-plot-events="recentPlotEvents"
+        :character-name="characterName"
+        :session-id="sessionId"
+        @choose="emit('choose', $event)"
+        @open-events="emit('open-events', $event)"
+        @open-debug="openDebug($event)"
+      />
+    </template>
   </div>
 
   <el-dialog
@@ -223,7 +215,16 @@ defineExpose({ logEl })
               :key="i"
               class="mb-2 border-b border-slate-200 pb-2"
             >
-              <span class="font-bold" :class="(msg as any).role === 'system' ? 'text-purple-600' : (msg as any).role === 'user' ? 'text-blue-600' : 'text-green-600'">
+              <span
+                class="font-bold"
+                :class="
+                  (msg as any).role === 'system'
+                    ? 'text-purple-600'
+                    : (msg as any).role === 'user'
+                    ? 'text-blue-600'
+                    : 'text-green-600'
+                "
+              >
                 [{{ (msg as any).role }}]
               </span>
               {{ (msg as any).content }}
