@@ -80,8 +80,12 @@ const inputRef = ref<InstanceType<typeof ElInput> | null>(null)
 
 const MODE_CHIPS = [
   { label: '⚔️ 行动', prefix: '' },
-  { label: '💬 对话', prefix: '对__说："' },
-  { label: '🔍 调查', prefix: '仔细调查 ' },
+  { label: '🔍 调查', prefix: '（仔细观察周围环境）' },
+  { label: '💬 交谈', prefix: '主动开口：「' },
+  { label: '🥷 隐匿', prefix: '（试着隐蔽自己，避免被发现）' },
+  { label: '⚔️ 攻击', prefix: '（拔出武器，攻击）' },
+  { label: '⏳ 等待', prefix: '（按兵不动，观察事态发展）' },
+  { label: '🎒 物品', prefix: '（取出物品：' },
   { label: '🎲 技能', prefix: '（用__尝试__）' },
 ] as const
 
@@ -106,18 +110,29 @@ const levelUpDialogOpen = ref(false)
 const settingsOpen = ref(false)
 const narrativePolish = ref(false)
 const directorPass = ref(false)
+const contentLevel = ref<'safe' | 'mature' | 'unrestricted'>('safe')
 
 async function loadSettings() {
   try {
     const s = await sessionsApi.getSettings(sessionId)
     narrativePolish.value = s.narrative_polish
     directorPass.value = s.director_pass
+    contentLevel.value = (s as any).content_level ?? 'safe'
   } catch { /* ignore */ }
 }
 
 async function toggleSetting(key: 'narrative_polish' | 'director_pass', val: boolean) {
   try {
     await sessionsApi.updateSettings(sessionId, { [key]: val })
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '保存失败')
+  }
+}
+
+async function setContentLevel(v: 'safe' | 'mature' | 'unrestricted') {
+  contentLevel.value = v
+  try {
+    await sessionsApi.updateSettings(sessionId, { content_level: v })
   } catch (e: any) {
     ElMessage.error(e.message ?? '保存失败')
   }
@@ -1093,6 +1108,14 @@ onUnmounted(() => {
               额外增加 5-15 秒延迟，润色完成后替换显示内容。
             </div>
           </div>
+        </div>
+        <div class="space-y-1">
+          <div class="text-sm font-medium">内容尺度</div>
+          <el-select :model-value="contentLevel" size="small" @change="setContentLevel">
+            <el-option label="🟢 安全" value="safe" />
+            <el-option label="🟡 成人向" value="mature" />
+            <el-option label="🔴 无限制" value="unrestricted" />
+          </el-select>
         </div>
       </div>
       <template #footer>

@@ -37,6 +37,7 @@ class PatchSettingsRequest(BaseModel):
     narrative_polish: bool | None = None
     director_pass: bool | None = None
     debug_mode: bool | None = None
+    content_level: str | None = None  # safe | mature | unrestricted
 
 
 @router.patch("/{session_id}/settings")
@@ -55,6 +56,8 @@ async def patch_session_settings(
         settings["director_pass"] = body.director_pass
     if body.debug_mode is not None:
         settings["debug_mode"] = body.debug_mode
+    if body.content_level in ("safe", "mature", "unrestricted"):
+        settings["content_level"] = body.content_level
     sess.settings_json = json.dumps(settings)
     await s.commit()
     return {"id": sess.id, "settings": settings}

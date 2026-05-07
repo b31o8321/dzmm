@@ -180,20 +180,21 @@ export const sessionsApi = {
     })
   },
 
-  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean; debug_mode?: boolean }> {
-    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean } }>(
+  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean; debug_mode?: boolean; content_level?: 'safe' | 'mature' | 'unrestricted' }> {
+    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean; content_level?: string } }>(
       `/sessions/${sessionId}/settings`,
     )
     return {
       narrative_polish: r.data.settings?.narrative_polish ?? false,
       director_pass: r.data.settings?.director_pass ?? false,
       debug_mode: r.data.settings?.debug_mode,
+      content_level: (r.data.settings?.content_level as 'safe' | 'mature' | 'unrestricted' | undefined) ?? 'safe',
     }
   },
 
   async updateSettings(
     sessionId: number,
-    settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean },
+    settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean; content_level?: 'safe' | 'mature' | 'unrestricted' },
   ): Promise<void> {
     await api.patch(`/sessions/${sessionId}/settings`, settings)
   },

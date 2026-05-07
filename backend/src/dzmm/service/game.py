@@ -382,6 +382,21 @@ async def run_turn(
             doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：100/100。\n\n🔴 **坏结局触发**：本回合必须演出末日事件并 emit `<ending type=\"bad\">`。"
         key_facts = key_facts + "\n\n" + doom_note
 
+    # Content level injection — safe (default) uses no extra instruction.
+    content_level = settings.get("content_level", "safe")
+    if content_level == "mature":
+        key_facts = key_facts + (
+            "\n\n## 内容尺度\n"
+            "本会话开启「成人向」模式：可包含暴力、酒精、亲密接触、负面情绪等成人主题，"
+            "但避免直接的露骨色情或极端血腥；用文学化描写而非生理细节。"
+        )
+    elif content_level == "unrestricted":
+        key_facts = key_facts + (
+            "\n\n## 内容尺度\n"
+            "本会话开启「无限制」模式：所有内容主题（含色情、极端暴力、心理黑暗）皆可出现，"
+            "按剧情需要自然呈现，仍要服务故事而非纯刺激。"
+        )
+
     recent = await _load_recent_messages(session, session_id, summary_row)
 
     # If the summarizer hasn't run yet (or failed) but the session is already

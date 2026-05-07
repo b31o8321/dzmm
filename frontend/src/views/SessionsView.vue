@@ -80,6 +80,7 @@ const form = ref({
   screenplay_id: 0,
   gm_model_config_id: 0,
   summarizer_model_config_id: 0,
+  contentLevel: 'safe' as 'safe' | 'mature' | 'unrestricted',
 })
 const selectedWorldId = ref(0)
 const worldScreenplays = computed(() => spStore.byWorld.get(selectedWorldId.value) ?? [])
@@ -96,6 +97,7 @@ function resetForm() {
     screenplay_id: 0,
     gm_model_config_id: modelsStore.items[0]?.id ?? 0,
     summarizer_model_config_id: modelsStore.items[0]?.id ?? 0,
+    contentLevel: 'safe',
   }
   selectedWorldId.value = 0
 }
@@ -186,6 +188,9 @@ async function onCreate() {
       gm_model_config_id: form.value.gm_model_config_id,
       summarizer_model_config_id: form.value.summarizer_model_config_id,
     })
+    if (form.value.contentLevel && form.value.contentLevel !== 'safe') {
+      await sessionsApi.updateSettings(s.id, { content_level: form.value.contentLevel })
+    }
     ElMessage.success('已创建，正在进入游戏…')
     dialogOpen.value = false
     router.push(`/play/${s.id}`)
@@ -456,6 +461,13 @@ onMounted(async () => {
                   :label="`${m.name} (${m.model_name})`"
                   :value="m.id"
                 />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="内容尺度">
+              <el-select v-model="form.contentLevel" size="default">
+                <el-option label="🟢 安全（默认）" value="safe" />
+                <el-option label="🟡 成人向（暴力 / 亲密 / 黑暗主题）" value="mature" />
+                <el-option label="🔴 无限制（请确认你成年且自愿）" value="unrestricted" />
               </el-select>
             </el-form-item>
           </el-form>
