@@ -990,7 +990,8 @@ onUnmounted(() => {
 
     <!-- Desktop: side panel always visible -->
     <div class="hidden md:flex md:flex-col gap-3">
-      <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
+      <StatePanel :session-id="sessionId"
+                  :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
                   :current-location="currentLocation"
@@ -1030,7 +1031,8 @@ onUnmounted(() => {
         @click="panelOpen = false"
       >×</button>
       <div class="flex flex-col gap-3 p-3 overflow-auto h-full">
-        <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
+        <StatePanel :session-id="sessionId"
+                    :stats="stats" :inventory="inventory" :npcs="npcs"
                     :dice="dice" :threads="threads" :goals="goals"
                     :pc-mood="pcMood"
                     :current-location="currentLocation"

@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dzmm.db.models import (
     Character,
     CharState,
+    Faction,
     HiddenEvent,
     Location,
     Message as MessageRow,
@@ -1206,6 +1207,21 @@ async def _build_key_facts(
                 tail = f"{tail}。{cons}" if tail else cons
             lines.append(f"- [{sub}·{kind}·t+{age}] {tail}")
         parts.append("\n".join(lines))
+
+    # v0.9 T7 — Faction reputation: inject active factions so GM knows
+    # PC standing and can tune NPC attitudes / gate information accordingly.
+    factions = (await session.execute(
+        select(Faction).where(Faction.session_id == session_id)
+    )).scalars().all()
+    if factions:
+        facts_lines = ["\n## 势力关系（PC 在各派系中的口碑）"]
+        for f in factions:
+            rep_label = "盟友" if f.pc_reputation >= 30 else ("敌人" if f.pc_reputation <= -30 else "中立")
+            line = f"- {f.name}（{rep_label}, rep={f.pc_reputation}）"
+            if f.ideology:
+                line += f"：{f.ideology}"
+            facts_lines.append(line)
+        parts.append("\n".join(facts_lines))
 
     # PC hooks — abilities / items / weaknesses extracted from profile_md so
     # GM is reminded to actually use them in scenes.

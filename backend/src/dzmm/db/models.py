@@ -188,6 +188,7 @@ class NPC(Base):
     current_location: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)
     last_initiative_turn: Mapped[int] = mapped_column(default=0)  # NPC 上次主动出现的回合
     tts_voice: Mapped[str] = mapped_column(String(120), default="")
+    faction_id: Mapped[int | None] = mapped_column(ForeignKey("factions.id"), nullable=True)
 
 
 # ── 剧情线索 ──────────────────────────────────────────────
@@ -364,3 +365,20 @@ class HiddenEvent(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")  # active/resolved/triggered
     resolution: Mapped[str] = mapped_column(Text, default="")
     resolved_turn: Mapped[int | None] = mapped_column(nullable=True)
+
+
+# ── 势力 ──────────────────────────────────────────────────
+class Faction(Base):
+    __tablename__ = "factions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    ideology: Mapped[str] = mapped_column(Text, default="")     # one-line stance
+    description: Mapped[str] = mapped_column(Text, default="")  # 30-80 字背景
+    leader_npc_id: Mapped[int | None] = mapped_column(ForeignKey("npcs.id"), nullable=True)
+    pc_reputation: Mapped[int] = mapped_column(default=0)       # -100..100
+    hostile_to_json: Mapped[str] = mapped_column(Text, default="[]")  # JSON list of faction names
+    allied_to_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )

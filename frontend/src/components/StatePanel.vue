@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { PCGoalItem } from '@/api/sessions'
+import { ElPopover } from 'element-plus'
+import FactionGraph from './game/FactionGraph.vue'
 
 const threadsExpanded = ref(false)
 
 const props = defineProps<{
+  sessionId: number
   stats: Record<string, number>
   inventory: string[]
   npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null }[]
@@ -79,8 +82,19 @@ function npcAvatarColor(name: string): string {
 
 <template>
   <aside class="w-80 bg-white border-l p-4 flex flex-col gap-4 overflow-auto">
-    <div v-if="worldTimeStr" class="text-xs text-slate-500 border-b pb-1.5 mb-2">
-      🕐 {{ worldTimeStr }}
+    <div class="flex items-center justify-between">
+      <div v-if="worldTimeStr" class="text-xs text-slate-500">
+        🕐 {{ worldTimeStr }}
+      </div>
+      <el-popover :width="380" placement="left" trigger="click">
+        <template #reference>
+          <button type="button"
+                  class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100 ml-auto">
+            ⚖️ 势力
+          </button>
+        </template>
+        <FactionGraph :session-id="sessionId" :visible="true" />
+      </el-popover>
     </div>
     <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm mb-2">
       <span class="text-slate-500 text-xs">当前场所</span>

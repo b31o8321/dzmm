@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dzmm.api import (
     routes_assets,
     routes_characters,
+    routes_factions,
     routes_models,
     routes_screenplay,
     routes_screenplays,
@@ -73,6 +74,10 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
     # Assets CRUD + upload + serve + attach.
     app.dependency_overrides[routes_assets.get_session_dep] = get_session_dep
     app.include_router(routes_assets.router)
+
+    # Factions API.
+    app.dependency_overrides[routes_factions.get_session_dep] = get_session_dep
+    app.include_router(routes_factions.router)
 
     app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
 
