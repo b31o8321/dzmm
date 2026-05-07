@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElProgress, ElTag } from 'element-plus'
-import type { Screenplay } from '@/api/screenplay'
+import { eventDescription, type Screenplay } from '@/api/screenplay'
 
 const props = defineProps<{
   screenplay: Screenplay | null
@@ -83,7 +83,7 @@ function openFullView() {
             effect="plain"
           >✓</el-tag>
           <el-tag v-else type="warning" size="small" effect="plain">…</el-tag>
-          <span class="text-slate-600 flex-1 min-w-0">{{ ev }}</span>
+          <span class="text-slate-600 flex-1 min-w-0">{{ eventDescription(ev) }}</span>
         </li>
       </ul>
     </div>

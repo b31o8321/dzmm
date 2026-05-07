@@ -82,36 +82,38 @@ function npcAvatarColor(name: string): string {
 </script>
 
 <template>
-  <aside class="w-80 bg-white border-l p-4 flex flex-col gap-4 overflow-auto">
-    <div class="flex items-center justify-between">
-      <div v-if="worldTimeStr" class="text-xs text-slate-500">
-        🕐 {{ worldTimeStr }}
-      </div>
-      <div class="flex items-center gap-1 ml-auto">
-        <el-popover :width="380" placement="left" trigger="click">
+  <aside class="w-full bg-white">
+    <!-- 顶部常驻条：世界时间 + 抽屉按钮（大事记 / 势力） — sticky 跟随滚动 -->
+    <div class="sticky top-0 z-10 px-3 py-2 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center justify-between text-xs">
+      <span v-if="worldTimeStr" class="text-slate-600 font-medium">🕐 {{ worldTimeStr }}</span>
+      <span v-else class="text-slate-300">—</span>
+      <div class="flex items-center gap-0.5">
+        <el-popover :width="380" placement="bottom-end" trigger="click">
           <template #reference>
             <button type="button"
-                    class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100">
-              📅 大事记
-            </button>
+                    class="text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100"
+                    title="大事记">📅</button>
           </template>
           <Timeline :events="threads.map((t) => ({ ...t, introduced_turn: undefined, status: 'active' }))" />
         </el-popover>
-        <el-popover :width="380" placement="left" trigger="click">
+        <el-popover :width="380" placement="bottom-end" trigger="click">
           <template #reference>
             <button type="button"
-                    class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100">
-              ⚖️ 势力
-            </button>
+                    class="text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100"
+                    title="势力">⚖️</button>
           </template>
           <FactionGraph :session-id="sessionId" :visible="true" />
         </el-popover>
       </div>
     </div>
-    <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm mb-2">
-      <span class="text-slate-500 text-xs">当前场所</span>
+
+    <!-- 内容区（外层容器负责 scroll） -->
+    <div class="p-3 space-y-3">
+    <!-- ① 当前场所 — 最显眼的常驻信息 -->
+    <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm">
+      <div class="text-xs text-slate-500">当前场所</div>
       <div class="font-bold text-blue-800">📍 {{ currentLocation.name }}</div>
-      <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5">
+      <div v-if="currentLocation.description" class="text-xs text-slate-500 mt-0.5 leading-snug">
         {{ currentLocation.description }}
       </div>
       <div v-if="currentLocation.items?.length" class="text-xs text-slate-500 mt-1">
@@ -267,5 +269,6 @@ function npcAvatarColor(name: string): string {
         <li v-if="!npcs.length" class="text-slate-400 italic">尚无登场 NPC</li>
       </ul>
     </section>
+    </div>
   </aside>
 </template>

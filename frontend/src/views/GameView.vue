@@ -528,7 +528,7 @@ const nextMainEvent = computed(() => {
 })
 
 // 把通用推进提示塞 input，让玩家审阅／编辑后再发送（不直接 send）
-function applyEventHint(_event: string) {
+function applyEventHint(_event: unknown) {
   action.value = '（感觉剧情进展太慢，请主动推进剧情节奏）'
 }
 
@@ -988,8 +988,8 @@ onUnmounted(() => {
       </footer>
     </section>
 
-    <!-- Desktop: side panel always visible -->
-    <div class="hidden md:flex md:flex-col gap-3">
+    <!-- Desktop: side panel always visible — single scroll container holds StatePanel + Screenplay + Debug -->
+    <aside class="hidden md:flex md:flex-col w-80 bg-white border-l overflow-auto h-full">
       <StatePanel :session-id="sessionId"
                   :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
@@ -998,13 +998,15 @@ onUnmounted(() => {
                   :world-time="worldTime ?? undefined"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
-      <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
-      <!-- Debug stats panel — only visible in debug mode -->
-      <DebugPanel
-        v-if="debugStore.enabled"
-        :session-id="sessionId"
-      />
-    </div>
+      <div class="px-3 pb-3 space-y-3">
+        <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
+        <!-- Debug stats panel — only visible in debug mode -->
+        <DebugPanel
+          v-if="debugStore.enabled"
+          :session-id="sessionId"
+        />
+      </div>
+    </aside>
 
     <!-- Mobile: floating toggle button, drawer slides in from right -->
     <button
@@ -1030,7 +1032,7 @@ onUnmounted(() => {
         class="absolute top-2 left-2 text-slate-400 hover:text-slate-700 text-2xl leading-none z-50"
         @click="panelOpen = false"
       >×</button>
-      <div class="flex flex-col gap-3 p-3 overflow-auto h-full">
+      <div class="w-80 max-w-[90vw] overflow-auto h-full">
         <StatePanel :session-id="sessionId"
                     :stats="stats" :inventory="inventory" :npcs="npcs"
                     :dice="dice" :threads="threads" :goals="goals"
@@ -1039,7 +1041,9 @@ onUnmounted(() => {
                     :world-time="worldTime ?? undefined"
                     @select-npc="openNpcDetail"
                     @goal-status="updateGoal" />
-        <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
+        <div class="px-3 pb-3 space-y-3">
+          <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
+        </div>
       </div>
     </div>
 

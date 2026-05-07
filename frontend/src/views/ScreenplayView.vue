@@ -2,7 +2,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElButton, ElInput, ElTag, ElProgress, ElMessage, ElDialog } from 'element-plus'
-import { screenplayApi, type Screenplay, type CompletedEvent, type ScreenplayRevision } from '@/api/screenplay'
+import {
+  screenplayApi,
+  eventDescription,
+  eventCriteria,
+  eventKeywords,
+  type Screenplay,
+  type CompletedEvent,
+  type ScreenplayRevision,
+} from '@/api/screenplay'
 
 const props = defineProps<{ id: string }>()
 const sessionId = Number(props.id)
@@ -146,26 +154,46 @@ function backToGame() {
 
         <div v-if="currentChapter.main_events.length">
           <div class="text-sm font-bold text-slate-700 mt-2 mb-1">本章主线</div>
-          <ul class="space-y-1">
+          <ul class="space-y-2">
             <li v-for="(ev, i) in currentChapter.main_events" :key="i" class="text-sm">
-              <el-tag v-if="isEventDone(screenplay.current_chapter, i, 'main')" type="success" size="small">
-                ✓ done
-              </el-tag>
-              <el-tag v-else type="warning" size="small">pending</el-tag>
-              <span class="ml-2">{{ ev }}</span>
+              <div class="flex items-start gap-2">
+                <el-tag v-if="isEventDone(screenplay.current_chapter, i, 'main')" type="success" size="small">
+                  ✓ done
+                </el-tag>
+                <el-tag v-else type="warning" size="small">pending</el-tag>
+                <div class="flex-1 min-w-0">
+                  <div class="text-slate-800">{{ eventDescription(ev) }}</div>
+                  <div v-if="eventKeywords(ev).length" class="mt-0.5 flex flex-wrap gap-1">
+                    <span
+                      v-for="kw in eventKeywords(ev)" :key="kw"
+                      class="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded"
+                    >#{{ kw }}</span>
+                  </div>
+                  <div v-if="eventCriteria(ev)" class="text-xs text-slate-500 italic mt-0.5">
+                    完成条件：{{ eventCriteria(ev) }}
+                  </div>
+                </div>
+              </div>
             </li>
           </ul>
         </div>
 
         <div v-if="currentChapter.optional_events.length">
           <div class="text-sm font-bold text-slate-700 mt-2 mb-1">本章可选支线</div>
-          <ul class="space-y-1">
+          <ul class="space-y-2">
             <li v-for="(ev, i) in currentChapter.optional_events" :key="i" class="text-sm">
-              <el-tag v-if="isEventDone(screenplay.current_chapter, i, 'optional')" type="success" size="small">
-                ✓ done
-              </el-tag>
-              <el-tag v-else size="small">optional</el-tag>
-              <span class="ml-2">{{ ev }}</span>
+              <div class="flex items-start gap-2">
+                <el-tag v-if="isEventDone(screenplay.current_chapter, i, 'optional')" type="success" size="small">
+                  ✓ done
+                </el-tag>
+                <el-tag v-else size="small">optional</el-tag>
+                <div class="flex-1 min-w-0">
+                  <div class="text-slate-700">{{ eventDescription(ev) }}</div>
+                  <div v-if="eventCriteria(ev)" class="text-xs text-slate-500 italic mt-0.5">
+                    完成条件：{{ eventCriteria(ev) }}
+                  </div>
+                </div>
+              </div>
             </li>
           </ul>
         </div>

@@ -1,10 +1,43 @@
 import { api } from './client'
 
+// v0.9: events are objects {description, keywords, criteria}.
+// v0.8 and earlier: events were plain strings. Renderers must handle both.
+export interface ScreenplayEventObj {
+  description: string
+  keywords?: string[]
+  criteria?: string
+}
+export type ScreenplayEvent = string | ScreenplayEventObj
+
+export function eventDescription(ev: ScreenplayEvent): string {
+  if (typeof ev === 'string') return ev
+  if (ev && typeof ev === 'object' && 'description' in ev) {
+    return String((ev as ScreenplayEventObj).description ?? '')
+  }
+  return ''
+}
+
+export function eventCriteria(ev: ScreenplayEvent): string {
+  if (typeof ev === 'string') return ''
+  if (ev && typeof ev === 'object' && 'criteria' in ev) {
+    return String((ev as ScreenplayEventObj).criteria ?? '')
+  }
+  return ''
+}
+
+export function eventKeywords(ev: ScreenplayEvent): string[] {
+  if (typeof ev === 'string') return []
+  if (ev && typeof ev === 'object' && Array.isArray((ev as ScreenplayEventObj).keywords)) {
+    return (ev as ScreenplayEventObj).keywords ?? []
+  }
+  return []
+}
+
 export interface ScreenplayChapter {
   title: string
   summary: string
-  main_events: string[]
-  optional_events: string[]
+  main_events: ScreenplayEvent[]
+  optional_events: ScreenplayEvent[]
   main_npcs: string[]
 }
 
