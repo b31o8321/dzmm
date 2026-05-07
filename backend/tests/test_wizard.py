@@ -265,9 +265,13 @@ async def test_finalize_wizard_creates_all_rows(empty_db):
         "genre": "赛博朋克悬疑",
     }
     async with SessionMaker() as s:
-        sid = await finalize_wizard(s, bundle)
+        result = await finalize_wizard(s, bundle)
         await s.commit()
-        assert isinstance(sid, int)
+        assert isinstance(result, dict)
+        assert isinstance(result["session_id"], int)
+        assert isinstance(result["world_id"], int)
+        assert isinstance(result["npc_ids"], dict)
+        sid = result["session_id"]
 
     async with SessionMaker() as s:
         worlds = (await s.execute(select(World))).scalars().all()
@@ -282,6 +286,7 @@ async def test_finalize_wizard_creates_all_rows(empty_db):
         assert len(npcs) == 2
         names = {n.name for n in npcs}
         assert names == {"陈子轩", "苍井博士"}
+        assert set(result["npc_ids"].keys()) == names
         # v0.2.2: pinned NPCs only reveal `name` initially; GM unveils
         # description/purpose/archetype progressively via npc_update.
         for n in npcs:
