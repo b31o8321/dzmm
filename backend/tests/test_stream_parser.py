@@ -60,6 +60,60 @@ def test_drops_unknown_tags_silently():
     assert len(errors) == 0
 
 
+# ── v0.9: dice 扩展为带 <scene> + <reaction> 的演出标签 ──────
+# 解析器对 dice 的 body 不做嵌套解析——它把 <dice> 和 </dice>
+# 之间的所有文本（包括 <scene>...</scene><reaction>...</reaction>）
+# 整体存进 content；前端 DiceShowcase 自己 split。
+
+def test_dice_with_nested_scene_and_reaction():
+    p = StreamingTagParser()
+    body = (
+        '<scene>李少卿屏住呼吸，靠在阴影里。</scene>'
+        '<reaction speaker="守卫张三" mood="无察觉">「这风也太冷了……」</reaction>'
+    )
+    chunk = f'<dice category="stealth" outcome="success" dc="12" pc_roll="15" mod="+2">{body}</dice>'
+    out = collect(p, [chunk])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert len(tags) == 1
+    assert tags[0].name == "dice"
+    assert tags[0].attrs["category"] == "stealth"
+    assert tags[0].attrs["outcome"] == "success"
+    # The content is preserved verbatim — DiceShowcase parses scene/reaction front-end.
+    assert "<scene>" in tags[0].content
+    assert "李少卿屏住呼吸" in tags[0].content
+    assert '<reaction speaker="守卫张三"' in tags[0].content
+    assert "这风" in tags[0].content
+
+
+def test_dice_legacy_plain_text_still_works():
+    """老格式 <dice>plain text</dice> 在 v0.9 之后仍然合法（向后兼容）。"""
+    p = StreamingTagParser()
+    out = collect(p, ['<dice category="combat" outcome="success" dc="14" pc_roll="17">攻击命中骷髅卫兵</dice>'])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert len(tags) == 1
+    assert tags[0].content == "攻击命中骷髅卫兵"
+
+
+def test_v09_combat_and_faction_tags_recognized():
+    """v0.9 新增的 combat_start/combat_end/faction_create/faction_change 已加入 KNOWN_TAGS。
+
+    Attribute regex only accepts double-quoted values, so JSON in
+    `enemies` must be passed as content (or the attribute uses
+    pre-escaped form). For this test we keep the enemies list in content.
+    """
+    p = StreamingTagParser()
+    out = collect(p, [
+        '<combat_start>[{"name": "骷髅"}]</combat_start>',
+        '<faction_create name="暗影教团" ideology="颠覆王权">古老的秘密结社</faction_create>',
+        '<faction_change name="暗影教团" rep_delta="-10"/>',
+        '<combat_end winner="pc"/>',
+    ])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    names = [t.name for t in tags]
+    assert names == ["combat_start", "faction_create", "faction_change", "combat_end"]
+    assert "骷髅" in tags[0].content
+
+
 def test_drops_outside_text():
     p = StreamingTagParser()
     out = collect(p, ["preamble <narrative>real</narrative> trailing"])

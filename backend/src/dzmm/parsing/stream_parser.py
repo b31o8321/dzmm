@@ -48,6 +48,10 @@ KNOWN_TAGS: set[str] = {
     "location_enter",
     "bgm",
     "time_advance",
+    "combat_start",
+    "combat_end",
+    "faction_create",
+    "faction_change",
 }
 
 # 只有 narrative 标签需要"流式"输出（边到边推给前端显示）；
