@@ -24,20 +24,22 @@ export type CharacterIn = Omit<Character, 'id' | 'portrait_path' | 'xp' | 'level
 export interface ModelConfig {
   id: number
   name: string
-  type: 'openai_compat' | 'ollama'
+  type: 'openai_compat' | 'ollama' | 'lm_studio'
   base_url: string
   model_name: string
   api_key_ref: string | null
   timeout: number
+  max_concurrent?: number
 }
 
 export interface ModelConfigIn {
   name: string
-  type: 'openai_compat' | 'ollama'
+  type: 'openai_compat' | 'ollama' | 'lm_studio'
   base_url: string
   model_name: string
   api_key?: string
   timeout?: number
+  max_concurrent?: number
 }
 
 export interface GameSession {

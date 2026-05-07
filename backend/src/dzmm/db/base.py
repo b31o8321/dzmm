@@ -130,6 +130,12 @@ _V033_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V034_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "model_configs": [
+        ("max_concurrent", "max_concurrent INTEGER NOT NULL DEFAULT 0"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -207,4 +213,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V032_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V033_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V034_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

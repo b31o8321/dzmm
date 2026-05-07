@@ -20,6 +20,7 @@ const form = reactive<ModelConfigIn>({
   model_name: '',
   api_key: '',
   timeout: 60,
+  max_concurrent: 0,
 })
 
 function resetForm() {
@@ -30,6 +31,7 @@ function resetForm() {
     model_name: '',
     api_key: '',
     timeout: 60,
+    max_concurrent: 0,
   })
 }
 
@@ -73,6 +75,7 @@ function openEdit(row: ModelConfig) {
     model_name: row.model_name,
     api_key: '',
     timeout: row.timeout,
+    max_concurrent: row.max_concurrent ?? 0,
   })
   dialogOpen.value = true
 }
@@ -586,6 +589,12 @@ onMounted(() => store.refresh())
         </el-form-item>
         <el-form-item label="超时（秒）">
           <el-input-number v-model="form.timeout" :min="5" :max="300" />
+        </el-form-item>
+        <el-form-item label="并发上限">
+          <el-input-number v-model="form.max_concurrent" :min="0" :max="20" />
+          <span class="text-xs text-slate-500 ml-2">
+            0 = 不限。云端免费层（智谱 glm-4-flash 等）必须设 1，否则并发请求会被全部 429。
+          </span>
         </el-form-item>
       </el-form>
       <template #footer>

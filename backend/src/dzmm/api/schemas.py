@@ -33,6 +33,7 @@ class ModelConfigIn(BaseModel):
     model_name: str
     api_key: str | None = None
     timeout: float = 60.0
+    max_concurrent: int = 0  # 0 = 不限制；>0 = 进程内并发上限（智谱 free 设 1）
 
 
 class ModelConfigOut(BaseModel):
@@ -43,6 +44,7 @@ class ModelConfigOut(BaseModel):
     model_name: str
     api_key_ref: str | None
     timeout: float
+    max_concurrent: int = 0
 
 
 class SessionIn(BaseModel):

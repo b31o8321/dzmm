@@ -46,6 +46,7 @@ class OpenAICompatClient(ModelClient):
         api_key: str,
         model: str,
         timeout: float = 60.0,
+        concurrency_gate: asyncio.Semaphore | None = None,
     ):
         self.name = name
         self.base_url = base_url.rstrip("/")
@@ -54,6 +55,10 @@ class OpenAICompatClient(ModelClient):
         self.timeout = timeout
         # None = untested, True = supported, False = not supported (e.g. LM Studio)
         self._json_mode_supported: bool | None = None
+        # Process-wide gate (typically max_concurrent=1 for Zhipu free tier).
+        # When set, the entire stream() — including all retries and chunks —
+        # runs inside the semaphore, so any concurrent caller waits its turn.
+        self._concurrency_gate = concurrency_gate
 
     def _build_headers(self) -> dict:
         headers = {"Content-Type": "application/json"}
@@ -151,6 +156,22 @@ class OpenAICompatClient(ModelClient):
                         yield StreamChunk(delta=delta, finish_reason=finish, usage=usage)
 
     async def stream(
+        self,
+        messages: list[Message],
+        params: GenerationParams,
+    ) -> AsyncIterator[StreamChunk]:
+        if self._concurrency_gate is None:
+            async for chunk in self._stream_inner(messages, params):
+                yield chunk
+            return
+        # Hold the gate for the entire stream — including retries and all chunk
+        # iteration. The provider's concurrency limit applies to the wire-level
+        # request, so we must own the slot from request start to last chunk.
+        async with self._concurrency_gate:
+            async for chunk in self._stream_inner(messages, params):
+                yield chunk
+
+    async def _stream_inner(
         self,
         messages: list[Message],
         params: GenerationParams,

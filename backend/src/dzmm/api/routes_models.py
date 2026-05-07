@@ -21,6 +21,7 @@ def _to_out(m: ModelConfig) -> ModelConfigOut:
     return ModelConfigOut(
         id=m.id, name=m.name, type=m.type, base_url=m.base_url,
         model_name=m.model_name, api_key_ref=m.api_key_ref, timeout=m.timeout,
+        max_concurrent=getattr(m, "max_concurrent", 0) or 0,
     )
 
 
@@ -34,6 +35,7 @@ async def create_model_config(body: ModelConfigIn, s: AsyncSession = Depends(get
     m = ModelConfig(
         name=body.name, type=body.type, base_url=body.base_url,
         model_name=body.model_name, api_key_ref=api_key_ref, timeout=body.timeout,
+        max_concurrent=max(0, int(body.max_concurrent)),
     )
     s.add(m)
     await s.commit()
@@ -119,6 +121,7 @@ async def update_model_config(
     m.base_url = body.base_url
     m.model_name = body.model_name
     m.timeout = body.timeout
+    m.max_concurrent = max(0, int(body.max_concurrent))
     if body.api_key:
         if m.api_key_ref is None:
             m.api_key_ref = f"{body.name}_{uuid.uuid4().hex[:8]}"

@@ -80,6 +80,9 @@ class ModelConfig(Base):
     api_key_ref: Mapped[str | None] = mapped_column(String(120), nullable=True)
     timeout: Mapped[float] = mapped_column(default=60.0)
     params_json: Mapped[str] = mapped_column(Text, default='{}')  # 额外参数，如 top_k
+    # v0.9.1: 0 = 不限制；>0 = 进程内同 cfg 并发上限。智谱 glm-4-flash 免费层
+    # 全局并发=1 → 必须 max_concurrent=1，否则只要有 2 个请求同时在飞就全 429。
+    max_concurrent: Mapped[int] = mapped_column(default=0)
 
 
 # ── 游戏会话 ──────────────────────────────────────────────
