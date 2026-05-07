@@ -11,7 +11,7 @@ const props = defineProps<{
   sessionId: number
   stats: Record<string, number>
   inventory: string[]
-  npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null }[]
+  npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null; met?: boolean }[]
   dice: { skill: string; target: string; result: string; success?: string; fail?: string }[]
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
@@ -247,26 +247,36 @@ function npcAvatarColor(name: string): string {
     <section>
       <h3 class="font-bold text-slate-700 mb-2">NPC 关系</h3>
       <ul class="space-y-1 text-sm">
-        <li v-for="n in npcs" :key="n.name" class="flex justify-between items-center gap-2">
+        <li
+          v-for="n in npcs"
+          :key="n.name"
+          class="flex justify-between items-center gap-2"
+          :class="{ 'opacity-50': n.met === false }"
+        >
           <button
             type="button"
             class="text-left hover:underline hover:text-amber-700 truncate flex items-center gap-1.5"
             @click="emit('select-npc', n.name)"
-            :title="`查看 ${n.name} 的详情`"
+            :title="n.met === false ? `${n.name}（未登场）` : `查看 ${n.name} 的详情`"
           >
             <span
               class="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-xs font-bold shrink-0 select-none"
-              :style="{ backgroundColor: npcAvatarColor(n.name) }"
+              :style="{ backgroundColor: n.met === false ? '#cbd5e1' : npcAvatarColor(n.name) }"
             >{{ n.name[0] }}</span>
             <span v-if="n.pinned" class="text-amber-500" title="已置顶">📌</span>
             <span>{{ n.name }}</span>
           </button>
           <span class="text-slate-500 shrink-0">
-            <span class="font-mono mr-1">{{ n.favor >= 0 ? '+' : '' }}{{ n.favor }}</span>
-            <span class="text-xs">{{ n.state }}</span>
+            <template v-if="n.met === false">
+              <span class="text-xs italic text-slate-400">未登场</span>
+            </template>
+            <template v-else>
+              <span class="font-mono mr-1">{{ n.favor >= 0 ? '+' : '' }}{{ n.favor }}</span>
+              <span class="text-xs">{{ n.state }}</span>
+            </template>
           </span>
         </li>
-        <li v-if="!npcs.length" class="text-slate-400 italic">尚无登场 NPC</li>
+        <li v-if="!npcs.length" class="text-slate-400 italic">尚无 NPC</li>
       </ul>
     </section>
     </div>

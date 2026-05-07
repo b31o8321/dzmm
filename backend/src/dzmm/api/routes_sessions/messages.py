@@ -81,11 +81,20 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
         stats = json.loads(cs.stats_json or "{}")
         inventory = json.loads(cs.inventory_json or "[]")
 
+    # All NPCs in the session — frontend renders met (last_seen_turn>0)
+    # in full color and unmet (=0) in greyed "未登场" style. Avoids the
+    # confusing empty-list early game while still distinguishing on-stage
+    # NPCs visually.
     npc_rows = (
         await s.execute(
             select(NPC)
-            .where(NPC.session_id == session_id, NPC.last_seen_turn > 0)
-            .order_by(NPC.last_seen_turn.desc())
+            .where(NPC.session_id == session_id)
+            .order_by(
+                # met first, by recency; unmet at the bottom
+                (NPC.last_seen_turn == 0).asc(),
+                NPC.last_seen_turn.desc(),
+                NPC.id.asc(),
+            )
         )
     ).scalars().all()
 
@@ -123,7 +132,12 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
         "pc_mood": pc_mood,
         "world_time": world_time,
         "npcs": [
-            {"name": n.name, "favor": n.favor, "state": n.state}
+            {
+                "name": n.name,
+                "favor": n.favor,
+                "state": n.state,
+                "met": n.last_seen_turn > 0,
+            }
             for n in npc_rows
         ],
         "threads": [
