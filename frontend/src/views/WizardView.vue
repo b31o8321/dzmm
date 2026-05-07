@@ -42,6 +42,8 @@ import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { useModelCheck } from '@/composables/useModelCheck'
 import MarkdownView from '@/components/MarkdownView.vue'
 import WizardStep from '@/components/wizard/WizardStep.vue'
+import AssetPicker from '@/components/AssetPicker.vue'
+import { assetsApi } from '@/api/assets'
 
 const router = useRouter()
 const modelsStore = useModelConfigsStore()
@@ -61,6 +63,7 @@ interface State {
   world_brief: WorldBrief | null
   // step 2
   world_md: string
+  worldCoverAssetId: number | null
   // step 3
   archetype: string
   character_name: string
@@ -84,6 +87,7 @@ const state = reactive<State>({
   session_name: '',
   world_brief: null,
   world_md: '',
+  worldCoverAssetId: null,
   archetype: '',
   character_name: '',
   character_md: '',
@@ -550,6 +554,24 @@ async function doFinalize() {
       summarizer_model_config_id: state.summarizer_model_config_id!,
       genre: effectiveGenre.value,
     })
+
+    // Attach world cover asset if selected
+    if (state.worldCoverAssetId != null && r.world_id) {
+      await assetsApi.attach(state.worldCoverAssetId, 'world', r.world_id, 'cover').catch(() => {})
+    }
+
+    // Attach per-NPC avatar assets for pinned NPCs
+    if (r.npc_ids) {
+      for (const npc of pinned) {
+        if (npc.avatarAssetId != null) {
+          const npcId = r.npc_ids[npc.name]
+          if (npcId) {
+            await assetsApi.attach(npc.avatarAssetId, 'npc', npcId, 'avatar').catch(() => {})
+          }
+        }
+      }
+    }
+
     clearDraft()
     router.push(`/play/${r.session_id}`)
   } catch (e: any) {
@@ -1051,6 +1073,15 @@ onBeforeUnmount(() => {
         @retry="generateWorldDetails"
       >
         <MarkdownView :source="state.world_md" />
+        <!-- World cover image picker -->
+        <div class="mt-4 border-t pt-4">
+          <AssetPicker
+            v-model="state.worldCoverAssetId"
+            kind="image"
+            category="world_cover"
+            label="世界封面图（可选）"
+          />
+        </div>
         <!-- Debug: raw LLM output toggle -->
         <div v-if="state.raw_outputs['world_details']" class="mt-3 border-t pt-2">
           <button
@@ -1186,6 +1217,16 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="text-sm text-slate-700">{{ npc.description }}</div>
                 <div class="text-xs text-slate-500">动机：{{ npc.motivation }}</div>
+                <div class="mt-2">
+                  <AssetPicker
+                    :model-value="npc.avatarAssetId ?? null"
+                    kind="image"
+                    category="npc_avatar"
+                    :archetype-filter="npc.role"
+                    label="头像"
+                    @update:model-value="npc.avatarAssetId = $event"
+                  />
+                </div>
               </div>
               <el-button size="small" @click="openNpcEdit(i)">✏️</el-button>
               <el-button size="small" type="danger" @click="deleteNpc(i)">🗑️</el-button>

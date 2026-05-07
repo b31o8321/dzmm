@@ -277,9 +277,9 @@ async def finalize(
     s: AsyncSession = Depends(get_session_dep),
 ):
     try:
-        session_id = await finalize_wizard(s, payload)
+        result = await finalize_wizard(s, payload)
         await s.commit()
     except (KeyError, ValueError, TypeError) as e:
         await s.rollback()
         raise HTTPException(400, f"invalid bundle: {e}") from e
-    return {"session_id": session_id}
+    return result

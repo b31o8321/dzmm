@@ -334,6 +334,7 @@ async def finalize_wizard(
     # the opening feel "spoiler-loaded" — players saw all archetypes and
     # motivations before they ever met the NPC.)
     revealed_name_only = json.dumps({"name": True})
+    created_npcs: list[NPC] = []
     for npc_data in (bundle.get("pinned_npcs") or []):
         if not isinstance(npc_data, dict):
             continue
@@ -350,6 +351,7 @@ async def finalize_wizard(
             revealed_json=revealed_name_only,
         )
         session.add(npc)
+        created_npcs.append(npc)
 
     # 5. Screenplay
     sp = Screenplay(
@@ -369,7 +371,15 @@ async def finalize_wizard(
     session.add(sp)
     await session.flush()
 
-    return sess.id
+    # Flush NPCs to get their IDs
+    for npc in created_npcs:
+        await session.refresh(npc)
+
+    return {
+        "session_id": sess.id,
+        "world_id": world.id,
+        "npc_ids": {npc.name: npc.id for npc in created_npcs},
+    }
 
 
 # ---------------------------------------------------------------------------

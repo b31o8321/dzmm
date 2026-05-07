@@ -14,6 +14,7 @@ export interface WizardNPC {
   role: string
   description: string
   motivation: string
+  avatarAssetId?: number | null
 }
 
 export interface WizardScreenplayChapter {
@@ -154,5 +155,5 @@ export const wizardApi = {
       .then((r) => r.data),
 
   finalize: (b: FinalizePayload) =>
-    api.post<{ session_id: number }>('/wizard/finalize', b).then((r) => r.data),
+    api.post<{ session_id: number; world_id: number; npc_ids: Record<string, number> }>('/wizard/finalize', b).then((r) => r.data),
 }
