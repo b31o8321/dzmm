@@ -30,6 +30,12 @@ class OllamaClient(ModelClient):
         messages: list[Message],
         params: GenerationParams,
     ) -> AsyncIterator[StreamChunk]:
+        # num_ctx: Ollama runner ignores Modelfile's num_ctx if the API
+        # request specifies a different value, so we MUST send a value large
+        # enough for our prompts. v0.9.1 prompts run ~10-15k tokens after
+        # token-reduction work, so we ship 32768 to give comfortable headroom.
+        # Users can override via ModelConfig.num_ctx (DB column) when set.
+        num_ctx = int(getattr(self, "num_ctx", 0) or 0) or 32768
         payload: dict = {
             "model": self.model,
             "messages": [m.model_dump() for m in messages],
@@ -39,7 +45,7 @@ class OllamaClient(ModelClient):
                 "num_predict": params.max_tokens,
                 "top_p": params.top_p,
                 "stop": params.stop or [],
-                "num_ctx": 8192,
+                "num_ctx": num_ctx,
             },
         }
         if params.json_mode:
