@@ -29,11 +29,20 @@ class OpenAICompatClient(ModelClient):
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
+        # None = untested, True = supported, False = not supported (e.g. LM Studio)
+        self._json_mode_supported: bool | None = None
 
-    async def stream(
+    def _build_headers(self) -> dict:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    async def _raw_stream(
         self,
         messages: list[Message],
         params: GenerationParams,
+        use_json_mode: bool,
     ) -> AsyncIterator[StreamChunk]:
         payload: dict = {
             "model": self.model,
@@ -46,21 +55,15 @@ class OpenAICompatClient(ModelClient):
         }
         if params.stop:
             payload["stop"] = params.stop
-        if params.json_mode:
+        if use_json_mode:
             payload["response_format"] = {"type": "json_object"}
-
-        headers = {"Content-Type": "application/json"}
-        # LM Studio (and some local servers) accept any / no Authorization
-        # header. Only include it when the user has actually configured a key.
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
                 json=payload,
-                headers=headers,
+                headers=self._build_headers(),
             ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
@@ -91,3 +94,31 @@ class OpenAICompatClient(ModelClient):
 
                     if delta or finish or usage:
                         yield StreamChunk(delta=delta, finish_reason=finish, usage=usage)
+
+    async def stream(
+        self,
+        messages: list[Message],
+        params: GenerationParams,
+    ) -> AsyncIterator[StreamChunk]:
+        want_json = params.json_mode and self._json_mode_supported is not False
+
+        if not want_json:
+            async for chunk in self._raw_stream(messages, params, use_json_mode=False):
+                yield chunk
+            return
+
+        # Try with json_mode; fall back silently if the server rejects it (400)
+        collected: list[StreamChunk] = []
+        try:
+            async for chunk in self._raw_stream(messages, params, use_json_mode=True):
+                collected.append(chunk)
+                yield chunk
+            self._json_mode_supported = True
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 400 and not collected:
+                # Server doesn't support response_format — retry without it
+                self._json_mode_supported = False
+                async for chunk in self._raw_stream(messages, params, use_json_mode=False):
+                    yield chunk
+            else:
+                raise
