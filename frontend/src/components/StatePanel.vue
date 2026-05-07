@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { PCGoalItem } from '@/api/sessions'
 import { ElPopover } from 'element-plus'
 import FactionGraph from './game/FactionGraph.vue'
+import Timeline from './game/Timeline.vue'
 
 const threadsExpanded = ref(false)
 
@@ -86,15 +87,26 @@ function npcAvatarColor(name: string): string {
       <div v-if="worldTimeStr" class="text-xs text-slate-500">
         🕐 {{ worldTimeStr }}
       </div>
-      <el-popover :width="380" placement="left" trigger="click">
-        <template #reference>
-          <button type="button"
-                  class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100 ml-auto">
-            ⚖️ 势力
-          </button>
-        </template>
-        <FactionGraph :session-id="sessionId" :visible="true" />
-      </el-popover>
+      <div class="flex items-center gap-1 ml-auto">
+        <el-popover :width="380" placement="left" trigger="click">
+          <template #reference>
+            <button type="button"
+                    class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100">
+              📅 大事记
+            </button>
+          </template>
+          <Timeline :events="threads.map((t) => ({ ...t, introduced_turn: undefined, status: 'active' }))" />
+        </el-popover>
+        <el-popover :width="380" placement="left" trigger="click">
+          <template #reference>
+            <button type="button"
+                    class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100">
+              ⚖️ 势力
+            </button>
+          </template>
+          <FactionGraph :session-id="sessionId" :visible="true" />
+        </el-popover>
+      </div>
     </div>
     <div v-if="currentLocation" class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm mb-2">
       <span class="text-slate-500 text-xs">当前场所</span>
