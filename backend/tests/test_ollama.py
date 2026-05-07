@@ -76,4 +76,6 @@ async def test_stream_sets_num_ctx(client):
     ):
         pass
 
-    assert captured["body"]["options"]["num_ctx"] == 8192
+    # v0.9.1: bumped 8192 → 32768 (ollama runner ignores Modelfile defaults
+    # when an API request specifies num_ctx, so we MUST send a large value).
+    assert captured["body"]["options"]["num_ctx"] == 32768
