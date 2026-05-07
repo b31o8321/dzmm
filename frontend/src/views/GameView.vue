@@ -28,6 +28,7 @@ import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
 import MessageList from '@/components/game/MessageList.vue'
 import DebugPanel from '@/components/game/DebugPanel.vue'
+import ScreenplayProgressPanel from '@/components/game/ScreenplayProgressPanel.vue'
 import { screenplayApi, type Screenplay } from '@/api/screenplay'
 import { archetypeEdgeMap } from '@/utils/ttsArchetype'
 
@@ -907,18 +908,18 @@ onUnmounted(() => {
     </section>
 
     <!-- Desktop: side panel always visible -->
-    <div class="hidden md:flex md:flex-col">
+    <div class="hidden md:flex md:flex-col gap-3">
       <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
                   :dice="dice" :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
                   :current-location="currentLocation"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
+      <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
       <!-- Debug stats panel — only visible in debug mode -->
       <DebugPanel
         v-if="debugStore.enabled"
         :session-id="sessionId"
-        class="mt-3"
       />
     </div>
 
@@ -946,12 +947,15 @@ onUnmounted(() => {
         class="absolute top-2 left-2 text-slate-400 hover:text-slate-700 text-2xl leading-none z-50"
         @click="panelOpen = false"
       >×</button>
-      <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
-                  :dice="dice" :threads="threads" :goals="goals"
-                  :pc-mood="pcMood"
-                  :current-location="currentLocation"
-                  @select-npc="openNpcDetail"
-                  @goal-status="updateGoal" />
+      <div class="flex flex-col gap-3 p-3 overflow-auto h-full">
+        <StatePanel :stats="stats" :inventory="inventory" :npcs="npcs"
+                    :dice="dice" :threads="threads" :goals="goals"
+                    :pc-mood="pcMood"
+                    :current-location="currentLocation"
+                    @select-npc="openNpcDetail"
+                    @goal-status="updateGoal" />
+        <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
+      </div>
     </div>
 
     <LevelUpDialog

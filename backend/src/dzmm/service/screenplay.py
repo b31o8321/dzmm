@@ -250,3 +250,41 @@ async def rewrite_screenplay_after_decision(
         sp.id, rev.id, session_id, duration_ms, len(raw), len(data["chapters"]),
     )
     return rev
+
+
+async def rewrite_in_background(
+    session_maker,
+    session_id: int,
+    revision_id: int,
+    decision_description: str,
+) -> None:
+    """Fire-and-forget background rewrite. Opens a fresh AsyncSession, builds
+    a long-timeout outliner client from the session's GM model config, runs
+    the rewrite, commits. Exceptions are swallowed (logged) — the caller is
+    decoupled by design.
+    """
+    from dzmm.db.models import ModelConfig as _MC, Session as _GS  # local import: avoid cycle
+    from dzmm.models.factory import build_client as _build
+
+    try:
+        async with session_maker() as s:
+            sess = await s.get(_GS, session_id)
+            if sess is None:
+                return
+            cfg = await s.get(_MC, sess.gm_model_config_id) if sess.gm_model_config_id else None
+            if cfg is None:
+                log.warning("rewrite_in_background: no GM model config for session %d", session_id)
+                return
+            client = _build(cfg)
+            if hasattr(client, "timeout"):
+                client.timeout = max(getattr(client, "timeout", 0.0), 600.0)
+            result = await rewrite_screenplay_after_decision(
+                s, session_id, revision_id, decision_description, client,
+            )
+            if result is not None:
+                await s.commit()
+    except Exception as e:  # noqa: BLE001
+        log.error(
+            "rewrite_in_background failed (session=%d, revision=%d): %s",
+            session_id, revision_id, e,
+        )

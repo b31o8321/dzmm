@@ -18,6 +18,7 @@
 
 """Turn endpoints: POST /turn (SSE), DELETE /last_turn, POST /warmup."""
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 
@@ -34,10 +35,13 @@ from dzmm.api.schemas import TurnRequest
 from dzmm.db.models import (
     Message as MessageRow,
     ModelConfig,
+    Screenplay,
+    ScreenplayRevision,
     Session as GameSession,
 )
 from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
 from dzmm.service.game import run_turn
+from dzmm.service.screenplay import rewrite_in_background
 from dzmm.service.summarizer import maybe_summarize
 from sqlalchemy import select
 
@@ -211,6 +215,38 @@ async def take_turn(
                 yield out
 
             await s.commit()  # 提交本回合数据到数据库
+
+        # ── 后台触发：本回合 GM 留下的 plot_turn 重写（fire-and-forget） ──
+        # _apply_plot_turn 把 <plot_turn impact="major"> 的 revision 行先存
+        # 为占位（before == after, diff_summary 含 "pending"）。这里在主提交
+        # 后扫一次，把待处理的 revision 全部派给后台异步重写——不阻塞 SSE 流，
+        # 用户继续玩；下次打开 ScreenplayView 看到的就是重写后的章节。
+        try:
+            async with session_maker() as _s_bg:
+                _active_sp = (await _s_bg.execute(
+                    select(Screenplay)
+                    .where(
+                        Screenplay.session_id == session_id,
+                        Screenplay.status == "active",
+                    )
+                    .order_by(Screenplay.version.desc())
+                )).scalars().first()
+                if _active_sp is not None:
+                    _pending = (await _s_bg.execute(
+                        select(ScreenplayRevision).where(
+                            ScreenplayRevision.screenplay_id == _active_sp.id,
+                            ScreenplayRevision.before_chapters_json
+                                == ScreenplayRevision.after_chapters_json,
+                        )
+                    )).scalars().all()
+                    for _rev in _pending:
+                        if "pending" not in (_rev.diff_summary or "").lower():
+                            continue
+                        asyncio.create_task(rewrite_in_background(
+                            session_maker, session_id, _rev.id, _rev.trigger_description,
+                        ))
+        except Exception:  # noqa: BLE001
+            pass  # background scheduling failure must never block the turn
 
         # ── 第二个 DB 会话：运行摘要器 ───────────────────
         # 用新会话而非上面那个，因为 commit 后数据已持久化，
