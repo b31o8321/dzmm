@@ -49,10 +49,12 @@ _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
 # Python-style literals that some models emit instead of JSON literals
 _PY_BOOL_RE = re.compile(r"\bTrue\b|\bFalse\b|\bNone\b")
 _PY_BOOL_MAP = {"True": "true", "False": "false", "None": "null"}
+# Models that saw {{...}} in the prompt may echo doubled braces
+_DOUBLE_BRACE_RE = re.compile(r"\{\{|\}\}")
 
 
 def _extract_json(text: str) -> str:
-    """Extract the outermost {...} block from text and clean it.
+    """Extract the outermost {...} or [...] block from text and clean it.
 
     Handles common local-model quirks:
     - Prefix text ("Here is your JSON:\\n{...}")
@@ -65,24 +67,48 @@ def _extract_json(text: str) -> str:
     m = _FENCE_RE.match(text)
     if m:
         text = m.group(1).strip()
-    # Walk forward to find the first '{' and its matching '}'
-    start = text.find("{")
-    if start == -1:
+    # Collapse doubled braces that models copy from {{...}} prompt examples
+    text = _DOUBLE_BRACE_RE.sub(lambda m: m.group()[0], text)
+
+    # Find whichever comes first: '{' or '['
+    obj_start = text.find("{")
+    arr_start = text.find("[")
+    if obj_start == -1 and arr_start == -1:
         return text
+    if obj_start == -1:
+        start = arr_start
+    elif arr_start == -1:
+        start = obj_start
+    else:
+        start = min(obj_start, arr_start)
+
+    open_ch = text[start]
+    close_ch = "}" if open_ch == "{" else "]"
     depth = 0
     for i, ch in enumerate(text[start:], start):
-        if ch == "{":
+        if ch == open_ch:
             depth += 1
-        elif ch == "}":
+        elif ch == close_ch:
             depth -= 1
             if depth == 0:
                 extracted = text[start : i + 1]
                 extracted = _TRAILING_COMMA_RE.sub(r"\1", extracted)
                 extracted = _PY_BOOL_RE.sub(lambda m: _PY_BOOL_MAP[m.group()], extracted)
                 return extracted
-    # Truncated JSON: return from '{' to end and still clean
+    # Truncated JSON: return from start to end and still clean
     tail = _TRAILING_COMMA_RE.sub(r"\1", text[start:])
     return _PY_BOOL_RE.sub(lambda m: _PY_BOOL_MAP[m.group()], tail)
+
+
+def _unwrap_npc_list(data: object) -> list:
+    """Accept either a bare list or {"npcs": [...]} from LLM output."""
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("npcs", "NPCs", "npc_list", "characters"):
+            if isinstance(data.get(key), list):
+                return data[key]
+    raise ValueError(f"Cannot extract NPC list from {type(data).__name__}: {str(data)[:100]}")
 
 
 def _parse_section(md: str, header: str) -> str:
@@ -170,13 +196,11 @@ async def generate_npcs(
             client, build_npcs_messages(world_md, character_md), max_tokens=1800,
             json_mode=True,
         )
-        cleaned = _strip_fence(raw)
         try:
-            npcs = json.loads(cleaned)
+            data = json.loads(_extract_json(raw))
         except json.JSONDecodeError as e:
             raise ValueError(f"NPCs JSON parse error: {e}; raw={raw[:200]!r}") from e
-        if not isinstance(npcs, list):
-            raise ValueError(f"NPCs JSON must be a list, got {type(npcs).__name__}")
+        npcs = _unwrap_npc_list(data)
         npcs = [n for n in npcs if isinstance(n, dict) and n.get("name")]
         return {"npcs": npcs}
     return await _with_retry(_attempt)
@@ -203,10 +227,9 @@ async def generate_single_npc(
     ]
 
     async def _attempt():
-        raw = await _stream_text(client, messages, max_tokens=400)
-        cleaned = _strip_fence(raw)
+        raw = await _stream_text(client, messages, max_tokens=400, json_mode=True)
         try:
-            npc = json.loads(cleaned)
+            npc = json.loads(_extract_json(raw))
         except json.JSONDecodeError as e:
             raise ValueError(f"single NPC JSON error: {e}; raw={raw[:200]!r}") from e
         if not isinstance(npc, dict) or not npc.get("name"):
@@ -411,9 +434,8 @@ async def stream_npcs(world_md: str, character_md: str, client: ModelClient) -> 
     raw = "".join(chunks).strip()
     try:
         data = json.loads(_extract_json(raw))
-        if not isinstance(data, list):
-            raise ValueError("NPCs must be a list")
-        npcs = [n for n in data if isinstance(n, dict) and n.get("name")]
+        npcs = _unwrap_npc_list(data)
+        npcs = [n for n in npcs if isinstance(n, dict) and n.get("name")]
         yield "result", {"npcs": npcs}
     except Exception as e:
         yield "error", {"message": f"NPC 解析失败: {e}"}
@@ -499,9 +521,9 @@ async def generate_suggestions(genre_hint: str, client: ModelClient) -> dict:
     """Generate 4 creative game scenario packages (genre + theme + archetype)."""
     async def _attempt():
         raw = await _stream_text(
-            client, build_suggest_messages(genre_hint), max_tokens=800
+            client, build_suggest_messages(genre_hint), max_tokens=800, json_mode=True,
         )
-        data = json.loads(_strip_fence(raw))
+        data = json.loads(_extract_json(raw))
         suggestions = data.get("suggestions", [])
         validated = []
         for s in suggestions:
