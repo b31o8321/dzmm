@@ -388,6 +388,26 @@ async def run_turn(
             doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：100/100。\n\n🔴 **坏结局触发**：本回合必须演出末日事件并 emit `<ending type=\"bad\">`。"
         key_facts = key_facts + "\n\n" + doom_note
 
+    # Critical-vitals hint: HP / sanity / stamina now clamp at 0 (see
+    # state_apply.state_change._VITAL_STATS). When any hit 0 the panel was
+    # showing a "down" PC but the GM kept narrating regular action — there
+    # was no signal that the run should resolve. Inject a hard hint so the
+    # GM either rescues (NPC saves PC, last-second救援) or emits an ending.
+    crit_lines = []
+    if (live_state.get("hp") or 0) <= 0:
+        crit_lines.append("- HP=0：PC 已倒下 / 失去意识 / 濒死")
+    if (live_state.get("sanity") or 0) <= 0:
+        crit_lines.append("- sanity=0：PC 已陷入疯狂 / 精神崩溃")
+    if crit_lines:
+        key_facts = key_facts + (
+            "\n\n## 💀 危急状态（仅GM可见）\n"
+            + "\n".join(crit_lines)
+            + "\n\n🔴 **必须立即解决**：本回合任选其一——\n"
+              "  (a) 演出救援/治疗/缓解事件，让对应数值恢复至 ≥1（state_change 加正值）；\n"
+              "  (b) 演出 PC 倒下的最终结局并 emit `<ending type=\"bad\">`。\n"
+              "禁止当作没事继续推进剧情。"
+        )
+
     # Content level injection — safe (default) uses no extra instruction.
     content_level = settings.get("content_level", "safe")
     if content_level == "mature":
