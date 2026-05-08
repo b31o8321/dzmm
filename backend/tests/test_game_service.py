@@ -52,8 +52,12 @@ async def seeded(tmp_path):
                           base_url="http://localhost:11434", model_name="qwen")
         s.add_all([world, char, cfg])
         await s.flush()
+        # Legacy single-agent tests opt out of the v0.10 multi-agent runtime
+        # so this fixture continues to exercise the original run_turn code
+        # path. The dedicated v0.10 test seeds settings_json with use_v10=true.
         sess = GameSession(name="run", world_id=world.id, character_id=char.id,
-                           gm_model_config_id=cfg.id, summarizer_model_config_id=cfg.id)
+                           gm_model_config_id=cfg.id, summarizer_model_config_id=cfg.id,
+                           settings_json='{"use_v10": false}')
         s.add(sess)
         await s.flush()
         s.add(CharState(session_id=sess.id,
@@ -1207,3 +1211,74 @@ async def test_auto_generates_screenplay_on_first_turn(seeded):
     assert "第一章" in sp.chapters_json
     assert sp.status == "active"
     assert call_count == 2  # outliner + gm
+
+
+@pytest.mark.asyncio
+async def test_run_turn_v10_path_emits_director_scene_npc_streams(tmp_path):
+    """settings.use_v10=True 时走新管线，会建 director stream 和 npc stream。"""
+    from sqlalchemy import select
+    from dzmm.db.base import async_session, get_engine, init_db
+    from dzmm.db.models import (
+        AgentStream, Character, ModelConfig, NPC,
+        Session as GameSession, World,
+    )
+    from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
+    from dzmm.service.game import run_turn
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/t.db"
+    engine = get_engine(db_url)
+    await init_db(engine)
+    SessionMaker = async_session(engine)
+
+    class _Multi(ModelClient):
+        name = "x"
+        async def stream(self, msgs, params):
+            yield StreamChunk(delta="<narrative>下雨。</narrative>",
+                              finish_reason="stop")
+        async def complete(self, msgs, params):
+            joined = "\n".join(m.content for m in msgs)
+            if "剧情导演" in joined:
+                return ("<plot_directive>\n- 主推：x\n- NPC：丽莎\n"
+                        "- 节奏：悬疑\n- 禁止：无\n</plot_directive>",
+                        TokenUsage())
+            if "扮演 TRPG 中的 NPC" in joined:
+                return '<say speaker="丽莎">「在」</say>', TokenUsage()
+            return "", TokenUsage()
+
+    # Seed
+    async with SessionMaker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="Riku", profile_md="hacker",
+                      base_stats_json='{"hp":20}')
+        m = ModelConfig(name="x", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(
+            name="t", world_id=w.id, character_id=c.id,
+            gm_model_config_id=m.id, summarizer_model_config_id=m.id,
+            settings_json='{"use_v10": true}',
+        )
+        s.add(sess)
+        await s.flush()
+        s.add(NPC(session_id=sess.id, name="丽莎", pinned=True,
+                  archetype="热心邻家少女", description="21 岁",
+                  purpose="找弟弟", state="焦虑",
+                  gender="female", emotion_json='{"fear":60}'))
+        await s.commit()
+        sid = sess.id
+
+    async with SessionMaker() as s:
+        events = []
+        async for ev in run_turn(s, sid, "冲", _Multi()):
+            events.append(ev)
+        await s.commit()
+
+    async with SessionMaker() as s:
+        streams = (await s.execute(
+            select(AgentStream).where(AgentStream.session_id == sid)
+        )).scalars().all()
+        kinds = {(st.kind, st.ref) for st in streams}
+        assert ("gm_director", "") in kinds
+        assert ("npc", "丽莎") in kinds
+
+    await engine.dispose()

@@ -33,6 +33,7 @@ class PatchSettingsRequest(BaseModel):
     director_pass: bool | None = None
     debug_mode: bool | None = None
     content_level: str | None = None  # safe | mature | unrestricted
+    use_v10: bool | None = None
 
 
 @router.patch("/{session_id}/settings")
@@ -53,6 +54,8 @@ async def patch_session_settings(
         settings["debug_mode"] = body.debug_mode
     if body.content_level in ("safe", "mature", "unrestricted"):
         settings["content_level"] = body.content_level
+    if body.use_v10 is not None:
+        settings["use_v10"] = body.use_v10
     sess.settings_json = json.dumps(settings)
     await s.commit()
     return {"id": sess.id, "settings": settings}
@@ -190,6 +193,17 @@ async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_
     s.add(sess)
     await s.flush()
     s.add(CharState(session_id=sess.id))
+
+    # Tier-1 复用现有剧本：把剧本绑回新存档，并重置进度字段，让 GM/前端的
+    # get_active_screenplay 能在新会话里找到它，且从第 1 章开始重玩。
+    if body.screenplay_id is not None:
+        sp = await s.get(Screenplay, body.screenplay_id)
+        if sp is not None:
+            sp.session_id = sess.id
+            sp.current_chapter = 1
+            sp.completed_events_json = "[]"
+            sp.status = "active"
+
     await s.commit()
     await s.refresh(sess)
     return _to_out(sess)

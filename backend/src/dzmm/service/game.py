@@ -145,6 +145,24 @@ def _strip_thinking_tags(text: str) -> str:
     return _THINK_RE.sub("", text)
 
 
+def _serialize_event_for_history(ev: ParseEvent) -> str:
+    """Reconstruct an XML-ish snippet from a ParseEvent so the messages
+    table's `content` column captures what Scene + NPCs collectively
+    produced this turn (used by recent_messages on later turns)."""
+    if isinstance(ev, NarrativeDelta):
+        return f"<narrative>{ev.text}</narrative>"
+    if isinstance(ev, TagComplete):
+        attrs = " ".join(f'{k}="{v}"' for k, v in (ev.attrs or {}).items())
+        if ev.content:
+            return (
+                f"<{ev.name} {attrs}>{ev.content}</{ev.name}>"
+                if attrs
+                else f"<{ev.name}>{ev.content}</{ev.name}>"
+            )
+        return f"<{ev.name} {attrs}/>" if attrs else f"<{ev.name}/>"
+    return ""
+
+
 # PC name drift repair extracted to a sibling module (v0.1.6 refactor); the
 # names are re-exported here so existing call-sites and tests still see them.
 from dzmm.service.name_repair import (
@@ -446,6 +464,74 @@ async def run_turn(
 
     character_md = _format_character_card(char)
 
+    # v0.10 multi-agent runtime — toggle via settings.use_v10 (default ON).
+    # When enabled, hand off the rest of the turn to the orchestrator: it runs
+    # Director (sync if triggered), streams Scene, then fans out NPC actors.
+    # The legacy single-agent path below acts as fallback (use_v10=False).
+    if settings.get("use_v10", True):
+        from dzmm.service.agents.orchestrator import run_turn_v10
+        from dzmm.prompts.gm_template import _format_live_state
+
+        live_state_text = _format_live_state(live_state)
+        full_output_parts: list[str] = []
+        completed_tags: list[TagComplete] = []
+        narrative_parts: list[str] = []
+
+        async for ev in run_turn_v10(
+            session,
+            session_id=session_id,
+            user_action=user_action,
+            scene_client=client,
+            director_client=client,
+            npc_client=client,
+            world_md=get_world_md(
+                world.id,
+                world.content_md or "",
+                user_action,
+                ollama_base_url,
+            ),
+            character_md=character_md,
+            live_state_text=live_state_text,
+            key_facts=key_facts,
+            recent_messages=recent,
+        ):
+            if isinstance(ev, TagComplete):
+                completed_tags.append(ev)
+            if isinstance(ev, NarrativeDelta):
+                narrative_parts.append(ev.text)
+            full_output_parts.append(_serialize_event_for_history(ev))
+            yield ev
+
+        full_output = "".join(full_output_parts)
+        next_turn = sess.turn_count + 1
+
+        # Persist player's user message + aggregated assistant output into
+        # the existing messages table. agent_streams already captured the
+        # Director + per-NPC private histories during run_turn_v10.
+        session.add(MessageRow(
+            session_id=session_id, role="user",
+            content=user_action, turn=next_turn,
+        ))
+        events_payload = [
+            {
+                "type": tag.name,
+                "payload": dict(tag.attrs or {}),
+                "content": tag.content or "",
+            }
+            for tag in completed_tags
+        ]
+        session.add(MessageRow(
+            session_id=session_id, role="assistant",
+            content=full_output, turn=next_turn,
+            events_json=json.dumps(events_payload, ensure_ascii=False),
+        ))
+        await apply_tags(session, session_id, next_turn, completed_tags)
+        _update_scene_turn_count(sess, completed_tags)
+        sess.turn_count = next_turn
+        sess.last_played = datetime.now(UTC).replace(tzinfo=None)
+        return  # short-circuit legacy path
+
+    # ── Legacy single-agent path (kept as fallback / for use_v10=False) ──
     action_with_reminder = user_action
     if xml_reminder:
         action_with_reminder = user_action + "\n\n" + xml_reminder
