@@ -8,10 +8,13 @@ export interface World {
 
 export type WorldIn = Omit<World, 'id'>
 
+export type Gender = '' | 'male' | 'female'
+
 export interface Character {
   id: number
   world_id: number
   name: string
+  gender?: Gender
   profile_md: string
   base_stats_json: string
   portrait_path?: string
@@ -69,6 +72,7 @@ export interface StandaloneScreenplay {
   title: string
   genre: string
   pc_name: string
+  pc_gender?: Gender
   pc_profile_md: string
   pc_base_stats_json: string
   custom_prompt: string

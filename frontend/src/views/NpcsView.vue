@@ -113,6 +113,16 @@ onMounted(refresh)
         <div class="flex items-center gap-2 mb-1">
           <span v-if="n.pinned" class="text-amber-500" title="已置顶">📌</span>
           <h3 class="font-bold text-slate-800 truncate">{{ n.name }}</h3>
+          <span
+            v-if="n.gender === 'male'"
+            class="text-sm text-blue-500 shrink-0"
+            title="男"
+          >♂</span>
+          <span
+            v-else-if="n.gender === 'female'"
+            class="text-sm text-rose-500 shrink-0"
+            title="女"
+          >♀</span>
           <span class="text-xs text-slate-400 ml-auto shrink-0">
             T{{ n.last_seen_turn }}
           </span>

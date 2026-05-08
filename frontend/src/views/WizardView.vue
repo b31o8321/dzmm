@@ -67,6 +67,7 @@ interface State {
   // step 3
   archetype: string
   character_name: string
+  character_gender: '' | 'male' | 'female'
   character_md: string
   // step 4
   npcs: WizardNPC[]
@@ -97,6 +98,7 @@ const state = reactive<State>({
   worldCoverAssetId: null,
   archetype: '',
   character_name: '',
+  character_gender: '',
   character_md: '',
   npcs: [],
   pinned_npc_names: [],
@@ -323,6 +325,7 @@ async function generateCharacter() {
   }
   state.character_md = ''
   state.character_name = ''
+  state.character_gender = ''
   streamText.character = ''
   loading.value = true
   errorMsg.value = ''
@@ -333,8 +336,10 @@ async function generateCharacter() {
       { model_config_id: mid, world_md: state.world_md, archetype: state.archetype.trim() },
       {
         onDelta: (t) => { streamText.character += t },
-        onResult: (data: { name: string; profile_md: string }) => {
+        onResult: (data: { name: string; gender?: string; profile_md: string }) => {
           state.character_name = data.name
+          const g = (data.gender ?? '').toLowerCase()
+          state.character_gender = g === 'male' || g === 'female' ? g : ''
           state.character_md = data.profile_md
           state.raw_outputs['character'] = data.profile_md
           saveDraft()
@@ -394,7 +399,7 @@ const npcEditDialog = reactive<{ open: boolean; idx: number; draft: WizardNPC }>
   {
     open: false,
     idx: -1,
-    draft: { name: '', role: '', description: '', motivation: '' },
+    draft: { name: '', gender: '', role: '', description: '', motivation: '' },
   },
 )
 
@@ -438,7 +443,7 @@ function deleteNpc(idx: number) {
 }
 
 function addBlankNpc() {
-  state.npcs.push({ name: '', role: '', description: '', motivation: '' })
+  state.npcs.push({ name: '', gender: '', role: '', description: '', motivation: '' })
   openNpcEdit(state.npcs.length - 1)
 }
 
@@ -564,6 +569,7 @@ async function doFinalize() {
       },
       character: {
         name: state.character_name || '主角',
+        gender: state.character_gender,
         profile_md: state.character_md,
       },
       pinned_npcs: pinned,
@@ -1195,9 +1201,18 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-if="state.character_md" class="space-y-3">
-          <div v-if="state.character_name">
-            <div class="text-xs text-slate-500">角色名</div>
-            <div class="text-lg font-bold text-slate-800">{{ state.character_name }}</div>
+          <div v-if="state.character_name" class="flex items-end gap-4 flex-wrap">
+            <div>
+              <div class="text-xs text-slate-500">角色名</div>
+              <div class="text-lg font-bold text-slate-800">{{ state.character_name }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1">性别</div>
+              <el-radio-group v-model="state.character_gender" size="small">
+                <el-radio-button value="male">男</el-radio-button>
+                <el-radio-button value="female">女</el-radio-button>
+              </el-radio-group>
+            </div>
           </div>
           <MarkdownView :source="state.character_md" />
         </div>
@@ -1251,6 +1266,16 @@ onBeforeUnmount(() => {
               <div class="flex-1 space-y-1">
                 <div class="flex items-center gap-2">
                   <div class="font-bold text-slate-800">{{ npc.name }}</div>
+                  <span
+                    v-if="npc.gender === 'male'"
+                    class="text-blue-500"
+                    title="男"
+                  >♂</span>
+                  <span
+                    v-else-if="npc.gender === 'female'"
+                    class="text-rose-500"
+                    title="女"
+                  >♀</span>
                   <el-tag size="small" type="info">{{ npc.role }}</el-tag>
                 </div>
                 <div class="text-sm text-slate-700">{{ npc.description }}</div>
@@ -1343,6 +1368,13 @@ onBeforeUnmount(() => {
           <div>
             <div class="text-xs text-slate-500 mb-1">名字</div>
             <el-input v-model="npcEditDialog.draft.name" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-1">性别</div>
+            <el-radio-group v-model="npcEditDialog.draft.gender">
+              <el-radio-button value="male">男</el-radio-button>
+              <el-radio-button value="female">女</el-radio-button>
+            </el-radio-group>
           </div>
           <div>
             <div class="text-xs text-slate-500 mb-1">角色（如：盟友、对手、引路人）</div>

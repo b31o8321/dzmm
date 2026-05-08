@@ -711,16 +711,23 @@ def _truncate_character_md(profile: str, budget: int = _CHARACTER_MD_BUDGET) -> 
     return profile[:budget].rstrip() + "…\n\n（…profile 已截断，详细钩子见 key_facts）"
 
 
+_GENDER_CN = {"male": "男", "female": "女"}
+
+
 def _format_character_card(char: Character) -> str:
-    """Prepend `等级: Lv N` so the GM knows PC progression when narrating
-    challenges, NPC reactions, and XP awards. Long profiles are truncated
-    (see _truncate_character_md)."""
+    """Prepend `等级: Lv N` and `性别: 男/女` so the GM has both progression
+    and gender-aware context when narrating challenges, NPC reactions, and
+    relational scenes. Long profiles are truncated (see _truncate_character_md)."""
     profile = (char.profile_md or "").strip()
     level_line = f"等级: Lv {char.level}"
+    header_lines = [level_line]
+    if (char.gender or "") in _GENDER_CN:
+        header_lines.append(f"性别: {_GENDER_CN[char.gender]}")
+    header = "\n".join(header_lines)
     if profile:
         profile = _truncate_character_md(profile)
-        return f"{level_line}\n\n{profile}"
-    return level_line
+        return f"{header}\n\n{profile}"
+    return header
 
 
 def _build_live_state(char: Character, cs: CharState | None) -> dict:

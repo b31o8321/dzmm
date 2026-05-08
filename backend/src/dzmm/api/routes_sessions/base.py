@@ -169,6 +169,7 @@ async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_
         char = CharacterRow(
             world_id=world_id,
             name=sp.pc_name or "主角",
+            gender=sp.pc_gender or "",
             profile_md=sp.pc_profile_md or "",
             base_stats_json=sp.pc_base_stats_json or "{}",
         )

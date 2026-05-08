@@ -157,6 +157,7 @@ def _npc_to_dict(n: NPC) -> dict:
     return {
         "id": n.id,
         "name": n.name,
+        "gender": n.gender or "",
         "description": n.description,
         "favor": n.favor,
         "state": n.state,

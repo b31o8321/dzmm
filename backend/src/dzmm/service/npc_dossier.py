@@ -39,7 +39,14 @@ def _format_npc_dossier(npc: NPC) -> str:
 
     archetype = (npc.archetype or "").strip()
     state = (npc.state or "").strip() or "未知"
+    # Gender is treated as fundamental to identity (along with name) — always
+    # surfaced to the GM regardless of revealed_json. Empty/legacy values
+    # produce no marker.
+    gender = (npc.gender or "").strip()
+    gender_marker = {"male": "♂", "female": "♀"}.get(gender, "")
     head = f"- {npc.name}"
+    if gender_marker:
+        head += f"({gender_marker})"
     if archetype and revealed.get("archetype"):
         head += f" [{archetype}]"
     if revealed.get("state"):
@@ -136,7 +143,9 @@ def _format_npc_short(npc: NPC) -> str:
     favor_str = f"{npc.favor:+d}" if revealed.get("favor") else "??"
     state_str = npc.state if revealed.get("state") else "??"
     desc = (npc.description or "").strip() if revealed.get("description") else ""
-    parts = f"- {npc.name}（好感{favor_str}，状态：{state_str}）"
+    gender_marker = {"male": "♂", "female": "♀"}.get((npc.gender or "").strip(), "")
+    name_with_gender = f"{npc.name}({gender_marker})" if gender_marker else npc.name
+    parts = f"- {name_with_gender}（好感{favor_str}，状态：{state_str}）"
     if desc:
         parts += desc[:40]
     return parts

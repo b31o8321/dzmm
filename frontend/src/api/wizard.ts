@@ -11,6 +11,7 @@ export interface WorldBrief {
 
 export interface WizardNPC {
   name: string
+  gender?: '' | 'male' | 'female'
   role: string
   description: string
   motivation: string
@@ -51,6 +52,7 @@ export interface SingleNpcResponse {
 
 export interface WizardCharacter {
   name: string
+  gender?: '' | 'male' | 'female'
   profile_md: string
 }
 
@@ -67,7 +69,7 @@ export interface ArchetypeSuggestion {
 
 export interface FinalizePayload {
   world: { name: string; content_md: string }
-  character: { name: string; profile_md: string }
+  character: { name: string; gender?: '' | 'male' | 'female'; profile_md: string }
   pinned_npcs: WizardNPC[]
   screenplay: WizardScreenplay
   session_name: string

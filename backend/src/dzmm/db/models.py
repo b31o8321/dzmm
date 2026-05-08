@@ -50,6 +50,9 @@ class Character(Base):
     # ForeignKey("worlds.id") → 声明外键列，但不自动加载关联对象
     world_id: Mapped[int] = mapped_column(ForeignKey("worlds.id"))
     name: Mapped[str] = mapped_column(String(120))
+    # gender: "male" | "female" — enum-like, kept simple per design intent.
+    # Empty string = legacy data created before the column existed.
+    gender: Mapped[str] = mapped_column(String(10), default="")
     profile_md: Mapped[str] = mapped_column(Text)           # 角色背景 Markdown
     base_stats_json: Mapped[str] = mapped_column(Text)      # 初始属性 JSON，如 {"hp":20}
 
@@ -177,6 +180,9 @@ class NPC(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
     name: Mapped[str] = mapped_column(String(120))
+    # gender: "male" | "female" — strict enum for new content; "" means
+    # legacy data (created before the column existed).
+    gender: Mapped[str] = mapped_column(String(10), default="")
     description: Mapped[str] = mapped_column(Text, default="")
     favor: Mapped[int] = mapped_column(default=0)            # 好感度（正=友好，负=敌对）
     state: Mapped[str] = mapped_column(String(60), default="未知")  # 当前状态描述
@@ -246,6 +252,7 @@ class Screenplay(Base):
     world_id: Mapped[int | None] = mapped_column(ForeignKey("worlds.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(120), default="")
     pc_name: Mapped[str] = mapped_column(String(120), default="")
+    pc_gender: Mapped[str] = mapped_column(String(10), default="")
     pc_profile_md: Mapped[str] = mapped_column(Text, default="")
     pc_base_stats_json: Mapped[str] = mapped_column(Text, default="{}")
     version: Mapped[int] = mapped_column(default=1)

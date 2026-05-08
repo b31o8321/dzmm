@@ -51,6 +51,7 @@ export interface NpcNote {
 export interface Npc {
   id: number
   name: string
+  gender?: '' | 'male' | 'female'
   description: string
   favor: number
   state: string

@@ -31,6 +31,27 @@ _NPC_REVEALABLE_FIELDS = frozenset({
 _REVEAL_SPLIT_RE = re.compile(r"[,\s]+")
 
 
+_GENDER_VALID = {"male", "female"}
+_GENDER_ALIAS = {
+    "男": "male", "男性": "male", "m": "male", "boy": "male", "man": "male",
+    "女": "female", "女性": "female", "f": "female", "girl": "female", "woman": "female",
+}
+
+
+def _normalize_gender_str(raw: object) -> str:
+    """Coerce a payload gender value to "male"/"female"/"" — same enum as
+    `service.wizard._normalize_gender`. Duplicated locally to avoid a
+    state_apply→service.wizard import (state_apply is the lower layer)."""
+    if not raw:
+        return ""
+    s = str(raw).strip().lower()
+    if not s:
+        return ""
+    if s in _GENDER_VALID:
+        return s
+    return _GENDER_ALIAS.get(s, "")
+
+
 def _auto_reveal_for_create(payload: dict) -> dict:
     """When creating a new NPC, fields whose value is being set in the same
     payload (description / state / archetype / purpose / favor_delta / etc.)
@@ -107,6 +128,7 @@ async def _apply_npc_update(
         npc = NPC(
             session_id=session_id,
             name=name,
+            gender=_normalize_gender_str(payload.get("gender")),
             description=payload.get("description", ""),
             favor=0,
             state=payload.get("state", "未知"),
@@ -148,6 +170,14 @@ async def _apply_npc_update(
     archetype = payload.get("archetype")
     if archetype is not None:
         npc.archetype = str(archetype)
+
+    # Gender — only set if currently empty (legacy data); never overwrite an
+    # existing male/female assignment from a later GM emit, since flipping
+    # gender mid-story corrupts continuity.
+    if not (npc.gender or "").strip():
+        new_gender = _normalize_gender_str(payload.get("gender"))
+        if new_gender:
+            npc.gender = new_gender
 
     affinity_delta = payload.get("affinity")
     if isinstance(affinity_delta, dict):

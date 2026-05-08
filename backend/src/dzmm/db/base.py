@@ -136,6 +136,21 @@ _V034_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# v0.10 — gender attribute on PC + NPC + Screenplay PC template.
+# Empty string ("") means legacy / unset; new wizard-generated content
+# always populates with "male" or "female".
+_V035_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "characters": [
+        ("gender", "gender VARCHAR(10) NOT NULL DEFAULT ''"),
+    ],
+    "npcs": [
+        ("gender", "gender VARCHAR(10) NOT NULL DEFAULT ''"),
+    ],
+    "screenplays": [
+        ("pc_gender", "pc_gender VARCHAR(10) NOT NULL DEFAULT ''"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -215,4 +230,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V033_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V034_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V035_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

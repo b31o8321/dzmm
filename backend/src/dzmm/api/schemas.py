@@ -15,6 +15,8 @@ class WorldOut(WorldIn):
 class CharacterIn(BaseModel):
     world_id: int
     name: str
+    # Per design: enum "male" | "female"; empty = legacy/unset.
+    gender: str = ""
     profile_md: str
     base_stats_json: str = "{}"
 
@@ -98,6 +100,7 @@ class NpcOut(BaseModel):
     frontend uses to render unrevealed fields as '???' / blanks. v0.11."""
     id: int
     name: str
+    gender: str = ""
     description: str = ""
     favor: int = 0
     state: str = ""
@@ -116,6 +119,7 @@ class ScreenplayStandaloneIn(BaseModel):
     title: str
     genre: str = ""
     pc_name: str = ""
+    pc_gender: str = ""
     pc_profile_md: str = ""
     pc_base_stats_json: str = "{}"
     custom_prompt: str = ""

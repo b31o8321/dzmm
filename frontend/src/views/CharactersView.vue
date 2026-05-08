@@ -22,6 +22,7 @@ const portraitInput = ref<HTMLInputElement | null>(null)
 const form = reactive<CharacterIn>({
   world_id: 0,
   name: '',
+  gender: '',
   profile_md: '',
   base_stats_json: '{"hp":20,"sanity":15,"stamina":10}',
 })
@@ -30,6 +31,7 @@ function reset() {
   Object.assign(form, {
     world_id: worldsStore.items[0]?.id ?? 0,
     name: '',
+    gender: '',
     profile_md: '',
     base_stats_json: '{"hp":20,"sanity":15,"stamina":10}',
   })
@@ -48,11 +50,14 @@ function openEdit(row: Character) {
   Object.assign(form, {
     world_id: row.world_id,
     name: row.name,
+    gender: row.gender ?? '',
     profile_md: row.profile_md,
     base_stats_json: row.base_stats_json,
   })
   dialogOpen.value = true
 }
+
+const genderLabel = (g?: string) => g === 'male' ? '男' : g === 'female' ? '女' : '—'
 
 async function onPortraitChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -87,6 +92,10 @@ async function onSubmit() {
   try {
     if (!form.world_id) {
       ElMessage.warning('请先选择世界观')
+      return
+    }
+    if (form.gender !== 'male' && form.gender !== 'female') {
+      ElMessage.warning('请选择性别（男 / 女）')
       return
     }
     try { JSON.parse(form.base_stats_json) }
@@ -158,6 +167,9 @@ onMounted(async () => {
       <el-table-column label="世界观" width="200">
         <template #default="{ row }">{{ worldNameById.get(row.world_id) ?? '?' }}</template>
       </el-table-column>
+      <el-table-column label="性别" width="80">
+        <template #default="{ row }">{{ genderLabel(row.gender) }}</template>
+      </el-table-column>
       <el-table-column prop="base_stats_json" label="属性" width="280" />
       <el-table-column label="简介">
         <template #default="{ row }">
@@ -221,6 +233,12 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="姓名" required>
           <el-input v-model="form.name" />
+        </el-form-item>
+        <el-form-item label="性别" required>
+          <el-radio-group v-model="form.gender">
+            <el-radio-button value="male">男</el-radio-button>
+            <el-radio-button value="female">女</el-radio-button>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="属性">
           <el-input v-model="form.base_stats_json" placeholder="JSON 格式" />

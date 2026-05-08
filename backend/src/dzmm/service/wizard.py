@@ -103,6 +103,27 @@ def _extract_json(text: str) -> str:
     return _PY_BOOL_RE.sub(lambda m: _PY_BOOL_MAP[m.group()], tail)
 
 
+_VALID_GENDERS = {"male", "female"}
+_GENDER_ALIASES = {
+    "男": "male", "男性": "male", "m": "male", "boy": "male", "man": "male",
+    "女": "female", "女性": "female", "f": "female", "girl": "female", "woman": "female",
+}
+
+
+def _normalize_gender(raw: object) -> str:
+    """Coerce free-form gender input into the strict `male` / `female` enum.
+    Returns "" for empty / unrecognized values — the GM prompt and dossier
+    treat that as legacy/unset."""
+    if not raw:
+        return ""
+    s = str(raw).strip().lower()
+    if not s:
+        return ""
+    if s in _VALID_GENDERS:
+        return s
+    return _GENDER_ALIASES.get(s, "")
+
+
 def _unwrap_npc_list(data: object) -> list:
     """Accept any of:
     - bare list `[{...}, {...}]`
@@ -228,19 +249,27 @@ def _parse_character_json(raw: str) -> dict:
             or re.search(r"姓名[:：]\s*([^\s\n]+)", raw)
         )
         name = m.group(1).strip("*` ") if m else "(未命名)"
-        return {"name": name, "profile_md": raw}
+        gm = re.search(r"性别[:：]\s*([^\s\n*`]+)", info) or re.search(r"性别[:：]\s*([^\s\n*`]+)", raw)
+        gender = _normalize_gender(gm.group(1)) if gm else ""
+        return {"name": name, "gender": gender, "profile_md": raw}
 
     if not isinstance(data, dict):
         raise ValueError(f"character JSON expected object, got {type(data).__name__}")
     name = str(data.get("name") or "").strip().strip("*` ")
     profile_md = str(data.get("profile_md") or "").strip()
+    gender = _normalize_gender(data.get("gender"))
+    if not gender:
+        # Try to extract from profile_md (`性别：男 / 女`).
+        m = re.search(r"性别[:：]\s*([^\s\n*`]+)", profile_md)
+        if m:
+            gender = _normalize_gender(m.group(1))
     if not name:
         # Last-ditch: try to extract from profile_md regex.
         m = re.search(r"姓名[:：]\s*([^\s\n]+)", profile_md)
         name = m.group(1).strip("*` ") if m else "(未命名)"
     if not profile_md:
         raise ValueError("character JSON missing profile_md")
-    return {"name": name, "profile_md": profile_md}
+    return {"name": name, "gender": gender, "profile_md": profile_md}
 
 
 async def generate_character(
@@ -269,8 +298,13 @@ async def generate_npcs(
         except json.JSONDecodeError as e:
             raise ValueError(f"NPCs JSON parse error: {e}; raw={raw[:200]!r}") from e
         npcs = _unwrap_npc_list(data)
-        npcs = [n for n in npcs if isinstance(n, dict) and n.get("name")]
-        return {"npcs": npcs}
+        out: list[dict] = []
+        for n in npcs:
+            if not isinstance(n, dict) or not n.get("name"):
+                continue
+            n["gender"] = _normalize_gender(n.get("gender"))
+            out.append(n)
+        return {"npcs": out}
     return await _with_retry(_attempt)
 
 
@@ -288,7 +322,8 @@ async def generate_single_npc(
             "content": (
                 f"世界观：\n{world_md}\n\n主角：\n{character_md}\n\n"
                 "你是世界观设计师。根据以下提示，生成**1个**主要 NPC，输出纯 JSON（无 markdown fence）。\n"
-                "格式：{\"name\":\"...\",\"description\":\"...\",\"archetype\":\"...\",\"purpose\":\"...\"}"
+                "格式：{\"name\":\"...\",\"gender\":\"male 或 female（必填）\","
+                "\"description\":\"...\",\"archetype\":\"...\",\"purpose\":\"...\"}"
             ),
         },
         {"role": "user", "content": f"NPC 提示：{hint_text}"},
@@ -302,6 +337,7 @@ async def generate_single_npc(
             raise ValueError(f"single NPC JSON error: {e}; raw={raw[:200]!r}") from e
         if not isinstance(npc, dict) or not npc.get("name"):
             raise ValueError(f"invalid NPC shape: {npc!r}")
+        npc["gender"] = _normalize_gender(npc.get("gender"))
         return npc
 
     return await _with_retry(_attempt)
@@ -379,6 +415,7 @@ async def finalize_wizard(
     char = Character(
         world_id=world.id,
         name=str(char_data.get("name") or "(未命名)")[:120],
+        gender=_normalize_gender(char_data.get("gender")),
         profile_md=str(char_data.get("profile_md") or ""),
         base_stats_json=str(char_data.get("base_stats_json") or "{}"),
     )
@@ -412,6 +449,7 @@ async def finalize_wizard(
         npc = NPC(
             session_id=sess.id,
             name=name[:120],
+            gender=_normalize_gender(npc_data.get("gender")),
             description=str(npc_data.get("description") or "")[:1000],
             purpose=str(npc_data.get("motivation") or npc_data.get("purpose") or "")[:1000],
             archetype=str(npc_data.get("role") or npc_data.get("archetype") or "")[:120],
@@ -421,11 +459,16 @@ async def finalize_wizard(
         session.add(npc)
         created_npcs.append(npc)
 
-    # 5. Screenplay
+    # 5. Screenplay (carry pc_gender so future sessions cloned from this
+    # screenplay get the same gender on their PC)
     sp = Screenplay(
         session_id=sess.id,
         version=1,
         genre=str(bundle.get("genre") or "")[:60],
+        pc_name=char.name,
+        pc_gender=char.gender,
+        pc_profile_md=char.profile_md,
+        pc_base_stats_json=char.base_stats_json,
         chapters_json=json.dumps(sp_data.get("chapters", []), ensure_ascii=False),
         main_characters_json=json.dumps(
             sp_data.get("main_characters", []), ensure_ascii=False

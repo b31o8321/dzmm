@@ -31,6 +31,7 @@ def _serialize(c: Character) -> CharacterOut:
         id=c.id,
         world_id=c.world_id,
         name=c.name,
+        gender=c.gender or "",
         profile_md=c.profile_md,
         base_stats_json=c.base_stats_json,
         portrait_path=c.portrait_path or "",
@@ -76,6 +77,7 @@ async def update_character(
         raise HTTPException(404, "character not found")
     c.world_id = body.world_id
     c.name = body.name
+    c.gender = body.gender
     c.profile_md = body.profile_md
     c.base_stats_json = body.base_stats_json
     await s.commit()
