@@ -12,7 +12,6 @@ const props = defineProps<{
   stats: Record<string, number>
   inventory: string[]
   npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null; met?: boolean }[]
-  dice: { skill: string; target: string; result: string; success?: string; fail?: string }[]
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
   pcMood?: Record<string, number>
@@ -178,19 +177,6 @@ function npcAvatarColor(name: string): string {
       <ul class="space-y-1 text-sm">
         <li v-for="item in inventory" :key="item">· {{ item }}</li>
         <li v-if="!inventory.length" class="text-slate-400 italic">空</li>
-      </ul>
-    </section>
-
-    <section v-if="dice.length">
-      <h3 class="font-bold text-slate-700 mb-2">最近骰点</h3>
-      <ul class="space-y-1 text-xs font-mono">
-        <li v-for="(d, i) in dice" :key="i" class="text-slate-600">
-          <div>🎲 {{ d.skill }} (DC {{ d.target }}) → <span class="font-medium">{{ d.result }}</span></div>
-          <div v-if="d.success || d.fail" class="ml-5 mt-0.5 space-y-0.5">
-            <div v-if="d.success" class="text-xs text-emerald-600">✓ {{ d.success }}</div>
-            <div v-if="d.fail" class="text-xs text-rose-500">✗ {{ d.fail }}</div>
-          </div>
-        </li>
       </ul>
     </section>
 

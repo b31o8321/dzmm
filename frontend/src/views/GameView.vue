@@ -992,7 +992,7 @@ onUnmounted(() => {
     <aside class="hidden md:flex md:flex-col w-80 bg-white border-l overflow-auto h-full">
       <StatePanel :session-id="sessionId"
                   :stats="stats" :inventory="inventory" :npcs="npcs"
-                  :dice="dice" :threads="threads" :goals="goals"
+                  :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
                   :current-location="currentLocation"
                   :world-time="worldTime ?? undefined"
