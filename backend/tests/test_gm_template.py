@@ -709,14 +709,19 @@ def test_rule_26_npc_proactive_present():
 
 
 def test_rule_27_dice_failure_consequences():
-    """v0.2.2 P1.4 — iron rule 26: dice failure must produce negative
-    consequences; can't be 'nothing happens'. Critical success rewards XP."""
+    """Iron rule 26: dice outcome must change world state on BOTH sides —
+    failure produces concrete bad effects, success produces concrete good
+    effects (no "你成功了，但…" sleights of hand). Critical success can
+    additionally award XP."""
     sys_text = _build_default_sys()
     assert "26." in sys_text
-    assert "失败" in sys_text and "负面后果" in sys_text
-    # At least one of the example consequence categories should be named
+    # Failure side
+    assert "失败" in sys_text
     assert "关系恶化" in sys_text or "线索错失" in sys_text
-    # Big-success reward path is also documented in this rule
+    # Success side — the v0.10 symmetry fix
+    assert "成功" in sys_text and ("具体" in sys_text or "关系改善" in sys_text)
+    assert "禁止" in sys_text and "成功" in sys_text  # ban "success-but-nothing"
+    # XP path still documented
     assert "character_xp" in sys_text
 
 

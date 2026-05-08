@@ -1019,6 +1019,19 @@ async def _build_key_facts(
             )
         )
     ).scalar_one_or_none()
+    if current_loc is None:
+        # GM has been narrating without ever registering a location (real-
+        # world session showed 17 turns with zero <location_enter>). Without
+        # a location, the side panel's 当前场所 is empty and scene-budget
+        # logic can't fire. Tell GM to register one this turn before doing
+        # anything else.
+        parts.append(
+            "\n## ⚠️ 场所登记缺失（强制）\n"
+            "本会话尚未登记任何地点，前端「当前场所」一直空白。**本回合 narrative "
+            "开头必须 emit `<location_enter name=\"具体地点名\" description=\"一句话\"/>`** "
+            "（如 「教堂地下室」 / 「九龙城寨夜市」）。已经在该地点的话也算"
+            "首次登记，必须 emit。"
+        )
     if current_loc is not None:
         loc_lines = [f"\n## 当前场地：{current_loc.name}"]
         if current_loc.description:

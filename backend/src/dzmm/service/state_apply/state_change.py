@@ -18,6 +18,15 @@ from dzmm.parsing.repair import parse_loose_json
 # hit (see _critical_vitals_hint).
 _VITAL_STATS = frozenset({"hp", "sanity", "stamina"})
 
+# Per-emit absolute delta cap for vital stats. PC base values run ~15-30,
+# so a single state_change should also stay around that scale. Without a
+# cap, GMs (especially under doom_score pressure) escalate compoundly:
+# observed real-world session showed -30 → -50 → -70 → -100 → -150 → -200
+# over consecutive turns, each emit doubling the previous. Cap at ±25 per
+# emit makes runaway impossible while still allowing dramatic single-turn
+# hits.
+_VITAL_DELTA_MAX = 25
+
 
 async def _apply_state_change(
     session: AsyncSession, session_id: int, raw: str
@@ -46,7 +55,13 @@ async def _apply_state_change(
                 if item in inventory:
                     inventory.remove(item)
         elif isinstance(val, (int, float)):
-            new_val = stats.get(key, 0) + val
+            delta = val
+            if key in _VITAL_STATS and abs(delta) > _VITAL_DELTA_MAX:
+                # Preserve sign, cap magnitude. The GM narrative still
+                # describes "巨大伤害"; we just refuse to let the number
+                # spiral.
+                delta = _VITAL_DELTA_MAX if delta > 0 else -_VITAL_DELTA_MAX
+            new_val = stats.get(key, 0) + delta
             if key in _VITAL_STATS and new_val < 0:
                 new_val = 0
             stats[key] = new_val
