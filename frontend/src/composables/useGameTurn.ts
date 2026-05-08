@@ -240,10 +240,46 @@ export function useGameTurn(
           else if (name === 'dice') {
             // 骰子判定 → 播放骰子音效 + 推入侧边栏
             audio.playSfx('dice')
+
+            // v0.9 dice schema is structured XML: content is `<scene>…</scene>
+            // <reaction speaker mood>…</reaction>` rather than the v0.8
+            // free-form roll string. Strip those tags out of the side-panel
+            // result line and prefer the new `pc_roll` / `dc` / `outcome` /
+            // `category` attrs when present.
+            const stripTags = (s: string) =>
+              s.replace(/<scene>[\s\S]*?<\/scene>/gi, '')
+               .replace(/<reaction\b[^>]*>[\s\S]*?<\/reaction>/gi, '')
+               .replace(/<[^>]+>/g, '')
+               .trim()
+
+            const skillLabel = attrs.skill || attrs.category || '判定'
+            const targetLabel = attrs.target || attrs.dc || '?'
+
+            // Build a compact result line. Prefer the structured fields:
+            // `outcome` (crit_success/success/fail/crit_fail) + `pc_roll`/`mod`
+            // give a clean one-line summary. Fall back to the stripped body
+            // text for legacy v0.8 emits.
+            const outcomeLabel: Record<string, string> = {
+              crit_success: '✦ 大成功',
+              success: '✓ 成功',
+              fail: '✗ 失败',
+              crit_fail: '☠ 大失败',
+            }
+            let resultLine = ''
+            if (attrs.pc_roll) {
+              const mod = attrs.mod ? ` ${attrs.mod}` : ''
+              resultLine = `d20=${attrs.pc_roll}${mod}`
+              if (attrs.outcome && outcomeLabel[attrs.outcome]) {
+                resultLine += ` ${outcomeLabel[attrs.outcome]}`
+              }
+            } else {
+              resultLine = stripTags(content) || '?'
+            }
+
             gs.pushDice({
-              skill: attrs.skill ?? '判定',
-              target: attrs.target ?? '?',
-              result: content.trim() || '?',
+              skill: skillLabel,
+              target: targetLabel,
+              result: resultLine,
               success: attrs.success || undefined,  // 成功后果（可选）
               fail: attrs.fail || undefined,         // 失败后果（可选）
             })
