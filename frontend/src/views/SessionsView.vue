@@ -9,6 +9,7 @@ import { useScreenplaysStore } from '@/stores/screenplays'
 import { sessionsApi } from '@/api/sessions'
 import { worldsApi } from '@/api/worlds'
 import { standaloneScreenplayApi } from '@/api/screenplays'
+import { charactersApi } from '@/api/characters'
 import { modelsApi } from '@/api/models'
 import type { ModelCheckResult } from '@/api/models'
 import type { GameSession } from '@/api/types'
@@ -126,104 +127,127 @@ async function exportSession(id: number, format: 'json' | 'md') {
   }
 }
 
+// ── Delete-session dialog state (3-tier UX) ──────────────────────────
+//   tier 1: session only — keeps screenplay + world (replay same screenplay)
+//   tier 2: session + screenplay (+PC + NPCs) — keeps world (new screenplay
+//           in same world)
+//   tier 3: session + screenplay + world — full nuke
+const deleteDialog = reactive<{
+  open: boolean
+  target: GameSession | null
+  tier: 1 | 2 | 3
+  loading: boolean
+  worldSummary: { characters: number; sessions: number; screenplays: number } | null
+  screenplayShared: boolean  // true if other sessions also use this screenplay
+}>({
+  open: false,
+  target: null,
+  tier: 1,
+  loading: false,
+  worldSummary: null,
+  screenplayShared: false,
+})
+
 async function onDelete(row: GameSession) {
-  // Step 1: confirm session delete
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除存档「${row.name}」吗？\n\n该操作会一并清除：消息历史、NPC、关系、` +
-      `剧情线、编年史、目标、暗中状态、玩家反馈等。\n\n此操作无法撤销。`,
-      `删除存档（已进行 ${row.turn_count} 回合）`,
-      {
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-      },
-    )
-  } catch {
-    return  // user cancelled
-  }
-  try {
-    await sessionsStore.remove(row.id)
-    ElMessage.success(`已删除「${row.name}」`)
-  } catch (e: any) {
-    ElMessage.error(e.message ?? '删除失败')
-    return
-  }
+  deleteDialog.target = row
+  deleteDialog.tier = 1
+  deleteDialog.loading = false
+  deleteDialog.worldSummary = null
+  deleteDialog.screenplayShared = false
+  deleteDialog.open = true
 
-  // Step 2: ask about deleting screenplay (only if no other session references it)
+  // Concurrently fetch the data the dialog needs to label the tiers.
+  const tasks: Promise<void>[] = [
+    worldsApi.cascadeSummary(row.world_id)
+      .then((s) => { deleteDialog.worldSummary = s })
+      .catch(() => { /* leave null */ }),
+  ]
   if (row.screenplay_id) {
-    try {
-      const refs = await standaloneScreenplayApi.refs(row.screenplay_id)
-      if (refs.sessions === 0) {
-        try {
-          await ElMessageBox.confirm(
-            `该存档使用的剧本已不再被任何存档引用。是否一并删除？`,
-            '删除剧本',
-            {
-              confirmButtonText: '删除',
-              cancelButtonText: '保留',
-              type: 'warning',
-              confirmButtonClass: 'el-button--danger',
-              distinguishCancelAndClose: true,
-            },
-          )
-          await standaloneScreenplayApi.remove(row.screenplay_id)
-          ElMessage.success('剧本已删除')
-        } catch { /* user kept it */ }
-      }
-    } catch {
-      // refs lookup failed (deleted screenplay etc.) — skip silently
-    }
-  }
-
-  // Step 3: ask about deleting world (with cascade summary)
-  const worldName = worldNameById.value.get(row.world_id) ?? `世界观 #${row.world_id}`
-  let summary: { characters: number; sessions: number; screenplays: number }
-  try {
-    summary = await worldsApi.cascadeSummary(row.world_id)
-  } catch { return }
-
-  const total = summary.characters + summary.sessions + summary.screenplays
-  if (total === 0) {
-    try {
-      await ElMessageBox.confirm(
-        `该世界观「${worldName}」已无关联资源。是否一并删除？`,
-        '删除世界观',
-        {
-          confirmButtonText: '删除',
-          cancelButtonText: '保留',
-          type: 'warning',
-          confirmButtonClass: 'el-button--danger',
-          distinguishCancelAndClose: true,
-        },
-      )
-      await worldsStore.remove(row.world_id)
-      ElMessage.success(`已删除世界观「${worldName}」`)
-    } catch { /* keep */ }
-    return
-  }
-
-  const lines: string[] = []
-  if (summary.sessions) lines.push(`${summary.sessions} 个其他存档（含全部消息/NPC/关系等）`)
-  if (summary.characters) lines.push(`${summary.characters} 个角色`)
-  if (summary.screenplays) lines.push(`${summary.screenplays} 个剧本`)
-  try {
-    await ElMessageBox.confirm(
-      `世界观「${worldName}」还有以下关联资源：\n\n• ${lines.join('\n• ')}\n\n` +
-      `是否级联删除这些内容并移除该世界观？`,
-      '级联删除世界观',
-      {
-        confirmButtonText: '全部删除',
-        cancelButtonText: '保留',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-        distinguishCancelAndClose: true,
-      },
+    tasks.push(
+      standaloneScreenplayApi.refs(row.screenplay_id)
+        .then((r) => { deleteDialog.screenplayShared = r.sessions > 1 })
+        .catch(() => { /* assume shared = unknown */ }),
     )
-    await worldsStore.remove(row.world_id, { cascade: true })
-    ElMessage.success(`已删除世界观「${worldName}」及其关联资源`)
-  } catch { /* keep */ }
+  }
+  await Promise.all(tasks)
+}
+
+const deleteDialogScreenplayName = computed(() => {
+  const sid = deleteDialog.target?.screenplay_id ?? null
+  if (sid == null) return ''
+  for (const list of spStore.byWorld.values()) {
+    const hit = list.find((sp) => sp.id === sid)
+    if (hit) return hit.title
+  }
+  return `剧本 #${sid}`
+})
+
+const deleteDialogWorldName = computed(() => {
+  const wid = deleteDialog.target?.world_id
+  if (wid == null) return ''
+  return worldNameById.value.get(wid) ?? `世界观 #${wid}`
+})
+
+// Tier 2 is only meaningful if the screenplay isn't shared by another session.
+const deleteDialogTier2Disabled = computed(() => {
+  const t = deleteDialog.target
+  if (!t) return true
+  if (!t.screenplay_id) return true  // legacy session without screenplay
+  return deleteDialog.screenplayShared
+})
+
+// Tier 3 disabled when the world's other sessions / world-level screenplays
+// would still want to live (we still allow it but warn). Always enabled.
+async function confirmDeleteSession() {
+  const row = deleteDialog.target
+  if (!row) return
+  deleteDialog.loading = true
+  const tier = deleteDialog.tier
+  try {
+    if (tier === 3) {
+      // Single cascade call wipes the world + every session + screenplay +
+      // character under it (including this one).
+      await worldsStore.remove(row.world_id, { cascade: true })
+      // Refresh the local sessions list since the cascade removed others.
+      await sessionsStore.refresh()
+      ElMessage.success(`已删除世界观「${deleteDialogWorldName.value}」及其全部内容`)
+    } else {
+      // Tier 1 + 2 both start with a session delete.
+      const charId = row.character_id
+      const screenplayId = row.screenplay_id
+      await sessionsStore.remove(row.id)
+
+      if (tier === 2) {
+        // Best-effort: delete screenplay + character. Both refuse via 409
+        // if something else still references them, in which case we just
+        // log and move on.
+        if (screenplayId) {
+          try {
+            await standaloneScreenplayApi.remove(screenplayId)
+          } catch (e: any) {
+            ElMessage.warning(`剧本未删除：${e?.message ?? '可能仍有引用'}`)
+          }
+        }
+        if (charId) {
+          try {
+            await charactersApi.remove(charId)
+          } catch {
+            // Silent — most often a 404 because the wizard's PC was the
+            // only character and it cascaded with the session somehow,
+            // or a 409 if another session references it.
+          }
+        }
+        ElMessage.success(`已删除存档「${row.name}」+ 剧本 + PC`)
+      } else {
+        ElMessage.success(`已删除存档「${row.name}」`)
+      }
+    }
+    deleteDialog.open = false
+  } catch (e: any) {
+    ElMessage.error(e?.message ?? '删除失败')
+  } finally {
+    deleteDialog.loading = false
+  }
 }
 
 async function onCreate() {
@@ -404,6 +428,90 @@ onMounted(async () => {
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 3-tier delete dialog -->
+    <el-dialog
+      v-model="deleteDialog.open"
+      title="删除存档"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <div v-if="deleteDialog.target" class="space-y-3 text-sm">
+        <div class="text-slate-600">
+          存档「<span class="font-medium">{{ deleteDialog.target.name }}</span>」（已进行
+          {{ deleteDialog.target.turn_count }} 回合）
+        </div>
+
+        <el-radio-group v-model="deleteDialog.tier" class="flex flex-col gap-2 w-full">
+          <div class="border border-slate-200 rounded p-3">
+            <el-radio :value="1">
+              <span class="font-medium">仅删除当前进度</span>
+              <span class="text-xs text-slate-500 ml-2">（保留剧本 + 世界观）</span>
+            </el-radio>
+            <div class="text-xs text-slate-500 ml-6 mt-1">
+              清除：消息历史 / NPC / 关系 / 剧情线 / 目标 / 暗中状态 / 反馈。
+              下次可在同剧本重玩。
+            </div>
+          </div>
+
+          <div
+            class="border rounded p-3"
+            :class="deleteDialogTier2Disabled ? 'border-slate-200 opacity-60' : 'border-slate-200'"
+          >
+            <el-radio :value="2" :disabled="deleteDialogTier2Disabled">
+              <span class="font-medium">同时删除剧本</span>
+              <span class="text-xs text-slate-500 ml-2">（保留世界观）</span>
+            </el-radio>
+            <div class="text-xs text-slate-500 ml-6 mt-1">
+              额外清除：剧本「{{ deleteDialogScreenplayName || '—' }}」+ 主角 + 该剧本 NPC。
+              下次可在同世界观下创建新剧本。
+            </div>
+            <div v-if="deleteDialog.screenplayShared" class="text-xs text-amber-600 ml-6 mt-1">
+              ⚠️ 此剧本仍被其他存档使用，无法删除（仅可选项 1）
+            </div>
+            <div v-else-if="!deleteDialog.target.screenplay_id" class="text-xs text-amber-600 ml-6 mt-1">
+              此存档没有绑定独立剧本（旧版数据）
+            </div>
+          </div>
+
+          <div class="border border-slate-200 rounded p-3">
+            <el-radio :value="3">
+              <span class="font-medium">同时删除世界观</span>
+              <span class="text-xs text-slate-500 ml-2">（全部删除）</span>
+            </el-radio>
+            <div class="text-xs text-slate-500 ml-6 mt-1">
+              额外清除：世界观「{{ deleteDialogWorldName }}」+
+              <template v-if="deleteDialog.worldSummary">
+                {{ deleteDialog.worldSummary.sessions }} 个存档（含本存档）/
+                {{ deleteDialog.worldSummary.screenplays }} 个剧本 /
+                {{ deleteDialog.worldSummary.characters }} 个角色
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic">加载中…</span>
+              </template>
+            </div>
+            <div
+              v-if="deleteDialog.worldSummary && deleteDialog.worldSummary.sessions > 1"
+              class="text-xs text-rose-500 ml-6 mt-1"
+            >
+              ⚠️ 还有 {{ deleteDialog.worldSummary.sessions - 1 }} 个其他存档将一并删除
+            </div>
+          </div>
+        </el-radio-group>
+
+        <div class="text-xs text-slate-500 pt-1 border-t border-slate-100">
+          所选操作不可恢复。
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="deleteDialog.open = false">取消</el-button>
+        <el-button
+          type="danger"
+          :loading="deleteDialog.loading"
+          @click="confirmDeleteSession"
+        >确认删除</el-button>
+      </template>
+    </el-dialog>
 
     <!-- Spinoff dialog -->
     <el-dialog
