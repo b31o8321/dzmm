@@ -128,6 +128,11 @@ async def delete_last_turn(
             MessageRow.turn == max_turn,
         )
     )
+    # v0.10: also rewind agent_streams histories (Director + per-NPC).
+    # max_keep_turn = max_turn - 1 because turn=max_turn is what we just
+    # popped from messages — agent histories must drop the same turn.
+    from dzmm.service.agents.streams import rollback_to_turn
+    await rollback_to_turn(s, session_id, max_keep_turn=max_turn - 1)
     sess.turn_count = max(0, max_turn - 1)
     await s.commit()
 
