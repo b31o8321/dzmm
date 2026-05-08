@@ -37,7 +37,7 @@ import {
   type WizardScreenplay,
 } from '@/api/wizard'
 import { streamWizardStep } from '@/composables/useWizardStream'
-import { KNOWN_GENRES } from '@/api/screenplay'
+import { KNOWN_GENRES, eventDescription, type ScreenplayEvent } from '@/api/screenplay'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { useModelCheck } from '@/composables/useModelCheck'
 import MarkdownView from '@/components/MarkdownView.vue'
@@ -1444,10 +1444,10 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="text-sm text-slate-600 mt-1">{{ ch.summary }}</div>
                 <div v-if="ch.main_events?.length" class="text-xs text-slate-500 mt-2">
-                  主线：{{ (ch.main_events || []).join(' / ') }}
+                  主线：{{ ((ch.main_events as ScreenplayEvent[]) || []).map(eventDescription).filter(Boolean).join(' / ') }}
                 </div>
                 <div v-if="ch.optional_events?.length" class="text-xs text-slate-400 mt-1">
-                  支线：{{ (ch.optional_events || []).join(' / ') }}
+                  支线：{{ ((ch.optional_events as ScreenplayEvent[]) || []).map(eventDescription).filter(Boolean).join(' / ') }}
                 </div>
                 <div class="mt-3 pt-3 border-t border-slate-100">
                   <AssetPicker

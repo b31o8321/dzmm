@@ -13,7 +13,7 @@ import {
   type MessageRow,
 } from '@/api/sessions'
 import type { GameSession } from '@/api/types'
-import { screenplayApi, type Screenplay } from '@/api/screenplay'
+import { screenplayApi, eventDescription, type Screenplay } from '@/api/screenplay'
 
 const sessions = ref<GameSession[]>([])
 const selectedSid = ref<number | null>(null)
@@ -165,13 +165,13 @@ watch(selectedSid, async (sid) => {
             <div v-if="ch.main_events.length" class="mt-2 text-sm">
               <span class="font-bold">主线：</span>
               <ul class="ml-4 list-disc">
-                <li v-for="(ev, i) in ch.main_events" :key="i">{{ ev }}</li>
+                <li v-for="(ev, i) in ch.main_events" :key="i">{{ eventDescription(ev) }}</li>
               </ul>
             </div>
             <div v-if="ch.optional_events.length" class="mt-1 text-sm">
               <span class="font-bold">支线：</span>
               <ul class="ml-4 list-disc text-slate-500">
-                <li v-for="(ev, i) in ch.optional_events" :key="i">{{ ev }}</li>
+                <li v-for="(ev, i) in ch.optional_events" :key="i">{{ eventDescription(ev) }}</li>
               </ul>
             </div>
             <div v-if="ch.main_npcs.length" class="mt-1 text-sm">
