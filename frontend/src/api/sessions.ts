@@ -175,6 +175,11 @@ export const sessionsApi = {
   locations: (id: number) =>
     api.get<LocationItem[]>(`/sessions/${id}/locations`).then((r) => r.data),
 
+  agents: (sessionId: number) =>
+    api.get<{ session_id: number; streams: AgentStreamInfo[] }>(
+      `/sessions/${sessionId}/agents`,
+    ).then((r) => r.data),
+
   async updateGmModel(sessionId: number, gmModelConfigId: number): Promise<void> {
     await api.patch(`/sessions/${sessionId}/gm_model`, {
       gm_model_config_id: gmModelConfigId,
@@ -305,6 +310,19 @@ export interface HiddenEventItem {
   consequence: string
   introduced_turn: number
   status: string
+}
+
+export interface AgentStreamInfo {
+  id: number
+  kind: 'gm_director' | 'npc'
+  ref: string
+  last_run_turn: number
+  recent_messages: Array<{
+    turn: number
+    role: 'system' | 'user' | 'assistant'
+    content: string
+    is_summary: boolean
+  }>
 }
 
 export interface LocationItem {

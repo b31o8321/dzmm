@@ -14,6 +14,7 @@ import {
 } from '@/api/sessions'
 import type { GameSession } from '@/api/types'
 import { screenplayApi, eventDescription, type Screenplay } from '@/api/screenplay'
+import AgentsDebugPanel from '@/components/AgentsDebugPanel.vue'
 
 const sessions = ref<GameSession[]>([])
 const selectedSid = ref<number | null>(null)
@@ -279,6 +280,11 @@ watch(selectedSid, async (sid) => {
             <pre class="whitespace-pre-wrap mt-1 text-slate-700">{{ m.content.slice(0, 400) }}{{ m.content.length > 400 ? '…' : '' }}</pre>
           </div>
         </div>
+      </el-tab-pane>
+
+      <!-- v0.10 T11: Agents (multi-agent prompt + history) -->
+      <el-tab-pane label="🎬 Agents" name="agents">
+        <AgentsDebugPanel v-if="selectedSid != null" :session-id="selectedSid" />
       </el-tab-pane>
 
       <!-- Feedback -->

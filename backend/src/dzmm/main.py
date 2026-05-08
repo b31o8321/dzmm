@@ -79,6 +79,14 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
     app.dependency_overrides[routes_factions.get_session_dep] = get_session_dep
     app.include_router(routes_factions.router)
 
+    # v0.10 T11: Debug "Agents" tab (per-stream prompt + history).
+    from dzmm.api.routes_debug_agents import (
+        router as debug_agents_router,
+        get_session_dep as debug_agents_get_session_dep,
+    )
+    app.dependency_overrides[debug_agents_get_session_dep] = get_session_dep
+    app.include_router(debug_agents_router)
+
     app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
 
     # If DZMM_FRONTEND_DIST points at a directory of built frontend files,
