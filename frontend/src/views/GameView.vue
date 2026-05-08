@@ -214,7 +214,7 @@ const {
     refreshCharacter()  // pick up XP gains from <character_xp>
     refreshGoals()  // pick up <pc_goal> add/complete
     refreshLocations()  // pick up <location_enter> updates
-    refreshNpcLocations()  // pick up <npc_update location="..."> changes
+    refreshNpcs()  // pick up <npc_update> changes (favor/state/location/emotion)
     refreshWorldTime()  // pick up <time_advance> updates
     refreshSuggestions()
     // TTS: speak the completed turn with per-speaker voices
@@ -255,13 +255,25 @@ watch(() => screenplay.value?.current_chapter, (ch) => {
   if (ch != null) applyChapterBgm(ch)
 }, { immediate: true })
 
-async function refreshNpcLocations() {
+// Sync the side-panel NPC list from the authoritative /npcs endpoint.
+// Covers favor / state / current_location / pinned / met — the optimistic
+// streaming updates in useGameState.applyNpcUpdate are intentionally
+// partial (favor_delta + state) and never cross-checked against the DB,
+// so without this any NPC field set during the turn (notably emotion via
+// the side dialog, and accumulated favor drift) would diverge from the
+// backend. Called from onTurnDone after each turn settles.
+async function refreshNpcs() {
   try {
     const fullNpcs = await sessionsApi.npcs(sessionId)
     const npcMap = new Map(fullNpcs.map((n) => [n.name, n]))
     for (const n of npcs.value) {
       const full = npcMap.get(n.name)
-      if (full) (n as any).current_location = full.current_location ?? null
+      if (!full) continue
+      n.favor = full.favor
+      n.state = full.state
+      n.pinned = full.pinned
+      ;(n as any).current_location = full.current_location ?? null
+      ;(n as any).met = full.last_seen_turn > 0
     }
   } catch { /* ignore */ }
 }
@@ -493,7 +505,7 @@ async function triggerInitiative() {
           refreshCharacter()
           refreshGoals()
           refreshLocations()
-          refreshNpcLocations()
+          refreshNpcs()
           refreshSuggestions()
         },
       },
