@@ -541,7 +541,13 @@ async def test_key_facts_includes_pc_numerical_state(seeded):
 async def test_key_facts_filters_unrevealed_npc_fields(seeded):
     """v0.11: an NPC field whose value is set in the DB but NOT marked
     revealed must NOT leak into the GM system prompt. The NPC's name MUST
-    still appear so the GM can refer to them."""
+    still appear so the GM can refer to them.
+
+    Note: per the v0.2.5 threshold rules in `_effective_reveals`,
+    last_seen_turn>0 auto-reveals description/state/favor. To keep
+    description/purpose hidden here we use last_seen_turn=0 — the NPC is
+    pinned but hasn't been on stage yet (e.g. introduced in lore but not
+    encountered)."""
     engine, SessionMaker, sid = seeded
     async with SessionMaker() as s:
         s.add(NPC(
@@ -551,7 +557,7 @@ async def test_key_facts_filters_unrevealed_npc_fields(seeded):
             purpose="同样不可见的隐秘动机",
             favor=5,
             state="表面平静",
-            last_seen_turn=1,
+            last_seen_turn=0,  # not yet encountered → threshold rules don't fire
             pinned=True,  # ensures full-dossier path is exercised
             revealed_json='{"name": true}',
         ))

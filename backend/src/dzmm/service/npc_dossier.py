@@ -28,14 +28,55 @@ def _npc_revealed(npc: NPC) -> dict[str, bool]:
     return revealed
 
 
+def _effective_reveals(npc: NPC) -> dict[str, bool]:
+    """Return the effective reveal map: stored ``revealed_json`` overlaid with
+    Python-driven threshold rules (v0.2.5).
+
+    Why this exists: previously the threshold-based auto-reveal rules
+    (last_seen_turn>0 → description/state/favor visible; high favor →
+    archetype/purpose visible) lived only in the frontend serializer
+    (``_npc_to_dict``), so the GM prompt kept telling the GM "[未揭示：
+    description/...]" for an NPC the player had clearly already met. That
+    triggered repetitive "hint" behavior from the GM. Both code paths now go
+    through this helper.
+
+    Semantics: thresholds use ``setdefault`` (overlay-only) — an explicitly
+    stored ``False`` from ``revealed_json`` is preserved, so the GM/user can
+    forcibly hide a field even after the NPC appears. ``name`` is always
+    forced to ``True`` last so it can never be turned off.
+    """
+    revealed = _npc_revealed(npc)
+
+    # Once an NPC has appeared in the story, basic observable fields auto-reveal.
+    if npc.last_seen_turn > 0:
+        revealed.setdefault("description", True)
+        revealed.setdefault("state", True)
+        revealed.setdefault("favor", True)
+    # Archetype becomes apparent after meaningful interaction.
+    if abs(npc.favor) >= 20 or (
+        npc.last_seen_turn > 0 and (npc.archetype or "").strip()
+    ):
+        revealed.setdefault("archetype", True)
+    # Purpose surfaces only after a significant relationship.
+    if abs(npc.favor) >= 30:
+        revealed.setdefault("purpose", True)
+
+    revealed["name"] = True  # always — re-assert after setdefault overlay
+    return revealed
+
+
 def _format_npc_dossier(npc: NPC) -> str:
     """Full dossier block for pinned/recalled NPCs.
 
     v0.11: fields not present in ``npc.revealed_json`` are NOT printed with
     their actual value — instead the GM is told the field exists but is
     unrevealed so it can surface organically through narrative.
+
+    Uses ``_effective_reveals`` so threshold-based auto-reveal rules (e.g.
+    last_seen_turn>0 → description visible) line up with what the frontend
+    shows the player.
     """
-    revealed = _npc_revealed(npc)
+    revealed = _effective_reveals(npc)
 
     archetype = (npc.archetype or "").strip()
     state = (npc.state or "").strip() or "未知"
@@ -138,8 +179,12 @@ def _format_npc_short(npc: NPC) -> str:
     v0.11: only print fields the player has already learned. Description goes
     verbatim if revealed; favor and state are hidden behind '?' otherwise so
     the GM still knows the NPC exists without leaking the value.
+
+    Uses ``_effective_reveals`` so threshold-based auto-reveal rules apply
+    here too (an NPC with last_seen_turn>0 should show its real favor/state
+    in the GM dossier, matching the frontend).
     """
-    revealed = _npc_revealed(npc)
+    revealed = _effective_reveals(npc)
     favor_str = f"{npc.favor:+d}" if revealed.get("favor") else "??"
     state_str = npc.state if revealed.get("state") else "??"
     desc = (npc.description or "").strip() if revealed.get("description") else ""

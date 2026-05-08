@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import NPC
 from dzmm.models.factory import build_client  # noqa: F401 — re-exported
+from dzmm.service.npc_dossier import _effective_reveals
 
 __all__ = [
     "get_session_dep",
@@ -71,6 +72,8 @@ async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
     # is loaded before _common from base.py — keeping this import local is
     # consistent with the rest of this file)
     from dzmm.db.models import (
+        AgentMessage,
+        AgentStream,
         CharState,
         Faction,
         Feedback,
@@ -85,6 +88,20 @@ async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
         ScreenplayRevision,
         StorySummary,
     )
+
+    # v0.10: drop agent streams + their messages (FK chain) before the SQL
+    # rows that reference them via session_id are wiped. Order: messages
+    # (child) → streams (parent).
+    stream_ids = (await s.execute(
+        select(AgentStream.id).where(AgentStream.session_id == session_id)
+    )).scalars().all()
+    if stream_ids:
+        await s.execute(
+            delete(AgentMessage).where(AgentMessage.stream_id.in_(stream_ids))
+        )
+        await s.execute(
+            delete(AgentStream).where(AgentStream.session_id == session_id)
+        )
 
     sp_ids = (await s.execute(
         select(Screenplay.id).where(Screenplay.session_id == session_id)
@@ -132,27 +149,9 @@ def _npc_to_dict(n: NPC) -> dict:
     except (TypeError, ValueError):
         emotion = {}
     # v0.11: progressive reveal map — frontend masks fields not in this dict.
-    try:
-        revealed = json.loads(n.revealed_json or '{"name": true}')
-        if not isinstance(revealed, dict):
-            revealed = {"name": True}
-    except (TypeError, ValueError):
-        revealed = {"name": True}
-    revealed["name"] = True  # always
-
-    # v0.2.5: Python-driven threshold reveals (merge on top of LLM-driven stored reveals).
-    # Once an NPC has appeared in the story, basic observable fields are auto-revealed.
-    # This replaces the unreliable LLM reveal=attribute mechanism for common fields.
-    if n.last_seen_turn > 0:
-        revealed.setdefault("description", True)
-        revealed.setdefault("state", True)
-        revealed.setdefault("favor", True)
-    # Archetype becomes apparent after meaningful interaction
-    if abs(n.favor) >= 20 or (n.last_seen_turn > 0 and (n.archetype or "").strip()):
-        revealed.setdefault("archetype", True)
-    # Purpose revealed after significant relationship
-    if abs(n.favor) >= 30:
-        revealed.setdefault("purpose", True)
+    # Threshold rules (v0.2.5) live in `_effective_reveals` so the GM dossier
+    # builder agrees with what the frontend renders. See npc_dossier.py.
+    revealed = _effective_reveals(n)
 
     return {
         "id": n.id,
