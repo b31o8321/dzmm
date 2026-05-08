@@ -240,16 +240,33 @@ def _parse_character_json(raw: str) -> dict:
     behavior) so we don't break sessions while local models adapt."""
     try:
         data = json.loads(_extract_json(raw))
-    except json.JSONDecodeError:
-        # Legacy fallback: model returned markdown instead of JSON.
+    except json.JSONDecodeError as e:
+        # If the body looks like the model *tried* to emit JSON but failed
+        # (truncation / mismatched quotes), fall back to markdown regex
+        # would match `姓名:` and `性别:` from inside the half-baked JSON
+        # literal — which produces garbage like name="伊诺克·菲利普斯\n-"
+        # and a profile_md that's actually the raw JSON text. Better to
+        # raise so _with_retry kicks in (or surfaces an error).
+        if raw.lstrip().startswith("{"):
+            raise ValueError(
+                f"character JSON appeared malformed (likely truncated): {e}; "
+                f"head={raw[:120]!r}"
+            ) from e
+
+        # Legacy fallback: model returned actual markdown instead of JSON.
         log.warning("character generation returned non-JSON; falling back to markdown regex")
         info = _parse_section(raw, "基本信息")
+        # `[^\s\n\\]+` excludes backslash so a stray `\n` literal in the
+        # raw text doesn't get glued onto the name.
         m = (
-            re.search(r"姓名[:：]\s*([^\s\n]+)", info)
-            or re.search(r"姓名[:：]\s*([^\s\n]+)", raw)
+            re.search(r"姓名[:：]\s*([^\s\n\\]+)", info)
+            or re.search(r"姓名[:：]\s*([^\s\n\\]+)", raw)
         )
         name = m.group(1).strip("*` ") if m else "(未命名)"
-        gm = re.search(r"性别[:：]\s*([^\s\n*`]+)", info) or re.search(r"性别[:：]\s*([^\s\n*`]+)", raw)
+        gm = (
+            re.search(r"性别[:：]\s*([^\s\n*`\\]+)", info)
+            or re.search(r"性别[:：]\s*([^\s\n*`\\]+)", raw)
+        )
         gender = _normalize_gender(gm.group(1)) if gm else ""
         return {"name": name, "gender": gender, "profile_md": raw}
 
@@ -277,9 +294,13 @@ async def generate_character(
 ) -> dict:
     effective_archetype = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
     async def _attempt():
+        # 2500 tokens: profile body alone runs 600-1500 chars, and the JSON
+        # envelope adds ~200 chars of structural overhead. 1800 was getting
+        # truncated mid-string, leading to malformed JSON that fell through
+        # to the markdown regex fallback (and rendered raw JSON as profile).
         raw = await _stream_text(
             client, build_character_messages(world_md, effective_archetype),
-            max_tokens=1800, json_mode=True,
+            max_tokens=2500, json_mode=True,
         )
         return _parse_character_json(raw)
     return await _with_retry(_attempt)
@@ -539,8 +560,10 @@ async def stream_character(world_md: str, archetype: str, client: ModelClient) -
     effective = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
     messages = build_character_messages(world_md, effective)
     chunks: list[str] = []
+    # 2500 tokens — see generate_character for rationale (JSON envelope
+    # was getting truncated at 1800).
     async for ch in client.stream(
-        messages, GenerationParams(max_tokens=1800, temperature=0.85, json_mode=True),
+        messages, GenerationParams(max_tokens=2500, temperature=0.85, json_mode=True),
     ):
         if ch.delta:
             chunks.append(ch.delta)
@@ -625,6 +648,7 @@ async def suggest_npcs(world_md: str, character_md: str, client: ModelClient) ->
         validated = [
             {
                 "name": str(n["name"])[:20],
+                "gender": _normalize_gender(n.get("gender")),
                 "role": str(n.get("role", ""))[:20],
                 "description": str(n.get("description", ""))[:200],
                 "motivation": str(n.get("motivation", ""))[:100],

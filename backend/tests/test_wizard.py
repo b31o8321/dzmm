@@ -163,6 +163,21 @@ async def test_generate_character_fallback_when_no_name():
     assert out["name"] == "(未命名)"
 
 
+async def test_generate_character_rejects_truncated_json_envelope():
+    """When the model emits a JSON envelope but it's truncated mid-string,
+    we must NOT fall back to markdown regex — that would extract a name
+    like "伊诺克·菲利普斯\\n-" from inside the raw JSON text and dump the
+    raw JSON as profile_md. Instead, raise so retry can kick in."""
+    truncated = (
+        '{"name": "伊诺克·菲利普斯", "gender": "male",'
+        ' "profile_md": "\\n基本信息：\\n- 姓名：伊诺克·菲利普斯\\n- 年龄：25 岁'
+        # missing closing quote + brace — simulates truncation
+    )
+    client = StubLLM(truncated)
+    with pytest.raises((ValueError, json.JSONDecodeError)):
+        await generate_character("w", "a", client)
+
+
 _NPC_OUTPUT = json.dumps([
     {"name": "陈子轩", "role": "盟友",
      "description": "中年华人男子，前 SWAT", "motivation": "替女儿复仇"},
