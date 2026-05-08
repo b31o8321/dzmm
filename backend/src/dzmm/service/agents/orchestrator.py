@@ -8,8 +8,8 @@ Sequence per turn:
 """
 from __future__ import annotations
 
-import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator
 
 from sqlalchemy import select
@@ -23,7 +23,7 @@ from dzmm.db.models import (
     Session as GameSession,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient
-from dzmm.parsing.events import NarrativeDelta, ParseEvent
+from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
 from dzmm.service.agents.director import (
     STREAM_KIND_DIRECTOR,
     run_director,
@@ -36,6 +36,48 @@ from dzmm.service.agents.triggers import should_run_director
 log = logging.getLogger(__name__)
 
 NPC_MAX_PARALLEL = 4
+
+_TAG_STRIP_RE = re.compile(r"<[^>]+>")
+
+
+def _format_recent_dialogue(recent_messages: list[Message], max_turns: int = 4) -> str:
+    """Compact last N user/assistant pairs into NPC-readable lines.
+    Strips XML tags so each entry is plain prose, capped at 200 chars."""
+    if not recent_messages:
+        return ""
+    take = recent_messages[-(max_turns * 2):]
+    lines: list[str] = []
+    for m in take:
+        prefix = "玩家" if m.role == "user" else "GM"
+        text = _TAG_STRIP_RE.sub(" ", m.content)
+        text = " ".join(text.split())[:200]
+        if text:
+            lines.append(f"[{prefix}] {text}")
+    return "\n".join(lines)
+
+
+async def _format_scene_context(
+    s: AsyncSession, session_id: int, on_stage: list[NPC],
+) -> str:
+    """Build a scene-context block: current location + on-stage NPCs.
+    Topology / world_time blocks already live in key_facts (which Scene
+    sees); NPC actors get a smaller subset here."""
+    from dzmm.db.models import Location
+    current = (await s.execute(
+        select(Location).where(
+            Location.session_id == session_id,
+            Location.is_current == True,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    parts: list[str] = []
+    if current is not None:
+        parts.append(f"地点：{current.name}")
+        if (current.description or "").strip():
+            parts.append(f"描述：{current.description.strip()[:120]}")
+    if on_stage:
+        names = "、".join(n.name for n in on_stage)
+        parts.append(f"同台 NPC：{names}")
+    return "\n".join(parts)
 
 
 async def _build_director_snapshot(
@@ -167,23 +209,41 @@ async def run_turn_v10(
 
     scene_narrative = "".join(narrative_buf)
 
-    # NPC fan-out (parallel)
+    # Build per-turn shared context for all NPCs
     on_stage = await _select_on_stage_npcs(
         s, session_id, current_turn, NPC_MAX_PARALLEL,
     )
     if on_stage:
-        results = await asyncio.gather(*[
-            run_npc_actor(
-                s, npc=npc, session_id=session_id,
-                plot_directive=directive, scene_narrative=scene_narrative,
-                user_action=user_action, client=npc_client,
-                current_turn=current_turn,
-            )
-            for npc in on_stage
-        ], return_exceptions=True)
-        for events in results:
-            if isinstance(events, Exception):
-                log.warning("npc_actor failed: %s", events)
+        recent_dialogue = _format_recent_dialogue(recent_messages)
+        scene_context = await _format_scene_context(s, session_id, on_stage)
+
+        # Sequential fan-out:
+        # - Avoids SQLAlchemy AsyncSession concurrency hazards (shared `s`)
+        # - Lets later NPCs see earlier NPCs' say lines this turn (peer_lines)
+        # The latency difference vs gather is negligible at NPC_MAX_PARALLEL=4
+        # for local 30 tok/s models (each NPC ~5s), and the quality win is large.
+        peer_lines_accum: list[str] = []
+        for npc in on_stage:
+            peer_lines = "\n".join(peer_lines_accum)
+            try:
+                events = await run_npc_actor(
+                    s, npc=npc, session_id=session_id,
+                    plot_directive=directive,
+                    scene_narrative=scene_narrative,
+                    user_action=user_action,
+                    client=npc_client,
+                    current_turn=current_turn,
+                    scene_context=scene_context,
+                    recent_dialogue=recent_dialogue,
+                    peer_lines=peer_lines,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("npc_actor(%s) failed: %s", npc.name, exc)
                 continue
             for ev in events:
                 yield ev
+                if isinstance(ev, TagComplete) and ev.name == "say":
+                    speaker = ev.attrs.get("speaker", npc.name)
+                    line = (ev.content or "").strip()[:150]
+                    if line:
+                        peer_lines_accum.append(f"[{speaker}] {line}")

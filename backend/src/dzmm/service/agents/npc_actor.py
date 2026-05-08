@@ -33,6 +33,9 @@ async def run_npc_actor(
     user_action: str,
     client: ModelClient,
     current_turn: int,
+    scene_context: str = "",      # NEW
+    recent_dialogue: str = "",    # NEW
+    peer_lines: str = "",         # NEW
 ) -> list[ParseEvent]:
     """Run one NPC's stateful agent. Returns parsed <say> + <npc_update>
     events (or [] for noop / failure / empty output). Persists this turn
@@ -41,8 +44,13 @@ async def run_npc_actor(
     history = await load_history(s, stream.id, max_messages=NPC_HISTORY_MAX)
 
     msgs = build_npc_actor_messages(
-        npc=npc, history=history, plot_directive=plot_directive,
-        scene_narrative=scene_narrative, user_action=user_action,
+        npc=npc, history=history,
+        plot_directive=plot_directive,
+        scene_narrative=scene_narrative,
+        user_action=user_action,
+        scene_context=scene_context,
+        recent_dialogue=recent_dialogue,
+        peer_lines=peer_lines,
     )
 
     try:
@@ -55,13 +63,21 @@ async def run_npc_actor(
     if not text:
         return []
 
-    # Persist regardless of parsed events — the user-side snapshot
-    # is what we need for next-turn context, not the cleaned events.
-    turn_input = (
-        f"# directive\n{plot_directive[:200]}\n\n"
-        f"# scene\n{scene_narrative[:400]}\n\n"
-        f"# user\n{user_action}"
-    )
+    # Persistence snapshot — keep concise but include the new context so
+    # next-turn history retrieval reproduces what the NPC was reasoning over.
+    snapshot_parts = [
+        f"# directive\n{plot_directive[:200]}",
+    ]
+    if scene_context:
+        snapshot_parts.append(f"# scene_context\n{scene_context[:200]}")
+    if recent_dialogue:
+        snapshot_parts.append(f"# recent\n{recent_dialogue[:300]}")
+    snapshot_parts.append(f"# scene\n{scene_narrative[:400]}")
+    if peer_lines:
+        snapshot_parts.append(f"# peers\n{peer_lines[:300]}")
+    snapshot_parts.append(f"# user\n{user_action}")
+    turn_input = "\n\n".join(snapshot_parts)
+
     await append_message(s, stream.id, current_turn, "user", turn_input,
                          tokens_in=usage.input_tokens if usage else 0)
     await append_message(s, stream.id, current_turn, "assistant", text,
