@@ -13,7 +13,7 @@
 # ============================================================
 
 from datetime import datetime, UTC
-from sqlalchemy import ForeignKey, Integer, String, Text, DateTime
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dzmm.db.base import Base
@@ -389,6 +389,55 @@ class Faction(Base):
     pc_reputation: Mapped[int] = mapped_column(default=0)       # -100..100
     hostile_to_json: Mapped[str] = mapped_column(Text, default="[]")  # JSON list of faction names
     allied_to_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+
+# ============================================================
+# v0.10 — Stateful 多 Agent 的对话历史持久化
+# ============================================================
+# Director 每 5 回合 / 重大事件触发一次，看自己的“剧情决策”历史；
+# 每个主要 NPC 一条独立 stream，看自己的“听到/说过”历史。
+# Scene agent 复用 messages 表（输出本来就是玩家可见的 assistant 内容）。
+
+class AgentStream(Base):
+    __tablename__ = "agent_streams"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("sessions.id"), index=True
+    )
+    # "gm_director" | "npc"
+    kind: Mapped[str] = mapped_column(String(20))
+    # NPC 名字；gm_director 留空字符串。同一 session 不允许重复。
+    ref: Mapped[str] = mapped_column(String(120), default="")
+    # 此 stream 上次实际跑 LLM 的 turn 号（用来做 Director 的间隔判断）
+    last_run_turn: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "kind", "ref", name="uq_agent_stream"
+        ),
+    )
+
+
+class AgentMessage(Base):
+    __tablename__ = "agent_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    stream_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_streams.id"), index=True
+    )
+    turn: Mapped[int] = mapped_column(default=0, index=True)
+    # "system" | "user" | "assistant"
+    role: Mapped[str] = mapped_column(String(10))
+    content: Mapped[str] = mapped_column(Text)
+    # True 表示这条是压缩后的摘要（替代了被丢弃的旧消息）
+    is_summary: Mapped[bool] = mapped_column(default=False)
+    tokens_in: Mapped[int] = mapped_column(default=0)
+    tokens_out: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )

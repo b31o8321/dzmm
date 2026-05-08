@@ -205,6 +205,33 @@ async def test_delete_world_cascade_removes_characters_and_sessions(http):
     assert (await http.get(f"/sessions/{sid}")).status_code == 404
 
 
+async def test_delete_session_drops_agent_streams_and_messages(http, app):
+    """v0.10: 删存档时连带清掉 agent_streams + agent_messages。"""
+    from dzmm.db.models import AgentStream, AgentMessage
+    from sqlalchemy import select
+
+    sid = await _make_session(http)
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        st = AgentStream(session_id=sid, kind="gm_director", ref="")
+        s.add(st)
+        await s.flush()
+        s.add(AgentMessage(stream_id=st.id, turn=1, role="user", content="x"))
+        s.add(AgentMessage(stream_id=st.id, turn=1, role="assistant", content="y"))
+        await s.commit()
+
+    r = await http.delete(f"/sessions/{sid}")
+    assert r.status_code == 204
+
+    async with SessionMaker() as s:
+        streams = (await s.execute(
+            select(AgentStream).where(AgentStream.session_id == sid)
+        )).scalars().all()
+        assert streams == []
+        messages = (await s.execute(select(AgentMessage))).scalars().all()
+        assert messages == []
+
+
 async def test_update_character(http):
     r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
     wid = r.json()["id"]
