@@ -291,6 +291,50 @@ async def test_delete_last_turn_removes_pair_and_decrements(http, monkeypatch):
     assert msgs[0]["content"] == "环顾"
 
 
+async def test_delete_last_turn_handles_orphan_user_message(http, monkeypatch):
+    """Regression: an LLM error / network drop can leave the user message
+    of turn N persisted without the matching assistant message. The old
+    "delete latest 2 by id" logic would then chew through turn N-1's
+    assistant message — corrupting the prior turn instead of the failed
+    one. The new turn-number-based delete must wipe just the orphan."""
+    from sqlalchemy import select
+    from dzmm.db.models import Message as MessageRow, Session as GameSession
+
+    sid = await _make_session(http)
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: StubGM("<narrative>hi</narrative>"),
+    )
+
+    # One clean turn: 2 messages (user + assistant) at turn=1.
+    async with http.stream(
+        "POST", f"/sessions/{sid}/turn", json={"action": "环顾"}
+    ) as r:
+        async for _ in r.aiter_text():
+            pass
+
+    # Inject an orphan user message at turn=2 (simulating "LLM died after
+    # we persisted the user message"). Use the test's session_maker.
+    from dzmm.api.routes_sessions._common import get_session_dep
+    deps = http._transport.app.dependency_overrides
+    session_dep = next(iter(d for k, d in deps.items() if k is get_session_dep))
+
+    async for s in session_dep():
+        s.add(MessageRow(session_id=sid, role="user", content="掉线了的输入", turn=2))
+        await s.commit()
+
+    msgs_before = (await http.get(f"/sessions/{sid}/messages")).json()
+    assert len(msgs_before) == 3  # 2 from turn 1 + 1 orphan from turn 2
+
+    r = await http.delete(f"/sessions/{sid}/last_turn")
+    assert r.status_code == 204
+
+    msgs_after = (await http.get(f"/sessions/{sid}/messages")).json()
+    # Only the orphan should be gone — turn-1 pair survives.
+    assert len(msgs_after) == 2
+    assert {m["content"] for m in msgs_after} == {"环顾", "<narrative>hi</narrative>"}
+
+
 async def test_threads_endpoint_separates_active_and_resolved(http, monkeypatch):
     sid = await _make_session(http)
     monkeypatch.setattr(

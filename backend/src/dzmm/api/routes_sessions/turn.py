@@ -43,7 +43,7 @@ from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
 from dzmm.service.game import run_turn
 from dzmm.service.screenplay import rewrite_in_background
 from dzmm.service.summarizer import maybe_summarize
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 
 # APIRouter 是模块化路由注册器，类似 Spring 里的 @RequestMapping 前缀设置
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -96,29 +96,39 @@ async def delete_last_turn(
     session_id: int,
     s: AsyncSession = Depends(get_session_dep)  # 注入 DB 会话（自动管理生命周期）
 ):
-    """删除最新一回合（用户/GM 消息对），回滚 turn_count。
+    """删除最新一回合的所有消息（含 user + assistant），回滚 turn_count。
 
     前端"重试"/"编辑上一条"功能调用此接口。
+
+    旧实现"按 id desc 取最近 2 条"在 user 发了输入但 assistant 还没产生
+    （或 assistant 流中途出错）时会删错——把 N-1 回合的 assistant 消息当成
+    "最近第 2 条"删掉。新实现按 turn 号定位最大回合并清掉那一回合的所有
+    消息，自然兼容半截状态。
     """
     sess = await s.get(GameSession, session_id)
     if sess is None:
-        raise HTTPException(404, "session not found")  # 相当于 ResponseStatusException(404)
-    if sess.turn_count <= 0:
-        return  # 没有可删除的回合，直接返回 204
+        raise HTTPException(404, "session not found")
 
-    # 查询最新两条消息（user + assistant），倒序取 2 条
-    rows = (
+    # 找当前最大的 turn 号；若没有任何消息则没事可做。
+    max_turn = (
         await s.execute(
-            select(MessageRow)
-            .where(MessageRow.session_id == session_id)
-            .order_by(MessageRow.id.desc())
-            .limit(2)
+            select(func.max(MessageRow.turn)).where(
+                MessageRow.session_id == session_id
+            )
         )
-    ).scalars().all()
+    ).scalar()
+    if max_turn is None or max_turn <= 0:
+        return
 
-    for r in rows:
-        await s.delete(r)
-    sess.turn_count = max(0, sess.turn_count - 1)  # 防止变负数
+    # 删除该 turn 号下的全部消息（通常是 user + assistant 两条；半截
+    # turn 可能只有 user 一条；理论上的多条 user/assistant 也一并清掉）。
+    await s.execute(
+        delete(MessageRow).where(
+            MessageRow.session_id == session_id,
+            MessageRow.turn == max_turn,
+        )
+    )
+    sess.turn_count = max(0, max_turn - 1)
     await s.commit()
 
 
