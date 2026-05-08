@@ -162,20 +162,47 @@ async def _with_retry(
     raise last_err
 
 
+def _render_brief_md(name: str, setting: str, conflict: str) -> str:
+    """Render brief JSON fields into the markdown blob shape consumed by
+    world_details (it expects `## 名字`/`## 年代与地点`/`## 核心冲突`)."""
+    return (
+        f"## 名字\n{name.strip()}\n\n"
+        f"## 年代与地点\n{setting.strip()}\n\n"
+        f"## 核心冲突\n{conflict.strip()}\n"
+    )
+
+
+def _parse_brief_json(raw: str) -> dict:
+    """Parse the JSON the model emits and return a dict with name/setting/
+    conflict/raw_md. raw_md is synthesized from the three fields so legacy
+    consumers (world_details prompt, frontend `brief_md`) keep working."""
+    extracted = _extract_json(raw)
+    data = json.loads(extracted)
+    if not isinstance(data, dict):
+        raise ValueError(f"world_brief expected JSON object, got {type(data).__name__}")
+    name = str(data.get("name") or "").strip()
+    setting = str(data.get("setting") or "").strip()
+    conflict = str(data.get("conflict") or "").strip()
+    if not (name and setting and conflict):
+        raise ValueError(
+            f"world_brief missing required fields (got: name={bool(name)}, "
+            f"setting={bool(setting)}, conflict={bool(conflict)})"
+        )
+    return {
+        "name": name,
+        "setting": setting,
+        "conflict": conflict,
+        "raw_md": _render_brief_md(name, setting, conflict),
+    }
+
+
 async def generate_world_brief(genre: str, theme: str, client: ModelClient) -> dict:
     async def _attempt():
         raw = await _stream_text(
-            client, build_world_brief_messages(genre, theme), max_tokens=600
+            client, build_world_brief_messages(genre, theme), max_tokens=600,
+            json_mode=True,
         )
-        name = _parse_section(raw, "名字") or _parse_section(raw, "世界名") or _parse_section(raw, "世界名字")
-        setting = _parse_section(raw, "年代与地点") or _parse_section(raw, "年代") or _parse_section(raw, "地点")
-        conflict = _parse_section(raw, "核心冲突") or _parse_section(raw, "冲突")
-        return {
-            "name": name,
-            "setting": setting,
-            "conflict": conflict,
-            "raw_md": raw,
-        }
+        return _parse_brief_json(raw)
     return await _with_retry(_attempt)
 
 
@@ -186,20 +213,46 @@ async def generate_world_details(brief_md: str, client: ModelClient) -> dict:
     return {"world_md": world_md}
 
 
+def _parse_character_json(raw: str) -> dict:
+    """Parse `{"name": "...", "profile_md": "...markdown..."}`. Falls back
+    to regex-on-markdown if the model emitted markdown directly (older
+    behavior) so we don't break sessions while local models adapt."""
+    try:
+        data = json.loads(_extract_json(raw))
+    except json.JSONDecodeError:
+        # Legacy fallback: model returned markdown instead of JSON.
+        log.warning("character generation returned non-JSON; falling back to markdown regex")
+        info = _parse_section(raw, "基本信息")
+        m = (
+            re.search(r"姓名[:：]\s*([^\s\n]+)", info)
+            or re.search(r"姓名[:：]\s*([^\s\n]+)", raw)
+        )
+        name = m.group(1).strip("*` ") if m else "(未命名)"
+        return {"name": name, "profile_md": raw}
+
+    if not isinstance(data, dict):
+        raise ValueError(f"character JSON expected object, got {type(data).__name__}")
+    name = str(data.get("name") or "").strip().strip("*` ")
+    profile_md = str(data.get("profile_md") or "").strip()
+    if not name:
+        # Last-ditch: try to extract from profile_md regex.
+        m = re.search(r"姓名[:：]\s*([^\s\n]+)", profile_md)
+        name = m.group(1).strip("*` ") if m else "(未命名)"
+    if not profile_md:
+        raise ValueError("character JSON missing profile_md")
+    return {"name": name, "profile_md": profile_md}
+
+
 async def generate_character(
     world_md: str, archetype: str, client: ModelClient
 ) -> dict:
     effective_archetype = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
     async def _attempt():
-        profile = await _stream_text(
-            client, build_character_messages(world_md, effective_archetype), max_tokens=1500
+        raw = await _stream_text(
+            client, build_character_messages(world_md, effective_archetype),
+            max_tokens=1800, json_mode=True,
         )
-        info = _parse_section(profile, "基本信息")
-        name_match = re.search(r"姓名[:：]\s*([^\s\n]+)", info)
-        if name_match is None:
-            name_match = re.search(r"姓名[:：]\s*([^\s\n]+)", profile)
-        name = name_match.group(1).strip("*` ") if name_match else "(未命名)"
-        return {"name": name, "profile_md": profile}
+        return _parse_character_json(raw)
     return await _with_retry(_attempt)
 
 
@@ -412,15 +465,20 @@ _StreamYield = AsyncGenerator[tuple[str, dict], None]
 async def stream_world_brief(genre: str, theme: str, client: ModelClient) -> _StreamYield:
     messages = build_world_brief_messages(genre, theme)
     chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=800, temperature=0.85)):
+    async for ch in client.stream(
+        messages, GenerationParams(max_tokens=800, temperature=0.85, json_mode=True),
+    ):
         if ch.delta:
             chunks.append(ch.delta)
             yield "delta", {"text": ch.delta}
     raw = "".join(chunks).strip()
-    name = _parse_section(raw, "名字") or _parse_section(raw, "世界名") or ""
-    setting = _parse_section(raw, "年代与地点") or _parse_section(raw, "年代") or ""
-    conflict = _parse_section(raw, "核心冲突") or _parse_section(raw, "冲突") or ""
-    yield "result", {"name": name, "setting": setting, "conflict": conflict, "raw_md": raw}
+    try:
+        result = _parse_brief_json(raw)
+    except (ValueError, json.JSONDecodeError) as e:
+        log.warning("stream_world_brief JSON parse failed: %s; raw=%r", e, raw[:200])
+        yield "error", {"message": f"基础设定 JSON 解析失败：{e}"}
+        return
+    yield "result", result
 
 
 async def stream_world_details(brief_md: str, client: ModelClient) -> _StreamYield:
@@ -438,15 +496,20 @@ async def stream_character(world_md: str, archetype: str, client: ModelClient) -
     effective = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
     messages = build_character_messages(world_md, effective)
     chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85)):
+    async for ch in client.stream(
+        messages, GenerationParams(max_tokens=1800, temperature=0.85, json_mode=True),
+    ):
         if ch.delta:
             chunks.append(ch.delta)
             yield "delta", {"text": ch.delta}
-    profile = "".join(chunks).strip()
-    info = _parse_section(profile, "基本信息")
-    nm = re.search(r"姓名[:：]\s*([^\s\n]+)", info) or re.search(r"姓名[:：]\s*([^\s\n]+)", profile)
-    name = nm.group(1).strip("*` ") if nm else "(未命名)"
-    yield "result", {"name": name, "profile_md": profile}
+    raw = "".join(chunks).strip()
+    try:
+        result = _parse_character_json(raw)
+    except (ValueError, json.JSONDecodeError) as e:
+        log.warning("stream_character JSON parse failed: %s; raw=%r", e, raw[:200])
+        yield "error", {"message": f"角色 JSON 解析失败：{e}"}
+        return
+    yield "result", result
 
 
 async def stream_npcs(world_md: str, character_md: str, client: ModelClient) -> _StreamYield:

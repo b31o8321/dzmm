@@ -55,16 +55,14 @@ class StubLLM(ModelClient):
 # Service unit tests — generate_xxx
 # ============================================================================
 
-_BRIEF_OUTPUT = """## 名字
-赛博九龙
-
-## 年代与地点
-2089 年的香港九龙城寨。霓虹永不熄灭，雨水带着电池液的酸味。义体与神经接驳普及。
-
-## 核心冲突
-四大企业暗中争夺一项可以改写人类记忆的「共感协议」。
-黑客组织、警方、教派全部卷入。普通人在街角随时可能消失。
-"""
+_BRIEF_OUTPUT = json.dumps({
+    "name": "赛博九龙",
+    "setting": "2089 年的香港九龙城寨。霓虹永不熄灭，雨水带着电池液的酸味。义体与神经接驳普及。",
+    "conflict": (
+        "四大企业暗中争夺一项可以改写人类记忆的「共感协议」。"
+        "黑客组织、警方、教派全部卷入。普通人在街角随时可能消失。"
+    ),
+}, ensure_ascii=False)
 
 
 async def test_generate_world_brief_parses_three_sections():
@@ -73,7 +71,11 @@ async def test_generate_world_brief_parses_three_sections():
     assert out["name"] == "赛博九龙"
     assert "2089" in out["setting"]
     assert "共感协议" in out["conflict"]
+    # raw_md is synthesized from JSON fields for backward-compat with
+    # consumers (frontend, world_details prompt).
     assert out["raw_md"].startswith("## 名字")
+    assert "赛博九龙" in out["raw_md"]
+    assert "## 核心冲突" in out["raw_md"]
 
 
 _DETAILS_OUTPUT = """## 地理与环境
@@ -100,7 +102,7 @@ async def test_generate_world_details_returns_world_md():
     assert "九龙天井" in out["world_md"]
 
 
-_CHAR_OUTPUT = """## 基本信息
+_CHAR_PROFILE_MD = """## 基本信息
 - 姓名：林默
 - 年龄：28
 - 职业：黑客
@@ -125,6 +127,11 @@ _CHAR_OUTPUT = """## 基本信息
 - **创伤后应激**：见到红色霓虹会眩晕
 """
 
+_CHAR_OUTPUT = json.dumps(
+    {"name": "林默", "profile_md": _CHAR_PROFILE_MD},
+    ensure_ascii=False,
+)
+
 
 async def test_generate_character_extracts_name():
     client = StubLLM(_CHAR_OUTPUT)
@@ -133,9 +140,24 @@ async def test_generate_character_extracts_name():
     assert "神经入侵" in out["profile_md"]
 
 
+async def test_generate_character_markdown_fallback_when_model_skips_json():
+    """Local models occasionally regress to markdown despite the JSON spec.
+    The service falls back to regex-on-markdown so the wizard still
+    proceeds — this locks in that fallback path."""
+    md_only = (
+        "## 基本信息\n- 姓名：阿离\n- 年龄：30\n\n## 性格\n执拗\n\n"
+        "## 背景\n孤儿，街头长大\n\n## 能力\n- **隐匿**：黑暗中难以被察觉\n\n"
+        "## 物品\n- **银币**：50 枚\n\n## 弱点\n- **怕水**：游不了"
+    )
+    client = StubLLM(md_only)
+    out = await generate_character("w", "a", client)
+    assert out["name"] == "阿离"
+    assert "隐匿" in out["profile_md"]
+
+
 async def test_generate_character_fallback_when_no_name():
-    """If LLM forgets to put 姓名: line, we return placeholder."""
-    bad = "## 基本信息\n- 职业：刺客\n\n## 性格\n冷酷"
+    """If LLM forgets to put 姓名: line in JSON, we return placeholder."""
+    bad = json.dumps({"name": "", "profile_md": "## 基本信息\n- 职业：刺客"}, ensure_ascii=False)
     client = StubLLM(bad)
     out = await generate_character("w", "a", client)
     assert out["name"] == "(未命名)"
@@ -524,21 +546,22 @@ async def test_with_retry_raises_after_max():
 
 
 @pytest.mark.asyncio
-async def test_generate_world_brief_fallback_when_parse_fails():
-    """If _parse_section finds no matching headers, raw_md is always populated."""
-    raw = "The world has no proper headers, just freeform text about the world."
-    client = StubLLM(raw)
-    result = await generate_world_brief("悬疑", "侦探题材", client)
-    assert result["raw_md"] == raw
-    assert isinstance(result["name"], str)
-    assert isinstance(result["setting"], str)
-    assert isinstance(result["conflict"], str)
+async def test_generate_world_brief_raises_when_json_unparseable():
+    """Strict JSON shape — freeform text that the model returns despite
+    the spec must surface as a hard error after retries (not silently
+    yield a half-empty result)."""
+    client = StubLLM("The world has no proper JSON, just freeform text.")
+    with pytest.raises((ValueError, json.JSONDecodeError)):
+        await generate_world_brief("悬疑", "侦探题材", client)
 
 
 @pytest.mark.asyncio
 async def test_generate_character_uses_default_archetype_when_empty():
     """Empty archetype → uses fallback string, does not raise."""
-    profile = "## 基本信息\n姓名：张三\n\n## 背景\n平凡侦探"
+    profile = json.dumps(
+        {"name": "张三", "profile_md": "## 基本信息\n姓名：张三\n\n## 背景\n平凡侦探"},
+        ensure_ascii=False,
+    )
     client = StubLLM(profile)
     result = await generate_character("赛博朋克世界", "", client)
     assert result["name"] == "张三"
