@@ -625,3 +625,33 @@ async def test_generate_single_npc_retries_on_bad_json():
     client = _FakeClient(responses)
     result = await generate_single_npc("世界", "主角", "守门人", client)
     assert result["name"] == "李四"
+
+
+@pytest.mark.asyncio
+async def test_generate_single_npc_passes_message_instances():
+    """Real model clients (ollama.py / openai_compat.py) call `m.model_dump()`
+    on each message — passing plain dicts produces an AttributeError that
+    surfaces to the frontend as a generic 网络错误. Lock in that the
+    function builds Message objects."""
+
+    captured: list = []
+
+    class _CaptureClient(ModelClient):
+        name = "capture"
+
+        async def stream(
+            self, messages: list[Message], params: GenerationParams
+        ) -> AsyncIterator[StreamChunk]:
+            captured.extend(messages)
+            yield StreamChunk(
+                delta='{"name": "测试", "gender": "male", "description": "x", "archetype": "y", "purpose": "z"}',
+                finish_reason="stop",
+                usage=TokenUsage(input_tokens=1, output_tokens=1),
+            )
+
+    await generate_single_npc("w", "c", "h", _CaptureClient())
+    assert captured, "client.stream was not called"
+    for m in captured:
+        assert isinstance(m, Message), f"expected Message, got {type(m).__name__}"
+        # Real clients depend on this method existing.
+        assert callable(getattr(m, "model_dump", None))

@@ -27,7 +27,7 @@ from dzmm.db.models import (
     Session as GameSession,
     World,
 )
-from dzmm.models.client import GenerationParams, ModelClient
+from dzmm.models.client import GenerationParams, Message, ModelClient
 
 from dzmm.prompts.wizard_character import build_character_messages
 from dzmm.prompts.wizard_npcs import build_npcs_messages
@@ -337,17 +337,20 @@ async def generate_single_npc(
 ) -> dict:
     """Generate one NPC based on a player-provided hint (archetype / role / name)."""
     hint_text = hint.strip() or "（根据世界观自由发挥）"
+    # Must use `Message` instances — every model client (`openai_compat.py`,
+    # `ollama.py`) calls `m.model_dump()` on each message; a plain dict
+    # would raise AttributeError → frontend sees a 500/502 "网络错误".
     messages = [
-        {
-            "role": "system",
-            "content": (
+        Message(
+            role="system",
+            content=(
                 f"世界观：\n{world_md}\n\n主角：\n{character_md}\n\n"
                 "你是世界观设计师。根据以下提示，生成**1个**主要 NPC，输出纯 JSON（无 markdown fence）。\n"
                 "格式：{\"name\":\"...\",\"gender\":\"male 或 female（必填）\","
                 "\"description\":\"...\",\"archetype\":\"...\",\"purpose\":\"...\"}"
             ),
-        },
-        {"role": "user", "content": f"NPC 提示：{hint_text}"},
+        ),
+        Message(role="user", content=f"NPC 提示：{hint_text}"),
     ]
 
     async def _attempt():
