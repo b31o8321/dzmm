@@ -7,8 +7,10 @@ under `state_apply/`. This file now contains only:
     directly (kept stable for `from state_apply._impl import *` users).
 """
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dzmm.db.models import NPC
 from dzmm.parsing.events import TagComplete
 from dzmm.service.state_apply.character_xp import _apply_character_xp
 from dzmm.service.state_apply.hidden_event import _apply_hidden_event
@@ -99,3 +101,48 @@ async def apply_tags(
             await _apply_faction_create(session, session_id, tag.attrs, tag.content)
         elif tag.name == "faction_change":
             await _apply_faction_change(session, session_id, tag.attrs)
+
+    # Post-pass: mark "appeared" for any NPC whose name shows up in this
+    # turn's narrative / say / reaction / dice scene content (or in say /
+    # reaction speaker= attrs). The GM only emits <npc_update> for first-time
+    # named NPCs (iron rule 17) — pre-pinned NPCs from the wizard never get
+    # a fresh npc_update, so without this pass their last_seen_turn stays
+    # 0 and the panel keeps showing 未登场 even when they're actively in
+    # the scene.
+    await _bump_appearances_from_narrative(session, session_id, current_turn, tags)
+
+
+async def _bump_appearances_from_narrative(
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+    tags: list[TagComplete],
+) -> None:
+    npcs = (
+        await session.execute(
+            select(NPC).where(NPC.session_id == session_id)
+        )
+    ).scalars().all()
+    if not npcs:
+        return
+
+    # Concatenate every visible narrative-ish surface from the turn. Speaker
+    # attrs go in too (a `<say speaker="丽莎">` is a clear appearance).
+    haystacks: list[str] = []
+    for tag in tags:
+        if tag.name in ("narrative", "say", "reaction", "scene", "dice", "pc_action"):
+            if tag.content:
+                haystacks.append(tag.content)
+            speaker = tag.attrs.get("speaker") if tag.attrs else None
+            if speaker:
+                haystacks.append(speaker)
+    haystack = "\n".join(haystacks)
+    if not haystack:
+        return
+
+    for npc in npcs:
+        name = (npc.name or "").strip()
+        if len(name) < 2:
+            continue  # skip 1-char names — too risky to false-positive on
+        if name in haystack and (npc.last_seen_turn or 0) < current_turn:
+            npc.last_seen_turn = current_turn

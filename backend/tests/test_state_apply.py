@@ -73,6 +73,69 @@ async def test_inventory_add_and_remove(session_with_state):
     assert json.loads(cs.inventory_json) == ["小刀"]
 
 
+async def test_existing_npc_marked_appeared_when_named_in_narrative(
+    session_with_state,
+):
+    """A pinned NPC created by the wizard never gets a fresh <npc_update>
+    when the GM brings them on-stage (iron rule 17 only applies to first-
+    time names). The narrative-scan post-pass should bump last_seen_turn
+    so the side panel stops showing 未登场."""
+    s, sid = session_with_state
+    s.add(NPC(
+        session_id=sid, name="丽莎·多拉诺夫斯基",
+        description="教士助手", favor=0, state="未知",
+        last_seen_turn=0,  # pinned, never seen yet
+        notes_json="[]", purpose="守护教堂", archetype="盟友",
+        affinity_json="{}", emotion_json="{}",
+        revealed_json='{"name": true}', pinned=True,
+    ))
+    await s.commit()
+
+    narrative = TagComplete(
+        name="narrative",
+        content="伊诺克架起虚弱不堪的丽莎·多拉诺夫斯基，步伐踉跄地往教堂方向走去。",
+    )
+    say = TagComplete(
+        name="say",
+        attrs={"speaker": "丽莎·多拉诺夫斯基"},
+        content="别……别问我……",
+    )
+    await apply_tags(s, sid, current_turn=6, tags=[narrative, say])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.session_id == sid, NPC.name == "丽莎·多拉诺夫斯基")
+    )).scalar_one()
+    assert npc.last_seen_turn == 6
+
+
+async def test_narrative_scan_skips_unmentioned_npcs(session_with_state):
+    """An NPC in the DB whose name doesn't appear in this turn's narrative
+    must NOT have last_seen_turn bumped — that would be a false positive."""
+    s, sid = session_with_state
+    s.add(NPC(
+        session_id=sid, name="玛丽亚·奥尔蒂斯",
+        description="x", favor=0, state="未知",
+        last_seen_turn=0,
+        notes_json="[]", purpose="", archetype="",
+        affinity_json="{}", emotion_json="{}",
+        revealed_json='{"name": true}', pinned=True,
+    ))
+    await s.commit()
+
+    narrative = TagComplete(
+        name="narrative",
+        content="伊诺克独自走在街上，没有人在他身边。",
+    )
+    await apply_tags(s, sid, current_turn=3, tags=[narrative])
+    await s.commit()
+
+    npc = (await s.execute(
+        select(NPC).where(NPC.name == "玛丽亚·奥尔蒂斯")
+    )).scalar_one()
+    assert npc.last_seen_turn == 0
+
+
 async def test_npc_update_creates_and_updates(session_with_state):
     s, sid = session_with_state
     tag = TagComplete(
