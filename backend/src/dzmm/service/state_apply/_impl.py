@@ -7,6 +7,8 @@ under `state_apply/`. This file now contains only:
     directly (kept stable for `from state_apply._impl import *` users).
 """
 
+import json
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +35,7 @@ from dzmm.service.state_apply.screenplay import (
 )
 from dzmm.service.state_apply.doom import _apply_doom
 from dzmm.service.state_apply.location import _apply_location_enter
+from dzmm.service.state_apply.location_edge import _apply_location_edge
 from dzmm.service.state_apply.location_item import _apply_location_item
 from dzmm.service.state_apply.state_change import _apply_state_change
 from dzmm.service.state_apply.world_time import _apply_time_advance
@@ -56,6 +59,7 @@ async def apply_tags(
     tags: list[TagComplete],
 ) -> None:
     """Mutate CharState and NPC rows based on parsed tags. Caller commits."""
+    topology_warnings: list[str] = []
     for tag in tags:
         if tag.name == "state_change":
             await _apply_state_change(session, session_id, tag.content)
@@ -92,7 +96,13 @@ async def apply_tags(
         elif tag.name == "doom":
             await _apply_doom(session, session_id, tag.attrs)
         elif tag.name == "location_enter":
-            await _apply_location_enter(session, session_id, current_turn, tag.attrs, tag.content)
+            w = await _apply_location_enter(
+                session, session_id, current_turn, tag.attrs, tag.content
+            )
+            if w:
+                topology_warnings.append(w)
+        elif tag.name == "location_edge":
+            await _apply_location_edge(session, session_id, tag.attrs, current_turn)
         elif tag.name == "location_item":
             await _apply_location_item(session, session_id, current_turn, tag.attrs, tag.content)
         elif tag.name == "time_advance":
@@ -101,6 +111,24 @@ async def apply_tags(
             await _apply_faction_create(session, session_id, tag.attrs, tag.content)
         elif tag.name == "faction_change":
             await _apply_faction_change(session, session_id, tag.attrs)
+
+    # v0.10 T12 — accumulate topology warnings into Session.topology_warning_json
+    # so the next turn's _build_key_facts can drain & inject them into the prompt,
+    # forcing the GM to emit the missing <location_edge>.
+    if topology_warnings:
+        from dzmm.db.models import Session as GameSession
+        sess = await session.get(GameSession, session_id)
+        if sess is not None:
+            try:
+                existing = json.loads(sess.topology_warning_json or "[]")
+                if not isinstance(existing, list):
+                    existing = []
+            except (TypeError, ValueError):
+                existing = []
+            existing.extend(topology_warnings)
+            sess.topology_warning_json = json.dumps(
+                existing[-5:], ensure_ascii=False
+            )
 
     # Post-pass: mark "appeared" for any NPC whose name shows up in this
     # turn's narrative / say / reaction / dice scene content (or in say /

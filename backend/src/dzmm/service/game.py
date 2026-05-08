@@ -36,6 +36,7 @@ from dzmm.db.models import (
     Faction,
     HiddenEvent,
     Location,
+    LocationEdge,
     Message as MessageRow,
     NPC,
     NpcRelation,
@@ -245,6 +246,7 @@ async def _auto_generate_screenplay(
 
     session.add(Screenplay(
         session_id=sess.id,
+        world_id=world.id,
         version=1,
         genre=genre,
         chapters_json=json.dumps(chapters, ensure_ascii=False),
@@ -1073,6 +1075,60 @@ async def _build_key_facts(
             "物品被取走/消耗 emit `<location_item name=\"物品\" action=\"remove\"/>`）"
         )
         parts.append("\n".join(loc_lines))
+
+        # v0.10 T12 — 周边拓扑：列出当前地点已确认的邻接关系，
+        # 让 GM 把"PC 离开此处"这类决策约束在已知拓扑里，避免凭"地名相似"
+        # 自己脑补关系造成的拓扑漂移。
+        edges_out = (await session.execute(
+            select(LocationEdge, Location)
+            .join(Location, LocationEdge.to_loc_id == Location.id)
+            .where(
+                LocationEdge.session_id == session_id,
+                LocationEdge.from_loc_id == current_loc.id,
+            )
+        )).all()
+        edges_in = (await session.execute(
+            select(LocationEdge, Location)
+            .join(Location, LocationEdge.from_loc_id == Location.id)
+            .where(
+                LocationEdge.session_id == session_id,
+                LocationEdge.to_loc_id == current_loc.id,
+            )
+        )).all()
+        topo_lines: list[str] = []
+        for e, peer in edges_out:
+            topo_lines.append(
+                f"- 此处 {e.relation} → {peer.name}"
+                + (f"（{e.description}）" if e.description else "")
+            )
+        for e, peer in edges_in:
+            topo_lines.append(
+                f"- {peer.name} {e.relation} → 此处"
+                + (f"（{e.description}）" if e.description else "")
+            )
+        if topo_lines:
+            parts.append(
+                "\n## 周边拓扑（已确认，禁止违背）\n" + "\n".join(topo_lines)
+                + "\n（PC 离开此处只能去**与此处直接相连**的地点；"
+                "进入新地点必须先 emit `<location_edge>` 把空间关系锁住。）"
+            )
+
+    # v0.10 T12 — drain topology warnings recorded by last turn's
+    # _apply_location_enter. Surfaces "你上回合从 A 跳到 B 但没 emit edge"
+    # so this turn's GM is forced to emit the missing relationship.
+    if sess is not None:
+        try:
+            warnings = json.loads(sess.topology_warning_json or "[]")
+            if not isinstance(warnings, list):
+                warnings = []
+        except (TypeError, ValueError):
+            warnings = []
+        if warnings:
+            parts.append(
+                "\n## ⚠️ 上一回合拓扑越界\n"
+                + "\n".join(f"- {w}" for w in warnings)
+            )
+            sess.topology_warning_json = "[]"
 
     # v0.3.0 — Scene turn pressure. When the session has been at the same
     # location for many turns, inject an escalating directive to force scene

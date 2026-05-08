@@ -21,6 +21,13 @@ _SCENE_SYSTEM = """你是 TRPG 的「场景演出」（Scene）agent。你只负
 - 触发 dice：需要判定时
 - 触发 state_change：PC 状态变化时
 - 触发剧情标签：plot_event / event_complete / chapter_advance / hidden_event / location_enter 等
+- 触发 location_edge：第一次 emit `<location_enter name="新地点"/>` 时，**必须**紧接着 emit
+  `<location_edge from="出发地" to="新地点" relation="contains|adjacent|connects" description="..."/>`
+  锁住空间关系。子区域用 contains；同层相通用 adjacent；通过特定途径（楼梯/隧道/电梯）用 connects。
+- 看到 key_facts 里有「## 周边拓扑」段：PC 离开本处只能去**那段列出的**地点。
+  玩家如果输入了去未列地点，narrative 用 1-2 句拒绝，给 choices 让玩家从已知拓扑里选。
+- 看到「⚠️ 上一回合拓扑越界」段：本回合开头**必须**先 emit `<location_edge>` 补上回合
+  漏掉的关系，否则越界会反复出现。
 
 # 你**不**做什么
 - **不写 NPC 对白**：所有 <say speaker="NPC..."> 由各自的 NPC agent 单独产出。Scene 写 NPC 在场，但**不替他们说话**。
@@ -37,6 +44,8 @@ _SCENE_SYSTEM = """你是 TRPG 的「场景演出」（Scene）agent。你只负
 - <plot_event type="..." importance="2|3">...</plot_event>
 - <event_complete chapter="N" event="M" type="main|optional"/>
 - <location_enter name="..." description="..."/>
+- <location_edge from="A" to="B" relation="contains|adjacent|connects|blocked"
+                 description="..."/>
 - <choices>...</choices>
 
 注意：

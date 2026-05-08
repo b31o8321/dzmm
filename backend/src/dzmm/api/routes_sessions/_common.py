@@ -67,7 +67,13 @@ async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
     the `Session` row itself + commits.
 
     SQLite FK cascade isn't enabled on this schema, so each table is wiped
-    explicitly. Order matters for screenplays (revisions reference them)."""
+    explicitly. Order matters for screenplays (revisions reference them).
+
+    Also drops every NPC's ChromaDB memory collection — vector memories
+    must not outlive the NPC row, otherwise on-disk storage grows
+    unbounded as players churn through saves.
+    """
+    from dzmm.service.npc_memory import delete_npc_memory
     # local import to avoid cycle (db.models imports light, but routes_sessions
     # is loaded before _common from base.py — keeping this import local is
     # consistent with the rest of this file)
@@ -79,6 +85,7 @@ async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
         Feedback,
         HiddenEvent,
         Location,
+        LocationEdge,
         Message as MessageRow,
         NPC as NPCModel,
         NpcRelation,
@@ -103,18 +110,46 @@ async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
             delete(AgentStream).where(AgentStream.session_id == session_id)
         )
 
-    sp_ids = (await s.execute(
-        select(Screenplay.id).where(Screenplay.session_id == session_id)
+    # Two flavors of session-attached screenplays:
+    # - world_id IS NULL  → 完全 session-only 的旧档剧本，跟存档一起删
+    # - world_id IS NOT NULL → 通过向导/auto-generate 建出来的"世界级模板"，
+    #   detach 不 delete，保留 chapters/main_characters/ending 让玩家以后能
+    #   再开新存档复用；进度字段（current_chapter / completed_events_json）
+    #   重置回初始状态。要彻底清掉剧本，前端走 tier-2 的
+    #   DELETE /screenplays/{id}?cascade=true。
+    sps = (await s.execute(
+        select(Screenplay).where(Screenplay.session_id == session_id)
     )).scalars().all()
-    if sp_ids:
+    legacy_ids: list[int] = []
+    for sp in sps:
+        if sp.world_id is None:
+            legacy_ids.append(sp.id)
+        else:
+            sp.session_id = None
+            sp.current_chapter = 1
+            sp.completed_events_json = "[]"
+            sp.status = "active"
+    if legacy_ids:
         await s.execute(
             delete(ScreenplayRevision).where(
-                ScreenplayRevision.screenplay_id.in_(sp_ids)
+                ScreenplayRevision.screenplay_id.in_(legacy_ids)
             )
         )
         await s.execute(
-            delete(Screenplay).where(Screenplay.session_id == session_id)
+            delete(Screenplay).where(Screenplay.id.in_(legacy_ids))
         )
+
+    # Snapshot NPC ids before the delete so we can clean ChromaDB per-NPC
+    # collections after the SQL rows are gone (best-effort, swallow errors).
+    npc_ids = (await s.execute(
+        select(NPCModel.id).where(NPCModel.session_id == session_id)
+    )).scalars().all()
+
+    # v0.10 T12: LocationEdge has FKs to Location, must be wiped before
+    # the Location rows it references.
+    await s.execute(
+        delete(LocationEdge).where(LocationEdge.session_id == session_id)
+    )
 
     # NB: Location and Faction were missing from the pre-extraction loop
     # in routes_sessions/base.py — they're session-scoped (FK to sessions)
@@ -127,6 +162,9 @@ async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
         await s.execute(
             delete(model).where(model.session_id == session_id)
         )
+
+    for nid in npc_ids:
+        delete_npc_memory(nid)
 
 
 def _npc_to_dict(n: NPC) -> dict:

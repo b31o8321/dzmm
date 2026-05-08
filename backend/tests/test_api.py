@@ -232,6 +232,36 @@ async def test_delete_session_drops_agent_streams_and_messages(http, app):
         assert messages == []
 
 
+async def test_delete_session_drops_location_edges(http, app):
+    """v0.10 T12: 删存档时连带清掉 location_edges（FK 在 Location 删除前）。"""
+    from sqlalchemy import select
+    from dzmm.db.models import Location, LocationEdge
+
+    sid = await _make_session(http)
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        s.add_all([
+            Location(session_id=sid, name="A"),
+            Location(session_id=sid, name="B"),
+        ])
+        await s.flush()
+        ids = (await s.execute(
+            select(Location.id).where(Location.session_id == sid)
+            .order_by(Location.name)
+        )).scalars().all()
+        s.add(LocationEdge(
+            session_id=sid, from_loc_id=ids[0], to_loc_id=ids[1],
+            relation="adjacent",
+        ))
+        await s.commit()
+
+    r = await http.delete(f"/sessions/{sid}")
+    assert r.status_code == 204
+    async with SessionMaker() as s:
+        edges = (await s.execute(select(LocationEdge))).scalars().all()
+        assert edges == []
+
+
 async def test_update_character(http):
     r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
     wid = r.json()["id"]

@@ -156,6 +156,16 @@ _V035_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
 # only for documentation symmetry with prior _VNNN_MIGRATIONS dicts.
 _V040_NEW_TABLES = ("agent_streams", "agent_messages")
 
+# v0.10 — Scene topology. New table `location_edges` is created by
+# Base.metadata.create_all; only the new column on `sessions` needs an
+# additive migration for legacy DBs.
+_V041_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "sessions": [
+        ("topology_warning_json",
+         "topology_warning_json TEXT NOT NULL DEFAULT '[]'"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -237,4 +247,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V034_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V035_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V041_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

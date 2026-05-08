@@ -46,6 +46,7 @@ KNOWN_TAGS: set[str] = {
     "plot_turn",
     "ending",
     "location_enter",
+    "location_edge",
     "bgm",
     "time_advance",
     "combat_start",

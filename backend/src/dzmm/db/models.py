@@ -115,6 +115,10 @@ class Session(Base):
     scene_turn_count: Mapped[int] = mapped_column(Integer, default=0)     # 当前场景已停留回合数
     world_time_json: Mapped[str] = mapped_column(Text, default='{"day": 1, "period": "morning", "weather": "clear"}')
 
+    # v0.10 — 上一回合 _apply_location_enter 检测到的"无 edge 跨场景"警告，
+    # 下回合 _build_key_facts drain 一次注入 prompt 强制 GM 补 emit。
+    topology_warning_json: Mapped[str] = mapped_column(Text, default="[]")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
@@ -356,6 +360,37 @@ class Location(Base):
     last_visited_turn: Mapped[int] = mapped_column(default=0)
     is_current: Mapped[bool] = mapped_column(default=False)
     items_json: Mapped[str] = mapped_column(Text, default="[]")  # 场景内的物品列表
+
+
+# ── 场景拓扑边（v0.10） ────────────────────────────────────
+class LocationEdge(Base):
+    """v0.10 — 场景拓扑边。
+
+    relation 取值（语义固定）：
+      contains   — A 包含 B（修道院 contains 实验室）
+      adjacent   — A 与 B 物理相邻（同层、可走过去）
+      connects   — A 通过某途径连到 B
+      blocked    — 已知存在的连接但当前不可走
+
+    边是有向的；contains 一般只 emit 父→子方向。
+    """
+    __tablename__ = "location_edges"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("sessions.id"), index=True
+    )
+    from_loc_id: Mapped[int] = mapped_column(ForeignKey("locations.id"))
+    to_loc_id: Mapped[int] = mapped_column(ForeignKey("locations.id"))
+    relation: Mapped[str] = mapped_column(String(20))
+    description: Mapped[str] = mapped_column(Text, default="")
+    introduced_turn: Mapped[int] = mapped_column(default=0)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "from_loc_id", "to_loc_id", "relation",
+            name="uq_location_edge",
+        ),
+    )
 
 
 # ── 隐藏事件（GM 专用） ───────────────────────────────────
