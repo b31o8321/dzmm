@@ -11,9 +11,12 @@ Six functions:
     Atomic create World + Character + Session + pinned NPCs + Screenplay.
 """
 import json
+import logging
 import re
 from typing import TypeVar, Callable, Awaitable
 _T = TypeVar("_T")
+
+log = logging.getLogger(__name__)
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -101,14 +104,26 @@ def _extract_json(text: str) -> str:
 
 
 def _unwrap_npc_list(data: object) -> list:
-    """Accept either a bare list or {"npcs": [...]} from LLM output."""
+    """Accept any of:
+    - bare list `[{...}, {...}]`
+    - `{"npcs": [...]}` (or NPCs / npc_list / characters)
+    - bare single NPC dict `{"name": ..., ...}` — local models sometimes drop
+      the wrapping array when only one NPC is generated. We treat it as a
+      single-element list so the wizard doesn't fail outright.
+    """
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
         for key in ("npcs", "NPCs", "npc_list", "characters"):
             if isinstance(data.get(key), list):
                 return data[key]
-    raise ValueError(f"Cannot extract NPC list from {type(data).__name__}: {str(data)[:100]}")
+        if "name" in data and isinstance(data.get("name"), str):
+            log.warning(
+                "wizard NPC generation returned a single object instead of an array; wrapping. keys=%s",
+                sorted(data.keys()),
+            )
+            return [data]
+    raise ValueError(f"Cannot extract NPC list from {type(data).__name__}: {str(data)[:200]}")
 
 
 def _parse_section(md: str, header: str) -> str:

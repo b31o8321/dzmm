@@ -172,6 +172,20 @@ async def test_generate_npcs_rejects_non_list():
         await generate_npcs("w", "c", client)
 
 
+async def test_generate_npcs_wraps_single_object_fallback():
+    """Local models sometimes return one NPC dict instead of an array — we
+    treat any object with a `name` field as a one-element list."""
+    single = json.dumps({
+        "name": "孤狼", "role": "对手",
+        "description": "一身黑衣的赏金猎人",
+        "motivation": "追杀 PC 是为兑现 5 年前的契约",
+    }, ensure_ascii=False)
+    client = StubLLM(single)
+    out = await generate_npcs("w", "c", client)
+    assert len(out["npcs"]) == 1
+    assert out["npcs"][0]["name"] == "孤狼"
+
+
 _SCREENPLAY_OUTPUT = json.dumps({
     "chapters": [
         {"title": "第一章：雨幕", "summary": "调查",
