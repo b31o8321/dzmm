@@ -82,6 +82,18 @@ async def list_world_screenplays(
     return [_sp_to_out(sp) for sp in rows]
 
 
+@router.get("/screenplays", response_model=list[ScreenplayStandaloneOut])
+async def list_all_screenplays(s: AsyncSession = Depends(get_session_dep)):
+    """Cross-world list of standalone screenplays (those not attached to a
+    specific session). Powers the global screenplay management view."""
+    rows = (await s.execute(
+        select(Screenplay)
+        .where(Screenplay.session_id.is_(None))
+        .order_by(Screenplay.created_at.desc())
+    )).scalars().all()
+    return [_sp_to_out(sp) for sp in rows]
+
+
 @router.get("/screenplays/{screenplay_id}", response_model=ScreenplayStandaloneOut)
 async def get_screenplay(
     screenplay_id: int,

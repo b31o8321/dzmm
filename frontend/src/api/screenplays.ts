@@ -2,6 +2,9 @@ import { api } from './client'
 import type { StandaloneScreenplay, StandaloneScreenplayIn } from './types'
 
 export const standaloneScreenplayApi = {
+  listAll: () =>
+    api.get<StandaloneScreenplay[]>(`/screenplays`).then(r => r.data),
+
   listByWorld: (worldId: number) =>
     api.get<StandaloneScreenplay[]>(`/worlds/${worldId}/screenplays`).then(r => r.data),
 

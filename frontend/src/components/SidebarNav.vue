@@ -24,6 +24,8 @@ function restartTour() {
 const items = [
   { to: '/sessions', label: '跑团', icon: '🎲' },
   { to: '/worlds', label: '世界观', icon: '🌍' },
+  { to: '/characters', label: '角色', icon: '🧙' },
+  { to: '/screenplays', label: '剧本', icon: '📜' },
   { to: '/models', label: '模型', icon: '🤖' },
 ]
 
