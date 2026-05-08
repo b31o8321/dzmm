@@ -55,9 +55,8 @@ def build_npc_actor_messages(
     plot_directive: str,
     scene_narrative: str,
     user_action: str,
-    scene_context: str = "",      # NEW: 地点 + 在场 NPC + 世界时间
-    recent_dialogue: str = "",    # NEW: 最近 4 回合压缩对话
-    peer_lines: str = "",         # NEW: 本回合已经说话的其他 NPC 句子（顺序）
+    scene_context: str = "",      # 地点 + 在场 NPC + 世界时间
+    recent_dialogue: str = "",    # 最近 4 回合压缩对话
 ) -> list[Message]:
     try:
         emotions_dict = _json.loads(npc.emotion_json or "{}")
@@ -90,10 +89,6 @@ def build_npc_actor_messages(
     if recent_dialogue.strip():
         parts.append(f"# 近期对话（最近几回合，给你温故知新）\n{recent_dialogue}")
     parts.append(f"# 本回合 GM 已写好的场景\n{scene_narrative or '（无）'}")
-    if peer_lines.strip():
-        parts.append(
-            f"# 本回合其他 NPC 刚刚说过的话（按顺序，你晚一步说）\n{peer_lines}"
-        )
     parts.append(f"# PC 玩家本回合输入\n{user_action}")
     turn_input = "\n\n".join(parts)
 

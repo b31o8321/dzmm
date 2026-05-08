@@ -103,7 +103,8 @@ async def test_run_npc_actor_persists_history(session_maker):
 
 
 def test_build_npc_actor_messages_includes_new_context_blocks():
-    """v0.10.1 — scene_context / recent_dialogue / peer_lines 应该出现在 user msg 里。"""
+    """v0.10.2 — scene_context / recent_dialogue 出现在 user msg 里
+    (peer_lines was removed in v0.10.2 — see orchestrator parallel fan-out)."""
     from dzmm.prompts.npc_actor_template import build_npc_actor_messages
     from types import SimpleNamespace
     npc = SimpleNamespace(
@@ -116,10 +117,8 @@ def test_build_npc_actor_messages_includes_new_context_blocks():
         scene_narrative="snar", user_action="ua",
         scene_context="地点：实验室\n同台 NPC：阿伟",
         recent_dialogue="[玩家] 上回合做了 X\n[GM] 然后 Y",
-        peer_lines="[阿伟] 「快走！」",
     )
     user_msg = msgs[-1].content
     assert "实验室" in user_msg
     assert "阿伟" in user_msg
     assert "上回合" in user_msg
-    assert "快走" in user_msg

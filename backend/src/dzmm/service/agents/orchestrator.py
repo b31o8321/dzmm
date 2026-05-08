@@ -8,6 +8,8 @@ Sequence per turn:
 """
 from __future__ import annotations
 
+import asyncio
+import json as _json
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -138,6 +140,81 @@ async def _select_on_stage_npcs(
     return list(seen.values())[:max_count]
 
 
+def _sort_npcs_for_turn(npcs: list, user_action: str) -> list:
+    """Sort NPCs to determine yield order (LLM calls run in parallel anyway).
+
+    Buckets (smaller bucket = yields first):
+      0. NPC name appears in user_action (PC directly cued them)
+      1. Highest emotion >= 70 (anger/fear/love etc.)
+      2. Everyone else, by last_seen_turn descending
+
+    Pure function (no DB access) — safe to call before fan-out."""
+    user_action = user_action or ""
+
+    def _key(n) -> tuple[int, int, int]:
+        name = (getattr(n, "name", None) or "").strip()
+        cue = -1 if name and name in user_action else 0
+        try:
+            emo = _json.loads(getattr(n, "emotion_json", None) or "{}")
+            max_emo = max(int(v) for v in emo.values()) if emo else 0
+        except (TypeError, ValueError):
+            max_emo = 0
+        # Negative because tuple sort is ascending; we want highest first.
+        return (cue, -max_emo, -(getattr(n, "last_seen_turn", 0) or 0))
+
+    return sorted(npcs, key=_key)
+
+
+async def _run_npc_with_isolated_session(
+    session_maker,
+    npc: NPC,
+    *,
+    session_id: int,
+    plot_directive: str,
+    scene_narrative: str,
+    user_action: str,
+    client: ModelClient,
+    current_turn: int,
+    scene_context: str,
+    recent_dialogue: str,
+) -> tuple[NPC, list[ParseEvent]]:
+    """Run one NPC actor on its own AsyncSession.
+
+    SQLAlchemy's AsyncSession is *not* concurrency-safe: parallel awaits
+    on the same session can corrupt connection state. Giving each NPC
+    its own session via `session_maker()` fully isolates them so we can
+    `asyncio.gather` the fan-out and recover the v0.10's ~5s turn time
+    (vs v0.10.1 sequential ~20s for 4 NPCs).
+
+    Returns (npc, events) so the caller can yield in sorted order
+    regardless of which NPC's coroutine finished first."""
+    try:
+        async with session_maker() as ns:
+            try:
+                events = await run_npc_actor(
+                    ns, npc=npc, session_id=session_id,
+                    plot_directive=plot_directive,
+                    scene_narrative=scene_narrative,
+                    user_action=user_action,
+                    client=client,
+                    current_turn=current_turn,
+                    scene_context=scene_context,
+                    recent_dialogue=recent_dialogue,
+                )
+                await ns.commit()
+                return npc, events
+            except Exception as exc:  # noqa: BLE001
+                log.warning("npc_actor(%s) failed: %s", npc.name, exc)
+                try:
+                    await ns.rollback()
+                except Exception:  # noqa: BLE001
+                    pass
+                return npc, []
+    except Exception as exc:  # noqa: BLE001
+        log.warning("npc_actor(%s) session open failed: %s", npc.name, exc)
+        return npc, []
+
+
 async def run_turn_v10(
     s: AsyncSession,
     *,
@@ -146,6 +223,7 @@ async def run_turn_v10(
     scene_client: ModelClient,
     director_client: ModelClient,
     npc_client: ModelClient,
+    session_maker=None,
     world_md: str,
     character_md: str,
     live_state_text: str,
@@ -154,8 +232,13 @@ async def run_turn_v10(
     scene_params: GenerationParams | None = None,
 ) -> AsyncIterator[ParseEvent]:
     """Per-turn coordination. Runs Director (sync if triggered) ->
-    streams Scene -> fan-out NPC actors in parallel. Yields ParseEvents
-    in arrival order."""
+    streams Scene -> fan-out NPC actors. Yields ParseEvents in the
+    desired display order.
+
+    `session_maker`: when provided, NPC actors run in parallel with
+    isolated AsyncSessions (production path — fast). When None, falls
+    back to sequential execution on the shared session `s` (back-compat
+    for tests that pass a single session in)."""
     sess = await s.get(GameSession, session_id)
     if sess is None:
         return
@@ -214,20 +297,34 @@ async def run_turn_v10(
         s, session_id, current_turn, NPC_MAX_PARALLEL,
     )
     if on_stage:
+        # Sort to determine yield order so the player sees the most relevant
+        # reaction first. LLM calls are issued in parallel below — sort
+        # only affects yield ordering, not call timing.
+        ordered = _sort_npcs_for_turn(on_stage, user_action)
         recent_dialogue = _format_recent_dialogue(recent_messages)
         scene_context = await _format_scene_context(s, session_id, on_stage)
 
-        # Sequential fan-out:
-        # - Avoids SQLAlchemy AsyncSession concurrency hazards (shared `s`)
-        # - Lets later NPCs see earlier NPCs' say lines this turn (peer_lines)
-        # The latency difference vs gather is negligible at NPC_MAX_PARALLEL=4
-        # for local 30 tok/s models (each NPC ~5s), and the quality win is large.
-        peer_lines_accum: list[str] = []
-        for npc in on_stage:
-            peer_lines = "\n".join(peer_lines_accum)
+        if session_maker is not None:
+            # Parallel fan-out with isolated AsyncSessions per NPC.
+            # peer_lines is intentionally dropped — same-turn NPC awareness
+            # has low marginal value (two NPCs hearing the PC at the same
+            # time would naturally react simultaneously); second-order
+            # dynamics across turns are carried by each NPC's own history.
+            #
+            # Release any outer write lock before fanning out: SQLite holds
+            # an exclusive write lock on uncommitted Director/Scene state
+            # which would block the per-NPC sessions ("database is locked").
+            # Committing here is safe — Director + Scene are stable at this
+            # point, and the outer session continues to be usable for the
+            # post-turn writes in game.run_turn (Message rows, apply_tags).
             try:
-                events = await run_npc_actor(
-                    s, npc=npc, session_id=session_id,
+                await s.commit()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("pre-fanout commit failed: %s", exc)
+            tasks = [
+                _run_npc_with_isolated_session(
+                    session_maker, npc,
+                    session_id=session_id,
                     plot_directive=directive,
                     scene_narrative=scene_narrative,
                     user_action=user_action,
@@ -235,15 +332,34 @@ async def run_turn_v10(
                     current_turn=current_turn,
                     scene_context=scene_context,
                     recent_dialogue=recent_dialogue,
-                    peer_lines=peer_lines,
                 )
-            except Exception as exc:  # noqa: BLE001
-                log.warning("npc_actor(%s) failed: %s", npc.name, exc)
-                continue
-            for ev in events:
-                yield ev
-                if isinstance(ev, TagComplete) and ev.name == "say":
-                    speaker = ev.attrs.get("speaker", npc.name)
-                    line = (ev.content or "").strip()[:150]
-                    if line:
-                        peer_lines_accum.append(f"[{speaker}] {line}")
+                for npc in ordered
+            ]
+            results = await asyncio.gather(*tasks)
+            # NPC names are unique within a session, so name is a stable
+            # key for re-ordering completion-ordered results back into the
+            # sorted yield order.
+            result_map = {n.name: evs for n, evs in results}
+            for npc in ordered:
+                for ev in result_map.get(npc.name, []):
+                    yield ev
+        else:
+            # Sequential fallback (no session_maker — e.g. unit tests that
+            # pass a single shared session). Same yield order as parallel.
+            for npc in ordered:
+                try:
+                    events = await run_npc_actor(
+                        s, npc=npc, session_id=session_id,
+                        plot_directive=directive,
+                        scene_narrative=scene_narrative,
+                        user_action=user_action,
+                        client=npc_client,
+                        current_turn=current_turn,
+                        scene_context=scene_context,
+                        recent_dialogue=recent_dialogue,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("npc_actor(%s) failed: %s", npc.name, exc)
+                    continue
+                for ev in events:
+                    yield ev

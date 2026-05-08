@@ -317,6 +317,7 @@ async def run_turn(
     client: ModelClient,
     params: GenerationParams | None = None,
     ollama_base_url: str | None = None,
+    session_maker=None,
 ) -> AsyncIterator[ParseEvent]:
     """游戏引擎核心：处理一回合，流式产出解析事件。
 
@@ -484,6 +485,7 @@ async def run_turn(
             scene_client=client,
             director_client=client,
             npc_client=client,
+            session_maker=session_maker,
             world_md=get_world_md(
                 world.id,
                 world.content_md or "",

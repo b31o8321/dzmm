@@ -89,6 +89,77 @@ async def test_run_turn_v10_yields_director_then_scene_then_npc(session_maker):
         assert ("npc", "丽莎") in kinds
 
 
+def test_sort_npcs_for_turn_prioritizes_named_then_emotional():
+    """v0.10.2 — name appears in user_action wins; then highest emotion;
+    then last_seen_turn descending."""
+    from types import SimpleNamespace
+    from dzmm.service.agents.orchestrator import _sort_npcs_for_turn
+
+    a = SimpleNamespace(name="阿伟", emotion_json='{"fear":80}', last_seen_turn=2)
+    b = SimpleNamespace(name="丽莎", emotion_json='{"anger":30}', last_seen_turn=5)
+    c = SimpleNamespace(name="老张", emotion_json='{}', last_seen_turn=10)
+
+    out = _sort_npcs_for_turn([a, b, c], "我把丽莎拉过来")
+    # 丽莎 (named in user_action) → first; 阿伟 (highest emotion 80) → second;
+    # 老张 (no signal) → last.
+    assert [n.name for n in out] == ["丽莎", "阿伟", "老张"]
+
+
+def test_sort_npcs_for_turn_handles_invalid_emotion_json():
+    """Emotion JSON that fails to parse must not crash sort — fall back to 0."""
+    from types import SimpleNamespace
+    from dzmm.service.agents.orchestrator import _sort_npcs_for_turn
+
+    a = SimpleNamespace(name="A", emotion_json="not-json", last_seen_turn=1)
+    b = SimpleNamespace(name="B", emotion_json='{"fear":50}', last_seen_turn=1)
+    out = _sort_npcs_for_turn([a, b], "")
+    # B has higher emotion → should come first.
+    assert out[0].name == "B"
+
+
+@pytest.mark.asyncio
+async def test_run_turn_v10_uses_session_maker_for_isolated_npc_sessions(session_maker):
+    """v0.10.2 — when session_maker is passed, NPC fan-out runs in parallel
+    on isolated sessions. Verify the path doesn't crash and still yields
+    the say tag in the orchestrator's sorted yield order."""
+    from dzmm.db.models import Character, ModelConfig, Session as GameSession, World
+
+    async with session_maker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="Riku", profile_md="h",
+                      base_stats_json='{"hp":20}')
+        m = ModelConfig(name="x", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(name="t", world_id=w.id, character_id=c.id,
+                           gm_model_config_id=m.id, summarizer_model_config_id=m.id)
+        s.add(sess)
+        await s.flush()
+        s.add(NPC(session_id=sess.id, name="丽莎", pinned=True,
+                  archetype="x", description="x", purpose="x", state="x",
+                  gender="female", emotion_json='{"fear":60}'))
+        await s.commit()
+        sid = sess.id
+
+    client = _MultiClient()
+    events = []
+    async with session_maker() as s:
+        async for ev in run_turn_v10(
+            s, session_id=sid, user_action="冲",
+            scene_client=client, director_client=client, npc_client=client,
+            session_maker=session_maker,
+            world_md="x", character_md="x",
+            live_state_text="{}", key_facts="",
+            recent_messages=[],
+        ):
+            events.append(ev)
+        await s.commit()
+
+    say_tags = [e for e in events if isinstance(e, TagComplete) and e.name == "say"]
+    assert len(say_tags) == 1
+    assert say_tags[0].attrs.get("speaker") == "丽莎"
+
+
 @pytest.mark.asyncio
 async def test_compress_streams_folds_old_messages(session_maker):
     """超过 threshold 后，旧消息被压成 1 条 summary + 最近 keep_recent 条原文保留。"""

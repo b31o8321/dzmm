@@ -50,13 +50,24 @@ async def test_find_returns_none_when_no_npcs(db):
     assert result is None
 
 
-async def test_find_returns_none_when_seen_recently(db):
+async def test_find_returns_none_when_spoke_recently(db):
+    """v0.10.2 — when NPC actually spoke this turn, they're not eligible
+    next turn (still under _INACTIVE_TURNS_MIN=1)."""
+    from dzmm.db.models import Message as MessageRow
     s, sid = db
-    npc = NPC(session_id=sid, name="A", last_seen_turn=4,
+    npc = NPC(session_id=sid, name="A", last_seen_turn=5,
               last_initiative_turn=0, favor=30, pinned=True)
     s.add(npc)
+    # Record a <say> from A on turn 5
+    s.add(MessageRow(
+        session_id=sid, role="assistant", turn=5,
+        content="<say>x</say>",
+        events_json=_json.dumps([
+            {"type": "say", "payload": {"speaker": "A"}, "content": "嘿"},
+        ]),
+    ))
     await s.commit()
-    # turns_inactive = 5-4 = 1 < 2 → not eligible
+    # current_turn=5: spoke_turn=5; 5-5=0 < 1 → not eligible.
     result = await find_initiative_npc(s, sid, current_turn=5)
     assert result is None
 
@@ -105,3 +116,33 @@ async def test_find_returns_none_when_favor_zero_and_not_pinned(db):
     # eagerness = 0 + 0 + 0 = 0, not > 0 → not eligible
     result = await find_initiative_npc(s, sid, current_turn=8)
     assert result is None
+
+
+async def test_initiative_uses_last_spoke_not_last_seen(db):
+    """v0.10.2 — NPC who appeared (last_seen_turn bumped via narrative
+    mention) but didn't actually <say> anything should still be eligible
+    to initiate after just 1 turn of silence."""
+    from dzmm.db.models import Message as MessageRow
+    s, sid = db
+    npc = NPC(
+        session_id=sid, name="阿伟", pinned=True,
+        last_seen_turn=5,           # mentioned this turn but never spoke
+        last_initiative_turn=0,
+        favor=20,
+        emotion_json='{"fear":50}',
+        description="x",
+    )
+    s.add(npc)
+    # Recent assistant message from turn 5 — narrative mentions 阿伟
+    # but no say from him. Verifies last_spoke_turn returns 0.
+    s.add(MessageRow(
+        session_id=sid, role="assistant", turn=5,
+        content="<narrative>阿伟站在墙边。</narrative>",
+        events_json=_json.dumps([
+            {"type": "narrative", "payload": {}, "content": "阿伟站在墙边。"},
+        ]),
+    ))
+    await s.commit()
+    chosen = await find_initiative_npc(s, sid, current_turn=6)
+    assert chosen is not None
+    assert chosen.name == "阿伟"
