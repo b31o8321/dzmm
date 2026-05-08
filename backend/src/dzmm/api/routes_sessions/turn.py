@@ -20,6 +20,7 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -47,6 +48,8 @@ from sqlalchemy import delete, func, select
 
 # APIRouter 是模块化路由注册器，类似 Spring 里的 @RequestMapping 前缀设置
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+log = logging.getLogger(__name__)
 
 
 # ── POST /sessions/{session_id}/warmup ───────────────────
@@ -279,6 +282,23 @@ async def take_turn(
                 # 摘要失败不影响游戏，把错误推给前端（前端可选择显示或忽略）
                 yield {"event": "summarize_error",
                        "data": json.dumps({"message": str(e)}, ensure_ascii=False)}
+
+            # v0.10: agent stream history compression. Walk all streams for
+            # this session; if any has > threshold messages, fold the oldest
+            # into a single summary row.
+            try:
+                from dzmm.db.models import AgentStream
+                from dzmm.service.agents.streams import compress_if_needed
+                stream_rows = (await s.execute(
+                    select(AgentStream).where(AgentStream.session_id == session_id)
+                )).scalars().all()
+                for st in stream_rows:
+                    threshold = 30 if st.kind == "gm_director" else 25
+                    keep = 10 if st.kind == "gm_director" else 8
+                    await compress_if_needed(s, st.id, sum_client, threshold, keep)
+                await s.commit()
+            except Exception as e:  # noqa: BLE001
+                log.warning("agent_stream compress failed: %s", e)
 
         async with session_maker() as _s2:
             _last_id = (

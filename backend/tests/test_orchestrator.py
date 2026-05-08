@@ -87,3 +87,36 @@ async def test_run_turn_v10_yields_director_then_scene_then_npc(session_maker):
         kinds = {(st.kind, st.ref) for st in streams}
         assert ("gm_director", "") in kinds
         assert ("npc", "丽莎") in kinds
+
+
+@pytest.mark.asyncio
+async def test_compress_streams_folds_old_messages(session_maker):
+    """超过 threshold 后，旧消息被压成 1 条 summary + 最近 keep_recent 条原文保留。"""
+    from sqlalchemy import select
+    from dzmm.db.models import AgentMessage
+    from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
+    from dzmm.service.agents.streams import (
+        append_message, compress_if_needed, get_or_create_stream,
+    )
+
+    class _Sum(ModelClient):
+        name = "s"
+        async def stream(self, msgs, params):
+            yield StreamChunk(delta="", finish_reason="stop")
+        async def complete(self, msgs, params):
+            return "摘要", TokenUsage()
+
+    async with session_maker() as s:
+        st = await get_or_create_stream(s, 1, "npc", "丽莎")
+        await s.flush()
+        for i in range(50):
+            await append_message(s, st.id, turn=i, role="user", content=f"u{i}")
+            await append_message(s, st.id, turn=i, role="assistant", content=f"a{i}")
+        await s.commit()
+        await compress_if_needed(s, st.id, _Sum(), threshold=25, keep_recent=8)
+        await s.commit()
+        rows = (await s.execute(
+            select(AgentMessage).where(AgentMessage.stream_id == st.id)
+        )).scalars().all()
+    assert sum(1 for r in rows if r.is_summary) == 1
+    assert sum(1 for r in rows if not r.is_summary) == 8
