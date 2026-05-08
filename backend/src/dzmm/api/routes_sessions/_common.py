@@ -10,6 +10,9 @@ those writes down into every sub-module that captures it (currently only
 needing to import from `factory` directly."""
 import json
 
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from dzmm.db.models import NPC
 from dzmm.models.factory import build_client  # noqa: F401 — re-exported
 
@@ -20,6 +23,7 @@ __all__ = [
     "_to_out",
     "_parse_events_json",
     "_npc_to_dict",
+    "delete_session_cascade",
 ]
 
 
@@ -55,6 +59,57 @@ def _parse_events_json(raw: str | None) -> list[dict]:
     if not isinstance(decoded, list):
         return []
     return [e for e in decoded if isinstance(e, dict)]
+
+
+async def delete_session_cascade(s: AsyncSession, session_id: int) -> None:
+    """Delete every per-session row keyed by `session_id`. Caller deletes
+    the `Session` row itself + commits.
+
+    SQLite FK cascade isn't enabled on this schema, so each table is wiped
+    explicitly. Order matters for screenplays (revisions reference them)."""
+    # local import to avoid cycle (db.models imports light, but routes_sessions
+    # is loaded before _common from base.py — keeping this import local is
+    # consistent with the rest of this file)
+    from dzmm.db.models import (
+        CharState,
+        Faction,
+        Feedback,
+        HiddenEvent,
+        Location,
+        Message as MessageRow,
+        NPC as NPCModel,
+        NpcRelation,
+        PCGoal,
+        PlotThread,
+        Screenplay,
+        ScreenplayRevision,
+        StorySummary,
+    )
+
+    sp_ids = (await s.execute(
+        select(Screenplay.id).where(Screenplay.session_id == session_id)
+    )).scalars().all()
+    if sp_ids:
+        await s.execute(
+            delete(ScreenplayRevision).where(
+                ScreenplayRevision.screenplay_id.in_(sp_ids)
+            )
+        )
+        await s.execute(
+            delete(Screenplay).where(Screenplay.session_id == session_id)
+        )
+
+    # NB: Location and Faction were missing from the pre-extraction loop
+    # in routes_sessions/base.py — they're session-scoped (FK to sessions)
+    # but used to be left orphaned. Adding them here fixes that bug.
+    for model in (
+        MessageRow, NPCModel, NpcRelation, PlotThread,
+        CharState, StorySummary, PCGoal, HiddenEvent, Feedback,
+        Location, Faction,
+    ):
+        await s.execute(
+            delete(model).where(model.session_id == session_id)
+        )
 
 
 def _npc_to_dict(n: NPC) -> dict:

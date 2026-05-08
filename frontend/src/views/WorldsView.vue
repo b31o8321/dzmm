@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useWorldsStore } from '@/stores/worlds'
 import { useScreenplaysStore } from '@/stores/screenplays'
+import { worldsApi } from '@/api/worlds'
 import MarkdownView from '@/components/MarkdownView.vue'
 import type { World, WorldIn } from '@/api/types'
 
@@ -81,19 +82,60 @@ async function onSubmit() {
 }
 
 async function onDelete(row: World) {
+  let summary: { characters: number; sessions: number; screenplays: number }
+  try {
+    summary = await worldsApi.cascadeSummary(row.id)
+  } catch (e: any) {
+    ElMessage.error(e.message ?? '获取关联资源数失败')
+    return
+  }
+
+  const total = summary.characters + summary.sessions + summary.screenplays
+  if (total === 0) {
+    try {
+      await ElMessageBox.confirm(
+        `确认删除世界观「${row.name}」？该操作不可逆。`,
+        '删除世界观',
+        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+      )
+    } catch { return }
+    removing.value = row.id
+    try {
+      await store.remove(row.id)
+      ElMessage.success('已删除')
+    } catch (e: any) {
+      ElMessage.error(e.message)
+    } finally {
+      removing.value = null
+    }
+    return
+  }
+
+  // Cascade required.
+  const lines: string[] = []
+  if (summary.sessions) lines.push(`${summary.sessions} 个跑团存档（含全部消息/NPC/关系/编年史/目标等）`)
+  if (summary.characters) lines.push(`${summary.characters} 个角色`)
+  if (summary.screenplays) lines.push(`${summary.screenplays} 个剧本`)
+
   try {
     await ElMessageBox.confirm(
-      `确认删除世界观 "${row.name}"? 该操作不可逆。`,
-      '确认',
-      { type: 'warning' },
+      `删除「${row.name}」将一并清除：\n\n• ${lines.join('\n• ')}\n\n该操作不可恢复。`,
+      '级联删除世界观',
+      {
+        type: 'warning',
+        confirmButtonText: '全部删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+      },
     )
   } catch { return }
+
   removing.value = row.id
   try {
-    await store.remove(row.id)
-    ElMessage.success('已删除')
+    await store.remove(row.id, { cascade: true })
+    ElMessage.success(`已删除「${row.name}」及其关联资源`)
   } catch (e: any) {
-    ElMessage.error(e.message)
+    ElMessage.error(e.message ?? '删除失败')
   } finally {
     removing.value = null
   }

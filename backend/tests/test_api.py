@@ -188,6 +188,23 @@ async def test_delete_world_succeeds_when_unused(http):
     assert r.status_code == 404
 
 
+async def test_delete_world_cascade_removes_characters_and_sessions(http):
+    sid = await _make_session(http)
+    sess = (await http.get(f"/sessions/{sid}")).json()
+    wid = sess["world_id"]
+    cid = sess["character_id"]
+
+    summary = (await http.get(f"/worlds/{wid}/cascade_summary")).json()
+    assert summary["characters"] >= 1
+    assert summary["sessions"] >= 1
+
+    r = await http.delete(f"/worlds/{wid}", params={"cascade": "true"})
+    assert r.status_code == 204, r.text
+    assert (await http.get(f"/worlds/{wid}")).status_code == 404
+    assert (await http.get(f"/characters/{cid}")).status_code == 404
+    assert (await http.get(f"/sessions/{sid}")).status_code == 404
+
+
 async def test_update_character(http):
     r = await http.post("/worlds", json={"name": "W", "content_md": "x"})
     wid = r.json()["id"]

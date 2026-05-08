@@ -17,6 +17,9 @@ export const standaloneScreenplayApi = {
   update: (id: number, body: Partial<StandaloneScreenplayIn>) =>
     api.patch<StandaloneScreenplay>(`/screenplays/${id}`, body).then(r => r.data),
 
+  refs: (id: number) =>
+    api.get<{ sessions: number }>(`/screenplays/${id}/refs`).then(r => r.data),
+
   remove: (id: number) =>
     api.delete(`/screenplays/${id}`),
 }

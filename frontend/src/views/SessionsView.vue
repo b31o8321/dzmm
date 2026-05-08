@@ -7,6 +7,8 @@ import { useWorldsStore } from '@/stores/worlds'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import { useScreenplaysStore } from '@/stores/screenplays'
 import { sessionsApi } from '@/api/sessions'
+import { worldsApi } from '@/api/worlds'
+import { standaloneScreenplayApi } from '@/api/screenplays'
 import { modelsApi } from '@/api/models'
 import type { ModelCheckResult } from '@/api/models'
 import type { GameSession } from '@/api/types'
@@ -124,12 +126,12 @@ async function exportSession(id: number, format: 'json' | 'md') {
   }
 }
 
-async function onDelete(row: { id: number; name: string; turn_count: number; world_id: number; character_id: number }) {
+async function onDelete(row: GameSession) {
   // Step 1: confirm session delete
   try {
     await ElMessageBox.confirm(
       `确定要删除存档「${row.name}」吗？\n\n该操作会一并清除：消息历史、NPC、关系、` +
-      `剧情线、编年史、目标、暗中状态、剧本、玩家反馈等。\n\n此操作无法撤销。`,
+      `剧情线、编年史、目标、暗中状态、玩家反馈等。\n\n此操作无法撤销。`,
       `删除存档（已进行 ${row.turn_count} 回合）`,
       {
         confirmButtonText: '确认删除',
@@ -149,30 +151,79 @@ async function onDelete(row: { id: number; name: string; turn_count: number; wor
     return
   }
 
-  // Step 2: ask about deleting world
+  // Step 2: ask about deleting screenplay (only if no other session references it)
+  if (row.screenplay_id) {
+    try {
+      const refs = await standaloneScreenplayApi.refs(row.screenplay_id)
+      if (refs.sessions === 0) {
+        try {
+          await ElMessageBox.confirm(
+            `该存档使用的剧本已不再被任何存档引用。是否一并删除？`,
+            '删除剧本',
+            {
+              confirmButtonText: '删除',
+              cancelButtonText: '保留',
+              type: 'warning',
+              confirmButtonClass: 'el-button--danger',
+              distinguishCancelAndClose: true,
+            },
+          )
+          await standaloneScreenplayApi.remove(row.screenplay_id)
+          ElMessage.success('剧本已删除')
+        } catch { /* user kept it */ }
+      }
+    } catch {
+      // refs lookup failed (deleted screenplay etc.) — skip silently
+    }
+  }
+
+  // Step 3: ask about deleting world (with cascade summary)
   const worldName = worldNameById.value.get(row.world_id) ?? `世界观 #${row.world_id}`
-  const otherSessionsWithWorld = sessionsStore.items.filter(
-    (s) => s.world_id === row.world_id,
-  )
-  const worldWarning = otherSessionsWithWorld.length > 0
-    ? `\n⚠️ 还有 ${otherSessionsWithWorld.length} 个其他存档使用此世界观，删除后它们也将失去关联。`
-    : ''
+  let summary: { characters: number; sessions: number; screenplays: number }
+  try {
+    summary = await worldsApi.cascadeSummary(row.world_id)
+  } catch { return }
+
+  const total = summary.characters + summary.sessions + summary.screenplays
+  if (total === 0) {
+    try {
+      await ElMessageBox.confirm(
+        `该世界观「${worldName}」已无关联资源。是否一并删除？`,
+        '删除世界观',
+        {
+          confirmButtonText: '删除',
+          cancelButtonText: '保留',
+          type: 'warning',
+          confirmButtonClass: 'el-button--danger',
+          distinguishCancelAndClose: true,
+        },
+      )
+      await worldsStore.remove(row.world_id)
+      ElMessage.success(`已删除世界观「${worldName}」`)
+    } catch { /* keep */ }
+    return
+  }
+
+  const lines: string[] = []
+  if (summary.sessions) lines.push(`${summary.sessions} 个其他存档（含全部消息/NPC/关系等）`)
+  if (summary.characters) lines.push(`${summary.characters} 个角色`)
+  if (summary.screenplays) lines.push(`${summary.screenplays} 个剧本`)
   try {
     await ElMessageBox.confirm(
-      `是否同时删除世界观「${worldName}」？${worldWarning}`,
-      '删除世界观',
+      `世界观「${worldName}」还有以下关联资源：\n\n• ${lines.join('\n• ')}\n\n` +
+      `是否级联删除这些内容并移除该世界观？`,
+      '级联删除世界观',
       {
-        confirmButtonText: '删除',
+        confirmButtonText: '全部删除',
         cancelButtonText: '保留',
         type: 'warning',
         confirmButtonClass: 'el-button--danger',
         distinguishCancelAndClose: true,
       },
     )
-    await worldsStore.remove(row.world_id)
-    ElMessage.success(`已删除世界观「${worldName}」`)
-  } catch { /* user chose to keep or closed dialog */ }
-
+    await worldsStore.remove(row.world_id, { cascade: true })
+    ElMessage.success(`已删除世界观「${worldName}」及其关联资源`)
+  } catch { /* keep */ }
 }
 
 async function onCreate() {

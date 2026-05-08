@@ -29,8 +29,8 @@ export const useWorldsStore = defineStore('worlds', () => {
     return w
   }
 
-  async function remove(id: number) {
-    await worldsApi.remove(id)
+  async function remove(id: number, opts?: { cascade?: boolean }) {
+    await worldsApi.remove(id, opts)
     items.value = items.value.filter((x) => x.id !== id)
   }
 

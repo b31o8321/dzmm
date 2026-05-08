@@ -1,11 +1,11 @@
 """Standalone Screenplay CRUD: independent of session lifecycle."""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.routes_sessions._common import get_session_dep
 from dzmm.api.schemas import ScreenplayStandaloneIn, ScreenplayStandaloneOut
-from dzmm.db.models import Screenplay, World
+from dzmm.db.models import Screenplay, ScreenplayRevision, Session as SessionModel, World
 
 router = APIRouter(tags=["screenplays"])
 
@@ -121,6 +121,25 @@ async def patch_screenplay(
     return _sp_to_out(sp)
 
 
+@router.get("/screenplays/{screenplay_id}/refs")
+async def screenplay_refs(
+    screenplay_id: int,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    """How many sessions still reference this screenplay. Frontend uses this
+    to decide whether to offer "also delete screenplay" after deleting a
+    session."""
+    sp = await s.get(Screenplay, screenplay_id)
+    if sp is None:
+        raise HTTPException(404, "screenplay not found")
+    sess_count = len((
+        await s.execute(
+            select(SessionModel.id).where(SessionModel.screenplay_id == screenplay_id)
+        )
+    ).scalars().all())
+    return {"sessions": sess_count}
+
+
 @router.delete("/screenplays/{screenplay_id}", status_code=204)
 async def delete_screenplay(
     screenplay_id: int,
@@ -129,5 +148,15 @@ async def delete_screenplay(
     sp = await s.get(Screenplay, screenplay_id)
     if sp is None:
         raise HTTPException(404, "screenplay not found")
+    in_use = (
+        await s.execute(
+            select(SessionModel.id).where(SessionModel.screenplay_id == screenplay_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if in_use is not None:
+        raise HTTPException(409, "screenplay is referenced by an existing session (剧本仍被存档使用)")
+    await s.execute(
+        sa_delete(ScreenplayRevision).where(ScreenplayRevision.screenplay_id == screenplay_id)
+    )
     await s.delete(sp)
     await s.commit()

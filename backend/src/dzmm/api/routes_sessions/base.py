@@ -5,25 +5,20 @@ enabled on this schema."""
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.api.routes_sessions._common import _to_out, get_session_dep
+from dzmm.api.routes_sessions._common import (
+    _to_out,
+    delete_session_cascade,
+    get_session_dep,
+)
 from dzmm.api.schemas import SessionIn, SessionOut
 from dzmm.db.models import (
     CharState,
-    Feedback,
-    HiddenEvent,
-    Message as MessageRow,
     ModelConfig,
-    NPC,
-    NpcRelation,
-    PCGoal,
-    PlotThread,
     Screenplay,
-    ScreenplayRevision,
     Session as GameSession,
-    StorySummary,
 )
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -219,38 +214,12 @@ async def list_sessions(s: AsyncSession = Depends(get_session_dep)):
 async def delete_session(
     session_id: int, s: AsyncSession = Depends(get_session_dep)
 ):
-    """Delete a session and all of its associated rows: messages, NPCs, NPC
-    relations, plot threads, char_state, story_summary,
-    pc_goals, hidden_events, screenplays + revisions, feedbacks. The world,
-    character, and model_configs are NOT touched (shared across sessions)."""
+    """Delete a session and all of its associated rows. The world, character,
+    and model_configs are NOT touched (shared across sessions)."""
     sess = await s.get(GameSession, session_id)
     if sess is None:
         raise HTTPException(404, "session not found")
-
-    # Order matters: revisions reference screenplay; everything else just
-    # references session. SQLite FK cascade isn't enabled on this schema, so
-    # we wipe each table explicitly.
-    sp_ids = (await s.execute(
-        select(Screenplay.id).where(Screenplay.session_id == session_id)
-    )).scalars().all()
-    if sp_ids:
-        await s.execute(
-            delete(ScreenplayRevision).where(
-                ScreenplayRevision.screenplay_id.in_(sp_ids)
-            )
-        )
-        await s.execute(
-            delete(Screenplay).where(Screenplay.session_id == session_id)
-        )
-
-    for model in (
-        MessageRow, NPC, NpcRelation, PlotThread,
-        CharState, StorySummary, PCGoal, HiddenEvent, Feedback,
-    ):
-        await s.execute(
-            delete(model).where(model.session_id == session_id)
-        )
-
+    await delete_session_cascade(s, session_id)
     await s.delete(sess)
     await s.commit()
     return
