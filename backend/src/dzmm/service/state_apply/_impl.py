@@ -172,5 +172,12 @@ async def _bump_appearances_from_narrative(
         name = (npc.name or "").strip()
         if len(name) < 2:
             continue  # skip 1-char names — too risky to false-positive on
-        if name in haystack and (npc.last_seen_turn or 0) < current_turn:
+        # Match full name OR any 2+ char suffix (handles "记者王欣" → "王欣").
+        matched = name in haystack
+        if not matched and len(name) > 2:
+            for start in range(1, len(name) - 1):
+                if name[start:] in haystack:
+                    matched = True
+                    break
+        if matched and (npc.last_seen_turn or 0) < current_turn:
             npc.last_seen_turn = current_turn

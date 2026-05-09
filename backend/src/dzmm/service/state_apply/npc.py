@@ -110,6 +110,20 @@ async def _apply_npc_update(
         )
     ).scalar_one_or_none()
 
+    # Fuzzy fallback: LLM may use a short name ("王欣") while the DB stores
+    # the full name ("记者王欣"). If exact match fails, find any NPC whose DB
+    # name contains the given name as a substring, or vice-versa.
+    if npc is None and len(name) >= 2:
+        candidates = (await session.execute(
+            select(NPC).where(NPC.session_id == session_id)
+        )).scalars().all()
+        for cand in candidates:
+            cname = (cand.name or "").strip()
+            if cname and (name in cname or cname in name):
+                log.info("npc_update fuzzy match: %r → %r", name, cname)
+                npc = cand
+                break
+
     reveal_fields = _parse_reveal_attr(str(payload.get("reveal", "")))
 
     is_create = npc is None
