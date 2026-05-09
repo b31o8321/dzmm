@@ -35,6 +35,7 @@ async def run_npc_actor(
     current_turn: int,
     scene_context: str = "",
     recent_dialogue: str = "",
+    relationship_summary: str = "",
 ) -> list[ParseEvent]:
     """Run one NPC's stateful agent. Returns parsed <say> + <npc_update>
     events (or [] for noop / failure / empty output). Persists this turn
@@ -49,6 +50,7 @@ async def run_npc_actor(
         user_action=user_action,
         scene_context=scene_context,
         recent_dialogue=recent_dialogue,
+        relationship_summary=relationship_summary,
     )
 
     try:
@@ -70,6 +72,8 @@ async def run_npc_actor(
         snapshot_parts.append(f"# scene_context\n{scene_context[:200]}")
     if recent_dialogue:
         snapshot_parts.append(f"# recent\n{recent_dialogue[:300]}")
+    if relationship_summary:
+        snapshot_parts.append(f"# relationship\n{relationship_summary[:300]}")
     snapshot_parts.append(f"# scene\n{scene_narrative[:400]}")
     snapshot_parts.append(f"# user\n{user_action}")
     turn_input = "\n\n".join(snapshot_parts)

@@ -62,6 +62,75 @@ def _format_recent_dialogue(recent_messages: list[Message], max_turns: int = 4) 
     return "\n".join(lines)
 
 
+async def _format_npc_relationship(
+    s: AsyncSession, session_id: int, npc, recent_messages: list[Message],
+) -> str:
+    """Build a per-NPC relationship snapshot for the actor's prompt.
+
+    Includes:
+    - current favor (+/- with label: 友好/中立/冷淡/敌对)
+    - affinity dimensions (信任/羁绊/恋慕 etc., if any)
+    - last 2-3 PC↔this-NPC exchanges (extracted from recent assistant
+      messages filtered by speaker=this NPC, paired with adjacent PC user
+      messages)
+    """
+    parts: list[str] = []
+
+    favor = int(getattr(npc, "favor", 0) or 0)
+    if favor >= 30:
+        favor_label = "深度信任 / 友好"
+    elif favor >= 10:
+        favor_label = "正面 / 友善"
+    elif favor >= -9:
+        favor_label = "中立 / 一般认识"
+    elif favor >= -29:
+        favor_label = "冷淡 / 警惕"
+    else:
+        favor_label = "敌对"
+    parts.append(f"- favor = {favor:+d}（{favor_label}）")
+
+    try:
+        aff = _json.loads(getattr(npc, "affinity_json", None) or "{}")
+        if isinstance(aff, dict) and aff:
+            aff_str = " / ".join(
+                f"{k}:{int(v):+d}" for k, v in aff.items()
+                if isinstance(v, (int, float))
+            )
+            if aff_str:
+                parts.append(f"- 多维亲密度: {aff_str}")
+    except (TypeError, ValueError):
+        pass
+
+    npc_name = getattr(npc, "name", "") or ""
+    exchanges: list[str] = []
+    take = recent_messages[-12:]  # last ~6 turns of pairs
+    last_user = ""
+    for m in take:
+        if m.role == "user":
+            last_user = _TAG_STRIP_RE.sub(" ", m.content).strip()[:120]
+        elif m.role == "assistant":
+            text = m.content or ""
+            for match in re.finditer(
+                r'<say\s+speaker="([^"]+)"[^>]*>([\s\S]*?)</say>',
+                text,
+            ):
+                if match.group(1).strip() == npc_name:
+                    line = _TAG_STRIP_RE.sub(" ", match.group(2)).strip()[:120]
+                    if line:
+                        if last_user:
+                            exchanges.append(f"PC: {last_user}  → 你: {line}")
+                        else:
+                            exchanges.append(f"你: {line}")
+    if exchanges:
+        parts.append("- 近期与 PC 的交互（按时序）:")
+        for e in exchanges[-3:]:
+            parts.append(f"  · {e}")
+    else:
+        parts.append("- 近期与 PC 的交互: （还没在叙事里直接互动过）")
+
+    return "\n".join(parts)
+
+
 async def _format_scene_context(
     s: AsyncSession, session_id: int, on_stage: list[NPC],
 ) -> str:
@@ -386,6 +455,7 @@ async def _run_npc_with_isolated_session(
     current_turn: int,
     scene_context: str,
     recent_dialogue: str,
+    relationship_summary: str = "",
 ) -> tuple[NPC, list[ParseEvent]]:
     """Run one NPC actor on its own AsyncSession.
 
@@ -409,6 +479,7 @@ async def _run_npc_with_isolated_session(
                     current_turn=current_turn,
                     scene_context=scene_context,
                     recent_dialogue=recent_dialogue,
+                    relationship_summary=relationship_summary,
                 )
                 await ns.commit()
                 return npc, events
@@ -507,6 +578,14 @@ async def run_turn_v10(
         recent_dialogue = _format_recent_dialogue(recent_messages)
         scene_context = await _format_scene_context(s, session_id, on_stage)
 
+        # v0.10.6: build per-NPC relationship summary outside the fan-out
+        # so all NPCs share the same recent_messages snapshot.
+        npc_relationships: dict[str, str] = {}
+        for npc in ordered:
+            npc_relationships[npc.name] = await _format_npc_relationship(
+                s, session_id, npc, recent_messages,
+            )
+
         if session_maker is not None:
             # Parallel fan-out with isolated AsyncSessions per NPC.
             # peer_lines is intentionally dropped — same-turn NPC awareness
@@ -535,6 +614,7 @@ async def run_turn_v10(
                     current_turn=current_turn,
                     scene_context=scene_context,
                     recent_dialogue=recent_dialogue,
+                    relationship_summary=npc_relationships.get(npc.name, ""),
                 )
                 for npc in ordered
             ]
@@ -560,6 +640,7 @@ async def run_turn_v10(
                         current_turn=current_turn,
                         scene_context=scene_context,
                         recent_dialogue=recent_dialogue,
+                        relationship_summary=npc_relationships.get(npc.name, ""),
                     )
                 except Exception as exc:  # noqa: BLE001
                     log.warning("npc_actor(%s) failed: %s", npc.name, exc)

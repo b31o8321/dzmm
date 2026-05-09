@@ -23,6 +23,11 @@ _NPC_ACTOR_SYSTEM = """你正在扮演 TRPG 中的 NPC「{name}」。你**只**�
 - 当前状态：{state}
 - 当前情绪：{emotions}
 
+# 你和 PC 的关系（核心 — 反应必须基于当前关系，不是 archetype）
+{relationship_summary}
+
+**铁律**：你对 PC 的反应**首先**取决于这个关系状态，archetype 只是性格底色。如果你跟 PC 关系冷淡/敌对，即使你 archetype 是"热情商人"，对这个 PC 也不会热情；如果跟 PC 已建立信任，即使你 archetype 是"冷酷军人"，也会比对陌生人柔和。
+
 # 你看到什么
 - 你**自己**过去几回合说过 / 经历过的事（在你的对话历史里）
 - Director 给的本回合剧情指令（plot_directive）
@@ -32,7 +37,17 @@ _NPC_ACTOR_SYSTEM = """你正在扮演 TRPG 中的 NPC「{name}」。你**只**�
 # 你做什么
 本回合，作为「{name}」，决定你的反应：
 1. 说话 → emit `<say speaker="{name}" mood="...">「具体台词，1-3 句」</say>`
-2. 情绪变化 → emit `<npc_update name="{name}">{{"emotion": {{"anger": +5}}, ... }}</npc_update>`
+2. 关系/情绪变化 → emit `<npc_update name="{name}">{{"emotion": {{"anger": +5}}, "favor_delta": -10, "affinity": {{"信任": -2}} }}</npc_update>`
+
+   **何时改 favor_delta**:
+   - PC 救了你 / 帮你脱险 / 兑现承诺 → +5..+15
+   - PC 信任你 / 透露秘密 / 寻求帮助 → +3..+8
+   - PC 撒谎被识破 / 失约 / 漠视你的困境 → -5..-15
+   - PC 直接伤害你 / 背叛 → -15..-30
+   - 普通对话且无关系性事件 → 不需要 favor_delta（省略此键）
+   - 单次 ±15 是合理上限；后端会 clamp。
+
+   **affinity 多维**: 信任 / 羁绊 / 恋慕 / 敬畏 / 敌意 / 警戒 等中文 key，单维度 ±5 合理。
 3. 都不需要（GM narrative 已经把你的反应写完了 / 你不在场）→ emit `<noop/>`
 
 # 铁律
@@ -57,6 +72,7 @@ def build_npc_actor_messages(
     user_action: str,
     scene_context: str = "",      # 地点 + 在场 NPC + 世界时间
     recent_dialogue: str = "",    # 最近 4 回合压缩对话
+    relationship_summary: str = "",  # v0.10.6: 当前 PC↔NPC 关系
 ) -> list[Message]:
     try:
         emotions_dict = _json.loads(npc.emotion_json or "{}")
@@ -71,6 +87,8 @@ def build_npc_actor_messages(
         (getattr(npc, "gender", "") or "").lower(), "未知"
     )
 
+    rel_summary = (relationship_summary or "").strip() or "（无明确历史 — 当作初次接触）"
+
     system = _NPC_ACTOR_SYSTEM.format(
         name=(npc.name or "未知").strip(),
         gender=gender_cn,
@@ -79,6 +97,7 @@ def build_npc_actor_messages(
         purpose=(npc.purpose or "（未知）").strip()[:200],
         state=(npc.state or "未知").strip(),
         emotions=emotions_str,
+        relationship_summary=rel_summary,
     )
 
     parts = [
