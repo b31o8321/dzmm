@@ -192,7 +192,17 @@ async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_
     )
     s.add(sess)
     await s.flush()
-    s.add(CharState(session_id=sess.id))
+    # v0.10.4: copy Character.base_stats_json → CharState.stats_json so the
+    # StatePanel shows the wizard-defined HP/sanity/etc from turn 0 instead
+    # of '尚未初始化'. Backwards-compat: if Character row is missing or has
+    # malformed JSON, CharState falls back to default '{}'.
+    from dzmm.db.models import Character as _CharacterModel
+    _initial_stats = "{}"
+    if character_id is not None:
+        _ch = await s.get(_CharacterModel, character_id)
+        if _ch is not None and _ch.base_stats_json:
+            _initial_stats = _ch.base_stats_json
+    s.add(CharState(session_id=sess.id, stats_json=_initial_stats))
 
     # Tier-1 复用现有剧本：把剧本绑回新存档，并重置进度字段，让 GM/前端的
     # get_active_screenplay 能在新会话里找到它，且从第 1 章开始重玩。

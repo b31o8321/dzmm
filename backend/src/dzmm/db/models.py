@@ -87,6 +87,11 @@ class ModelConfig(Base):
     # 全局并发=1 → 必须 max_concurrent=1，否则只要有 2 个请求同时在飞就全 429。
     max_concurrent: Mapped[int] = mapped_column(default=0)
 
+    # v0.10: 用户显式指定的"默认模型"。Wizard / 一次性 LLM 调用（没 session
+    # 上下文，没法挑 gm_model_config_id 时）会用它。同时只有一行 is_default=True，
+    # 在 set_default endpoint 里强制保证。
+    is_default: Mapped[bool] = mapped_column(default=False)
+
 
 # ── 游戏会话 ──────────────────────────────────────────────
 # 一局游戏。关联世界、角色和两个 LLM（GM 叙事引擎 + 摘要引擎）。
