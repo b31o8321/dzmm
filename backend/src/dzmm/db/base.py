@@ -186,6 +186,12 @@ _V042_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+_V043_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "screenplays": [
+        ("npcs_json", "npcs_json TEXT NOT NULL DEFAULT '[]'"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -301,5 +307,7 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V041_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V042_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V043_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         await conn.run_sync(_backfill_legacy_base_stats_sync)

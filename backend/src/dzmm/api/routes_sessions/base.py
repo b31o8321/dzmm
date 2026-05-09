@@ -17,6 +17,7 @@ from dzmm.api.schemas import SessionIn, SessionOut
 from dzmm.db.models import (
     CharState,
     ModelConfig,
+    NPC,
     Screenplay,
     Session as GameSession,
 )
@@ -213,6 +214,31 @@ async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_
             sp.current_chapter = 1
             sp.completed_events_json = "[]"
             sp.status = "active"
+
+            # Import NPC templates from screenplay into new session.
+            # Lets preset screenplays start with a populated NPC list.
+            try:
+                npc_templates = json.loads(sp.npcs_json or "[]")
+            except (ValueError, TypeError):
+                npc_templates = []
+            for tpl in npc_templates:
+                if not isinstance(tpl, dict) or not tpl.get("name"):
+                    continue
+                s.add(NPC(
+                    session_id=sess.id,
+                    name=tpl.get("name", ""),
+                    gender=tpl.get("gender", ""),
+                    archetype=tpl.get("archetype", ""),
+                    description=tpl.get("description", ""),
+                    state=tpl.get("state", "未知"),
+                    purpose=tpl.get("purpose", ""),
+                    favor=0,
+                    pinned=True,
+                    last_seen_turn=0,
+                    notes_json="[]",
+                    affinity_json="{}",
+                    revealed_json='{"name": true}',
+                ))
 
     await s.commit()
     await s.refresh(sess)

@@ -288,6 +288,7 @@ class Screenplay(Base):
     )
     pc_tts_voice: Mapped[str] = mapped_column(String(120), default="")
     concluded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    npcs_json: Mapped[str] = mapped_column(Text, default="[]")  # NPC 模板列表 (V043)
 
 
 # ── 剧本改写历史 ──────────────────────────────────────────
