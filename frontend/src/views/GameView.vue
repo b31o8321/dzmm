@@ -110,6 +110,7 @@ const levelUpDialogOpen = ref(false)
 const settingsOpen = ref(false)
 const narrativePolish = ref(false)
 const directorPass = ref(false)
+const useV10 = ref(true)
 const contentLevel = ref<'safe' | 'mature' | 'unrestricted'>('safe')
 
 async function loadSettings() {
@@ -117,11 +118,12 @@ async function loadSettings() {
     const s = await sessionsApi.getSettings(sessionId)
     narrativePolish.value = s.narrative_polish
     directorPass.value = s.director_pass
+    useV10.value = s.use_v10
     contentLevel.value = (s as any).content_level ?? 'safe'
   } catch { /* ignore */ }
 }
 
-async function toggleSetting(key: 'narrative_polish' | 'director_pass', val: boolean) {
+async function toggleSetting(key: 'narrative_polish' | 'director_pass' | 'use_v10', val: boolean) {
   try {
     await sessionsApi.updateSettings(sessionId, { [key]: val })
   } catch (e: any) {
@@ -1125,6 +1127,19 @@ onUnmounted(() => {
             <div class="text-xs text-slate-500 mt-0.5">
               GM 生成后，由 AI 对叙事文字进行文学润色（不改情节）。
               额外增加 5-15 秒延迟，润色完成后替换显示内容。
+            </div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <el-switch
+            v-model="useV10"
+            @change="(v: boolean) => toggleSetting('use_v10', v)"
+          />
+          <div>
+            <div class="font-medium text-slate-800">多 Agent (v0.10)</div>
+            <div class="text-xs text-slate-500 mt-0.5">
+              Director（长期剧情）+ Scene + per-NPC 各自独立 stateful 上下文。
+              关闭则回退到 v0.9 单一 GM 模式。
             </div>
           </div>
         </div>

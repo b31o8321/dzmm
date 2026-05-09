@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { sessionsApi, type AgentStreamInfo } from '@/api/sessions'
 
-const props = defineProps<{ sessionId: number }>()
+const props = defineProps<{
+  sessionId: number
+  pollIntervalMs?: number
+}>()
 const streams = ref<AgentStreamInfo[]>([])
 const loading = ref(false)
 
 async function refresh() {
+  if (!props.sessionId) return
   loading.value = true
   try {
     const data = await sessionsApi.agents(props.sessionId)
@@ -18,11 +22,29 @@ async function refresh() {
 
 watch(() => props.sessionId, refresh, { immediate: true })
 
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+watch(() => props.pollIntervalMs ?? 0, (ms) => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  if (ms > 0) {
+    pollTimer = setInterval(refresh, ms)
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
+
 function kindLabel(k: string, ref: string): string {
   if (k === 'gm_director') return '🎬 Director'
   if (k === 'npc') return `🎭 NPC: ${ref}`
   return `${k} ${ref}`
 }
+
+defineExpose({ refresh })
 </script>
 
 <template>

@@ -284,7 +284,11 @@ watch(selectedSid, async (sid) => {
 
       <!-- v0.10 T11: Agents (multi-agent prompt + history) -->
       <el-tab-pane label="🎬 Agents" name="agents">
-        <AgentsDebugPanel v-if="selectedSid != null" :session-id="selectedSid" />
+        <AgentsDebugPanel
+          v-if="selectedSid != null"
+          :session-id="selectedSid"
+          :poll-interval-ms="5000"
+        />
       </el-tab-pane>
 
       <!-- Feedback -->

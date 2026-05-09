@@ -186,8 +186,8 @@ export const sessionsApi = {
     })
   },
 
-  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean; debug_mode?: boolean; content_level?: 'safe' | 'mature' | 'unrestricted' }> {
-    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean; content_level?: string } }>(
+  async getSettings(sessionId: number): Promise<{ narrative_polish: boolean; director_pass: boolean; debug_mode?: boolean; content_level?: 'safe' | 'mature' | 'unrestricted'; use_v10: boolean }> {
+    const r = await api.get<{ settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean; content_level?: string; use_v10?: boolean } }>(
       `/sessions/${sessionId}/settings`,
     )
     return {
@@ -195,12 +195,13 @@ export const sessionsApi = {
       director_pass: r.data.settings?.director_pass ?? false,
       debug_mode: r.data.settings?.debug_mode,
       content_level: (r.data.settings?.content_level as 'safe' | 'mature' | 'unrestricted' | undefined) ?? 'safe',
+      use_v10: r.data.settings?.use_v10 ?? true,
     }
   },
 
   async updateSettings(
     sessionId: number,
-    settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean; content_level?: 'safe' | 'mature' | 'unrestricted' },
+    settings: { narrative_polish?: boolean; director_pass?: boolean; debug_mode?: boolean; content_level?: 'safe' | 'mature' | 'unrestricted'; use_v10?: boolean },
   ): Promise<void> {
     await api.patch(`/sessions/${sessionId}/settings`, settings)
   },
