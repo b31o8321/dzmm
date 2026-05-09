@@ -145,6 +145,31 @@ def _strip_thinking_tags(text: str) -> str:
     return _THINK_RE.sub("", text)
 
 
+def _assemble_full_output(events: list[ParseEvent]) -> str:
+    """v0.10.4: 把 v0.10 多 Agent 流式产出的 ParseEvent 列表拼成一段
+    coherent XML，存到 messages.content。
+
+    关键：consecutive NarrativeDelta 合并成一个 <narrative>，而不是每个
+    流式 delta 单独成 tag（那样会变成 <narrative>浓</narrative>
+    <narrative>重</narrative>... 几十个碎标签）。"""
+    parts: list[str] = []
+    narrative_buf: list[str] = []
+
+    def _flush_narrative() -> None:
+        if narrative_buf:
+            parts.append(f"<narrative>{''.join(narrative_buf)}</narrative>")
+            narrative_buf.clear()
+
+    for ev in events:
+        if isinstance(ev, NarrativeDelta):
+            narrative_buf.append(ev.text)
+        elif isinstance(ev, TagComplete):
+            _flush_narrative()
+            parts.append(_serialize_event_for_history(ev))
+    _flush_narrative()
+    return "".join(parts)
+
+
 def _serialize_event_for_history(ev: ParseEvent) -> str:
     """Reconstruct an XML-ish snippet from a ParseEvent so the messages
     table's `content` column captures what Scene + NPCs collectively
@@ -481,7 +506,12 @@ async def run_turn(
         from dzmm.prompts.gm_template import _format_live_state
 
         live_state_text = _format_live_state(live_state)
-        full_output_parts: list[str] = []
+        # v0.10.4 fix: assemble events into coherent text — consecutive
+        # NarrativeDelta chunks become ONE <narrative>...</narrative> block
+        # (was: each delta wrapped separately, producing fragmented output
+        # like <narrative>浓</narrative><narrative>重</narrative>... in
+        # messages.content).
+        all_events: list[ParseEvent] = []
         completed_tags: list[TagComplete] = []
         narrative_parts: list[str] = []
 
@@ -504,14 +534,14 @@ async def run_turn(
             key_facts=key_facts,
             recent_messages=recent,
         ):
+            all_events.append(ev)
             if isinstance(ev, TagComplete):
                 completed_tags.append(ev)
             if isinstance(ev, NarrativeDelta):
                 narrative_parts.append(ev.text)
-            full_output_parts.append(_serialize_event_for_history(ev))
             yield ev
 
-        full_output = "".join(full_output_parts)
+        full_output = _assemble_full_output(all_events)
         next_turn = sess.turn_count + 1
 
         # Persist player's user message + aggregated assistant output into

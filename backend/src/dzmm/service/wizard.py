@@ -297,7 +297,24 @@ def _parse_character_json(raw: str) -> dict:
         name = m.group(1).strip("*` ") if m else "(未命名)"
     if not profile_md:
         raise ValueError("character JSON missing profile_md")
-    return {"name": name, "gender": gender, "profile_md": profile_md}
+
+    # v0.10.4: extract base_stats. Falls back to a sane default if the model
+    # didn't produce them (so the StatePanel always has at least hp/sanity).
+    raw_stats = data.get("base_stats")
+    base_stats: dict = {}
+    if isinstance(raw_stats, dict):
+        for k, v in raw_stats.items():
+            if isinstance(v, (int, float)):
+                base_stats[str(k)[:30]] = int(v)
+    if not base_stats or "hp" not in base_stats:
+        # Default: gives StatePanel something to render even when LLM skipped
+        # base_stats. Picks 4 generic Chinese attribute names.
+        base_stats = {"hp": 20, "sanity": 15, "体魄": 5, "反应": 5, "智力": 5, "意志": 5}
+
+    return {
+        "name": name, "gender": gender, "profile_md": profile_md,
+        "base_stats_json": json.dumps(base_stats, ensure_ascii=False),
+    }
 
 
 async def generate_character(
@@ -467,6 +484,15 @@ async def finalize_wizard(
     )
     session.add(sess)
     await session.flush()
+
+    # 3.5. CharState — wizard 路径之前漏建，导致前端「角色状态/背包」永远空。
+    # 拷 Character.base_stats_json 作为初始 stats（v0.10.4 fix 在
+    # routes_sessions/base.py:create_session 已修，但 wizard 没走那条路径）。
+    from dzmm.db.models import CharState
+    session.add(CharState(
+        session_id=sess.id,
+        stats_json=char.base_stats_json or "{}",
+    ))
 
     # 4. Pinned NPCs (v0.2.2: only `name` is revealed by default — GM should
     # progressively reveal description/purpose/archetype via <npc_update> as
