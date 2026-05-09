@@ -487,3 +487,39 @@ class AgentMessage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
+
+
+# ── 开放世界框架（WorldFramework 层） ────────────────────
+# WorldFramework 是只读模板；Session 在其上叠加运行时状态覆盖层。
+# 同一 WorldFramework 可被多个 Session 引用（多存档共享世界）。
+
+class WorldFramework(Base):
+    __tablename__ = "world_frameworks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    genre: Mapped[str] = mapped_column(String(60), default="")
+    style: Mapped[str] = mapped_column(String(60), default="")
+    description_md: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+
+class WorldLocation(Base):
+    __tablename__ = "world_locations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    framework_id: Mapped[int] = mapped_column(ForeignKey("world_frameworks.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description_md: Mapped[str] = mapped_column(Text, default="")
+    # city / dungeon / wilderness / landmark
+    location_type: Mapped[str] = mapped_column(String(40), default="city")
+    # JSON list: [{target_id, direction, distance, travel_turns}]
+    # distance: 0=same, 1=adjacent, 2=nearby, 3+=far
+    connections_json: Mapped[str] = mapped_column(Text, default="[]")
+    # FK to world_factions.id — defined as plain Integer until WorldFaction
+    # is declared (Task 2). SQLite does not enforce FK constraints by default.
+    controlling_faction_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    # normal / damaged / destroyed
+    initial_state: Mapped[str] = mapped_column(String(20), default="normal")
