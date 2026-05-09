@@ -48,6 +48,18 @@ def find_python_in_venv(backend_dir: Path) -> Path:
     return Path(sys.executable)
 
 
+_IMPORT_CHECK = (
+    "from dzmm import main, seed_data; "
+    "from dzmm.service.agents import orchestrator; "
+    "from dzmm.service.agents import npc_actor, scene, director; "
+    "from dzmm.prompts import scene_v2_template, director_v2_template, npc_actor_template; "
+    "from dzmm.service import turn_snapshot, encounter_check; "
+    "from dzmm.service.state_apply import location_edge; "
+    "from dzmm.api import routes_debug_agents; "
+    "print('import-check OK')"
+)
+
+
 def main() -> int:
     backend_dir = Path(__file__).resolve().parent
     project_dir = backend_dir.parent
@@ -57,7 +69,20 @@ def main() -> int:
         return 2
 
     py = find_python_in_venv(backend_dir)
-    print(f"[1/3] running PyInstaller (onedir) via {py}")
+
+    # Fail-fast import check — catches syntax errors and missing modules
+    # before wasting ~5 min on a full PyInstaller run.
+    print("[0/4] running import sanity check ...")
+    rc = subprocess.call(
+        [str(py), "-c", _IMPORT_CHECK],
+        cwd=str(backend_dir / "src"),
+    )
+    if rc != 0:
+        print("import-check FAILED — fix the errors above before building.", file=sys.stderr)
+        return rc
+    print("import-check OK")
+
+    print(f"[1/4] running PyInstaller (onedir) via {py}")
     rc = subprocess.call(
         [str(py), "-m", "PyInstaller", str(spec_file), "--clean", "--noconfirm"],
         cwd=str(backend_dir),
@@ -67,7 +92,7 @@ def main() -> int:
         return rc
 
     triple = host_triple()
-    print(f"[2/3] host triple: {triple}")
+    print(f"[2/4] host triple: {triple}")
 
     # PyInstaller onedir outputs: dist/dzmm-backend/ (directory)
     src_dir = backend_dir / "dist" / "dzmm-backend"
@@ -77,6 +102,7 @@ def main() -> int:
 
     # Copy the whole directory into the Tauri tree where bundle.resources
     # can reach it. Replace any prior copy.
+    print("[3/4] copying bundle into Tauri resource tree ...")
     tauri_runtime = project_dir / "frontend" / "src-tauri" / "backend-runtime"
     if tauri_runtime.exists():
         shutil.rmtree(tauri_runtime)
@@ -94,7 +120,7 @@ def main() -> int:
     total_size = sum(p.stat().st_size for p in tauri_runtime.rglob("*") if p.is_file())
     size_mb = total_size / (1024 * 1024)
     file_count = sum(1 for _ in tauri_runtime.rglob("*"))
-    print(f"[3/3] ok: {tauri_runtime} ({size_mb:.1f} MB total, {file_count} entries)")
+    print(f"[4/4] ok: {tauri_runtime} ({size_mb:.1f} MB total, {file_count} entries)")
     return 0
 
 
