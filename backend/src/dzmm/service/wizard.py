@@ -167,7 +167,18 @@ async def _stream_text(
     ):
         if ch.delta:
             chunks.append(ch.delta)
-    return "".join(chunks).strip()
+    out = "".join(chunks).strip()
+    if not out:
+        # Empty stream usually means: API 限额耗尽 / 模型不支持 json_mode 但
+        # 服务器没拒只是返回空 / 鉴权失效 / max_tokens 太小被截断在 reasoning
+        # tokens 里没有可见输出（DeepSeek-R1 类思考模型）。Raise ValueError 让
+        # _with_retry 重试三次，最终把这条信息冒泡给用户而不是 cryptic
+        # 'Expecting value: line 1 column 1 (char 0)'。
+        raise ValueError(
+            "LLM 返回空内容（可能：API 限额 / 模型不支持 JSON mode / "
+            "鉴权失效 / 推理模型把全部输出当成隐藏 reasoning）"
+        )
+    return out
 
 
 async def _with_retry(

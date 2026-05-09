@@ -151,6 +151,16 @@ _V035_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# v0.10 — user-designated default model_config. Wizard + one-shot LLM calls
+# (no session context) pick this row first; falls back to "first row by id"
+# when no default is set. Mutually exclusive: at most one row may have
+# is_default=1; the /model_configs/{id}/default endpoint enforces this.
+_V036_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "model_configs": [
+        ("is_default", "is_default INTEGER NOT NULL DEFAULT 0"),
+    ],
+}
+
 # v0.10 — multi-agent stateful streams. New tables; no column-add migration
 # needed (Base.metadata.create_all picks them up automatically). Listed here
 # only for documentation symmetry with prior _VNNN_MIGRATIONS dicts.
@@ -247,6 +257,8 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V034_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V035_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V036_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V041_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
