@@ -72,3 +72,52 @@ async def test_world_faction_and_npc_template(db_session: AsyncSession):
     fetched = await db_session.get(WorldNPCTemplate, npc.id)
     assert fetched.faction_id == faction.id
     assert fetched.gender == "female"
+
+
+async def test_world_event_and_campaign(db_session: AsyncSession):
+    from dzmm.db.models import WorldFramework, WorldEvent, Campaign
+    fw = WorldFramework(name="世界C", genre="史诗奇幻")
+    db_session.add(fw)
+    await db_session.flush()
+
+    event = WorldEvent(
+        framework_id=fw.id,
+        name="暗影港谋杀案",
+        summary_md="港口发现神秘尸体，暗夜公会开始暗中调查。",
+        scope_type="location",
+        scope_ref="1",
+        importance=3,
+        trigger_conditions_json=json.dumps([
+            {"type": "location", "value": 1},
+            {"type": "stat_gte", "stat": "智识", "value": 3},
+        ]),
+        is_repeatable=False,
+        cooldown_turns=0,
+    )
+    db_session.add(event)
+
+    campaign = Campaign(
+        framework_id=fw.id,
+        name="暗影之战",
+        phases_json=json.dumps([
+            {
+                "phase_id": 1,
+                "name": "序章",
+                "description": "调查谋杀案，建立人脉。",
+                "prerequisite_phase_ids": [],
+                "key_event_ids": [1, 2, 3],
+                "required_count": 2,
+            }
+        ]),
+    )
+    db_session.add(campaign)
+    await db_session.commit()
+
+    fetched_event = await db_session.get(WorldEvent, event.id)
+    assert fetched_event.importance == 3
+    conds = json.loads(fetched_event.trigger_conditions_json)
+    assert conds[0]["type"] == "location"
+
+    fetched_campaign = await db_session.get(Campaign, campaign.id)
+    phases = json.loads(fetched_campaign.phases_json)
+    assert phases[0]["required_count"] == 2

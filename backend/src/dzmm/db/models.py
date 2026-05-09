@@ -558,3 +558,34 @@ class WorldNPCTemplate(Base):
     # contact thresholds for NPC proactive initiative
     contact_favor_threshold: Mapped[int] = mapped_column(default=70)
     contact_cooldown_turns: Mapped[int] = mapped_column(default=10)
+
+
+class WorldEvent(Base):
+    __tablename__ = "world_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    framework_id: Mapped[int] = mapped_column(ForeignKey("world_frameworks.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    summary_md: Mapped[str] = mapped_column(Text, default="")
+    # "location" | "faction" | "global"
+    scope_type: Mapped[str] = mapped_column(String(20), default="location")
+    # stringified location_id or faction_id, or "" for global
+    scope_ref: Mapped[str] = mapped_column(String(40), default="")
+    # 1=minor … 5=critical; controls Director priority + rumor threshold (≥3)
+    importance: Mapped[int] = mapped_column(default=2)
+    # AND-logic condition list JSON (see spec Section 1 for schema)
+    trigger_conditions_json: Mapped[str] = mapped_column(Text, default="[]")
+    is_repeatable: Mapped[bool] = mapped_column(default=False)
+    cooldown_turns: Mapped[int] = mapped_column(default=0)
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # one Campaign per WorldFramework (nullable: framework can have no campaign)
+    framework_id: Mapped[int] = mapped_column(
+        ForeignKey("world_frameworks.id"), unique=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    # JSON list of phase dicts:
+    # [{phase_id, name, description, prerequisite_phase_ids, key_event_ids, required_count}]
+    phases_json: Mapped[str] = mapped_column(Text, default="[]")
