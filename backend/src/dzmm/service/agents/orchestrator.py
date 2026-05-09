@@ -161,6 +161,7 @@ async def _format_scene_context(
 async def _build_director_snapshot(
     s: AsyncSession, session_id: int, current_turn: int,
 ) -> str:
+    # TODO(Plan-C): Remove once all sessions use framework_id.
     """Build a richer state snapshot for Director's prompt.
 
     Includes: turn / doom / scene_turn_count（旧），plus 剧本章节进度、
