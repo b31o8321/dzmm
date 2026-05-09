@@ -15,15 +15,17 @@ const props = defineProps<{
   recentPlotEvents: string[]
   characterName?: string
   sessionId: number
+  debug?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'choose', choice: string): void
   (e: 'open-events', turn: Turn): void
   (e: 'open-debug', turn: Turn): void
+  (e: 'open-debug-chain', turn: Turn): void
 }>()
 
-const debug = useDebugStore()
+const debugStore = useDebugStore()
 
 const PARTS_TAG_RE =
   /<(narrative|narriative|say|pc_action)\b([^>]*)>([\s\S]*?)<\/(?:narrative|narriative|say|pc_action)>/gi
@@ -80,12 +82,20 @@ const nonDiceEvents = computed(() => props.turn.events?.filter(ev => ev.type !==
     <div class="text-sm text-slate-500 font-medium">
       ▶ {{ turn.action }}
       <button
-        v-if="debug.enabled && turn.msgId"
+        v-if="(debug || debugStore.enabled) && turn.msgId"
         class="text-xs text-slate-400 hover:text-slate-600 ml-1"
-        title="查看LLM原始数据"
+        title="查看LLM原始数据（单条）"
         @click="emit('open-debug', turn)"
       >
         🐛
+      </button>
+      <button
+        v-if="(debug || debugStore.enabled) && turn.turn > 0"
+        class="text-xs text-slate-400 hover:text-slate-600 ml-1"
+        title="查看完整链路（Director+Scene+NPC）"
+        @click="emit('open-debug-chain', turn)"
+      >
+        🔍
       </button>
     </div>
     <div class="relative bg-white rounded shadow-sm p-4">

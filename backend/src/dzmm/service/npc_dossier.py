@@ -47,6 +47,13 @@ def _effective_reveals(npc: NPC) -> dict[str, bool]:
     """
     revealed = _npc_revealed(npc)
 
+    # Pinned (screenplay-defined) NPCs are "known characters" — reveal only
+    # the favor score immediately so the player can track the relationship
+    # number before first encounter. Description/state may contain secret lore
+    # and stay hidden until last_seen_turn > 0.
+    if npc.pinned:
+        revealed.setdefault("favor", True)
+
     # Once an NPC has appeared in the story, basic observable fields auto-reveal.
     if npc.last_seen_turn > 0:
         revealed.setdefault("description", True)

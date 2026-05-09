@@ -36,7 +36,9 @@ from dzmm.service.agents.director import (
 )
 from dzmm.service.agents.npc_actor import run_npc_actor
 from dzmm.service.agents.scene import run_scene
-from dzmm.service.agents.streams import get_or_create_stream
+from dzmm.service.agents.streams import append_message, get_or_create_stream
+
+STREAM_KIND_SCENE = "scene"
 from dzmm.service.agents.triggers import should_run_director
 
 log = logging.getLogger(__name__)
@@ -228,15 +230,31 @@ async def _build_director_snapshot(
             parts.append(
                 f"- 章节: 第{sp.current_chapter}章「{title}」 主线 {n_done}/{n_total}"
             )
-            # Pending main events brief
+            # Full event list with done/pending status and 1-based index
             if isinstance(main_events, list):
-                pending = [
-                    e for i, e in enumerate(main_events)
-                    if i not in done_idxs and isinstance(e, dict)
-                ]
-                if pending:
-                    desc = str(pending[0].get("description", ""))[:60]
-                    parts.append(f"- 下一主线: {desc}")
+                parts.append(f"- 本章主线事件列表（章节={sp.current_chapter}）:")
+                for i, e in enumerate(main_events):
+                    if not isinstance(e, dict):
+                        continue
+                    status = "[done]" if i in done_idxs else "[pending]"
+                    desc = str(e.get("description", ""))[:80]
+                    parts.append(f"  事件{i+1} {status} {desc}")
+            # Optional events
+            opt_events = cur_ch.get("optional_events") or []
+            done_opt_idxs = {
+                c.get("event_idx") for c in completed
+                if isinstance(c, dict)
+                and c.get("chapter") == sp.current_chapter
+                and c.get("type") == "optional"
+            }
+            if isinstance(opt_events, list) and opt_events:
+                parts.append("- 本章支线事件:")
+                for i, e in enumerate(opt_events):
+                    if not isinstance(e, dict):
+                        continue
+                    status = "[done]" if i in done_opt_idxs else "[pending]"
+                    desc = str(e.get("description", ""))[:60]
+                    parts.append(f"  支线{i+1} {status} {desc}")
 
     # Active hidden events
     hidden_rows = (await s.execute(
@@ -284,6 +302,26 @@ async def _build_director_snapshot(
     if plot_majors:
         parts.append("- 最近重大决策:")
         parts.extend(plot_majors[:3])
+
+    # Last turn's PC action + narrative summary so Director can judge event completion.
+    last_msgs = (await s.execute(
+        select(MessageRow.role, MessageRow.content, MessageRow.turn)
+        .where(
+            MessageRow.session_id == session_id,
+            MessageRow.turn == current_turn - 1,
+        )
+        .order_by(MessageRow.id)
+    )).all()
+    if last_msgs:
+        parts.append(f"- 上一回合（t{current_turn - 1}）概况:")
+        for role, content, _t in last_msgs:
+            if role == "user":
+                parts.append(f"  PC行动: {(content or '')[:120]}")
+            elif role == "assistant":
+                # Strip XML tags to get plain narrative excerpt
+                plain = re.sub(r"<[^>]+>", " ", content or "")
+                plain = " ".join(plain.split())[:200]
+                parts.append(f"  场景叙事: {plain}")
 
     return "\n".join(parts)
 
@@ -541,6 +579,22 @@ async def run_turn_v10(
         )
         total_tok_in += d_in
         total_tok_out += d_out
+        # Parse any <event_complete> tags Director decided to emit and yield
+        # them early so apply_tags processes them before Scene runs.
+        for m in re.finditer(
+            r'<event_complete\b([^/]*/?)>',
+            directive,
+        ):
+            attr_str = m.group(1)
+            attrs: dict[str, str] = {}
+            for am in re.finditer(r'(\w+)=["\']([^"\']*)["\']', attr_str):
+                attrs[am.group(1)] = am.group(2)
+            if "chapter" in attrs and "event" in attrs:
+                log.info(
+                    "director yielded event_complete ch=%s ev=%s type=%s",
+                    attrs.get("chapter"), attrs.get("event"), attrs.get("type", "main"),
+                )
+                yield TagComplete(name="event_complete", attrs=attrs)
     else:
         directive = await _last_director_directive(s, director_stream.id)
 
@@ -551,11 +605,13 @@ async def run_turn_v10(
         pc_name = char.name
 
     narrative_buf: list[str] = []
+    scene_raw_parts: list[str] = []  # for debug chain storage
     # v0.10.7: collect <npc_cue> tags from Scene to drive fan-out (replaces
     # DB-pinned/recent-seen heuristic which didn't reflect "who is in the
     # scene THIS turn"). Insertion order preserved so yield order matches
     # Scene's narrative ordering when cue is encountered.
     cued_npcs: dict[str, str] = {}
+    scene_tok_in = scene_tok_out = 0
     async for ev in run_scene(
         client=scene_client,
         pc_name=pc_name,
@@ -567,19 +623,42 @@ async def run_turn_v10(
         params=scene_params,
     ):
         if isinstance(ev, UsageSummary):
+            scene_tok_in = ev.tokens_in
+            scene_tok_out = ev.tokens_out
             total_tok_in += ev.tokens_in
             total_tok_out += ev.tokens_out
             continue  # don't forward to SSE
         if isinstance(ev, NarrativeDelta):
             narrative_buf.append(ev.text)
-        elif isinstance(ev, TagComplete) and ev.name == "npc_cue":
-            speaker = (ev.attrs or {}).get("speaker", "").strip()
-            intent = (ev.attrs or {}).get("intent", "").strip()
-            if speaker and speaker not in cued_npcs:
-                cued_npcs[speaker] = intent
+            scene_raw_parts.append(ev.text)
+        elif isinstance(ev, TagComplete):
+            if ev.name == "npc_cue":
+                speaker = (ev.attrs or {}).get("speaker", "").strip()
+                intent = (ev.attrs or {}).get("intent", "").strip()
+                if speaker and speaker not in cued_npcs:
+                    cued_npcs[speaker] = intent
+            # Reconstruct raw XML for debug storage (approximate)
+            attr_str = " ".join(f'{k}="{v}"' for k, v in (ev.attrs or {}).items())
+            tag_open = f"<{ev.name}{' ' + attr_str if attr_str else ''}>"
+            if ev.content:
+                scene_raw_parts.append(f"{tag_open}{ev.content}</{ev.name}>")
+            else:
+                scene_raw_parts.append(f"{tag_open}</{ev.name}>")
         yield ev
 
     scene_narrative = "".join(narrative_buf)
+
+    # Persist Scene's input context + full output for debug chain inspection.
+    scene_input_summary = (
+        f"# directive\n{directive[:400]}\n\n"
+        f"# key_facts\n{(key_facts or '')[:600]}\n\n"
+        f"# user_action\n{user_action[:200]}"
+    )
+    scene_stream = await get_or_create_stream(s, session_id, STREAM_KIND_SCENE, "")
+    await append_message(s, scene_stream.id, current_turn, "user",
+                         scene_input_summary, tokens_in=scene_tok_in)
+    await append_message(s, scene_stream.id, current_turn, "assistant",
+                         "".join(scene_raw_parts), tokens_out=scene_tok_out)
 
     # v0.10.7: Scene's <npc_cue> tags drive fan-out — only NPCs Scene
     # explicitly cued get an actor pass. NPCs that DB says are pinned/recent

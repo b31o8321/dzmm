@@ -13,11 +13,13 @@ const props = defineProps<{
   sending?: boolean
   sessionId: number
   stats?: Record<string, number>
+  debug?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'choose', choice: string): void
   (e: 'open-events', turn: Turn): void
+  (e: 'open-debug-chain', turn: Turn): void
 }>()
 
 const logEl = ref<HTMLElement | null>(null)
@@ -175,9 +177,11 @@ defineExpose({ logEl })
           :recent-plot-events="recentPlotEvents"
           :character-name="characterName"
           :session-id="sessionId"
+          :debug="debug"
           @choose="emit('choose', $event)"
           @open-events="emit('open-events', $event)"
           @open-debug="openDebug($event)"
+          @open-debug-chain="emit('open-debug-chain', $event)"
         />
       </CombatPanel>
 
@@ -191,9 +195,11 @@ defineExpose({ logEl })
         :recent-plot-events="recentPlotEvents"
         :character-name="characterName"
         :session-id="sessionId"
+        :debug="debug"
         @choose="emit('choose', $event)"
         @open-events="emit('open-events', $event)"
         @open-debug="openDebug($event)"
+        @open-debug-chain="emit('open-debug-chain', $event)"
       />
     </template>
   </div>

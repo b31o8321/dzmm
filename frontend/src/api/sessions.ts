@@ -241,6 +241,21 @@ export const sessionsApi = {
       }>(`/sessions/${sessionId}/messages/${msgId}/debug`)
       .then((r) => r.data),
 
+  turnDebugChain: (sessionId: number, turnNum: number) =>
+    api
+      .get<{
+        turn: number
+        player_action: string
+        gm_output: string
+        tokens_in_total: number
+        tokens_out_total: number
+        director: Array<{ role: string; content: string; tokens_in: number; tokens_out: number; is_summary: boolean }>
+        scene: Array<{ role: string; content: string; tokens_in: number; tokens_out: number }>
+        npcs: Array<{ name: string; messages: Array<{ role: string; content: string; tokens_in: number; tokens_out: number }> }>
+        applied_events: Array<Record<string, unknown>>
+      }>(`/sessions/${sessionId}/turns/${turnNum}/debug_chain`)
+      .then((r) => r.data),
+
   async suggestActions(
     sessionId: number,
     narrative: string,

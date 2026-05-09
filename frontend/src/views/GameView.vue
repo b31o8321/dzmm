@@ -31,6 +31,7 @@ import MessageEventsDialog from '@/components/MessageEventsDialog.vue'
 import FeedbackDialog from '@/components/FeedbackDialog.vue'
 import MessageList from '@/components/game/MessageList.vue'
 import DebugPanel from '@/components/game/DebugPanel.vue'
+import TurnDebugChainDialog from '@/components/game/TurnDebugChainDialog.vue'
 import ScreenplayProgressPanel from '@/components/game/ScreenplayProgressPanel.vue'
 import { screenplayApi, type Screenplay } from '@/api/screenplay'
 import { archetypeEdgeMap } from '@/utils/ttsArchetype'
@@ -104,6 +105,8 @@ const composing = ref(false)
 const eventsDialogOpen = ref(false)
 const eventsDialogEvents = ref<Turn['events']>([])
 const eventsDialogTurn = ref(0)
+const debugChainOpen = ref(false)
+const debugChainTurn = ref(0)
 const panelOpen = ref(false)
 const character = ref<Character | null>(null)
 const levelUpDialogOpen = ref(false)
@@ -418,6 +421,11 @@ function openEvents(t: Turn) {
   eventsDialogEvents.value = JSON.parse(JSON.stringify(t.events ?? []))
   eventsDialogTurn.value = t.turn
   eventsDialogOpen.value = true
+}
+
+function openDebugChain(t: Turn) {
+  debugChainTurn.value = t.turn
+  debugChainOpen.value = true
 }
 
 // v0.2.1 P0.3: clear events on close so the next open never flashes a stale
@@ -940,9 +948,11 @@ onUnmounted(() => {
         :sending="sending"
         :session-id="sessionId"
         :stats="stats"
+        :debug="debugStore.enabled"
         :style="{ fontSize: fontSize + 'px', fontFamily }"
         @choose="(c: string) => sendActionDirect(c)"
         @open-events="(t: Turn) => openEvents(t)"
+        @open-debug-chain="(t: Turn) => openDebugChain(t)"
       />
 
       <div v-if="turns.length && !sending"
@@ -1085,6 +1095,13 @@ onUnmounted(() => {
       v-model="eventsDialogOpen"
       :events="eventsDialogEvents"
       :turn="eventsDialogTurn"
+    />
+
+    <TurnDebugChainDialog
+      v-if="debugChainOpen"
+      v-model="debugChainOpen"
+      :session-id="sessionId"
+      :turn-num="debugChainTurn"
     />
 
     <el-dialog v-model="modelSwitchOpen" title="切换 GM 模型" width="360px">
