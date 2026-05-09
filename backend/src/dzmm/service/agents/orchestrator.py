@@ -34,6 +34,7 @@ from dzmm.service.agents.director import (
     STREAM_KIND_DIRECTOR,
     run_director,
 )
+from dzmm.service.agents.director_open_world import run_open_world_director
 from dzmm.service.agents.npc_actor import run_npc_actor
 from dzmm.service.agents.scene import run_scene
 from dzmm.service.agents.streams import append_message, get_or_create_stream
@@ -160,6 +161,7 @@ async def _format_scene_context(
 async def _build_director_snapshot(
     s: AsyncSession, session_id: int, current_turn: int,
 ) -> str:
+    # TODO(Plan-C): Remove once all sessions use framework_id.
     """Build a richer state snapshot for Director's prompt.
 
     Includes: turn / doom / scene_turn_count（旧），plus 剧本章节进度、
@@ -529,6 +531,21 @@ async def _run_npc_with_isolated_session(
         return npc, [], 0, 0
 
 
+def _get_pc_location_id(sess) -> int:
+    """Return the PC's current WorldLocation ID. Returns 0 if not tracked yet.
+
+    Framework sessions store pc_location_id in settings_json.
+    This is updated by the <location_enter> handler (Plan C will add this).
+    Defaults to 0 (framework root) when not yet set.
+    """
+    try:
+        import json
+        settings = json.loads(sess.settings_json or "{}")
+        return int(settings.get("pc_location_id", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 async def run_turn_v10(
     s: AsyncSession,
     *,
@@ -570,13 +587,28 @@ async def run_turn_v10(
     total_tok_in = 0
     total_tok_out = 0
 
+    # Load character early — needed for PC name in both open-world and legacy Director paths.
+    char = await s.get(Character, sess.character_id)
+
     fire, reason = should_run_director(director_stream, cs_obj, current_turn)
     if fire:
         log.info("director firing (reason=%s) at turn %d", reason, current_turn)
-        snapshot = await _build_director_snapshot(s, session_id, current_turn)
-        directive, d_in, d_out = await run_director(
-            s, session_id, director_client, current_turn, snapshot,
-        )
+        if sess.framework_id:
+            directive, d_in, d_out = await run_open_world_director(
+                s=s,
+                session_id=session_id,
+                framework_id=sess.framework_id,
+                client=director_client,
+                current_turn=current_turn,
+                pc_location_id=_get_pc_location_id(sess),
+                character_name=(char.name if char else "PC"),
+                character_md=(getattr(char, "profile_md", "") or ""),
+            )
+        else:
+            snapshot = await _build_director_snapshot(s, session_id, current_turn)
+            directive, d_in, d_out = await run_director(
+                s, session_id, director_client, current_turn, snapshot,
+            )
         total_tok_in += d_in
         total_tok_out += d_out
         # Parse any <event_complete> tags Director decided to emit and yield
@@ -600,7 +632,6 @@ async def run_turn_v10(
 
     # PC name from Character row (anti-drift)
     pc_name = "PC"
-    char = await s.get(Character, sess.character_id)
     if char and char.name:
         pc_name = char.name
 

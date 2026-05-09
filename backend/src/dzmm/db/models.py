@@ -103,6 +103,7 @@ class Session(Base):
     world_id: Mapped[int] = mapped_column(ForeignKey("worlds.id"))
     character_id: Mapped[int] = mapped_column(ForeignKey("characters.id"))
     screenplay_id: Mapped[int | None] = mapped_column(ForeignKey("screenplays.id"), nullable=True)
+    # v0.11 — open-world framework reference (nullable: old sessions don't use it)
     framework_id: Mapped[int | None] = mapped_column(
         ForeignKey("world_frameworks.id"), nullable=True, default=None
     )
