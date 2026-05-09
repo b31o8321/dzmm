@@ -167,13 +167,7 @@ onMounted(async () => {
       </el-table-column>
       <el-table-column label="剧本" width="130">
         <template #default="{ row }">
-          <el-button
-            link
-            size="small"
-            @click="router.push({ name: 'world-screenplays', params: { id: row.id } })"
-          >
-            📜 {{ screenplayCountById.get(row.id) ?? 0 }} 个剧本
-          </el-button>
+          <span class="text-slate-500 text-xs">{{ screenplayCountById.get(row.id) ?? 0 }} 个剧本</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="160">
