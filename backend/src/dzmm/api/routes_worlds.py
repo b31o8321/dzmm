@@ -179,6 +179,12 @@ async def delete_world(
     await s.delete(w)
     await s.commit()
 
+    # Drop the world's vector index so embeddings on disk don't outlive the
+    # World row. Best-effort; swallow errors so a stale ChromaDB never
+    # blocks the user's "clean up this world" flow.
+    from dzmm.service.world_rag import delete_world_index
+    delete_world_index(world_id)
+
 
 @router.post("/{world_id}/reindex", status_code=202)
 async def reindex_world(

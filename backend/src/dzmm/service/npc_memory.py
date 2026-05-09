@@ -86,6 +86,24 @@ async def record_memory(
         log.debug("npc_memory: record failed for npc %d: %s", npc_id, e)
 
 
+def delete_npc_memory(npc_id: int) -> None:
+    """Drop the ChromaDB collection for *npc_id*. Used by cascade-delete paths
+    (session delete / NPC delete / NER auto-cleanup) so an NPC's vector
+    memories don't outlive the NPC row itself.
+
+    Silently no-ops on any failure (uninitialised _APP_DIR, missing
+    collection, ChromaDB error) — memory cleanup is best-effort and must
+    never block the delete.
+    """
+    if _APP_DIR is None:
+        return
+    try:
+        client = _client()
+        client.delete_collection(_coll_name(npc_id))
+    except Exception as e:  # noqa: BLE001
+        log.debug("npc_memory: delete failed for npc %d: %s", npc_id, e)
+
+
 async def retrieve_memories(
     npc_id: int,
     query: str,

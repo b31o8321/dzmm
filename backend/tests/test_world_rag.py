@@ -29,6 +29,26 @@ def test_index_world_creates_chroma_dir(tmp_path, monkeypatch):
     assert is_indexed(1, app_dir=tmp_path)
 
 
+def test_delete_world_index_removes_chroma_dir(tmp_path, monkeypatch):
+    """After delete_world_index, the persist directory is gone — embeddings
+    no longer outlive the deleted World row."""
+    import dzmm.service.world_rag as wr
+    monkeypatch.setattr(wr, "APP_DIR", tmp_path)
+
+    content = "世界是一片浩瀚的草原。" * 20
+    index_world(7, content, "http://unused", _embedder=_FakeEmbedder())
+    assert is_indexed(7, app_dir=tmp_path)
+
+    wr.delete_world_index(7, app_dir=tmp_path)
+    assert not is_indexed(7, app_dir=tmp_path)
+
+
+def test_delete_world_index_silent_when_missing(tmp_path):
+    """delete_world_index on never-indexed world is a no-op."""
+    from dzmm.service.world_rag import delete_world_index
+    delete_world_index(12345, app_dir=tmp_path)  # must not raise
+
+
 def test_index_world_is_idempotent(tmp_path, monkeypatch):
     import dzmm.service.world_rag as wr
     monkeypatch.setattr(wr, "APP_DIR", tmp_path)

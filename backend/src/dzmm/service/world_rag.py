@@ -129,6 +129,33 @@ async def index_world_async(
     await asyncio.to_thread(index_world, world_id, content_md, ollama_url, model)
 
 
+def delete_world_index(world_id: int, app_dir: Path | None = None) -> None:
+    """Drop this world's ChromaDB collection + persist directory.
+
+    Called by the world cascade-delete handler so embeddings on disk don't
+    outlive the World row. Silently no-ops on any failure — index cleanup
+    is best-effort.
+    """
+    import shutil
+
+    persist_path = _persist_dir(world_id, app_dir)
+    if not Path(persist_path).exists():
+        return
+    try:
+        import chromadb  # delayed import keeps tests w/o chroma happy
+        try:
+            client = chromadb.PersistentClient(path=persist_path)
+            client.delete_collection(f"world_{world_id}")
+        except Exception:
+            pass  # collection may not exist; we'll still nuke the directory
+    except Exception as e:  # noqa: BLE001
+        log.debug("world_rag: delete_collection skipped for world %d: %s", world_id, e)
+    try:
+        shutil.rmtree(persist_path, ignore_errors=True)
+    except Exception as e:  # noqa: BLE001
+        log.debug("world_rag: rmtree failed for world %d: %s", world_id, e)
+
+
 # ── 检索 ─────────────────────────────────────────────────
 def retrieve_world_context(
     world_id: int,

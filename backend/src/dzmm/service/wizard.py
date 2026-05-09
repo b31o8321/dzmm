@@ -484,9 +484,14 @@ async def finalize_wizard(
         created_npcs.append(npc)
 
     # 5. Screenplay (carry pc_gender so future sessions cloned from this
-    # screenplay get the same gender on their PC)
+    # screenplay get the same gender on their PC).
+    # world_id is also set so that on session delete (tier-1 "仅删存档") the
+    # screenplay survives — delete_session_cascade detaches world-scoped rows
+    # instead of deleting them, so the player can start a new session reusing
+    # the same screenplay.
     sp = Screenplay(
         session_id=sess.id,
+        world_id=world.id,
         version=1,
         genre=str(bundle.get("genre") or "")[:60],
         pc_name=char.name,

@@ -53,6 +53,15 @@ async def delete_auto_created_npcs(
     sess = await s.get(GameSession, session_id)
     if sess is None:
         raise HTTPException(404, "session not found")
+
+    from dzmm.service.npc_memory import delete_npc_memory
+    stub_ids = (await s.execute(
+        select(NPC.id).where(
+            NPC.session_id == session_id,
+            NPC.description == _NER_STUB_DESCRIPTION,
+        )
+    )).scalars().all()
+
     await s.execute(
         delete(NPC).where(
             NPC.session_id == session_id,
@@ -60,6 +69,10 @@ async def delete_auto_created_npcs(
         )
     )
     await s.commit()
+
+    for nid in stub_ids:
+        delete_npc_memory(nid)
+
     return Response(status_code=204)
 
 
