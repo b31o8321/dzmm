@@ -47,7 +47,7 @@ async def test_run_npc_actor_returns_say_and_npc_update(session_maker):
         '<npc_update name="丽莎">{"emotion": {"fear": +10}}</npc_update>'
     )
     async with session_maker() as s:
-        events = await run_npc_actor(
+        events, tok_in, tok_out = await run_npc_actor(
             s, npc=_npc(), session_id=1,
             plot_directive="x", scene_narrative="霓虹下雨",
             user_action="拉她的手", client=_StubNpc(output),
@@ -65,7 +65,7 @@ async def test_run_npc_actor_returns_say_and_npc_update(session_maker):
 @pytest.mark.asyncio
 async def test_run_npc_actor_noop_returns_empty(session_maker):
     async with session_maker() as s:
-        events = await run_npc_actor(
+        events, tok_in, tok_out = await run_npc_actor(
             s, npc=_npc(), session_id=1,
             plot_directive="x", scene_narrative="y",
             user_action="z", client=_StubNpc("<noop/>"),
@@ -155,7 +155,7 @@ async def test_run_npc_actor_parses_favor_delta_from_body(session_maker):
         '<npc_update name="丽莎">{"favor_delta": +12, "emotion": {"love": +5}}</npc_update>'
     )
     async with session_maker() as s:
-        events = await run_npc_actor(
+        events, tok_in, tok_out = await run_npc_actor(
             s, npc=_npc(), session_id=1,
             plot_directive="d", scene_narrative="x",
             user_action="x", client=_StubNpc(output),

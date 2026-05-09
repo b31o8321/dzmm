@@ -48,7 +48,7 @@ from dzmm.db.models import (
     World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsage
-from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
+from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete, UsageSummary
 from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.director_template import build_director_messages
 from dzmm.prompts.gm_template import build_gm_messages
@@ -514,6 +514,7 @@ async def run_turn(
         all_events: list[ParseEvent] = []
         completed_tags: list[TagComplete] = []
         narrative_parts: list[str] = []
+        v10_usage = UsageSummary()
 
         async for ev in run_turn_v10(
             session,
@@ -534,6 +535,9 @@ async def run_turn(
             key_facts=key_facts,
             recent_messages=recent,
         ):
+            if isinstance(ev, UsageSummary):
+                v10_usage = ev
+                continue  # don't forward to SSE
             all_events.append(ev)
             if isinstance(ev, TagComplete):
                 completed_tags.append(ev)
@@ -564,6 +568,8 @@ async def run_turn(
             content=full_output, turn=next_turn,
             events_json=json.dumps(events_payload, ensure_ascii=False),
             snapshot_json=snapshot_str,
+            tokens_in=v10_usage.tokens_in,
+            tokens_out=v10_usage.tokens_out,
         ))
         await apply_tags(session, session_id, next_turn, completed_tags)
         # v0.10.5 — soft validation: warn if a brand-new NPC appeared

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from dzmm.models.client import GenerationParams, Message, ModelClient
-from dzmm.parsing.events import ParseEvent
+from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsage
+from dzmm.parsing.events import ParseEvent, UsageSummary
 from dzmm.parsing.stream_parser import StreamingTagParser
 from dzmm.prompts.scene_v2_template import build_scene_messages
 
@@ -21,14 +21,11 @@ async def run_scene(
     recent_messages: list[Message],
     current_action: str,
     params: GenerationParams | None = None,
-) -> AsyncIterator[ParseEvent]:
+) -> AsyncIterator[ParseEvent | UsageSummary]:
     """Stream Scene agent's output, parsing XML tags incrementally so the
     SSE consumer can render narrative chunks immediately.
 
-    Parsed events are yielded in order. The caller buffers them and also
-    persists the raw concatenated text into the session's `messages` table
-    (Scene's "stateful history" IS the messages table — no separate
-    agent_streams entry needed).
+    Yields ParseEvents followed by a final UsageSummary with token counts.
     """
     msgs = build_scene_messages(
         pc_name=pc_name,
@@ -41,9 +38,13 @@ async def run_scene(
         current_action=current_action,
     )
     parser = StreamingTagParser()
+    usage = TokenUsage()
     async for chunk in client.stream(msgs, params or GenerationParams()):
         if chunk.delta:
             for ev in parser.feed(chunk.delta):
                 yield ev
+        if chunk.usage is not None:
+            usage = chunk.usage
     for ev in parser.finish():
         yield ev
+    yield UsageSummary(tokens_in=usage.input_tokens, tokens_out=usage.output_tokens)

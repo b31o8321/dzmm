@@ -38,12 +38,13 @@ _DIRECTIVE = """<plot_directive>
 @pytest.mark.asyncio
 async def test_run_director_creates_stream_and_persists_turn(session_maker):
     async with session_maker() as s:
-        directive = await run_director(
+        directive, tok_in, tok_out = await run_director(
             s, session_id=1, client=_StubDirector(_DIRECTIVE),
             current_turn=1, snapshot="第 1 回合 snapshot...",
         )
         await s.commit()
     assert "推进主线事件 #2" in directive
+    assert tok_in == 10 and tok_out == 20
 
     async with session_maker() as s:
         streams = (await s.execute(
@@ -64,12 +65,13 @@ async def test_run_director_creates_stream_and_persists_turn(session_maker):
 @pytest.mark.asyncio
 async def test_run_director_falls_back_on_empty_output(session_maker):
     async with session_maker() as s:
-        directive = await run_director(
+        directive, tok_in, tok_out = await run_director(
             s, session_id=2, client=_StubDirector(""),
             current_turn=1, snapshot="x",
         )
         await s.commit()
     assert directive  # non-empty fallback
+    assert tok_in == 0 and tok_out == 0  # fallback returns zero counts
     async with session_maker() as s:
         msgs = (await s.execute(select(AgentMessage))).scalars().all()
         assert msgs == []

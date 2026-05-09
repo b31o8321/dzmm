@@ -29,7 +29,7 @@ from dzmm.db.models import (
     Session as GameSession,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient
-from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete
+from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete, UsageSummary
 from dzmm.service.agents.director import (
     STREAM_KIND_DIRECTOR,
     run_director,
@@ -457,21 +457,15 @@ async def _run_npc_with_isolated_session(
     recent_dialogue: str,
     relationship_summary: str = "",
     cue_intent: str = "",
-) -> tuple[NPC, list[ParseEvent]]:
+) -> tuple[NPC, list[ParseEvent], int, int]:
     """Run one NPC actor on its own AsyncSession.
 
-    SQLAlchemy's AsyncSession is *not* concurrency-safe: parallel awaits
-    on the same session can corrupt connection state. Giving each NPC
-    its own session via `session_maker()` fully isolates them so we can
-    `asyncio.gather` the fan-out and recover the v0.10's ~5s turn time
-    (vs v0.10.1 sequential ~20s for 4 NPCs).
-
-    Returns (npc, events) so the caller can yield in sorted order
-    regardless of which NPC's coroutine finished first."""
+    Returns (npc, events, tokens_in, tokens_out) so the caller can yield
+    in sorted order and accumulate token counts."""
     try:
         async with session_maker() as ns:
             try:
-                events = await run_npc_actor(
+                events, tok_in, tok_out = await run_npc_actor(
                     ns, npc=npc, session_id=session_id,
                     plot_directive=plot_directive,
                     scene_narrative=scene_narrative,
@@ -484,17 +478,17 @@ async def _run_npc_with_isolated_session(
                     cue_intent=cue_intent,
                 )
                 await ns.commit()
-                return npc, events
+                return npc, events, tok_in, tok_out
             except Exception as exc:  # noqa: BLE001
                 log.warning("npc_actor(%s) failed: %s", npc.name, exc)
                 try:
                     await ns.rollback()
                 except Exception:  # noqa: BLE001
                     pass
-                return npc, []
+                return npc, [], 0, 0
     except Exception as exc:  # noqa: BLE001
         log.warning("npc_actor(%s) session open failed: %s", npc.name, exc)
-        return npc, []
+        return npc, [], 0, 0
 
 
 async def run_turn_v10(
@@ -512,10 +506,10 @@ async def run_turn_v10(
     key_facts: str,
     recent_messages: list[Message],
     scene_params: GenerationParams | None = None,
-) -> AsyncIterator[ParseEvent]:
+) -> AsyncIterator[ParseEvent | UsageSummary]:
     """Per-turn coordination. Runs Director (sync if triggered) ->
-    streams Scene -> fan-out NPC actors. Yields ParseEvents in the
-    desired display order.
+    streams Scene -> fan-out NPC actors. Yields ParseEvents followed by
+    a final UsageSummary (filtered out by game.py before SSE forwarding).
 
     `session_maker`: when provided, NPC actors run in parallel with
     isolated AsyncSessions (production path — fast). When None, falls
@@ -535,13 +529,18 @@ async def run_turn_v10(
     # active hidden_events to decide if Director must run synchronously.
     cs_obj = await _build_director_trigger_state(s, session_id, sess, current_turn)
 
+    total_tok_in = 0
+    total_tok_out = 0
+
     fire, reason = should_run_director(director_stream, cs_obj, current_turn)
     if fire:
         log.info("director firing (reason=%s) at turn %d", reason, current_turn)
         snapshot = await _build_director_snapshot(s, session_id, current_turn)
-        directive = await run_director(
+        directive, d_in, d_out = await run_director(
             s, session_id, director_client, current_turn, snapshot,
         )
+        total_tok_in += d_in
+        total_tok_out += d_out
     else:
         directive = await _last_director_directive(s, director_stream.id)
 
@@ -567,6 +566,10 @@ async def run_turn_v10(
         current_action=user_action,
         params=scene_params,
     ):
+        if isinstance(ev, UsageSummary):
+            total_tok_in += ev.tokens_in
+            total_tok_out += ev.tokens_out
+            continue  # don't forward to SSE
         if isinstance(ev, NarrativeDelta):
             narrative_buf.append(ev.text)
         elif isinstance(ev, TagComplete) and ev.name == "npc_cue":
@@ -657,16 +660,19 @@ async def run_turn_v10(
             # NPC names are unique within a session, so name is a stable
             # key for re-ordering completion-ordered results back into the
             # sorted yield order.
-            result_map = {n.name: evs for n, evs in results}
+            result_map = {n.name: (evs, ti, to) for n, evs, ti, to in results}
             for npc in ordered:
-                for ev in result_map.get(npc.name, []):
+                evs, ti, to = result_map.get(npc.name, ([], 0, 0))
+                total_tok_in += ti
+                total_tok_out += to
+                for ev in evs:
                     yield ev
         else:
             # Sequential fallback (no session_maker — e.g. unit tests that
             # pass a single shared session). Same yield order as parallel.
             for npc in ordered:
                 try:
-                    events = await run_npc_actor(
+                    events, n_in, n_out = await run_npc_actor(
                         s, npc=npc, session_id=session_id,
                         plot_directive=directive,
                         scene_narrative=scene_narrative,
@@ -678,8 +684,11 @@ async def run_turn_v10(
                         relationship_summary=npc_relationships.get(npc.name, ""),
                         cue_intent=cued_npcs.get(npc.name, ""),
                     )
+                    total_tok_in += n_in
+                    total_tok_out += n_out
                 except Exception as exc:  # noqa: BLE001
                     log.warning("npc_actor(%s) failed: %s", npc.name, exc)
                     continue
                 for ev in events:
                     yield ev
+    yield UsageSummary(tokens_in=total_tok_in, tokens_out=total_tok_out)

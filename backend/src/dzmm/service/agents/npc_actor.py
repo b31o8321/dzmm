@@ -37,10 +37,10 @@ async def run_npc_actor(
     recent_dialogue: str = "",
     relationship_summary: str = "",
     cue_intent: str = "",
-) -> list[ParseEvent]:
-    """Run one NPC's stateful agent. Returns parsed <say> + <npc_update>
-    events (or [] for noop / failure / empty output). Persists this turn
-    into the NPC's stream regardless — even noop is signal."""
+) -> tuple[list[ParseEvent], int, int]:
+    """Run one NPC's stateful agent. Returns (events, tokens_in, tokens_out).
+    Events are parsed <say> + <npc_update> (or [] for noop/failure/empty).
+    Persists this turn into the NPC's stream regardless — even noop is signal."""
     stream = await get_or_create_stream(s, session_id, STREAM_KIND_NPC, npc.name)
     history = await load_history(s, stream.id, max_messages=NPC_HISTORY_MAX)
 
@@ -59,11 +59,11 @@ async def run_npc_actor(
         output, usage = await client.complete(msgs, _PARAMS)
     except Exception as exc:  # noqa: BLE001
         log.warning("npc_actor(%s): LLM failed: %s", npc.name, exc)
-        return []
+        return [], 0, 0
 
     text = (output or "").strip()
     if not text:
-        return []
+        return [], 0, 0
 
     # Persistence snapshot — keep concise but include the new context so
     # next-turn history retrieval reproduces what the NPC was reasoning over.
@@ -82,14 +82,16 @@ async def run_npc_actor(
     snapshot_parts.append(f"# user\n{user_action}")
     turn_input = "\n\n".join(snapshot_parts)
 
+    tok_in = usage.input_tokens if usage else 0
+    tok_out = usage.output_tokens if usage else 0
     await append_message(s, stream.id, current_turn, "user", turn_input,
-                         tokens_in=usage.input_tokens if usage else 0)
+                         tokens_in=tok_in)
     await append_message(s, stream.id, current_turn, "assistant", text,
-                         tokens_out=usage.output_tokens if usage else 0)
+                         tokens_out=tok_out)
     stream.last_run_turn = current_turn
 
     if "<noop" in text:
-        return []
+        return [], tok_in, tok_out
 
     parser = StreamingTagParser()
     events: list[ParseEvent] = []
@@ -107,4 +109,4 @@ async def run_npc_actor(
             elif ev.name == "npc_update":
                 ev.attrs["name"] = npc.name
             events.append(ev)
-    return events
+    return events, tok_in, tok_out

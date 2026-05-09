@@ -42,11 +42,11 @@ async def run_director(
     client: ModelClient,
     current_turn: int,
     snapshot: str,
-) -> str:
-    """Run the Director agent with the current snapshot and return its
-    plot_directive output. Persists this turn's user/assistant pair into
-    the gm_director stream. On any LLM failure, returns the fallback
-    directive string and skips persistence.
+) -> tuple[str, int, int]:
+    """Run the Director agent with the current snapshot.
+
+    Returns (plot_directive, tokens_in, tokens_out). On LLM failure returns
+    the fallback directive with zero token counts.
     """
     stream = await get_or_create_stream(s, session_id, STREAM_KIND_DIRECTOR, "")
     history = await load_history(s, stream.id, max_messages=DIRECTOR_HISTORY_MAX)
@@ -56,20 +56,22 @@ async def run_director(
         output, usage = await client.complete(msgs, _PARAMS)
     except Exception as exc:  # noqa: BLE001
         log.warning("director: LLM call failed: %s", exc)
-        return _FALLBACK_DIRECTIVE
+        return _FALLBACK_DIRECTIVE, 0, 0
 
     text = (output or "").strip()
     if not text:
         log.warning("director: LLM returned empty output, using fallback")
-        return _FALLBACK_DIRECTIVE
+        return _FALLBACK_DIRECTIVE, 0, 0
 
+    tok_in = usage.input_tokens if usage else 0
+    tok_out = usage.output_tokens if usage else 0
     await append_message(
         s, stream.id, current_turn, "user", snapshot,
-        tokens_in=usage.input_tokens if usage else 0,
+        tokens_in=tok_in,
     )
     await append_message(
         s, stream.id, current_turn, "assistant", text,
-        tokens_out=usage.output_tokens if usage else 0,
+        tokens_out=tok_out,
     )
     stream.last_run_turn = current_turn
-    return text
+    return text, tok_in, tok_out
