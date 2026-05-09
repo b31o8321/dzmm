@@ -622,32 +622,24 @@ onMounted(async () => {
     </el-dialog>
 
     <el-dialog v-model="dialogOpen" title="新开一局" width="640px" @closed="resetForm">
-      <el-radio-group v-model="createMode" class="flex flex-col gap-2 w-full mb-3">
-        <div class="border border-slate-200 rounded p-3">
-          <el-radio value="screenplay" class="w-full !items-start">
-            <div class="flex flex-col gap-0.5">
-              <span class="font-medium">⚡ 用现有剧本直接玩</span>
-              <span class="text-xs text-slate-500">最快，1 分钟内进游戏</span>
-            </div>
-          </el-radio>
-        </div>
-        <div class="border border-slate-200 rounded p-3">
-          <el-radio value="new-screenplay" class="w-full !items-start">
-            <div class="flex flex-col gap-0.5">
-              <span class="font-medium">🌍 用现有世界观，重新创作剧本</span>
-              <span class="text-xs text-slate-500">向导跳过世界观环节，直接生成 PC + NPC + 剧本</span>
-            </div>
-          </el-radio>
-        </div>
-        <div class="border border-slate-200 rounded p-3">
-          <el-radio value="fresh" class="w-full !items-start">
-            <div class="flex flex-col gap-0.5">
-              <span class="font-medium">🪄 全部重新创建</span>
-              <span class="text-xs text-slate-500">完整向导：世界观 → PC → NPC → 剧本</span>
-            </div>
-          </el-radio>
-        </div>
-      </el-radio-group>
+      <div class="flex flex-col gap-2 w-full mb-3">
+        <label
+          v-for="opt in [
+            { value: 'screenplay', icon: '⚡', title: '用现有剧本直接玩', desc: '最快，1 分钟内进游戏' },
+            { value: 'new-screenplay', icon: '🌍', title: '用现有世界观，重新创作剧本', desc: '向导跳过世界观环节，直接生成 PC + NPC + 剧本' },
+            { value: 'fresh', icon: '🪄', title: '全部重新创建', desc: '完整向导：世界观 → PC → NPC → 剧本' },
+          ]"
+          :key="opt.value"
+          class="flex items-center gap-3 border rounded p-3 cursor-pointer transition-colors"
+          :class="createMode === opt.value ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'"
+        >
+          <input type="radio" v-model="createMode" :value="opt.value" class="shrink-0 accent-blue-500" />
+          <div class="flex flex-col gap-0.5 min-w-0">
+            <span class="font-medium">{{ opt.icon }} {{ opt.title }}</span>
+            <span class="text-xs text-slate-500">{{ opt.desc }}</span>
+          </div>
+        </label>
+      </div>
 
       <!-- Tier 3: full wizard -->
       <div v-if="createMode === 'fresh'" class="space-y-3 p-2 bg-slate-50 border border-slate-200 rounded">

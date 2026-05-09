@@ -460,6 +460,7 @@ async function aiGenerateSingleNpc() {
     })
     const npc: WizardNPC = {
       name: r.name,
+      gender: r.gender || '',
       description: r.description,
       role: r.archetype || '',
       motivation: r.purpose || '',

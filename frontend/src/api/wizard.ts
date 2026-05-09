@@ -45,6 +45,7 @@ export interface WizardScreenplay {
 
 export interface SingleNpcResponse {
   name: string
+  gender?: '' | 'male' | 'female'
   description: string
   archetype: string
   purpose: string
