@@ -505,58 +505,70 @@ onMounted(async () => {
 
         <el-radio-group v-model="deleteDialog.tier" class="flex flex-col gap-2 w-full">
           <div class="border border-slate-200 rounded p-3">
-            <el-radio :value="1">
-              <span class="font-medium">仅删除当前进度</span>
-              <span class="text-xs text-slate-500 ml-2">（保留剧本 + 世界观）</span>
+            <el-radio :value="1" class="w-full !items-start">
+              <div class="flex flex-col gap-0.5">
+                <div>
+                  <span class="font-medium">仅删除当前进度</span>
+                  <span class="text-xs text-slate-500 ml-2">（保留剧本 + 世界观）</span>
+                </div>
+                <div class="text-xs text-slate-500">
+                  清除：消息历史 / NPC / 关系 / 剧情线 / 目标 / 暗中状态 / 反馈。
+                  下次可在同剧本重玩。
+                </div>
+              </div>
             </el-radio>
-            <div class="text-xs text-slate-500 ml-6 mt-1">
-              清除：消息历史 / NPC / 关系 / 剧情线 / 目标 / 暗中状态 / 反馈。
-              下次可在同剧本重玩。
-            </div>
           </div>
 
           <div
             class="border rounded p-3"
             :class="deleteDialogTier2Disabled ? 'border-slate-200 opacity-60' : 'border-slate-200'"
           >
-            <el-radio :value="2" :disabled="deleteDialogTier2Disabled">
-              <span class="font-medium">同时删除剧本</span>
-              <span class="text-xs text-slate-500 ml-2">（保留世界观）</span>
+            <el-radio :value="2" :disabled="deleteDialogTier2Disabled" class="w-full !items-start">
+              <div class="flex flex-col gap-0.5">
+                <div>
+                  <span class="font-medium">同时删除剧本</span>
+                  <span class="text-xs text-slate-500 ml-2">（保留世界观）</span>
+                </div>
+                <div class="text-xs text-slate-500">
+                  额外清除：剧本「{{ deleteDialogScreenplayName || '—' }}」+ 主角 + 该剧本 NPC。
+                  下次可在同世界观下创建新剧本。
+                </div>
+                <div v-if="deleteDialog.screenplayShared" class="text-xs text-amber-600">
+                  ⚠️ 此剧本仍被其他存档使用，无法删除（仅可选项 1）
+                </div>
+                <div v-else-if="!deleteDialog.target.screenplay_id" class="text-xs text-amber-600">
+                  此存档没有绑定独立剧本（旧版数据）
+                </div>
+              </div>
             </el-radio>
-            <div class="text-xs text-slate-500 ml-6 mt-1">
-              额外清除：剧本「{{ deleteDialogScreenplayName || '—' }}」+ 主角 + 该剧本 NPC。
-              下次可在同世界观下创建新剧本。
-            </div>
-            <div v-if="deleteDialog.screenplayShared" class="text-xs text-amber-600 ml-6 mt-1">
-              ⚠️ 此剧本仍被其他存档使用，无法删除（仅可选项 1）
-            </div>
-            <div v-else-if="!deleteDialog.target.screenplay_id" class="text-xs text-amber-600 ml-6 mt-1">
-              此存档没有绑定独立剧本（旧版数据）
-            </div>
           </div>
 
           <div class="border border-slate-200 rounded p-3">
-            <el-radio :value="3">
-              <span class="font-medium">同时删除世界观</span>
-              <span class="text-xs text-slate-500 ml-2">（全部删除）</span>
+            <el-radio :value="3" class="w-full !items-start">
+              <div class="flex flex-col gap-0.5">
+                <div>
+                  <span class="font-medium">同时删除世界观</span>
+                  <span class="text-xs text-slate-500 ml-2">（全部删除）</span>
+                </div>
+                <div class="text-xs text-slate-500">
+                  额外清除：世界观「{{ deleteDialogWorldName }}」+
+                  <template v-if="deleteDialog.worldSummary">
+                    {{ deleteDialog.worldSummary.sessions }} 个存档（含本存档）/
+                    {{ deleteDialog.worldSummary.screenplays }} 个剧本 /
+                    {{ deleteDialog.worldSummary.characters }} 个角色
+                  </template>
+                  <template v-else>
+                    <span class="text-slate-400 italic">加载中…</span>
+                  </template>
+                </div>
+                <div
+                  v-if="deleteDialog.worldSummary && deleteDialog.worldSummary.sessions > 1"
+                  class="text-xs text-rose-500"
+                >
+                  ⚠️ 还有 {{ deleteDialog.worldSummary.sessions - 1 }} 个其他存档将一并删除
+                </div>
+              </div>
             </el-radio>
-            <div class="text-xs text-slate-500 ml-6 mt-1">
-              额外清除：世界观「{{ deleteDialogWorldName }}」+
-              <template v-if="deleteDialog.worldSummary">
-                {{ deleteDialog.worldSummary.sessions }} 个存档（含本存档）/
-                {{ deleteDialog.worldSummary.screenplays }} 个剧本 /
-                {{ deleteDialog.worldSummary.characters }} 个角色
-              </template>
-              <template v-else>
-                <span class="text-slate-400 italic">加载中…</span>
-              </template>
-            </div>
-            <div
-              v-if="deleteDialog.worldSummary && deleteDialog.worldSummary.sessions > 1"
-              class="text-xs text-rose-500 ml-6 mt-1"
-            >
-              ⚠️ 还有 {{ deleteDialog.worldSummary.sessions - 1 }} 个其他存档将一并删除
-            </div>
           </div>
         </el-radio-group>
 
@@ -612,21 +624,27 @@ onMounted(async () => {
     <el-dialog v-model="dialogOpen" title="新开一局" width="640px" @closed="resetForm">
       <el-radio-group v-model="createMode" class="flex flex-col gap-2 w-full mb-3">
         <div class="border border-slate-200 rounded p-3">
-          <el-radio value="screenplay">
-            <span class="font-medium">⚡ 用现有剧本直接玩</span>
-            <span class="text-xs text-slate-500 ml-2">（最快，1 分钟内进游戏）</span>
+          <el-radio value="screenplay" class="w-full !items-start">
+            <div class="flex flex-col gap-0.5">
+              <span class="font-medium">⚡ 用现有剧本直接玩</span>
+              <span class="text-xs text-slate-500">最快，1 分钟内进游戏</span>
+            </div>
           </el-radio>
         </div>
         <div class="border border-slate-200 rounded p-3">
-          <el-radio value="new-screenplay">
-            <span class="font-medium">🌍 用现有世界观，重新创作剧本</span>
-            <span class="text-xs text-slate-500 ml-2">（向导跳过世界观环节，直接生成 PC + NPC + 剧本）</span>
+          <el-radio value="new-screenplay" class="w-full !items-start">
+            <div class="flex flex-col gap-0.5">
+              <span class="font-medium">🌍 用现有世界观，重新创作剧本</span>
+              <span class="text-xs text-slate-500">向导跳过世界观环节，直接生成 PC + NPC + 剧本</span>
+            </div>
           </el-radio>
         </div>
         <div class="border border-slate-200 rounded p-3">
-          <el-radio value="fresh">
-            <span class="font-medium">🪄 全部重新创建</span>
-            <span class="text-xs text-slate-500 ml-2">（完整向导：世界观 → PC → NPC → 剧本）</span>
+          <el-radio value="fresh" class="w-full !items-start">
+            <div class="flex flex-col gap-0.5">
+              <span class="font-medium">🪄 全部重新创建</span>
+              <span class="text-xs text-slate-500">完整向导：世界观 → PC → NPC → 剧本</span>
+            </div>
           </el-radio>
         </div>
       </el-radio-group>
