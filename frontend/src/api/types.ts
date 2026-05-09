@@ -50,6 +50,7 @@ export interface GameSession {
   id: number
   name: string
   screenplay_id: number | null
+  framework_id?: number | null
   world_id: number
   character_id: number
   gm_model_config_id: number
