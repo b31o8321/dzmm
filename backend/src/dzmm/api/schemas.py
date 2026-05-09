@@ -47,6 +47,7 @@ class ModelConfigOut(BaseModel):
     api_key_ref: str | None
     timeout: float
     max_concurrent: int = 0
+    is_default: bool = False
 
 
 class SessionIn(BaseModel):

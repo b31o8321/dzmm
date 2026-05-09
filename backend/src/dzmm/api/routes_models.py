@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.schemas import ModelConfigIn, ModelConfigOut
@@ -22,6 +22,7 @@ def _to_out(m: ModelConfig) -> ModelConfigOut:
         id=m.id, name=m.name, type=m.type, base_url=m.base_url,
         model_name=m.model_name, api_key_ref=m.api_key_ref, timeout=m.timeout,
         max_concurrent=getattr(m, "max_concurrent", 0) or 0,
+        is_default=bool(getattr(m, "is_default", False)),
     )
 
 
@@ -152,3 +153,25 @@ async def delete_model_config(
         delete_api_key(m.api_key_ref)
     await s.delete(m)
     await s.commit()
+
+
+@router.post("/{cfg_id}/default", response_model=ModelConfigOut)
+async def set_default_model_config(
+    cfg_id: int, s: AsyncSession = Depends(get_session_dep),
+):
+    """把这条配置标为"默认模型"，同时把其余所有配置的 is_default 清零。
+
+    Wizard / 一次性 LLM 调用（无 session 上下文）会优先使用这一条；这样用户
+    在多个本地 + 远程模型间切换时，不用每次手动选。互斥保证：写入新默认前
+    先 UPDATE ... SET is_default=0，再把目标这条置 1。
+    """
+    m = await s.get(ModelConfig, cfg_id)
+    if m is None:
+        raise HTTPException(404, "config not found")
+    await s.execute(
+        update(ModelConfig).values(is_default=False)
+    )
+    m.is_default = True
+    await s.commit()
+    await s.refresh(m)
+    return _to_out(m)

@@ -100,10 +100,10 @@ function goWizardWithWorld() {
   const draft = {
     step: 3,
     state: {
-      wizard_model_config_id: modelsStore.items[0]?.id ?? null,
-      gm_model_config_id: form.value.gm_model_config_id || (modelsStore.items[0]?.id ?? null),
+      wizard_model_config_id: modelsStore.preferredId() ?? null,
+      gm_model_config_id: form.value.gm_model_config_id || (modelsStore.preferredId() ?? null),
       summarizer_model_config_id:
-        form.value.summarizer_model_config_id || (modelsStore.items[0]?.id ?? null),
+        form.value.summarizer_model_config_id || (modelsStore.preferredId() ?? null),
       genre: '悬疑探案',
       custom_genre: '',
       theme: '',
@@ -158,8 +158,8 @@ function resetForm() {
   form.value = {
     name: '',
     screenplay_id: 0,
-    gm_model_config_id: modelsStore.items[0]?.id ?? 0,
-    summarizer_model_config_id: modelsStore.items[0]?.id ?? 0,
+    gm_model_config_id: modelsStore.preferredId() ?? 0,
+    summarizer_model_config_id: modelsStore.preferredId() ?? 0,
     contentLevel: 'safe',
   }
   selectedWorldId.value = 0

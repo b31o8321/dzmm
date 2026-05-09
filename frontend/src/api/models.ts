@@ -18,4 +18,6 @@ export const modelsApi = {
     api.post<{ ok: boolean; info: string }>(`/model_configs/${id}/test`).then((r) => r.data),
   check: (id: number) =>
     api.get<ModelCheckResult>(`/model_configs/${id}/check`).then((r) => r.data),
+  setDefault: (id: number) =>
+    api.post<ModelConfig>(`/model_configs/${id}/default`).then((r) => r.data),
 }

@@ -33,6 +33,7 @@ export interface ModelConfig {
   api_key_ref: string | null
   timeout: number
   max_concurrent?: number
+  is_default?: boolean
 }
 
 export interface ModelConfigIn {

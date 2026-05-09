@@ -12,6 +12,7 @@ const editingId = ref<number | null>(null)
 const submitting = ref(false)
 const testing = ref<number | null>(null)
 const removing = ref<number | null>(null)
+const settingDefault = ref<number | null>(null)
 
 const form = reactive<ModelConfigIn>({
   name: '',
@@ -136,6 +137,19 @@ async function onTest(id: number) {
     ElMessage.error(e.message)
   } finally {
     testing.value = null
+  }
+}
+
+async function onSetDefault(row: ModelConfig) {
+  if (row.is_default) return
+  settingDefault.value = row.id
+  try {
+    await store.setDefault(row.id)
+    ElMessage.success(`已把 "${row.name}" 设为默认模型`)
+  } catch (e: any) {
+    ElMessage.error(e.message)
+  } finally {
+    settingDefault.value = null
   }
 }
 
@@ -526,7 +540,17 @@ onMounted(() => store.refresh())
       </el-collapse-item>
     </el-collapse>
 
+    <p class="text-xs text-slate-500 mb-2">
+      ⭐ <strong>默认模型</strong>：用于"创建存档向导"等没有 session 上下文的 LLM 调用。同一时刻只有一条配置能被标为默认。
+    </p>
+
     <el-table :data="store.items" v-loading="store.loading" border>
+      <el-table-column label="默认" width="64" align="center">
+        <template #default="{ row }">
+          <span v-if="row.is_default" class="text-yellow-500" title="当前默认模型">★</span>
+          <span v-else class="text-slate-300">—</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="name" label="名称" width="160" />
       <el-table-column prop="type" label="类型" width="140" />
       <el-table-column prop="base_url" label="Base URL" />
@@ -536,8 +560,14 @@ onMounted(() => store.refresh())
           {{ row.api_key_ref ? '已设置' : '—' }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="240">
+      <el-table-column label="操作" width="320">
         <template #default="{ row }">
+          <el-button
+            v-if="!row.is_default"
+            size="small"
+            :loading="settingDefault === row.id"
+            @click="onSetDefault(row)"
+          >设为默认</el-button>
           <el-button
             size="small"
             :loading="testing === row.id"

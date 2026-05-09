@@ -826,9 +826,10 @@ onMounted(async () => {
   }
   // pre-fill defaults if available
   if (!restored && modelsStore.items.length > 0) {
-    state.wizard_model_config_id = modelsStore.items[0].id
-    state.gm_model_config_id = modelsStore.items[0].id
-    state.summarizer_model_config_id = modelsStore.items[0].id
+    const preferred = modelsStore.preferredId() ?? modelsStore.items[0].id
+    state.wizard_model_config_id = preferred
+    state.gm_model_config_id = preferred
+    state.summarizer_model_config_id = preferred
   }
 })
 
