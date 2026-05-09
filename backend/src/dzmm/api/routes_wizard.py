@@ -271,6 +271,8 @@ async def suggest(
         raise HTTPException(502, f"suggestion generation failed: {e}") from e
 
 
+# DEPRECATED(Plan-D): Old Screenplay-based wizard finalize.
+# Remove once WizardView.vue fully migrates to /wizard/fw/* flow.
 @router.post("/finalize")
 async def finalize(
     payload: dict,
@@ -283,3 +285,83 @@ async def finalize(
         await s.rollback()
         raise HTTPException(400, f"invalid bundle: {e}") from e
     return result
+
+
+# ── Open-World Framework Wizard endpoints (/wizard/fw/*) ─────────────
+from dzmm.service.wizard_framework import (
+    generate_locations,
+    generate_factions,
+    generate_npc_templates,
+    generate_events,
+    generate_campaign,
+    finalize_framework,
+)
+
+
+@router.post("/fw/locations")
+async def fw_locations(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 2: Generate location network from world brief."""
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return await generate_locations(
+        genre=str(payload.get("genre", "")),
+        world_brief_md=str(payload.get("world_brief_md", "")),
+        client=client,
+    )
+
+
+@router.post("/fw/factions")
+async def fw_factions(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 3: Generate factions from world brief + locations."""
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return await generate_factions(
+        genre=str(payload.get("genre", "")),
+        world_brief_md=str(payload.get("world_brief_md", "")),
+        locations=payload.get("locations", []),
+        client=client,
+    )
+
+
+@router.post("/fw/npc_templates")
+async def fw_npc_templates(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 4: Generate NPC templates from world + locations + factions."""
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return await generate_npc_templates(
+        genre=str(payload.get("genre", "")),
+        world_brief_md=str(payload.get("world_brief_md", "")),
+        locations=payload.get("locations", []),
+        factions=payload.get("factions", []),
+        client=client,
+    )
+
+
+@router.post("/fw/events")
+async def fw_events(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 5: Generate event library."""
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return await generate_events(
+        genre=str(payload.get("genre", "")),
+        world_brief_md=str(payload.get("world_brief_md", "")),
+        locations=payload.get("locations", []),
+        factions=payload.get("factions", []),
+        npc_templates=payload.get("npc_templates", []),
+        client=client,
+    )
+
+
+@router.post("/fw/campaign")
+async def fw_campaign(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 7 (optional): Generate campaign main-plot phases."""
+    client = await _client_for(s, _require_int(payload, "model_config_id"))
+    return await generate_campaign(
+        genre=str(payload.get("genre", "")),
+        world_brief_md=str(payload.get("world_brief_md", "")),
+        events=payload.get("events", []),
+        client=client,
+    )
+
+
+@router.post("/fw/finalize")
+async def fw_finalize(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 8: Commit WorldFramework to DB. Returns {framework_id}."""
+    framework_id = await finalize_framework(s, payload)
+    return {"framework_id": framework_id}
