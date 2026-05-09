@@ -230,6 +230,34 @@ def _add_missing_columns_sync(conn, table: str, columns: list[tuple[str, str]]) 
             conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
 
+_DEFAULT_BASE_STATS = (
+    '{"hp": 15, "sanity": 15, "体魄": 5, "敏捷": 5, "智识": 5, "意志": 5}'
+)
+
+
+def _backfill_legacy_base_stats_sync(conn) -> None:
+    """One-shot backfill: characters created before the base_stats prompt
+    exist have base_stats_json='{}'. Give them a minimal playable default
+    and sync any matching char_states rows so the UI shows real values."""
+    # Check table exists (safe guard for fresh DBs)
+    tables = {r[0] for r in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "characters" not in tables:
+        return
+
+    # Update characters with empty stats
+    conn.exec_driver_sql(
+        "UPDATE characters SET base_stats_json = ? WHERE base_stats_json = '{}'",
+        (_DEFAULT_BASE_STATS,),
+    )
+
+    # Sync char_states rows whose stats_json is also empty
+    if "char_states" in tables:
+        conn.exec_driver_sql(
+            "UPDATE char_states SET stats_json = ? WHERE stats_json = '{}'",
+            (_DEFAULT_BASE_STATS,),
+        )
+
+
 async def init_db(engine: AsyncEngine) -> None:
     from dzmm.db import models  # noqa: F401
     async with engine.begin() as conn:
@@ -274,3 +302,4 @@ async def init_db(engine: AsyncEngine) -> None:
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V042_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
+        await conn.run_sync(_backfill_legacy_base_stats_sync)
