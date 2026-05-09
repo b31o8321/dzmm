@@ -26,6 +26,8 @@ const router = createRouter({
         { path: 'sessions', name: 'sessions', component: () => import('@/views/SessionsView.vue') },
         { path: 'sessions/wizard', name: 'session-wizard',
           component: () => import('@/views/WizardView.vue') },
+        { path: 'sessions/wizard/framework', name: 'open-world-wizard',
+          component: () => import('@/views/OpenWorldWizardView.vue') },
         { path: 'sessions/generate/:id', name: 'session-generate',
           component: () => import('@/views/SessionGenerateView.vue'), props: true },
         { path: 'play/:id', name: 'play', component: () => import('@/views/GameView.vue'), props: true },

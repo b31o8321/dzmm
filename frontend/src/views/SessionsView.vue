@@ -651,9 +651,14 @@ onMounted(async () => {
           💡 向导耗时较长（每步 30-90s × 6 步 ≈ 5-10 分钟）。
           如果用本地小模型容易卡，建议切到云端模型（满血推荐）。
         </div>
-        <el-button type="primary" size="large" @click="goWizard">
-          📜 进入向导
-        </el-button>
+        <div class="flex gap-2">
+          <el-button type="primary" size="large" @click="goWizard">
+            📜 进入向导
+          </el-button>
+          <el-button size="large" @click="$router.push({ name: 'open-world-wizard' })">
+            🌐 开放世界（新）
+          </el-button>
+        </div>
       </div>
 
       <!-- Tier 2: existing world, new screenplay -->
