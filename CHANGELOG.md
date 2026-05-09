@@ -2,6 +2,61 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.10.1] - 2026-05-09
+
+**v0.10 体验修复包 — 回合还原 / NPC 关系感知 / 场景一致性**
+
+围绕 v0.10 多 Agent 实战发现的几个具体痛点：玩家"重试"无法真还原状态、NPC 反应脱离当前关系、不在场的 NPC 莫名出现。
+
+### 新增
+
+#### 🔄 回合还原（v0.10.5 F1）
+- **`MessageRow.snapshot_json` 列**（V042 迁移）—— run_turn 开头序列化所有可变状态：CharState（hp/sanity/inventory）/ Session（doom/scene_turn/world_time/pc_mood/recall_pending/topology_warning）/ Screenplay（current_chapter/completed_events/chapters）/ NPCs（favor/emotion/affinity/state/last_seen_turn/current_location/last_initiative_turn/notes/revealed/faction_id）/ Locations / LocationEdges / HiddenEvents / Factions / PlotThreads / PCGoals
+- **`delete_last_turn` 真还原** —— 反序列化快照后恢复所有可变字段；删除该回合**新建**的行（NPC / Location / LocationEdge / HiddenEvent / Faction / PlotThread / PCGoal）。"重试上一回合"现在能彻底撤销那回合的所有副作用，玩家不会带着错误的 stats / 错位的 favor 进下一次尝试。
+- 老存档 message 行 snapshot_json 为空 → 跳过 restore（向后兼容降级到原 delete_last_turn 行为）。
+
+#### 🗺️ NPC 常驻场所 + 首次出场铺垫（v0.10.5 F2）
+- **outliner 新增 schema** —— `chapters[].main_locations`（本章主要场所）+ `main_characters[].primary_location`（每个主要 NPC 的常驻场所）
+- **key_facts 注入** —— GM prompt 每回合看见"## 本章主要场所"+"## 主要 NPC 常驻场所"
+- **铁律 36** —— NPC 首次相遇必须满足 (a) PC 当前在该 NPC 的 primary_location 或 (b) 近 2 回合 emit 过 `<plot_event type="encounter_setup">` 铺垫
+- **Python 软校验** —— 新建 `service/encounter_check.py`：apply_tags 后扫本回合 say/npc_update，对违反铁律 36 的首次出场写"⚠️ NPC 凭空出场"警告到 `Session.topology_warning_json`，下回合 _build_key_facts drain 注入 GM prompt 强制补 encounter_setup。不拒绝主流避免 SSE 中断。
+
+#### 🤝 NPC 关系感知 + favor_delta 输出（v0.10.6）
+- **修复 v0.10 路径下 NPC.favor 永远不变的根因** —— Scene agent 被禁止 emit `<npc_update>`，NPC actor 之前 prompt 只列了 emotion delta 没列 favor_delta，导致两边都没人改 favor。前端 UI 一直显示 0。
+- **npc_actor_template 新增"# 你和 PC 的关系"段** —— 注入当前 favor 数值 + 标签（≥30 友好 / ≥10 正面 / 中立 / ≤-10 冷淡 / ≤-30 敌对）+ affinity 多维（信任 / 羁绊 / 恋慕 / 敌意 等）+ 最近 2-3 次 PC↔本 NPC 实际对白对（regex 抽取）
+- **铁律：反应首先取决于关系状态，archetype 只是底色** —— 关系冷淡时即使 archetype 是热情商人也会冷淡反应；关系信任时即使 archetype 是冷酷军人也会比对陌生人柔和
+- **NPC actor 现在会 emit favor_delta** —— 救/帮/兑现承诺 +5..+15；信任/求助 +3..+8；撒谎被识破/失约 -5..-15；伤害/背叛 -15..-30；普通对话不 emit；后端 `_apply_npc_update` 自动 clamp ±100
+
+#### 🎯 Scene-cued NPC fan-out（v0.10.7）
+- **修复"不在场 NPC 也出来说话"的 bug** —— 之前 `_select_on_stage_npcs` 用 DB 状态（pinned + last_seen ≤ 3）选 fan-out 名单，与"Scene narrative 里此刻在场"脱节；pinned NPC 总会被强制 fan-out 即使他/她这回合根本不在 PC 周围
+- **Scene 现在 emit `<npc_cue speaker intent>`** —— Scene agent 写完场景后明确点本回合在场且应反应的 NPC + GM 给的反应方向（"紧张地警告 PC 危险将至" / "对 PC 撒娇求带"）；不在场的 NPC 不要 cue
+- **Orchestrator 仅 fan-out 被 cue 的 NPC** —— 每个 NPC actor 收到自己的 cue.intent 作为高优先级方向（prompt 靠前的"🎯 GM 给你的本回合方向"段）；按 cue 顺序透传给 isolated session 并行 / 顺序 fallback 两条路径
+- **0 cue 时 fallback** 到旧 `_select_on_stage_npcs`（向后兼容老 prompt / 抽风模型）
+- **结果**：DB 上 pinned 但 Scene 没 cue 的 NPC = 这回合完全沉默（不再"穿越"到当前场景）；Scene 写在 narrative 里的 NPC = 必须 cue → fan-out → NPC 自己接话
+
+### 修复
+
+- **设为默认模型 500（"网络错误"）** —— `ModelConfig.is_default` SQLAlchemy Mapped 字段从未定义；DB 列虽在迁移里加了，但 ORM 类没字段 → `update().values(is_default=False)` AttributeError 500
+- **V036 迁移漏写到 db/base.py** —— 默认模型 release 时迁移逻辑没进文件，老 DB 启动 init_db 不应用 → "no such column: is_default"。补上 `_V036_MIGRATIONS` 后 init_db 自动加列
+- **角色状态显示"尚未初始化"+ 背包"空"** —— `create_session` 调 `CharState(session_id=sid)` 直接建空 CharState，没拷 `Character.base_stats_json` → 玩家从 wizard 设的初始 hp/sanity 从 turn 0 就丢失。改为查 Character 行后用 base_stats_json 初始化 `CharState.stats_json`
+- **AI 灵感推荐 cryptic 错误信息** —— `_stream_text` 拿到空响应直接抛 `JSONDecodeError("Expecting value: line 1 column 1")`。改成抛 `ValueError("LLM 返回空内容（可能：API 限额 / 模型不支持 JSON mode / 鉴权失效 / 推理模型把全部输出当成隐藏 reasoning）")` 让用户能看懂
+
+### 数据库
+
+- 新列：`messages.snapshot_json`（V042 迁移）；`model_configs.is_default`（V036 迁移补回）
+- 新文件：`service/encounter_check.py`、`service/turn_snapshot.py`、`prompts/npc_actor_template.py`（已有，扩展 schema）
+
+### 测试
+- 后端测试 548 → 565（新增 17 个用例）
+- 主要覆盖：snapshot/restore 三种回退场景、encounter_check 4 种判断、relationship 标签 + favor_delta 解析、npc_cue fan-out 控制 + 0-cue fallback
+
+### 开发者注意
+
+- v0.10.5 后 delete_last_turn 会真还原 turn 副作用（之前只删 messages + agent_messages）。如果你有自定义 state_apply 处理器写了未在 snapshot 范围内的字段，需要扩展 `take_snapshot` / `restore_snapshot`
+- v0.10.7 后 Scene prompt 变化：必须 emit `<npc_cue>` 才能触发 NPC fan-out。模型纪律差时会 fallback 到老逻辑，但理想情况下 Scene 学会按 narrative 描述 cue 在场 NPC
+
+---
+
 ## [v0.10.0] - 2026-05-09
 
 **多 Agent Stateful 跑团引擎 — Director / Scene / per-NPC 各自独立对话历史**
