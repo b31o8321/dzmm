@@ -516,10 +516,45 @@ class WorldLocation(Base):
     # JSON list: [{target_id, direction, distance, travel_turns}]
     # distance: 0=same, 1=adjacent, 2=nearby, 3+=far
     connections_json: Mapped[str] = mapped_column(Text, default="[]")
-    # FK to world_factions.id — defined as plain Integer until WorldFaction
-    # is declared (Task 2). SQLite does not enforce FK constraints by default.
     controlling_faction_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
+        ForeignKey("world_factions.id"), nullable=True
     )
     # normal / damaged / destroyed
     initial_state: Mapped[str] = mapped_column(String(20), default="normal")
+
+
+class WorldFaction(Base):
+    __tablename__ = "world_factions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    framework_id: Mapped[int] = mapped_column(ForeignKey("world_frameworks.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description_md: Mapped[str] = mapped_column(Text, default="")
+    # JSON list of faction IDs
+    rival_factions_json: Mapped[str] = mapped_column(Text, default="[]")
+    ally_factions_json: Mapped[str] = mapped_column(Text, default="[]")
+    # {"passive_gain_per_turn": N, "threshold_conflict": N}
+    tension_rules_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class WorldNPCTemplate(Base):
+    __tablename__ = "world_npc_templates"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    framework_id: Mapped[int] = mapped_column(ForeignKey("world_frameworks.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    # "male" | "female" | "" (unset)
+    gender: Mapped[str] = mapped_column(String(10), default="")
+    role: Mapped[str] = mapped_column(String(120), default="")
+    description_md: Mapped[str] = mapped_column(Text, default="")
+    motivation: Mapped[str] = mapped_column(Text, default="")
+    home_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("world_locations.id"), nullable=True
+    )
+    faction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("world_factions.id"), nullable=True
+    )
+    avatar_asset_id: Mapped[int | None] = mapped_column(
+        ForeignKey("assets.id"), nullable=True
+    )
+    # contact thresholds for NPC proactive initiative
+    contact_favor_threshold: Mapped[int] = mapped_column(default=70)
+    contact_cooldown_turns: Mapped[int] = mapped_column(default=10)

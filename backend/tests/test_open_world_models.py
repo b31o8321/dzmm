@@ -37,3 +37,38 @@ async def test_world_framework_and_location(db_session: AsyncSession):
     assert fetched.framework_id == fw.id
     conns = json.loads(fetched.connections_json)
     assert conns[0]["direction"] == "north"
+
+
+async def test_world_faction_and_npc_template(db_session: AsyncSession):
+    from dzmm.db.models import WorldFramework, WorldFaction, WorldNPCTemplate
+    fw = WorldFramework(name="世界B", genre="现代悬疑")
+    db_session.add(fw)
+    await db_session.flush()
+
+    faction = WorldFaction(
+        framework_id=fw.id,
+        name="暗夜公会",
+        description_md="控制城市地下经济的秘密组织。",
+        rival_factions_json=json.dumps([]),
+        ally_factions_json=json.dumps([]),
+        tension_rules_json=json.dumps({"passive_gain_per_turn": 1, "threshold_conflict": 80}),
+    )
+    db_session.add(faction)
+    await db_session.flush()
+
+    npc = WorldNPCTemplate(
+        framework_id=fw.id,
+        name="李影",
+        gender="female",
+        role="公会密探",
+        description_md="冷静、多疑，善于伪装。",
+        motivation="保护组织机密",
+        home_location_id=None,
+        faction_id=faction.id,
+    )
+    db_session.add(npc)
+    await db_session.commit()
+
+    fetched = await db_session.get(WorldNPCTemplate, npc.id)
+    assert fetched.faction_id == faction.id
+    assert fetched.gender == "female"
