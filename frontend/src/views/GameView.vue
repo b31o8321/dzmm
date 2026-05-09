@@ -34,6 +34,9 @@ import DebugPanel from '@/components/game/DebugPanel.vue'
 import TurnDebugChainDialog from '@/components/game/TurnDebugChainDialog.vue'
 import ScreenplayProgressPanel from '@/components/game/ScreenplayProgressPanel.vue'
 import { screenplayApi, type Screenplay } from '@/api/screenplay'
+import WorldMapPanel from '@/components/WorldMapPanel.vue'
+import CampaignProgressPanel from '@/components/CampaignProgressPanel.vue'
+import type { WorldLocationData, WorldNPCStateData, WorldEventStateData, CampaignProgress } from '@/api/framework'
 import { archetypeEdgeMap } from '@/utils/ttsArchetype'
 
 const props = defineProps<{ id: string }>()
@@ -252,6 +255,13 @@ const selectedNpc = ref<Npc | null>(null)
 const characterCardOpen = ref(false)
 const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
+const frameworkId = ref<number | null>(null)
+const worldLocations = ref<WorldLocationData[]>([])
+const worldNpcStates = ref<WorldNPCStateData[]>([])
+const worldEventStates = ref<WorldEventStateData[]>([])
+const pcLocationId = ref<number | null>(null)
+const campaignProgress = ref<CampaignProgress | null>(null)
+const activeTab = ref<'state' | 'map' | 'campaign'>('state')
 const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
 const worldTime = ref<WorldTime | null>(null)
 const topologyWarnings = ref<string[]>([])
@@ -689,6 +699,8 @@ onMounted(async () => {
     const sess = await sessionsStore.get(sessionId)
     turnCount.value = sess.turn_count
     gmModelCfgId.value = sess.gm_model_config_id
+    frameworkId.value = sess.framework_id ?? null
+    if (frameworkId.value) activeTab.value = 'map'
     try {
       character.value = await charactersApi.get(sess.character_id)
     } catch {
@@ -1066,7 +1078,25 @@ onUnmounted(() => {
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
       <div class="px-3 pb-3 space-y-3">
-        <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
+        <template v-if="frameworkId">
+          <div class="panel-tabs">
+            <button :class="{ active: activeTab === 'map' }" @click="activeTab = 'map'">世界地图</button>
+            <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">主线进度</button>
+          </div>
+          <WorldMapPanel
+            v-if="activeTab === 'map'"
+            :locations="worldLocations"
+            :npc-states="worldNpcStates"
+            :event-states="worldEventStates"
+            :pc-location-id="pcLocationId"
+            :faction-names="{}"
+          />
+          <CampaignProgressPanel
+            v-if="activeTab === 'campaign'"
+            :campaign="campaignProgress"
+          />
+        </template>
+        <ScreenplayProgressPanel v-else :screenplay="screenplay" :session-id="sessionId" />
         <!-- Debug stats panel — only visible in debug mode -->
         <DebugPanel
           v-if="debugStore.enabled"
@@ -1110,7 +1140,25 @@ onUnmounted(() => {
                     @select-npc="openNpcDetail"
                     @goal-status="updateGoal" />
         <div class="px-3 pb-3 space-y-3">
-          <ScreenplayProgressPanel :screenplay="screenplay" :session-id="sessionId" />
+          <template v-if="frameworkId">
+            <div class="panel-tabs">
+              <button :class="{ active: activeTab === 'map' }" @click="activeTab = 'map'">世界地图</button>
+              <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">主线进度</button>
+            </div>
+            <WorldMapPanel
+              v-if="activeTab === 'map'"
+              :locations="worldLocations"
+              :npc-states="worldNpcStates"
+              :event-states="worldEventStates"
+              :pc-location-id="pcLocationId"
+              :faction-names="{}"
+            />
+            <CampaignProgressPanel
+              v-if="activeTab === 'campaign'"
+              :campaign="campaignProgress"
+            />
+          </template>
+          <ScreenplayProgressPanel v-else :screenplay="screenplay" :session-id="sessionId" />
         </div>
       </div>
     </div>
@@ -1249,4 +1297,23 @@ onUnmounted(() => {
 .mood-horror     header { border-top: 2px solid #94a3b8; }
 .mood-romantic   header { border-top: 2px solid #f9a8d4; }
 .mood-mysterious header { border-top: 2px solid #c4b5fd; }
+.panel-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid #e4e7ed;
+}
+.panel-tabs button {
+  background: none;
+  border: none;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #606266;
+  border-bottom: 2px solid transparent;
+}
+.panel-tabs button.active {
+  color: #409eff;
+  border-bottom-color: #409eff;
+}
 </style>
