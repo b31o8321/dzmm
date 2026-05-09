@@ -589,3 +589,64 @@ class Campaign(Base):
     # JSON list of phase dicts:
     # [{phase_id, name, description, prerequisite_phase_ids, key_event_ids, required_count}]
     phases_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+# ── Session-level 世界状态覆盖层 ─────────────────────────
+# WorldFramework 是不可变模板；Session 通过这些表存储运行时覆盖。
+
+class SessionLocationState(Base):
+    __tablename__ = "session_location_states"
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    location_id: Mapped[int] = mapped_column(ForeignKey("world_locations.id"), primary_key=True)
+    # "normal" | "damaged" | "destroyed"
+    status: Mapped[str] = mapped_column(String(20), default="normal")
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+
+class SessionNpcState(Base):
+    __tablename__ = "session_npc_states"
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    npc_template_id: Mapped[int] = mapped_column(
+        ForeignKey("world_npc_templates.id"), primary_key=True
+    )
+    current_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("world_locations.id"), nullable=True
+    )
+    favor: Mapped[int] = mapped_column(default=0)
+    is_companion: Mapped[bool] = mapped_column(default=False)
+    is_revealed: Mapped[bool] = mapped_column(default=False)
+    is_alive: Mapped[bool] = mapped_column(default=True)
+    last_contact_turn: Mapped[int] = mapped_column(default=0)
+
+
+class SessionEventState(Base):
+    __tablename__ = "session_event_states"
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("world_events.id"), primary_key=True)
+    # "pending" | "triggered" | "completed"
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    triggered_turn: Mapped[int] = mapped_column(default=0)
+    # GM may override the standard summary for this specific session
+    summary_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # track rumor delivery to avoid re-delivery
+    rumor_delivered: Mapped[bool] = mapped_column(default=False)
+    rumor_delivered_turn: Mapped[int] = mapped_column(default=0)
+
+
+class SessionFactionState(Base):
+    __tablename__ = "session_faction_states"
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    faction_id: Mapped[int] = mapped_column(ForeignKey("world_factions.id"), primary_key=True)
+    # tension accumulates passively; triggers conflict event at threshold
+    tension: Mapped[int] = mapped_column(default=0)
+    pc_reputation: Mapped[int] = mapped_column(default=0)
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+
+class SessionCampaignState(Base):
+    __tablename__ = "session_campaign_states"
+    # one row per session (session_id is PK)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
+    current_phase_id: Mapped[int | None] = mapped_column(nullable=True)
+    # JSON list of triggered key event IDs in current phase
+    triggered_key_events_json: Mapped[str] = mapped_column(Text, default="[]")

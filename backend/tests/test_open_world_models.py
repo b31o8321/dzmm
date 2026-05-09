@@ -121,3 +121,58 @@ async def test_world_event_and_campaign(db_session: AsyncSession):
     fetched_campaign = await db_session.get(Campaign, campaign.id)
     phases = json.loads(fetched_campaign.phases_json)
     assert phases[0]["required_count"] == 2
+
+
+async def test_session_state_tables(db_session: AsyncSession):
+    from dzmm.db.models import (
+        WorldFramework, WorldLocation, WorldFaction, WorldNPCTemplate,
+        WorldEvent, Campaign,
+        SessionLocationState, SessionNpcState, SessionEventState,
+        SessionFactionState, SessionCampaignState,
+    )
+    # Create minimal parent objects
+    fw = WorldFramework(name="世界D")
+    db_session.add(fw)
+    await db_session.flush()
+
+    loc = WorldLocation(framework_id=fw.id, name="城市A", location_type="city")
+    faction = WorldFaction(framework_id=fw.id, name="教团")
+    npc_t = WorldNPCTemplate(framework_id=fw.id, name="守门人")
+    event = WorldEvent(framework_id=fw.id, name="事件X", importance=2)
+    db_session.add_all([loc, faction, npc_t, event])
+    await db_session.flush()
+
+    SESSION_ID = 42  # pretend session exists
+
+    loc_state = SessionLocationState(
+        session_id=SESSION_ID, location_id=loc.id, status="damaged"
+    )
+    npc_state = SessionNpcState(
+        session_id=SESSION_ID, npc_template_id=npc_t.id,
+        current_location_id=loc.id, favor=55, is_companion=True,
+        is_revealed=True, last_contact_turn=0,
+    )
+    event_state = SessionEventState(
+        session_id=SESSION_ID, event_id=event.id,
+        status="triggered", triggered_turn=5,
+    )
+    faction_state = SessionFactionState(
+        session_id=SESSION_ID, faction_id=faction.id,
+        tension=30, pc_reputation=10,
+    )
+    campaign_state = SessionCampaignState(
+        session_id=SESSION_ID, current_phase_id=1,
+        triggered_key_events_json=json.dumps([]),
+    )
+    db_session.add_all([loc_state, npc_state, event_state, faction_state, campaign_state])
+    await db_session.commit()
+
+    fetched_npc = await db_session.get(SessionNpcState, (SESSION_ID, npc_t.id))
+    assert fetched_npc.is_companion is True
+    assert fetched_npc.favor == 55
+
+    fetched_event = await db_session.get(SessionEventState, (SESSION_ID, event.id))
+    assert fetched_event.status == "triggered"
+
+    fetched_loc = await db_session.get(SessionLocationState, (SESSION_ID, loc.id))
+    assert fetched_loc.status == "damaged"
