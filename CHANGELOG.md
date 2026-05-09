@@ -2,6 +2,70 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.10.0] - 2026-05-09
+
+**多 Agent Stateful 跑团引擎 — Director / Scene / per-NPC 各自独立对话历史**
+
+主轴：把单 LLM GM 拆成 stateful 多 Agent，从根本上解决「张冠李戴」+「单 LLM 同时管长期剧情和短期场景导致节奏差」两大根本问题。Director 看长期、Scene 流式写场景、每个主要 NPC 自己一条对话流——三方协作通过 SSE 合成给玩家。配套新加 LocationEdge 防场景拓扑漂移。
+
+### 新增
+
+#### 🎬 多 Agent Stateful 架构（核心）
+- **Director agent** —— 长期剧情决策；每 5 回合一次背景跑，重大事件（章节切换 / `<plot_turn impact="major">` / hp/sanity ≤5 / hidden_event 到期）同步触发。输出 `<plot_directive>` 块（主推目标 / NPC 重点 / 节奏 / 禁止事项），注入 Scene 和 NPC actor 的 prompt。
+- **Scene agent** —— 短期场景执行；prompt 收窄为 narrative + pc_action + dice + state_change + 剧情标签，**禁止替 NPC 说话**。复用现有 `messages` 表做 stateful 历史。
+- **Per-NPC stateful actor** —— 每个主要 NPC 一条独立 `agent_stream`；prompt 锁定 archetype / gender / purpose；只输出 `<say>` + `<npc_update>`；强制 speaker/name 与本 NPC 一致。
+- **Orchestrator** —— 单回合协调器：Director 决策 → Scene 流式 → NPC fan-out 并行（每个 NPC 独立 SQLAlchemy session）→ aggregator 按时间线合并 yield。
+- **智能排序**（决定 yield 顺序，不影响 LLM 调用）：PC 直接 cue 的 NPC > 高情绪 NPC > 其余按 last_seen_turn。
+- **历史压缩** —— 每回合主提交后跑一次：Director threshold 30 / keep 10；NPC 25 / 8。旧消息被 summarizer LLM 压成单条 `is_summary` 行，保留长期记忆同时控制 token。
+- **delete_last_turn 同步回滚** —— 玩家「重试」时，agent_streams 也同步 pop 当前 turn 的私有历史，避免 NPC 下回合「记得」实际上没发生的事。
+- **`use_v10` 设置开关** —— 默认 `True`；老存档自然走 legacy 单 GM 路径直到首次 v10 触发建立 streams。GameView 设置面板暴露开关。
+
+#### 🗺️ 场景拓扑系统
+- **`LocationEdge` 表** —— 4 种 relation：`contains`（A 包含 B，如修道院 contains 实验室）/ `adjacent`（同层相通）/ `connects`（通过特定途径）/ `blocked`（已知存在但当前不可走）；`(session_id, from_loc_id, to_loc_id, relation)` 四元唯一约束保证 GM 重复 emit 幂等。
+- **`<location_edge from to relation description>`** GM 标签 —— Scene prompt 加铁律：首次 emit `<location_enter>` 时必须紧跟 `<location_edge>` 锁住空间关系。
+- **key_facts 周边拓扑块** —— 每回合刷新「## 周边拓扑（已确认，禁止违背）」段，对抗 summarizer 把空间关系糊掉的根因。
+- **Python 强校验** —— `_apply_location_enter` 拦截不可达跳跃；不可达时把警告写入 `Session.topology_warning_json`，下回合 `_build_key_facts` drain 一次注入「⚠️ 上一回合拓扑越界」段强制 GM 补 edge。
+
+#### 🎛️ 默认模型设置
+- **`ModelConfig.is_default` 字段 + V036 迁移** —— 用户显式标记的默认模型；ModelsView 加「默认」列（★）+「设为默认」按钮，互斥写入。
+- **`POST /model_configs/{id}/default`** 接口 —— 先全部清零再置 1。
+- **`modelsStore.preferredId()` 帮手** —— Wizard / SessionsView 创建存档自动选默认模型替代「items[0].id」盲选第一条。
+
+#### 🔍 Debug 视图增强
+- **GET `/sessions/{id}/agents`** 新接口 —— 列每个 stream 的最近 12 条消息 + last_run_turn。
+- **DebugView Agents tab** —— `AgentsDebugPanel.vue` 按 kind 分组（🎬 Director / 🎭 NPC: 名字），summary 行高亮；`pollIntervalMs=5000` 自动刷新让玩家发完一轮就能看到 director / NPC 流更新。
+
+#### 🎯 Director snapshot 增强（v0.10.3）
+- 不再只有 `turn / doom / scene_turn_count`：注入 PC vital state（hp / sanity / stamina / level）、当前章节 + 主线 done/total + 下一 pending event 描述、active hidden_events 倒计时、最近 8 回合 plot_turn major 决策日志。
+- 同步触发标志位真值计算：`chapter_advanced_last_turn` / `major_plot_turn_last_turn` 从上回合 `events_json` 扫，`hp/sanity` 从 CharState 取，`hidden_event_due` 按 severity 算（severity 1:5/2:3/3:2 turns 阈值）—— Director 能在重大事件时立即被 sync 触发，不再只靠 5 回合 interval。
+
+### 修复
+
+- **NPC 卡 favor / emotion 不刷新** —— GameView 每回合 onDone 后只刷新 `current_location`，没拉 favor / emotion / state；改成全量 refresh。
+- **NPC reveal 阈值在 GM dossier 失效** —— `_npc_to_dict` 已经叠加阈值规则（last_seen_turn>0 → reveal description/state/favor 等），但 `_format_npc_dossier`（GM prompt 用）只读 `revealed_json` 没叠加，导致玩家明明已经互动 GM 还在说「未揭示」。抽出 `_effective_reveals` 共享 helper。
+- **tier-1 删存档时剧本被一起带走** —— wizard / `_auto_generate_screenplay` 给 Screenplay 加 `world_id`；`delete_session_cascade` 把世界级剧本 detach + 重置进度（`current_chapter=1` / `completed_events_json="[]"`）而不是 delete，玩家可以再开新存档复用同剧本。
+- **NPC 主动发起逻辑误杀「反应慢一拍」** —— `find_initiative_npc` 现在用 `last_spoke_turn`（扫 `events_json` 里 `<say>` 事件）替代 `last_seen_turn`（v0.10 narrative 提到 NPC 名就 bump），让「在场没说话的 NPC 下回合能补一句」成立。`_INACTIVE_TURNS_MIN` 从 2 降到 1。
+- **删存档 / NPC / 世界时 ChromaDB 资源泄漏** —— `npc_memory.delete_npc_memory(npc_id)` + `world_rag.delete_world_index(world_id)` 在 cascade 时调用，避免 `~/.dzmm/chroma_npc/` 和 `~/.dzmm/chroma/{world_id}/` 越长越大。
+
+### 数据库
+- 新表：`agent_streams`（5 列）、`agent_messages`（8 列）、`location_edges`（6 列）
+- 新列：`model_configs.is_default`、`sessions.topology_warning_json`
+- `_V036` / `_V040` / `_V041` 迁移 additive，可从 v0.9 直升
+
+### 测试
+- 后端测试 491 → 548（新增 ~57 个用例）
+- 主要覆盖：agent_streams CRUD/历史/压缩/回滚、Director + 7 类触发条件、Scene、NPC actor + sort + scene_context、orchestrator e2e、location_edges 拓扑校验、NPC reveal 阈值、location 删存档保留剧本、ChromaDB 删除清理、默认模型互斥、debug agents 接口、initiative `last_spoke_turn`
+
+### 铁律修正
+- 双 27（派系一致性 + 场景效率）拆为 27 / 28；后续编号 28 → 29、29 → 30、30 → 31、31 → 32、32 → 33、33 → 34、34 → 35。
+
+### 开发者注意
+- v0.10 默认 `use_v10=True`；想用老 v0.9 单 GM 路径需 `PATCH /sessions/{id}/settings { "use_v10": false }`，或前端 GameView 设置面板关闭。
+- NPC fan-out 用每 NPC 独立 SQLAlchemy session；`run_turn` 透传 `session_maker`；`session_maker is None` 时 fallback 走顺序模式（保留向后兼容）。
+- 已知限制：peer_lines 在 v0.10.2 中移除（同回合 NPC 不再看到彼此当回合的话），二阶动态靠 npc_actor 自己的 history（前几回合关系记忆）即可。
+
+---
+
 ## [v0.9.0] - 2026-05-07
 
 **深度 Pack — Dice 演出 / NPC 长期记忆 / 派系系统 / 战斗聚合 / 大事记**

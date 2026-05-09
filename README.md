@@ -4,12 +4,14 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active development · current release **v0.9.0**. See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active development · current release **v0.10.0**. See [CHANGELOG](CHANGELOG.md) for the full history.
 
 ---
 
 ## What it does
 
+- **Multi-agent stateful GM (v0.10)** — the GM is split into a **Director** agent (long-term plot decisions, runs every 5 turns or on key events), a **Scene** agent (narrative + dice + state, streamed each turn), and **per-NPC** agents (each with its own stateful conversation history, so dialogue stays in character). Solves the classic "single LLM mixes up NPCs" + "tries to balance long-term plot and short-term scene = bad rhythm" problems.
+- **Scene topology (v0.10)** — explicit `LocationEdge` graph (contains / adjacent / connects / blocked) prevents spatial drift like "实验室 was under the monastery, then a few turns later we walk *out of* the monastery back to the lab". GM is forced to declare relationships when first introducing a location.
 - **Wizard-based world + character creation** — 6-step guided LLM generation (world brief → world detail → character → NPC cast → screenplay outline → review). Each step is independently editable and regeneratable.
 - **Auto-generated screenplay on first turn** — the GM receives a chapter-structured outline (main events, optional branches, main characters, ending condition) from turn 1, keeping the story coherent from the start.
 - **Streaming narrative** — text appears word-by-word, exactly like a real GM typing.
