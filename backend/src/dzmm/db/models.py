@@ -103,6 +103,9 @@ class Session(Base):
     world_id: Mapped[int] = mapped_column(ForeignKey("worlds.id"))
     character_id: Mapped[int] = mapped_column(ForeignKey("characters.id"))
     screenplay_id: Mapped[int | None] = mapped_column(ForeignKey("screenplays.id"), nullable=True)
+    framework_id: Mapped[int | None] = mapped_column(
+        ForeignKey("world_frameworks.id"), nullable=True, default=None
+    )
 
     # 同一张表可以有多个外键指向同一目标表（两个 LLM 配置）
     gm_model_config_id: Mapped[int] = mapped_column(ForeignKey("model_configs.id"))

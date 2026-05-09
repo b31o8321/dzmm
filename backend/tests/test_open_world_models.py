@@ -176,3 +176,17 @@ async def test_session_state_tables(db_session: AsyncSession):
 
     fetched_loc = await db_session.get(SessionLocationState, (SESSION_ID, loc.id))
     assert fetched_loc.status == "damaged"
+
+
+async def test_session_has_framework_id(db_session: AsyncSession):
+    from dzmm.db.models import WorldFramework
+    fw = WorldFramework(name="世界E")
+    db_session.add(fw)
+    await db_session.flush()
+
+    # Confirm the column exists on the Session table via a raw SQL check
+    result = await db_session.execute(
+        __import__("sqlalchemy").text("PRAGMA table_info(sessions)")
+    )
+    columns = {row[1] for row in result.fetchall()}
+    assert "framework_id" in columns, "sessions table missing framework_id column"
