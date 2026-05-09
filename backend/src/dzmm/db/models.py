@@ -151,6 +151,11 @@ class Message(Base):
     events_json: Mapped[str] = mapped_column(Text, default="[]")  # 本回合的结构化事件列表
     parts_json: Mapped[str] = mapped_column(Text, default="[]")   # 说话气泡分段数据
     prompt_json: Mapped[str] = mapped_column(Text, default="")    # debug: 发送给 LLM 的完整 prompt（仅 debug_mode 时填充）
+    # v0.10.5: turn-effect rollback. Snapshot of mutable state at turn START
+    # serialized as JSON, used by delete_last_turn to revert all effects
+    # this turn's GM/NPC outputs caused (stats, NPC favor/emotion, locations,
+    # plot progress, hidden events, factions, etc.). Empty = legacy turn.
+    snapshot_json: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )

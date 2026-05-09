@@ -123,6 +123,22 @@ async def delete_last_turn(
     if max_turn is None or max_turn <= 0:
         return
 
+    # v0.10.5: restore snapshot from the assistant message of max_turn
+    # before deleting the message rows themselves. Old archives without
+    # a snapshot fall through harmlessly (deserialize_snapshot → {}).
+    from dzmm.service.turn_snapshot import deserialize_snapshot, restore_snapshot
+    last_assistant_snap = (await s.execute(
+        select(MessageRow.snapshot_json).where(
+            MessageRow.session_id == session_id,
+            MessageRow.role == "assistant",
+            MessageRow.turn == max_turn,
+        ).order_by(MessageRow.id.desc()).limit(1)
+    )).scalar_one_or_none()
+    if last_assistant_snap:
+        snap = deserialize_snapshot(last_assistant_snap)
+        if snap:
+            await restore_snapshot(s, session_id, snap)
+
     # 删除该 turn 号下的全部消息（通常是 user + assistant 两条；半截
     # turn 可能只有 user 一条；理论上的多条 user/assistant 也一并清掉）。
     await s.execute(

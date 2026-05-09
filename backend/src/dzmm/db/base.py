@@ -176,6 +176,16 @@ _V041_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# v0.10.5 — turn-effect rollback: store a JSON snapshot of mutable state at
+# turn START on each assistant message; delete_last_turn deserializes the
+# snapshot to revert every effect of that turn (stats, NPC favor/emotion,
+# locations, plot progress, hidden events, factions, etc.).
+_V042_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "messages": [
+        ("snapshot_json", "snapshot_json TEXT NOT NULL DEFAULT ''"),
+    ],
+}
+
 
 def _make_screenplay_session_id_nullable_sync(conn) -> None:
     """v0.2.8: make screenplays.session_id nullable via table rebuild.
@@ -261,4 +271,6 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V036_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V041_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V042_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)

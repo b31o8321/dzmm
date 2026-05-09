@@ -336,6 +336,13 @@ async def run_turn(
     sess = await session.get(GameSession, session_id)
     if sess is None:
         raise ValueError(f"Session {session_id} not found")
+
+    # v0.10.5: take state snapshot at turn START so delete_last_turn can
+    # restore everything (stats / NPC favor / emotion / location / plot /
+    # hidden events / factions / etc.).
+    from dzmm.service.turn_snapshot import take_snapshot, serialize_snapshot
+    snapshot_str = serialize_snapshot(await take_snapshot(session, session_id))
+
     world = await session.get(World, sess.world_id)
     char = await session.get(Character, sess.character_id)
 
@@ -526,6 +533,7 @@ async def run_turn(
             session_id=session_id, role="assistant",
             content=full_output, turn=next_turn,
             events_json=json.dumps(events_payload, ensure_ascii=False),
+            snapshot_json=snapshot_str,
         ))
         await apply_tags(session, session_id, next_turn, completed_tags)
         _update_scene_turn_count(sess, completed_tags)
@@ -728,6 +736,7 @@ async def run_turn(
         tokens_in=usage.input_tokens, tokens_out=usage.output_tokens,
         events_json=json.dumps(events_payload, ensure_ascii=False),
         prompt_json=_debug_prompt_json,
+        snapshot_json=snapshot_str,
     ))
 
     await apply_tags(
