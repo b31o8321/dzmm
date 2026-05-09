@@ -22,6 +22,7 @@ _OUTLINER_SYSTEM = """你是一位经验丰富的 TRPG 编剧。你的任务是�
     {
       "title": "第一章：副标题",
       "summary": "本章 50-80 字概要",
+      "main_locations": ["本章主要场所1", "场所2", "场所3"],
       "main_events": [
         {
           "description": "主线事件描述（20-40字）",
@@ -40,7 +41,8 @@ _OUTLINER_SYSTEM = """你是一位经验丰富的 TRPG 编剧。你的任务是�
     }
   ],
   "main_characters": [
-    {"name": "NPC 名", "role": "盟友/对手/导师/...", "description": "30-60 字", "intro_chapter": 1}
+    {"name": "NPC 名", "role": "盟友/对手/导师/...", "description": "30-60 字",
+     "intro_chapter": 1, "primary_location": "该 NPC 常驻 / 主活动场所"}
   ],
   "ending": "60-100 字描述故事的最终高潮和闭幕条件",
   "opening_hook": "100-200 字开篇引子，给玩家看作为开局，**绝不剧透后续章节**——只交代起点环境、PC 处境、最初的契机"
@@ -58,6 +60,13 @@ _OUTLINER_SYSTEM = """你是一位经验丰富的 TRPG 编剧。你的任务是�
 6. PC 的能力 / 物品 / 弱点（profile_md 里有）应在 main_events 中找到至少一处可以用上 / 受挑战的场景
 7. 每个事件的 keywords 3-5 个（名词或动词短语，GM 在 narrative/PC行动中看到这些词时应推进该事件）
 8. 每个事件的 criteria 是 15-25 字的具体条件，GM 确认满足后立即 emit <event_complete>
+9. **场所约束（v0.10.5，防 NPC 凭空出场）**：
+   - 每章 `main_locations` 列 2-4 个本章主要场所（具体地名，不要泛指）
+   - 每个 `main_character` 的 `primary_location` 是他/她的常驻场所
+     （家、工作地、活动据点等）；该值**必须出现在他/她 `intro_chapter`
+     那章的 `main_locations` 列表里**，否则 PC 永远不可能在该章里"自然遇见"他/她
+   - 把它当作 NPC 与场景的物理绑定——GM 引入新 NPC 时只能在 primary_location
+     里直接相遇，否则得先铺垫
 
 # 强约束
 - 输出必须是合法 JSON，不要前后加任何文字

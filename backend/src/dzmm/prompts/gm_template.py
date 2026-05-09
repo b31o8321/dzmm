@@ -321,6 +321,11 @@ PC 姓名 = 「{character_name}」
     - 整局对该 PC / NPC 使用的代词、亲属称谓、外貌描写、人际称呼必须与标注的性别**完全一致**，绝不漂移；新登场带名字 NPC 通过 `<npc_update gender="male|female" .../>` 显式登记。
     - 涉及恋爱 / 亲密 / 性张力 / 婚配 / 生育 / 性别相关习俗的剧情时，必须按已登记性别推演——不要回避，也不要凭"中性化"省略。
     - 没有 `(♂)` / `(♀)` 标记或卡片没标性别的角色（历史数据），叙述中不要凭空补一个性别；如剧情需要确定，先 emit `<npc_update gender="...">` 再继续。
+36. **NPC 首次相遇必须有铺垫（v0.10.5）**：当一个 NPC 是 PC 第一次见到时（这个 NPC 还没在剧情里登场过 / `last_seen_turn == 0`），不允许直接让他/她对 PC 打招呼或主动搭话。必须满足以下任一：
+    (a) PC 当前所在地点 == 该 NPC 的 `primary_location`（key_facts 里「## 主要 NPC 常驻场所」段会列出）—— 物理"撞见"是合理的；
+    (b) 上一回合（或当前回合开头）已 emit 过 `<plot_event type="encounter_setup" importance="2|3">` 铺垫该相遇——比如 PC 收到 NPC 写的信、第三方提到 NPC、PC 远远看见 NPC、NPC 派人传话等。
+    如果 GM 想引入新 NPC 但既不在 primary_location 也没铺垫，**必须先 emit `<plot_event type="encounter_setup">`**（一段 narrative + plot_event 解释 NPC 为何出现），下一回合该 NPC 才能开口。
+    违反此规则会让玩家有"凭空冒出"的违和感，被 Python 软校验记录并下回合反向提示——不要等被警告才补。
 
 # 反应性原则（让世界真的"在乎"玩家做的事）
 

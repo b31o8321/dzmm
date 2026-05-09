@@ -536,6 +536,13 @@ async def run_turn(
             snapshot_json=snapshot_str,
         ))
         await apply_tags(session, session_id, next_turn, completed_tags)
+        # v0.10.5 — soft validation: warn if a brand-new NPC appeared
+        # outside their primary_location with no encounter_setup. Soft
+        # only — never aborts the SSE stream.
+        from dzmm.service.encounter_check import check_encounter_warnings
+        await check_encounter_warnings(
+            session, session_id, completed_tags, current_turn=next_turn,
+        )
         _update_scene_turn_count(sess, completed_tags)
         sess.turn_count = next_turn
         sess.last_played = datetime.now(UTC).replace(tzinfo=None)
@@ -744,6 +751,13 @@ async def run_turn(
         session_id,
         next_turn,
         completed_tags,
+    )
+
+    # v0.10.5 — soft validation: warn if a brand-new NPC appeared outside
+    # their primary_location with no encounter_setup. Never aborts.
+    from dzmm.service.encounter_check import check_encounter_warnings
+    await check_encounter_warnings(
+        session, session_id, completed_tags, current_turn=next_turn,
     )
 
     _update_scene_turn_count(sess, completed_tags)
@@ -1461,6 +1475,45 @@ async def _build_key_facts(
                             f"你不需要等「整个事件叙事结束」才 emit——演出核心即标记完成。\n"
                             f"**如本回合未 emit 该 tag，系统视为未完成，下回合继续强推。**"
                         )
+
+        # v0.10.5 — 本章主要场所 + 主要 NPC 常驻场所。受铁律 36 约束：
+        # GM 在引入新 NPC 时若 PC 不在 NPC 的 primary_location，必须先 emit
+        # `<plot_event type="encounter_setup">` 铺垫，否则 Python 软校验会
+        # 把 ⚠️ NPC 凭空出场 警告写进 topology_warning_json，下回合反向提示。
+        if isinstance(chapters, list) and chapters:
+            cur_idx_v105 = max(0, min(sp.current_chapter - 1, len(chapters) - 1))
+            cur_ch_v105 = (
+                chapters[cur_idx_v105]
+                if isinstance(chapters[cur_idx_v105], dict)
+                else {}
+            )
+            main_locs = cur_ch_v105.get("main_locations") or []
+            if isinstance(main_locs, list) and main_locs:
+                loc_strs = [
+                    str(loc).strip() for loc in main_locs[:6] if str(loc).strip()
+                ]
+                if loc_strs:
+                    parts.append(
+                        "\n## 本章主要场所（场景应主要在这些地方展开）\n"
+                        + "\n".join(f"- {loc}" for loc in loc_strs)
+                    )
+
+        if isinstance(main_chars, list) and main_chars:
+            primary_lines: list[str] = []
+            for c in main_chars:
+                if not isinstance(c, dict):
+                    continue
+                name = str(c.get("name") or "").strip()
+                ploc = str(c.get("primary_location") or "").strip()
+                if name and ploc:
+                    primary_lines.append(f"- {name}：常驻 / 主活动于「{ploc}」")
+            if primary_lines:
+                parts.append(
+                    "\n## 主要 NPC 常驻场所（PC 必须到这里才能首次相遇；"
+                    "在场所外引入 NPC 必须先 emit "
+                    "`<plot_event type=\"encounter_setup\">` 铺垫）\n"
+                    + "\n".join(primary_lines)
+                )
 
     # Hidden events — GM-only state with a fuse. Re-inject every turn so the
     # GM remembers an injury is still bleeding, a poison is still spreading,
