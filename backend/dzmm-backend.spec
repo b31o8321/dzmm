@@ -44,6 +44,33 @@ hidden = [
 # Our own package — small and we import all of it anyway.
 hidden += collect_submodules('dzmm')
 
+# v0.10.x belt-and-suspenders: collect_submodules('dzmm') has been observed
+# to silently miss recently-added modules when imports happen lazily inside
+# functions (e.g. seed_data is imported inside build_default_app, not at top
+# level). Explicitly list every dzmm module added in the v0.10.x cycle so a
+# packaged build can never silently miss them.
+hidden += [
+    'dzmm.seed_data',
+    # v0.10 multi-agent runtime
+    'dzmm.service.agents',
+    'dzmm.service.agents.streams',
+    'dzmm.service.agents.director',
+    'dzmm.service.agents.scene',
+    'dzmm.service.agents.npc_actor',
+    'dzmm.service.agents.orchestrator',
+    'dzmm.service.agents.triggers',
+    # v0.10.5 turn-effect rollback + topology + encounter validation
+    'dzmm.service.turn_snapshot',
+    'dzmm.service.encounter_check',
+    'dzmm.service.state_apply.location_edge',
+    # v0.10 prompts
+    'dzmm.prompts.director_v2_template',
+    'dzmm.prompts.scene_v2_template',
+    'dzmm.prompts.npc_actor_template',
+    # v0.10 debug agents endpoint
+    'dzmm.api.routes_debug_agents',
+]
+
 # Keyring backends are platform-specific and resolved at runtime via stevedore-style
 # discovery — keep the broad collect for these.
 hidden += collect_submodules('keyring.backends')
