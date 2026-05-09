@@ -21,7 +21,11 @@ from dzmm.db.models import (
     AgentMessage,
     AgentStream,
     Character,
+    CharState,
+    HiddenEvent,
+    Message as MessageRow,
     NPC,
+    Screenplay,
     Session as GameSession,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient
@@ -85,15 +89,220 @@ async def _format_scene_context(
 async def _build_director_snapshot(
     s: AsyncSession, session_id: int, current_turn: int,
 ) -> str:
-    """Compress current session state into a Director-readable text snapshot."""
+    """Build a richer state snapshot for Director's prompt.
+
+    Includes: turn / doom / scene_turn_count（旧），plus 剧本章节进度、
+    本章 [pending]/[done] 主线事件、active hidden_events 倒计时、PC vital
+    state、最近 plot_turn major 决策。Keeps it under ~600 chars to leave
+    room for history + system prompt.
+    """
     sess = await s.get(GameSession, session_id)
     if sess is None:
         return f"第 {current_turn} 回合（无 session 数据）"
-    return "\n".join([
+
+    parts = [
         f"# Snapshot @ turn {current_turn}",
         f"- doom: {sess.doom_score}",
         f"- scene_turn_count: {sess.scene_turn_count}",
-    ])
+    ]
+
+    # PC vital state
+    cs = (await s.execute(
+        select(CharState).where(CharState.session_id == session_id)
+    )).scalar_one_or_none()
+    char = await s.get(Character, sess.character_id) if sess.character_id else None
+    if cs and cs.stats_json:
+        try:
+            stats = _json.loads(cs.stats_json)
+            hp = stats.get("hp")
+            sanity = stats.get("sanity")
+            stam = stats.get("stamina")
+            kvs = [
+                (k, v) for k, v in (("hp", hp), ("sanity", sanity), ("stamina", stam))
+                if v is not None
+            ]
+            if kvs:
+                parts.append("- PC: " + " / ".join(f"{k}={v}" for k, v in kvs))
+        except (TypeError, ValueError):
+            pass
+    if char and char.level and char.level > 1:
+        parts.append(f"- PC level: {char.level}")
+
+    # Active screenplay progress
+    sp = (await s.execute(
+        select(Screenplay)
+        .where(Screenplay.session_id == session_id, Screenplay.status == "active")
+        .order_by(Screenplay.version.desc())
+    )).scalars().first()
+    if sp is not None:
+        try:
+            chapters = _json.loads(sp.chapters_json or "[]")
+        except (TypeError, ValueError):
+            chapters = []
+        try:
+            completed = _json.loads(sp.completed_events_json or "[]")
+        except (TypeError, ValueError):
+            completed = []
+        if isinstance(chapters, list) and chapters:
+            ch_idx = max(0, min(sp.current_chapter - 1, len(chapters) - 1))
+            cur_ch = chapters[ch_idx] if isinstance(chapters[ch_idx], dict) else {}
+            title = str(cur_ch.get("title", "")).strip()
+            main_events = cur_ch.get("main_events") or []
+            done_idxs = {
+                c.get("event_idx") for c in completed
+                if isinstance(c, dict)
+                and c.get("chapter") == sp.current_chapter
+                and (c.get("type") or "main") == "main"
+            }
+            n_done = sum(1 for i, _ in enumerate(main_events) if i in done_idxs)
+            n_total = len(main_events) if isinstance(main_events, list) else 0
+            parts.append(
+                f"- 章节: 第{sp.current_chapter}章「{title}」 主线 {n_done}/{n_total}"
+            )
+            # Pending main events brief
+            if isinstance(main_events, list):
+                pending = [
+                    e for i, e in enumerate(main_events)
+                    if i not in done_idxs and isinstance(e, dict)
+                ]
+                if pending:
+                    desc = str(pending[0].get("description", ""))[:60]
+                    parts.append(f"- 下一主线: {desc}")
+
+    # Active hidden events
+    hidden_rows = (await s.execute(
+        select(HiddenEvent).where(
+            HiddenEvent.session_id == session_id,
+            HiddenEvent.status == "active",
+        ).order_by(HiddenEvent.introduced_turn.desc()).limit(3)
+    )).scalars().all()
+    if hidden_rows:
+        for he in hidden_rows:
+            age = current_turn - he.introduced_turn
+            parts.append(
+                f"- 隐藏事件: [{he.subject}/{he.kind}/t+{age}] {(he.description or '')[:50]}"
+            )
+
+    # Recent plot_turn major decisions (scan last 8 assistant messages)
+    plot_rows = (await s.execute(
+        select(MessageRow.events_json, MessageRow.turn)
+        .where(
+            MessageRow.session_id == session_id,
+            MessageRow.role == "assistant",
+            MessageRow.turn >= max(1, current_turn - 8),
+        )
+        .order_by(MessageRow.turn.desc())
+    )).all()
+    plot_majors: list[str] = []
+    for events_json, turn in plot_rows:
+        if not events_json:
+            continue
+        try:
+            evs = _json.loads(events_json)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(evs, list):
+            continue
+        for ev in evs:
+            if not isinstance(ev, dict):
+                continue
+            if ev.get("type") == "plot_turn":
+                impact = (ev.get("payload") or {}).get("impact", "")
+                if impact == "major":
+                    desc = (ev.get("payload") or {}).get("description", "")
+                    if desc:
+                        plot_majors.append(f"  · t{turn}: {str(desc)[:60]}")
+    if plot_majors:
+        parts.append("- 最近重大决策:")
+        parts.extend(plot_majors[:3])
+
+    return "\n".join(parts)
+
+
+async def _build_director_trigger_state(
+    s: AsyncSession, session_id: int, sess: GameSession, current_turn: int,
+):
+    """Compute the trigger-relevant fields from real session state.
+
+    v0.10.3 — replaces hard-coded False/99 values so Director can fire
+    synchronously when major events happened on the prior turn or when PC
+    is in critical state. Trigger fields scanned:
+      - chapter_advanced_last_turn / major_plot_turn_last_turn: from prior
+        turn's assistant Message.events_json
+      - hp / sanity: from CharState.stats_json
+      - hidden_event_due: severity-keyed threshold on active HiddenEvents
+        (severity 1→5 turns / 2→3 / 3→2)
+    """
+    # Last-turn assistant events_json scan
+    last_msg = (await s.execute(
+        select(MessageRow.events_json)
+        .where(
+            MessageRow.session_id == session_id,
+            MessageRow.role == "assistant",
+            MessageRow.turn == sess.turn_count,  # last completed turn
+        )
+        .limit(1)
+    )).scalar_one_or_none()
+
+    chapter_advanced = False
+    plot_turn_major = False
+    if last_msg:
+        try:
+            events = _json.loads(last_msg)
+        except (TypeError, ValueError):
+            events = []
+        if isinstance(events, list):
+            for ev in events:
+                if not isinstance(ev, dict):
+                    continue
+                t = ev.get("type")
+                if t == "chapter_advance":
+                    chapter_advanced = True
+                if t == "plot_turn":
+                    if (ev.get("payload") or {}).get("impact", "") == "major":
+                        plot_turn_major = True
+
+    # PC hp/sanity from char_state
+    cs = (await s.execute(
+        select(CharState).where(CharState.session_id == session_id)
+    )).scalar_one_or_none()
+    hp = 99
+    sanity = 99
+    if cs and cs.stats_json:
+        try:
+            stats = _json.loads(cs.stats_json)
+            hp = int(stats.get("hp", 99))
+            sanity = int(stats.get("sanity", 99))
+        except (TypeError, ValueError):
+            pass
+
+    # Hidden event due: any active hidden_event whose introduced_turn + threshold
+    # has been reached. We don't have explicit consequence_turn metadata, so
+    # use a heuristic: severity 1 → 5 turns, severity 2 → 3, severity 3 → 2.
+    hidden_due = False
+    hidden_rows = (await s.execute(
+        select(HiddenEvent).where(
+            HiddenEvent.session_id == session_id,
+            HiddenEvent.status == "active",
+        )
+    )).scalars().all()
+    sev_to_threshold = {1: 5, 2: 3, 3: 2}
+    for he in hidden_rows:
+        thresh = sev_to_threshold.get(he.severity or 2, 3)
+        if (current_turn - (he.introduced_turn or 0)) >= thresh:
+            hidden_due = True
+            break
+
+    return type("S", (), {
+        "turn_count": sess.turn_count,
+        "doom_score": sess.doom_score,
+        "scene_turn_count": sess.scene_turn_count,
+        "chapter_advanced_last_turn": chapter_advanced,
+        "major_plot_turn_last_turn": plot_turn_major,
+        "hp": hp,
+        "sanity": sanity,
+        "hidden_event_due": hidden_due,
+    })()
 
 
 async def _last_director_directive(s: AsyncSession, stream_id: int) -> str:
@@ -248,16 +457,10 @@ async def run_turn_v10(
         s, session_id, STREAM_KIND_DIRECTOR, "",
     )
 
-    cs_obj = type("S", (), {
-        "turn_count": sess.turn_count,
-        "doom_score": sess.doom_score,
-        "scene_turn_count": sess.scene_turn_count,
-        "chapter_advanced_last_turn": False,
-        "major_plot_turn_last_turn": False,
-        "hp": 99,
-        "sanity": 99,
-        "hidden_event_due": False,
-    })()
+    # v0.10.3: compute real values for Director sync triggers.
+    # These look at the prior turn's events_json + current PC state +
+    # active hidden_events to decide if Director must run synchronously.
+    cs_obj = await _build_director_trigger_state(s, session_id, sess, current_turn)
 
     fire, reason = should_run_director(director_stream, cs_obj, current_turn)
     if fire:

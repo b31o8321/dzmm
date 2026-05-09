@@ -762,8 +762,8 @@ def test_plot_event_throttle_rules_present():
 
 
 def test_iron_law_29_plausibility_check_present():
-    """Iron law 29 (v0.2.5) must instruct GM to reject physically impossible actions
-    rather than narrate a player 'snapping out of it'."""
+    """Iron law 30 (v0.10.3, was 29) must instruct GM to reject physically impossible
+    actions rather than narrate a player 'snapping out of it'."""
     msgs = build_gm_messages(
         world_md="x", character_md="y", live_state={},
         rules_mode="light", style="dark",
@@ -771,7 +771,8 @@ def test_iron_law_29_plausibility_check_present():
         recent_messages=[], current_action="x",
     )
     sys = _all_sys(msgs)
-    assert "29." in sys
+    # v0.10.3: 双 27 编号修正后该规则为 "30."
+    assert "30." in sys
     assert "穿越" in sys or "可信度" in sys or "根本没有路径" in sys
 
 

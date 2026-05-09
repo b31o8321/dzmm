@@ -161,6 +161,122 @@ async def test_run_turn_v10_uses_session_maker_for_isolated_npc_sessions(session
 
 
 @pytest.mark.asyncio
+async def test_build_director_snapshot_includes_pc_state_and_chapter(session_maker):
+    """v0.10.3: Director snapshot 含 PC vital + 剧本章节进度，不再只有 turn/doom。"""
+    import json
+    from dzmm.db.models import (
+        Character, CharState, ModelConfig,
+        Screenplay, Session as GameSession, World,
+    )
+    from dzmm.service.agents.orchestrator import _build_director_snapshot
+
+    async with session_maker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="C", profile_md="x",
+                      base_stats_json='{"hp":20}', level=3)
+        m = ModelConfig(name="m", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(name="t", world_id=1, character_id=1,
+                           gm_model_config_id=1, summarizer_model_config_id=1,
+                           turn_count=5, doom_score=42)
+        s.add(sess)
+        await s.flush()
+        s.add(CharState(
+            session_id=sess.id,
+            stats_json='{"hp":12, "sanity":8}',
+            inventory_json='[]',
+        ))
+        s.add(Screenplay(
+            session_id=sess.id,
+            world_id=1,
+            chapters_json=json.dumps([
+                {"title": "废墟开端", "main_events": [
+                    {"description": "PC 见到老者"},
+                    {"description": "PC 取得地图"},
+                ]},
+            ], ensure_ascii=False),
+            completed_events_json=json.dumps([
+                {"chapter": 1, "event_idx": 0, "type": "main"},
+            ]),
+            current_chapter=1,
+            status="active",
+        ))
+        await s.commit()
+
+        snap = await _build_director_snapshot(s, sess.id, current_turn=6)
+
+    assert "doom: 42" in snap
+    assert "hp=12" in snap
+    assert "sanity=8" in snap
+    assert "PC level: 3" in snap
+    assert "废墟开端" in snap
+    assert "1/2" in snap  # 1 done out of 2 main events
+    assert "PC 取得地图" in snap  # next pending event description
+
+
+@pytest.mark.asyncio
+async def test_director_trigger_state_detects_chapter_advance_last_turn(session_maker):
+    """v0.10.3: 上一回合 emit chapter_advance → cs_obj.chapter_advanced_last_turn=True。"""
+    import json
+    from dzmm.db.models import (
+        Character, ModelConfig, Message as MessageRow,
+        Session as GameSession, World,
+    )
+    from dzmm.service.agents.orchestrator import _build_director_trigger_state
+
+    async with session_maker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="C", profile_md="x", base_stats_json='{}')
+        m = ModelConfig(name="m", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(name="t", world_id=1, character_id=1,
+                           gm_model_config_id=1, summarizer_model_config_id=1,
+                           turn_count=4)
+        s.add(sess)
+        await s.flush()
+        s.add(MessageRow(
+            session_id=sess.id, role="assistant", turn=4, content="x",
+            events_json=json.dumps([
+                {"type": "narrative", "payload": {}, "content": ""},
+                {"type": "chapter_advance", "payload": {}, "content": ""},
+            ]),
+        ))
+        await s.commit()
+        state = await _build_director_trigger_state(s, sess.id, sess, current_turn=5)
+    assert state.chapter_advanced_last_turn is True
+    assert state.major_plot_turn_last_turn is False
+
+
+@pytest.mark.asyncio
+async def test_director_trigger_state_detects_hp_critical(session_maker):
+    """hp <= 5 → cs_obj.hp 真实值（trigger 那边判断）。"""
+    from dzmm.db.models import (
+        Character, CharState, ModelConfig,
+        Session as GameSession, World,
+    )
+    from dzmm.service.agents.orchestrator import _build_director_trigger_state
+
+    async with session_maker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="C", profile_md="x", base_stats_json='{}')
+        m = ModelConfig(name="m", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(name="t", world_id=1, character_id=1,
+                           gm_model_config_id=1, summarizer_model_config_id=1,
+                           turn_count=3)
+        s.add(sess)
+        await s.flush()
+        s.add(CharState(session_id=sess.id, stats_json='{"hp": 3, "sanity": 15}'))
+        await s.commit()
+        state = await _build_director_trigger_state(s, sess.id, sess, current_turn=4)
+    assert state.hp == 3
+    assert state.sanity == 15
+
+
+@pytest.mark.asyncio
 async def test_compress_streams_folds_old_messages(session_maker):
     """超过 threshold 后，旧消息被压成 1 条 summary + 最近 keep_recent 条原文保留。"""
     from sqlalchemy import select
