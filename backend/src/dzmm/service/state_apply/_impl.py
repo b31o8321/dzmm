@@ -8,9 +8,12 @@ under `state_apply/`. This file now contains only:
 """
 
 import json
+import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+log = logging.getLogger(__name__)
 
 from dzmm.db.models import NPC
 from dzmm.parsing.events import TagComplete
@@ -52,6 +55,49 @@ __all__ = [
 ]
 
 
+def _enforce_dice_outcome(tags: list[TagComplete]) -> None:
+    """Correct dice outcome attrs where LLM arithmetic was wrong.
+
+    The LLM may claim "成功" when roll+mod < dc (or vice versa). We re-compute
+    from the numeric attrs and overwrite the outcome in-place so events_json
+    stores the correct result. The narrative text is already written and can't
+    be changed, but downstream consumers (frontend dice display, stuck-dice
+    detector) see the authoritative value.
+    """
+    _outcome_success = {"success", "成功", "succeed", "pass", "passed"}
+    for tag in tags:
+        if tag.name != "dice":
+            continue
+        attrs = tag.attrs or {}
+        try:
+            pc_roll = int(attrs.get("pc_roll", 0))
+            dc = int(attrs.get("dc", 0))
+            mod_raw = str(attrs.get("mod", "0")).replace("+", "")
+            mod = int(mod_raw) if mod_raw.lstrip("-").isdigit() else 0
+        except (TypeError, ValueError):
+            continue
+        if pc_roll <= 0 or dc <= 0:
+            continue
+        total = pc_roll + mod
+        correct = "成功" if total >= dc else "失败"
+        claimed = (attrs.get("outcome") or "").strip()
+        if claimed.lower() in _outcome_success:
+            claimed_normalized = "成功"
+        else:
+            claimed_normalized = "失败"
+        if claimed_normalized != correct:
+            log.warning(
+                "dice outcome corrected: roll=%d mod=%d total=%d dc=%d "
+                "LLM_claimed=%r corrected_to=%r",
+                pc_roll, mod, total, dc, claimed, correct,
+            )
+            tag.attrs["outcome"] = correct
+            tag.attrs["outcome_corrected"] = "true"
+        elif claimed not in ("成功", "失败"):
+            # Normalize English outcome labels to Chinese
+            tag.attrs["outcome"] = correct
+
+
 async def apply_tags(
     session: AsyncSession,
     session_id: int,
@@ -59,6 +105,7 @@ async def apply_tags(
     tags: list[TagComplete],
 ) -> None:
     """Mutate CharState and NPC rows based on parsed tags. Caller commits."""
+    _enforce_dice_outcome(tags)
     topology_warnings: list[str] = []
     for tag in tags:
         if tag.name == "state_change":

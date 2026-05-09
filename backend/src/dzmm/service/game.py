@@ -506,6 +506,17 @@ async def run_turn(
         from dzmm.prompts.gm_template import _format_live_state
 
         live_state_text = _format_live_state(live_state)
+
+        # Pre-roll a d20 server-side so the LLM uses a server-authoritative
+        # number instead of fabricating one. Inject into key_facts so Scene
+        # sees it; the <dice pc_roll="N"> tag should use this value.
+        prerolled_d20 = random.randint(1, 20)
+        key_facts = key_facts + (
+            f"\n\n## 🎲 本回合系统骰子\n"
+            f"**预掷 d20 = {prerolled_d20}**\n"
+            f"若本回合需要技能判定，pc_roll 必须填这个值（不得自行生成其他数字）。"
+        )
+
         # v0.10.4 fix: assemble events into coherent text — consecutive
         # NarrativeDelta chunks become ONE <narrative>...</narrative> block
         # (was: each delta wrapped separately, producing fragmented output
@@ -589,6 +600,14 @@ async def run_turn(
     if xml_reminder:
         action_with_reminder = user_action + "\n\n" + xml_reminder
         log.info("injecting XML format reminder for session %d (drift detected)", session_id)
+
+    # Pre-roll d20 server-side (same as v0.10 path above)
+    prerolled_d20 = random.randint(1, 20)
+    key_facts = key_facts + (
+        f"\n\n## 🎲 本回合系统骰子\n"
+        f"**预掷 d20 = {prerolled_d20}**\n"
+        f"若本回合需要技能判定，pc_roll 必须填这个值（不得自行生成其他数字）。"
+    )
 
     # v0.9.1 token reduction: inject only the conditional tag docs that
     # could plausibly fire this turn. Saves ~600-1500 tokens / 普通回合.

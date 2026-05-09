@@ -94,19 +94,32 @@ async def run_npc_actor(
         return [], tok_in, tok_out
 
     parser = StreamingTagParser()
-    events: list[ParseEvent] = []
+    raw_events: list[ParseEvent] = []
     for ev in parser.feed(text):
         if isinstance(ev, TagComplete) and ev.name in _KEPT_TAGS:
             if ev.name == "say":
                 ev.attrs.setdefault("speaker", npc.name)
             elif ev.name == "npc_update":
                 ev.attrs["name"] = npc.name
-            events.append(ev)
+            raw_events.append(ev)
     for ev in parser.finish():
         if isinstance(ev, TagComplete) and ev.name in _KEPT_TAGS:
             if ev.name == "say":
                 ev.attrs.setdefault("speaker", npc.name)
             elif ev.name == "npc_update":
                 ev.attrs["name"] = npc.name
+            raw_events.append(ev)
+
+    # Deduplicate: keep only the FIRST say and FIRST npc_update.
+    # LLMs occasionally repeat the same tag type (e.g. 3 npc_update blocks)
+    # which causes duplicate favor_delta applications and dialogue spam.
+    events: list[ParseEvent] = []
+    seen_types: set[str] = set()
+    for ev in raw_events:
+        if isinstance(ev, TagComplete) and ev.name in _KEPT_TAGS:
+            if ev.name not in seen_types:
+                events.append(ev)
+                seen_types.add(ev.name)
+        else:
             events.append(ev)
     return events, tok_in, tok_out
