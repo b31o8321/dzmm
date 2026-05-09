@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.models.client import GenerationParams, ModelClient
 from dzmm.prompts.wizard_locations import build_locations_messages
+from dzmm.prompts.wizard_factions_fw import build_factions_messages
+from dzmm.prompts.wizard_npc_templates import build_npc_templates_messages
+from dzmm.prompts.wizard_events_fw import build_events_messages
 
 log = logging.getLogger(__name__)
 
@@ -46,5 +49,37 @@ async def generate_locations(
     genre: str, world_brief_md: str, client: ModelClient
 ) -> list[dict]:
     msgs = build_locations_messages(genre, world_brief_md)
+    raw, _ = await client.complete(msgs, _PARAMS)
+    return json.loads(_extract_json(raw))
+
+
+async def generate_factions(
+    genre: str, world_brief_md: str, locations: list[dict], client: ModelClient
+) -> list[dict]:
+    location_names = [l["name"] for l in locations]
+    msgs = build_factions_messages(genre, world_brief_md, location_names)
+    raw, _ = await client.complete(msgs, _PARAMS)
+    return json.loads(_extract_json(raw))
+
+
+async def generate_npc_templates(
+    genre: str, world_brief_md: str, locations: list[dict],
+    factions: list[dict], client: ModelClient,
+) -> list[dict]:
+    location_names = [l["name"] for l in locations]
+    faction_names = [f["name"] for f in factions]
+    msgs = build_npc_templates_messages(genre, world_brief_md, location_names, faction_names)
+    raw, _ = await client.complete(msgs, _PARAMS)
+    return json.loads(_extract_json(raw))
+
+
+async def generate_events(
+    genre: str, world_brief_md: str, locations: list[dict],
+    factions: list[dict], npc_templates: list[dict], client: ModelClient,
+) -> list[dict]:
+    location_names = [l["name"] for l in locations]
+    faction_names = [f["name"] for f in factions]
+    npc_names = [n["name"] for n in npc_templates]
+    msgs = build_events_messages(genre, world_brief_md, location_names, faction_names, npc_names)
     raw, _ = await client.complete(msgs, _PARAMS)
     return json.loads(_extract_json(raw))
