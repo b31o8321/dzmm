@@ -7,7 +7,7 @@ export const MAX_DICE = 8
 export function useGameState() {
   const stats = reactive<Record<string, number>>({})
   const inventory = ref<string[]>([])
-  const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null; met?: boolean }[]>([])
+  const npcs = ref<{ name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null; met?: boolean; emotion?: Record<string, number> }[]>([])
   const dice = ref<{ skill: string; target: string; result: string; success?: string; fail?: string }[]>([])
   const threads = ref<{ type: string; description: string; importance: number }[]>([])
   const pcMood = ref<Record<string, number>>({})

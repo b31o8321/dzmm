@@ -10,11 +10,13 @@ const threadsExpanded = ref(false)
 const props = defineProps<{
   sessionId: number
   stats: Record<string, number>
+  statsTrend?: Record<string, number[]>
   inventory: string[]
-  npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null; met?: boolean }[]
+  npcs: { name: string; favor: number; state: string; pinned?: boolean; current_location?: string | null; met?: boolean; emotion?: Record<string, number> }[]
   threads: { type: string; description: string; importance: number }[]
   goals?: PCGoalItem[]
   pcMood?: Record<string, number>
+  topologyWarnings?: string[]
   currentLocation?: {
     name: string
     description: string
@@ -78,6 +80,31 @@ function npcAvatarColor(name: string): string {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
   return `hsl(${h % 360}, 52%, 50%)`
 }
+
+function topEmotion(emotion?: Record<string, number>): string {
+  if (!emotion || !Object.keys(emotion).length) return ''
+  const [key] = Object.entries(emotion).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]
+  return key
+}
+
+function sparklinePath(values: number[]): string {
+  if (values.length < 2) return ''
+  const w = 40, h = 14
+  const min = Math.min(...values), max = Math.max(...values)
+  const range = max - min || 1
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w
+    const y = h - ((v - min) / range) * h
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+  return 'M' + pts.join('L')
+}
+
+function sparklineColor(values: number[]): string {
+  if (values.length < 2) return '#94a3b8'
+  const delta = values[values.length - 1] - values[0]
+  return delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#94a3b8'
+}
 </script>
 
 <template>
@@ -104,6 +131,17 @@ function npcAvatarColor(name: string): string {
           <FactionGraph :session-id="sessionId" :visible="true" />
         </el-popover>
       </div>
+    </div>
+
+    <!-- Topology warnings — shown when backend detects spatial inconsistencies -->
+    <div v-if="topologyWarnings && topologyWarnings.length"
+         class="px-3 py-1.5 bg-amber-50 border-b border-amber-200">
+      <div class="text-xs font-medium text-amber-700 mb-0.5">⚠️ 拓扑警告</div>
+      <ul class="space-y-0.5">
+        <li v-for="(w, i) in topologyWarnings" :key="i" class="text-xs text-amber-600 leading-snug">
+          {{ w }}
+        </li>
+      </ul>
     </div>
 
     <!-- 内容区（外层容器负责 scroll） -->
@@ -148,11 +186,26 @@ function npcAvatarColor(name: string): string {
           placement="left"
         >
           <div
-            class="flex justify-between"
+            class="flex items-center justify-between gap-2"
             :class="tooltipFor(String(k)) ? 'cursor-help' : ''"
           >
-            <span class="text-slate-500">{{ k }}</span>
-            <span class="font-mono">{{ v }}</span>
+            <span class="text-slate-500 shrink-0">{{ k }}</span>
+            <div class="flex items-center gap-1.5 ml-auto">
+              <svg
+                v-if="statsTrend && statsTrend[String(k)] && statsTrend[String(k)].length >= 2"
+                width="40" height="14" class="shrink-0"
+              >
+                <path
+                  :d="sparklinePath(statsTrend[String(k)])"
+                  fill="none"
+                  :stroke="sparklineColor(statsTrend[String(k)])"
+                  stroke-width="1.5"
+                  stroke-linejoin="round"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <span class="font-mono">{{ v }}</span>
+            </div>
           </div>
         </el-tooltip>
         <div v-if="!Object.keys(stats).length" class="text-slate-400 italic">尚未初始化</div>
@@ -252,15 +305,19 @@ function npcAvatarColor(name: string): string {
             <span v-if="n.pinned" class="text-amber-500" title="已置顶">📌</span>
             <span>{{ n.name }}</span>
           </button>
-          <span class="text-slate-500 shrink-0">
+          <div class="flex items-center gap-1 shrink-0">
             <template v-if="n.met === false">
               <span class="text-xs italic text-slate-400">未登场</span>
             </template>
             <template v-else>
-              <span class="font-mono mr-1">{{ n.favor >= 0 ? '+' : '' }}{{ n.favor }}</span>
-              <span class="text-xs">{{ n.state }}</span>
+              <span
+                v-if="topEmotion(n.emotion)"
+                class="text-xs px-1 py-0.5 bg-violet-50 text-violet-600 rounded"
+                :title="Object.entries(n.emotion ?? {}).map(([k,v]) => `${k}:${v}`).join(' ')"
+              >{{ topEmotion(n.emotion) }}</span>
+              <span class="font-mono text-slate-500">{{ n.favor >= 0 ? '+' : '' }}{{ n.favor }}</span>
             </template>
-          </span>
+          </div>
         </li>
         <li v-if="!npcs.length" class="text-slate-400 italic">尚无 NPC</li>
       </ul>

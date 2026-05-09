@@ -254,6 +254,45 @@ const feedbackOpen = ref(false)
 const screenplay = ref<Screenplay | null>(null)
 const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
 const worldTime = ref<WorldTime | null>(null)
+const topologyWarnings = ref<string[]>([])
+
+// Build per-stat sparkline from state_change events across all turns (last 10).
+const statsTrend = computed<Record<string, number[]>>(() => {
+  const acc: Record<string, number[]> = {}
+  const recent = turns.value.slice(-10)
+  // Start snapshot from current stats to anchor the last point
+  const cur = { ...stats }
+  // Replay backwards to build a running total per stat
+  for (const k of Object.keys(cur)) acc[k] = []
+  for (const turn of recent) {
+    for (const ev of turn.events ?? []) {
+      if (ev.type === 'state_change' && ev.content) {
+        try {
+          const obj = JSON.parse(ev.content)
+          for (const [k, v] of Object.entries(obj)) {
+            if (typeof v === 'number' && k in cur) {
+              if (!acc[k]) acc[k] = []
+              acc[k].push(v)
+            }
+          }
+        } catch { /* skip */ }
+      }
+    }
+  }
+  // Convert deltas to running values ending at current
+  const result: Record<string, number[]> = {}
+  for (const k of Object.keys(cur)) {
+    if (!acc[k] || acc[k].length < 2) continue
+    let running = cur[k]
+    const pts = [running]
+    for (const delta of [...acc[k]].reverse()) {
+      running -= delta
+      pts.unshift(running)
+    }
+    result[k] = pts
+  }
+  return result
+})
 
 // Apply chapter BGM whenever screenplay loads or chapter changes
 watch(() => screenplay.value?.current_chapter, (ch) => {
@@ -279,6 +318,7 @@ async function refreshNpcs() {
       n.pinned = full.pinned
       ;(n as any).current_location = full.current_location ?? null
       ;(n as any).met = full.last_seen_turn > 0
+      ;(n as any).emotion = full.emotion ?? {}
     }
   } catch { /* ignore */ }
 }
@@ -633,6 +673,7 @@ onMounted(async () => {
     threads.value = st.threads
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
     if (st.world_time) worldTime.value = { ...st.world_time }
+    topologyWarnings.value = st.topology_warnings ?? []
   } catch {
     /* ignore — fall through to the end-of-mount rehydrate below */
   }
@@ -711,6 +752,7 @@ onMounted(async () => {
     threads.value = st.threads
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
     if (st.world_time) worldTime.value = { ...st.world_time }
+    topologyWarnings.value = st.topology_warnings ?? []
 
     // Augment with pinned flag and current_location from /npcs endpoint.
     try {
@@ -1015,9 +1057,10 @@ onUnmounted(() => {
     <!-- Desktop: side panel always visible — single scroll container holds StatePanel + Screenplay + Debug -->
     <aside class="hidden md:flex md:flex-col w-80 bg-white border-l overflow-auto h-full">
       <StatePanel :session-id="sessionId"
-                  :stats="stats" :inventory="inventory" :npcs="npcs"
+                  :stats="stats" :stats-trend="statsTrend" :inventory="inventory" :npcs="npcs"
                   :threads="threads" :goals="goals"
                   :pc-mood="pcMood"
+                  :topology-warnings="topologyWarnings"
                   :current-location="currentLocation"
                   :world-time="worldTime ?? undefined"
                   @select-npc="openNpcDetail"
@@ -1058,9 +1101,10 @@ onUnmounted(() => {
       >×</button>
       <div class="w-80 max-w-[90vw] overflow-auto h-full">
         <StatePanel :session-id="sessionId"
-                    :stats="stats" :inventory="inventory" :npcs="npcs"
+                    :stats="stats" :stats-trend="statsTrend" :inventory="inventory" :npcs="npcs"
                     :dice="dice" :threads="threads" :goals="goals"
                     :pc-mood="pcMood"
+                    :topology-warnings="topologyWarnings"
                     :current-location="currentLocation"
                     :world-time="worldTime ?? undefined"
                     @select-npc="openNpcDetail"

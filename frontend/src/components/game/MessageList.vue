@@ -24,7 +24,7 @@ const emit = defineEmits<{
 
 const logEl = ref<HTMLElement | null>(null)
 
-const debug = useDebugStore()
+const debugStore = useDebugStore()
 const debugDialogOpen = ref(false)
 interface DebugInfo { prompt: object[]; response: string; tokensIn: number; tokensOut: number }
 const debugInfo = ref<DebugInfo | null>(null)

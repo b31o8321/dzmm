@@ -30,7 +30,6 @@ class EvalConfig:
     config_name: str
     max_turns: int = 20
     judge_every: int = 10
-    use_graph: bool = False
     ollama_base_url: str | None = None
 
 

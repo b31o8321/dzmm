@@ -31,7 +31,6 @@ class PatchGmModelRequest(BaseModel):
 
 class PatchSettingsRequest(BaseModel):
     narrative_polish: bool | None = None
-    director_pass: bool | None = None
     debug_mode: bool | None = None
     content_level: str | None = None  # safe | mature | unrestricted
     use_v10: bool | None = None
@@ -49,8 +48,6 @@ async def patch_session_settings(
     settings = json.loads(sess.settings_json or "{}")
     if body.narrative_polish is not None:
         settings["narrative_polish"] = body.narrative_polish
-    if body.director_pass is not None:
-        settings["director_pass"] = body.director_pass
     if body.debug_mode is not None:
         settings["debug_mode"] = body.debug_mode
     if body.content_level in ("safe", "mature", "unrestricted"):

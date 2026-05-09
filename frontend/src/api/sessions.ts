@@ -29,7 +29,8 @@ export interface SessionState {
   inventory: string[]
   pc_mood?: Record<string, number>
   world_time?: WorldTime
-  npcs: { name: string; favor: number; state: string }[]
+  topology_warnings?: string[]
+  npcs: { name: string; favor: number; state: string; met?: boolean; emotion?: Record<string, number> }[]
   threads: { type: string; description: string; importance: number }[]
 }
 

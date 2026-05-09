@@ -131,12 +131,14 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
         "inventory": inventory,
         "pc_mood": pc_mood,
         "world_time": world_time,
+        "topology_warnings": json.loads(sess.topology_warning_json or "[]"),
         "npcs": [
             {
                 "name": n.name,
                 "favor": n.favor,
                 "state": n.state,
                 "met": n.last_seen_turn > 0,
+                "emotion": json.loads(n.emotion_json or "{}") if n.emotion_json else {},
             }
             for n in npc_rows
         ],

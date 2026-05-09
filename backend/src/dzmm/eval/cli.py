@@ -46,7 +46,6 @@ async def _main(args: argparse.Namespace) -> None:
         config_name="single_gm",
         max_turns=args.turns,
         judge_every=args.judge_every,
-        use_graph=False,
     )
 
     print(f"Running eval on session {args.session_id} for {args.turns} turns...")
@@ -71,7 +70,6 @@ async def _main(args: argparse.Namespace) -> None:
             config_name=config_b_name,
             max_turns=args.turns,
             judge_every=args.judge_every,
-            use_graph=True,
         )
         print(f"Running eval on session {args.session_id_b} (multi-agent GM)...")
         scores_b = await run_eval(

@@ -201,7 +201,6 @@ async def test_run_eval_runs_correct_number_of_turns():
         config_name="test",
         max_turns=10,
         judge_every=5,
-        use_graph=False,
     )
 
     with patch("dzmm.eval.runner.run_turn", fake_run_turn):

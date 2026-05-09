@@ -50,11 +50,9 @@ from dzmm.db.models import (
 from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete, UsageSummary
 from dzmm.parsing.stream_parser import StreamingTagParser
-from dzmm.prompts.director_template import build_director_messages
 from dzmm.prompts.gm_template import build_gm_messages
 from dzmm.prompts.outliner_template import build_outliner_messages
 from dzmm.prompts.polish_template import build_polish_messages
-from dzmm.service.gm_graph import run_npc_post_pass, run_pre_pass
 from dzmm.service.screenplay import get_active_screenplay
 from dzmm.service.world_rag import get_world_md
 from dzmm.service.activity_log import log_event
@@ -404,22 +402,6 @@ async def run_turn(
 
     settings = json.loads(sess.settings_json or "{}")
 
-    # Multi-agent pre-pass: LangGraph StateGraph (rules + conditional dice enrichment).
-    # Falls back to original key_facts on any error.
-    if settings.get("use_graph"):
-        key_facts = await run_pre_pass(key_facts, user_action, client)
-    elif settings.get("director_pass"):
-        # Legacy single-agent director pass (kept for backwards compatibility).
-        try:
-            dir_msgs = build_director_messages(key_facts, user_action)
-            directive, _ = await client.complete(
-                dir_msgs, GenerationParams(temperature=0.5, max_tokens=120)
-            )
-            if directive.strip():
-                key_facts = key_facts + "\n\n## 🎬 导演预处理\n" + directive.strip()
-        except Exception as exc:  # noqa: BLE001
-            log.warning("director pass failed: %s", exc)
-
     # Doom meter: inject current pressure level + maybe trigger bad ending.
     doom = sess.doom_score
     if doom > 0:
@@ -730,27 +712,6 @@ async def run_turn(
             except Exception as exc:  # noqa: BLE001
                 log.warning("polish pass failed: %s", exc)
 
-    # Multi-agent NPC post-pass: check if any recently-seen NPCs need additional reactions.
-    if settings.get("use_graph") and narrative_parts:
-        recent_npc_rows = (
-            await session.execute(
-                select(NPC)
-                .where(
-                    NPC.session_id == session_id,
-                    NPC.last_seen_turn >= sess.turn_count - 2,
-                )
-                .order_by(NPC.last_seen_turn.desc())
-                .limit(5)
-            )
-        ).scalars().all()
-        if recent_npc_rows:
-            narrative_so_far = "".join(narrative_parts)
-            npc_extra_events = await run_npc_post_pass(
-                narrative_so_far, list(recent_npc_rows), user_action, client
-            )
-            for ev in npc_extra_events:
-                completed_tags.append(ev)
-                yield ev
 
     next_turn = sess.turn_count + 1
 
