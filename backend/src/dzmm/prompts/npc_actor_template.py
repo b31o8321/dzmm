@@ -73,6 +73,7 @@ def build_npc_actor_messages(
     scene_context: str = "",      # 地点 + 在场 NPC + 世界时间
     recent_dialogue: str = "",    # 最近 4 回合压缩对话
     relationship_summary: str = "",  # v0.10.6: 当前 PC↔NPC 关系
+    cue_intent: str = "",         # v0.10.7: Scene 给本 NPC 的本回合方向
 ) -> list[Message]:
     try:
         emotions_dict = _json.loads(npc.emotion_json or "{}")
@@ -103,6 +104,12 @@ def build_npc_actor_messages(
     parts = [
         f"# 本回合剧情指令（Director，仅参考）\n{plot_directive}",
     ]
+    if cue_intent.strip():
+        parts.append(
+            f"# 🎯 GM 给你的本回合方向（高优先级）\n{cue_intent}\n\n"
+            "（Scene 写完场景之后明确点了你这一刻该做什么。优先按这个方向反应，"
+            "再结合关系/情绪微调。）"
+        )
     if scene_context.strip():
         parts.append(f"# 当前场景\n{scene_context}")
     if recent_dialogue.strip():

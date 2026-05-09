@@ -58,3 +58,17 @@ async def test_run_scene_streams_narrative_and_tags():
     tags = [e for e in events if isinstance(e, TagComplete)]
     assert any("巷子" in n.text for n in narratives)
     assert any(t.name == "dice" for t in tags)
+
+
+def test_scene_prompt_includes_npc_cue_schema():
+    """v0.10.7: Scene prompt 应该明确说 npc_cue 标签和铁律。"""
+    msgs = build_scene_messages(
+        pc_name="x", plot_directive="x",
+        world_md="", character_md="",
+        live_state_text="{}", key_facts="",
+        recent_messages=[], current_action="x",
+    )
+    sys_content = msgs[0].content
+    assert "npc_cue" in sys_content
+    assert "在场" in sys_content
+    assert "speaker" in sys_content

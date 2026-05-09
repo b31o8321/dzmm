@@ -456,6 +456,7 @@ async def _run_npc_with_isolated_session(
     scene_context: str,
     recent_dialogue: str,
     relationship_summary: str = "",
+    cue_intent: str = "",
 ) -> tuple[NPC, list[ParseEvent]]:
     """Run one NPC actor on its own AsyncSession.
 
@@ -480,6 +481,7 @@ async def _run_npc_with_isolated_session(
                     scene_context=scene_context,
                     recent_dialogue=recent_dialogue,
                     relationship_summary=relationship_summary,
+                    cue_intent=cue_intent,
                 )
                 await ns.commit()
                 return npc, events
@@ -550,6 +552,11 @@ async def run_turn_v10(
         pc_name = char.name
 
     narrative_buf: list[str] = []
+    # v0.10.7: collect <npc_cue> tags from Scene to drive fan-out (replaces
+    # DB-pinned/recent-seen heuristic which didn't reflect "who is in the
+    # scene THIS turn"). Insertion order preserved so yield order matches
+    # Scene's narrative ordering when cue is encountered.
+    cued_npcs: dict[str, str] = {}
     async for ev in run_scene(
         client=scene_client,
         pc_name=pc_name,
@@ -562,14 +569,41 @@ async def run_turn_v10(
     ):
         if isinstance(ev, NarrativeDelta):
             narrative_buf.append(ev.text)
+        elif isinstance(ev, TagComplete) and ev.name == "npc_cue":
+            speaker = (ev.attrs or {}).get("speaker", "").strip()
+            intent = (ev.attrs or {}).get("intent", "").strip()
+            if speaker and speaker not in cued_npcs:
+                cued_npcs[speaker] = intent
         yield ev
 
     scene_narrative = "".join(narrative_buf)
 
-    # Build per-turn shared context for all NPCs
-    on_stage = await _select_on_stage_npcs(
-        s, session_id, current_turn, NPC_MAX_PARALLEL,
-    )
+    # v0.10.7: Scene's <npc_cue> tags drive fan-out — only NPCs Scene
+    # explicitly cued get an actor pass. NPCs that DB says are pinned/recent
+    # but Scene didn't put on-stage stay silent (avoids 'pinned NPC pops up
+    # in scenes they aren't in' bug).
+    on_stage: list[NPC] = []
+    if cued_npcs:
+        cue_names = list(cued_npcs.keys())
+        rows = (await s.execute(
+            select(NPC).where(
+                NPC.session_id == session_id,
+                NPC.name.in_(cue_names),
+            )
+        )).scalars().all()
+        rows_by_name = {n.name: n for n in rows}
+        # Preserve cue order from Scene; skip cues for non-existent NPCs
+        # (encounter_check soft-validation in F2 flags those next turn).
+        for name in cue_names:
+            if name in rows_by_name:
+                on_stage.append(rows_by_name[name])
+    else:
+        # Backwards compat / Scene didn't cue anyone — fall back to old
+        # heuristic (pinned + last_seen ≤3) so legacy / older Scene prompt
+        # behavior works.
+        on_stage = await _select_on_stage_npcs(
+            s, session_id, current_turn, NPC_MAX_PARALLEL,
+        )
     if on_stage:
         # Sort to determine yield order so the player sees the most relevant
         # reaction first. LLM calls are issued in parallel below — sort
@@ -615,6 +649,7 @@ async def run_turn_v10(
                     scene_context=scene_context,
                     recent_dialogue=recent_dialogue,
                     relationship_summary=npc_relationships.get(npc.name, ""),
+                    cue_intent=cued_npcs.get(npc.name, ""),
                 )
                 for npc in ordered
             ]
@@ -641,6 +676,7 @@ async def run_turn_v10(
                         scene_context=scene_context,
                         recent_dialogue=recent_dialogue,
                         relationship_summary=npc_relationships.get(npc.name, ""),
+                        cue_intent=cued_npcs.get(npc.name, ""),
                     )
                 except Exception as exc:  # noqa: BLE001
                     log.warning("npc_actor(%s) failed: %s", npc.name, exc)

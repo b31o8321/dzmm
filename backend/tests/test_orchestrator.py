@@ -277,6 +277,139 @@ async def test_director_trigger_state_detects_hp_critical(session_maker):
 
 
 @pytest.mark.asyncio
+async def test_run_turn_v10_fans_out_only_cued_npcs(session_maker):
+    """v0.10.7: 当 Scene emit npc_cue 时，只 cued NPC 被 fan-out。
+    DB 上 pinned 但 Scene 没 cue 的不该说话。"""
+    from dzmm.db.models import (
+        Character, ModelConfig,
+        Session as GameSession, World,
+    )
+
+    async with session_maker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="Riku", profile_md="h",
+                      base_stats_json='{"hp":20}')
+        m = ModelConfig(name="m", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(name="t", world_id=1, character_id=1,
+                           gm_model_config_id=1, summarizer_model_config_id=1)
+        s.add(sess)
+        await s.flush()
+        # 2 pinned NPCs — both currently look "active" by old heuristic.
+        s.add(NPC(session_id=sess.id, name="丽莎", pinned=True,
+                  archetype="x", description="x", purpose="x", state="x",
+                  gender="female"))
+        s.add(NPC(session_id=sess.id, name="王五", pinned=True,
+                  archetype="x", description="x", purpose="x", state="x",
+                  gender="male"))
+        await s.commit()
+        sid = sess.id
+
+    # Track which NPC names had an actor pass via system prompt inspection.
+    call_args: list[str] = []
+
+    class _Spy(ModelClient):
+        name = "spy"
+        async def stream(self, msgs, params):
+            text = (
+                "<narrative>巷子潮湿，丽莎贴着墙。</narrative>"
+                '<npc_cue speaker="丽莎" intent="紧张地警告 PC 危险将至"/>'
+            )
+            yield StreamChunk(delta=text, finish_reason="stop")
+        async def complete(self, msgs, params):
+            joined = "\n".join(m.content for m in msgs)
+            if "剧情导演" in joined:
+                return ("<plot_directive>x</plot_directive>", TokenUsage())
+            if "扮演 TRPG 中的 NPC" in joined:
+                # Capture which NPC by checking system content
+                for line in joined.splitlines():
+                    if "姓名：" in line:
+                        call_args.append(line.split("：", 1)[1].strip())
+                        break
+                speaker = call_args[-1] if call_args else "X"
+                return f'<say speaker="{speaker}">「在」</say>', TokenUsage()
+            return "", TokenUsage()
+
+    spy = _Spy()
+    async with session_maker() as s:
+        events = []
+        async for ev in run_turn_v10(
+            s, session_id=sid, user_action="冲",
+            scene_client=spy, director_client=spy, npc_client=spy,
+            world_md="x", character_md="x",
+            live_state_text="{}", key_facts="",
+            recent_messages=[],
+        ):
+            events.append(ev)
+        await s.commit()
+
+    # 王五 was pinned but NOT cued → should NOT have been called
+    assert "丽莎" in call_args
+    assert "王五" not in call_args, (
+        f"王五 不应该被 fan-out（Scene 没 cue 他），但 call_args={call_args}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_turn_v10_falls_back_to_pinned_when_no_cues(session_maker):
+    """v0.10.7 兼容回退：Scene 一个 cue 都没产时，按旧 _select_on_stage_npcs
+    逻辑 fan-out（pinned + last_seen），保证不破坏老 prompt / 抽风模型场景。"""
+    from dzmm.db.models import (
+        Character, ModelConfig,
+        Session as GameSession, World,
+    )
+
+    class _NoCue(ModelClient):
+        name = "nocue"
+        async def stream(self, msgs, params):
+            yield StreamChunk(delta="<narrative>静默场景。</narrative>",
+                              finish_reason="stop")
+        async def complete(self, msgs, params):
+            joined = "\n".join(m.content for m in msgs)
+            if "剧情导演" in joined:
+                return ("<plot_directive>x</plot_directive>", TokenUsage())
+            if "扮演 TRPG 中的 NPC" in joined:
+                return '<say speaker="丽莎">「我在」</say>', TokenUsage()
+            return "", TokenUsage()
+
+    async with session_maker() as s:
+        w = World(name="W", content_md="x")
+        c = Character(world_id=1, name="Riku", profile_md="h",
+                      base_stats_json='{"hp":20}')
+        m = ModelConfig(name="m", type="ollama", base_url="x", model_name="y")
+        s.add_all([w, c, m])
+        await s.flush()
+        sess = GameSession(name="t", world_id=1, character_id=1,
+                           gm_model_config_id=1, summarizer_model_config_id=1)
+        s.add(sess)
+        await s.flush()
+        s.add(NPC(session_id=sess.id, name="丽莎", pinned=True,
+                  archetype="x", description="x", purpose="x", state="x",
+                  gender="female"))
+        await s.commit()
+        sid = sess.id
+
+    client = _NoCue()
+    async with session_maker() as s:
+        events = []
+        async for ev in run_turn_v10(
+            s, session_id=sid, user_action="x",
+            scene_client=client, director_client=client, npc_client=client,
+            world_md="x", character_md="x",
+            live_state_text="{}", key_facts="",
+            recent_messages=[],
+        ):
+            events.append(ev)
+        await s.commit()
+
+    # 丽莎 (pinned) 仍被 fan-out（no-cue fallback）
+    say_tags = [e for e in events if isinstance(e, TagComplete) and e.name == "say"]
+    assert len(say_tags) >= 1
+    assert any(t.attrs.get("speaker") == "丽莎" for t in say_tags)
+
+
+@pytest.mark.asyncio
 async def test_compress_streams_folds_old_messages(session_maker):
     """超过 threshold 后，旧消息被压成 1 条 summary + 最近 keep_recent 条原文保留。"""
     from sqlalchemy import select

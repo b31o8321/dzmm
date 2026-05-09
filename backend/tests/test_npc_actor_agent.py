@@ -170,6 +170,25 @@ async def test_run_npc_actor_parses_favor_delta_from_body(session_maker):
     assert "favor_delta" in upd[0].content
 
 
+def test_build_npc_actor_messages_includes_cue_intent_priority_block():
+    """v0.10.7: cue_intent 出现在 user msg 靠前，且带"高优先级"标记。"""
+    from types import SimpleNamespace
+    from dzmm.prompts.npc_actor_template import build_npc_actor_messages
+    npc = SimpleNamespace(
+        name="丽莎", gender="female", archetype="x",
+        description="x", state="x", purpose="x", emotion_json="{}",
+    )
+    msgs = build_npc_actor_messages(
+        npc=npc, history=[], plot_directive="d",
+        scene_narrative="x", user_action="x",
+        cue_intent="紧张地警告 PC 危险将至",
+    )
+    last_user = msgs[-1].content
+    assert "紧张地警告 PC 危险将至" in last_user
+    assert "GM 给你的本回合方向" in last_user
+    assert "高优先级" in last_user
+
+
 @pytest.mark.asyncio
 async def test_format_npc_relationship_labels_favor_correctly(session_maker):
     """v0.10.6: _format_npc_relationship 给 favor 打标签 + 列 affinity。"""
