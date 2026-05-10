@@ -177,13 +177,18 @@ const STEP_LABELS = [
         <div v-if="!state.locations.length">
           <el-button :loading="loading" @click="generate(2)">生成地点网络</el-button>
         </div>
-        <div v-else>
-          <div v-for="(loc, i) in state.locations" :key="i" class="list-item">
-            <div class="item-header">
-              <strong>{{ loc.name }}</strong>
-              <span class="item-type">{{ loc.location_type }}</span>
+        <div v-else class="card-grid">
+          <div v-for="(loc, i) in state.locations" :key="i" class="fw-card">
+            <div class="fw-card-header">
+              <span class="fw-card-name">{{ loc.name }}</span>
+              <span class="fw-badge" :class="`type-${loc.location_type}`">
+                {{ { city: '城镇', dungeon: '地下城', wilderness: '荒野', landmark: '地标' }[loc.location_type] ?? loc.location_type }}
+              </span>
             </div>
-            <p class="item-desc">{{ loc.description_md }}</p>
+            <p class="fw-card-desc">{{ loc.description_md }}</p>
+            <div v-if="loc.connections.length" class="fw-card-meta">
+              {{ loc.connections.length }} 个出口
+            </div>
           </div>
         </div>
       </div>
@@ -193,12 +198,17 @@ const STEP_LABELS = [
         <div v-if="!state.factions.length">
           <el-button :loading="loading" @click="generate(3)">生成势力</el-button>
         </div>
-        <div v-else>
-          <div v-for="(f, i) in state.factions" :key="i" class="list-item">
-            <div class="item-header">
-              <strong>{{ f.name }}</strong>
+        <div v-else class="card-grid">
+          <div v-for="(f, i) in state.factions" :key="i" class="fw-card">
+            <div class="fw-card-header">
+              <span class="fw-card-name">{{ f.name }}</span>
+              <span class="fw-badge type-faction">势力</span>
             </div>
-            <p class="item-desc">{{ f.description_md }}</p>
+            <p class="fw-card-desc">{{ f.description_md }}</p>
+            <div class="fw-card-meta">
+              <span v-if="f.ally_faction_names.length">盟友 {{ f.ally_faction_names.length }}</span>
+              <span v-if="f.rival_faction_names.length">对立 {{ f.rival_faction_names.length }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -208,14 +218,14 @@ const STEP_LABELS = [
         <div v-if="!state.npc_templates.length">
           <el-button :loading="loading" @click="generate(4)">生成NPC模板</el-button>
         </div>
-        <div v-else>
-          <div v-for="(n, i) in state.npc_templates" :key="i" class="list-item">
-            <div class="item-header">
-              <strong>{{ n.name }}</strong>
-              <span class="item-type">{{ n.role }}</span>
-              <span class="item-type">{{ n.gender === 'male' ? '男' : n.gender === 'female' ? '女' : '' }}</span>
+        <div v-else class="card-grid">
+          <div v-for="(n, i) in state.npc_templates" :key="i" class="fw-card">
+            <div class="fw-card-header">
+              <span class="fw-card-name">{{ n.name }}</span>
+              <span class="fw-badge type-npc">{{ n.gender === 'male' ? '男' : n.gender === 'female' ? '女' : '?' }} · {{ n.role }}</span>
             </div>
-            <p class="item-desc">{{ n.description_md }}</p>
+            <p class="fw-card-desc">{{ n.description_md }}</p>
+            <div class="fw-card-meta">📍 {{ n.home_location_name }}</div>
           </div>
         </div>
       </div>
@@ -225,13 +235,16 @@ const STEP_LABELS = [
         <div v-if="!state.events.length">
           <el-button :loading="loading" @click="generate(5)">生成事件库</el-button>
         </div>
-        <div v-else>
-          <div v-for="(ev, i) in state.events" :key="i" class="list-item">
-            <div class="item-header">
-              <strong>{{ ev.name }}</strong>
-              <el-tag size="small">重要性 {{ ev.importance }}</el-tag>
+        <div v-else class="card-grid">
+          <div v-for="(ev, i) in state.events" :key="i" class="fw-card">
+            <div class="fw-card-header">
+              <span class="fw-card-name">{{ ev.name }}</span>
+              <span class="fw-badge" :class="`imp-${Math.min(ev.importance, 5)}`">
+                ★ {{ ev.importance }}
+              </span>
             </div>
-            <p class="item-desc">{{ ev.summary_md }}</p>
+            <p class="fw-card-desc">{{ ev.summary_md }}</p>
+            <div class="fw-card-meta">{{ ev.scope_type === 'global' ? '全局' : ev.scope_type === 'faction' ? '势力' : '地点' }}</div>
           </div>
         </div>
       </div>
@@ -296,17 +309,55 @@ const STEP_LABELS = [
 </template>
 
 <style scoped>
-.ow-wizard { max-width: 800px; margin: 0 auto; padding: 24px; }
+.ow-wizard { max-width: 860px; margin: 0 auto; padding: 24px; }
 .step-regen-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-.list-item { border: 1px solid #ebeef5; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
-.item-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.item-type { font-size: 12px; color: #909399; }
-.item-desc { font-size: 13px; color: #606266; margin: 4px 0 0; }
 .wizard-nav { display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end; }
+.muted { color: #909399; font-size: 13px; }
+
+/* Genre pills */
 .genre-pill {
   padding: 8px 16px; border: 1px solid #dcdfe6; border-radius: 20px;
   cursor: pointer; font-size: 14px; transition: all .2s;
 }
 .genre-pill.selected { border-color: #409eff; color: #409eff; background: #ecf5ff; }
-.muted { color: #909399; font-size: 13px; }
+
+/* Card grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.fw-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: box-shadow 0.18s;
+}
+.fw-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+.fw-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fw-card-name { font-weight: 600; font-size: 15px; color: #1a1a2e; }
+.fw-card-desc { font-size: 13px; color: #5a5a72; line-height: 1.55; margin: 0; flex: 1; }
+.fw-card-meta { font-size: 12px; color: #909399; margin-top: 2px; display: flex; gap: 8px; }
+
+/* Type badges */
+.fw-badge {
+  font-size: 11px; font-weight: 500;
+  padding: 2px 8px; border-radius: 20px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.type-city      { background: #ecf5ff; color: #409eff; }
+.type-dungeon   { background: #fdf2f8; color: #c45fad; }
+.type-wilderness{ background: #f0f9eb; color: #67c23a; }
+.type-landmark  { background: #fdf6ec; color: #e6a23c; }
+.type-faction   { background: #f4f4f5; color: #606266; }
+.type-npc       { background: #fff0f0; color: #e85858; }
+/* Importance badges */
+.imp-1, .imp-2  { background: #f4f4f5; color: #909399; }
+.imp-3          { background: #fdf6ec; color: #e6a23c; }
+.imp-4          { background: #fef0e6; color: #d97706; }
+.imp-5          { background: #fef0f0; color: #e85858; }
 </style>
