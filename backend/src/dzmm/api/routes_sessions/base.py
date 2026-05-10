@@ -185,6 +185,7 @@ async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_
         world_id=world_id,
         character_id=character_id,
         screenplay_id=body.screenplay_id,
+        framework_id=body.framework_id,
         gm_model_config_id=body.gm_model_config_id,
         summarizer_model_config_id=body.summarizer_model_config_id,
     )

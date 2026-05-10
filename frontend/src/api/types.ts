@@ -63,6 +63,7 @@ export interface SessionIn {
   screenplay_id?: number
   world_id?: number
   character_id?: number
+  framework_id?: number
   gm_model_config_id: number
   summarizer_model_config_id: number
 }

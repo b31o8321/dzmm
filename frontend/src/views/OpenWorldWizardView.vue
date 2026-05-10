@@ -8,6 +8,9 @@ import type {
   FwEventInput, FwCampaignInput, FwFinalizePayload,
 } from '@/api/framework'
 import { wizardApi } from '@/api/wizard'
+import { worldsApi } from '@/api/worlds'
+import { charactersApi } from '@/api/characters'
+import { sessionsApi } from '@/api/sessions'
 import { useModelConfigsStore } from '@/stores/modelConfigs'
 import MarkdownView from '@/components/MarkdownView.vue'
 
@@ -109,6 +112,7 @@ async function finalize() {
   if (!modelConfigId.value) return
   loading.value = true
   try {
+    // 1. 提交 WorldFramework（地点/势力/NPC/事件/主线）
     const payload: FwFinalizePayload = {
       name: state.world_name,
       genre: state.genre,
@@ -120,9 +124,37 @@ async function finalize() {
       events: state.events,
       campaign: state.include_campaign ? state.campaign : null,
     }
-    await frameworkApi.finalize(payload)
-    ElMessage.success('开放世界创建成功！')
-    router.push('/sessions')
+    const { framework_id } = await frameworkApi.finalize(payload)
+
+    // 2. 创建 World（存储世界观文本）
+    const world = await worldsApi.create({
+      name: state.world_name || state.genre,
+      content_md: state.world_brief_md,
+      style: state.genre,
+      rules_mode: 'simple',
+    })
+
+    // 3. 创建 Character
+    const character = await charactersApi.create({
+      world_id: world.id,
+      name: state.character_name || '主角',
+      gender: '',
+      profile_md: state.character_profile_md,
+      base_stats_json: '{}',
+    })
+
+    // 4. 创建 Session，绑定 framework_id
+    const session = await sessionsApi.create({
+      name: `${state.world_name || state.genre} · ${state.character_name || '主角'}`,
+      world_id: world.id,
+      character_id: character.id,
+      framework_id,
+      gm_model_config_id: modelConfigId.value,
+      summarizer_model_config_id: modelConfigId.value,
+    })
+
+    ElMessage.success('开放世界存档创建成功！')
+    router.push(`/play/${session.id}`)
   } catch (e: unknown) {
     ElMessage.error(`创建失败：${e instanceof Error ? e.message : String(e)}`)
   } finally {

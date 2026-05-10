@@ -55,6 +55,7 @@ class SessionIn(BaseModel):
     screenplay_id: int | None = None   # new: standalone screenplay → auto-create character
     world_id: int | None = None         # legacy / direct
     character_id: int | None = None     # legacy / direct
+    framework_id: int | None = None     # v0.11: open-world framework
     gm_model_config_id: int
     summarizer_model_config_id: int
 
@@ -63,6 +64,7 @@ class SessionOut(BaseModel):
     id: int
     name: str
     screenplay_id: int | None = None
+    framework_id: int | None = None
     world_id: int
     character_id: int
     gm_model_config_id: int
