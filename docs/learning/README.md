@@ -6,6 +6,7 @@
 
 | 文档 | 内容 |
 |------|------|
+| [**代码阅读路径**](code-reading-path.md) | **从零开始的分阶段学习路线，先读这个** |
 | [Python 后端实现](python-backend.md) | async/await、SQLAlchemy、FastAPI、数据库迁移 |
 | [LLM 工程化实现](llm-engineering.md) | Prompt 设计、流式解析、上下文管理、弱模型容错 |
 | [Vue3 前端实现](vue-frontend.md) | SSE 消费、Composable、Pinia Store、响应式原理 |
