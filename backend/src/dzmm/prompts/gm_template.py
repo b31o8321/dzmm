@@ -1,9 +1,34 @@
+# ============================================================
+# GM 提示词模板（gm_template.py）
+# ============================================================
+# 【文件作用】
+#   这是整个跑团系统最核心的文件。它定义了「GM（游戏主持人）」角色的
+#   系统提示词（System Prompt），告诉 LLM（大语言模型）如何扮演 GM：
+#   - 怎么叙事、怎么扮演 NPC、怎么做骰子检定
+#   - 输出哪些 XML 标签（<narrative>、<dice>、<state_change> 等）
+#   - 各种剧本驱动规则（每回合必须做什么、禁止做什么）
+#
+# 【为什么要有 System Prompt？】
+#   LLM 本质上是一个"续写机器"。System Prompt 是每次对话开始时就注入的
+#   "角色设定指令"，告诉模型从始至终保持哪个角色和行为规范。
+#   没有 System Prompt，模型可能回答任何内容；有了它，模型会扮演 GM。
+#
+# 【分成两部分的原因（KV 缓存优化）】
+#   LM Studio / llama.cpp 等本地推理引擎有"KV 缓存"功能：
+#   如果两次请求的前缀完全相同，第二次可以跳过前缀的计算，节省时间。
+#   因此把"不变的部分"（_STATIC_PROMPT_TEMPLATE）和"每回合都变的部分"
+#   （_DYNAMIC_BLOCK_TEMPLATE）分开，让静态前缀每次都能命中缓存。
+# ============================================================
+
 import json
 import re
 from typing import Any
 
 from dzmm.models.client import Message
 
+# ── 规则强度描述 ──────────────────────────────────────────
+# 字典：键=规则模式名，值=注入到 System Prompt 的说明文字
+# LLM 会读到这段文字，然后按照描述的规则进行叙事/判定
 _RULES_DESCRIPTIONS = {
     "light": (
         "轻量化：无骰子，按合理性叙事判定。"
@@ -29,6 +54,8 @@ _RULES_DESCRIPTIONS = {
     ),
 }
 
+# ── 叙事风格提示 ──────────────────────────────────────────
+# 同样注入到 System Prompt，指导 LLM 用哪种文学风格写叙事
 _STYLE_HINTS = {
     "realistic": "写实风格，描写克制，重视细节真实感。",
     "dark": "暗黑风格，氛围压抑，留白处保留不安感。",
@@ -37,13 +64,20 @@ _STYLE_HINTS = {
     "horror": "恐怖风格，缓慢推进，依赖暗示而非直白血腥。",
 }
 
+# 导入 few-shot 示例（见 gm_few_shot.py 的注释）
 from dzmm.prompts.gm_few_shot import FEW_SHOT_EXAMPLE as _FEW_SHOT_EXAMPLE
 
 
-# Tag docs that only matter in specific game states. Pulling them out of the
-# always-injected system template saves ~600-1500 tokens / 普通回合.
-# Each block is a self-contained markdown section with header.
+# ── 按需注入的标签文档块 ──────────────────────────────────
+# 【设计思路】
+#   不是所有标签每次都需要出现在 System Prompt 里。
+#   如果游戏没有剧本（screenplay），就不需要 <chapter_advance> 的说明；
+#   如果没有战斗，就不需要 <combat_start> 的说明。
+#   把这些说明从"永远注入"改成"按需注入"，每回合节省 600-1500 个 token，
+#   同时减少 LLM 输出无关标签的概率。
+#   每个块都是独立的文档段落，可以自由组合。
 
+# 剧本模式的标签说明：章节推进、事件完成、剧情转折、故事结局
 _TAG_BLOCK_SCREENPLAY = """
 <chapter_advance/>
 本章 main_events 全部演完后输出，推进到下一章；先 emit 最后一个 <event_complete>，再 emit <chapter_advance/>。
@@ -59,10 +93,12 @@ impact="minor" 仅作观察。description 一句话说明发生了什么。
 <ending/>
 完结条件达成时输出，状态切换为 concluded。**只在故事真正结束时 emit**。"""
 
+# 时间流逝标签说明
 _TAG_BLOCK_TIME = """
 <time_advance hours="N" period="dawn|morning|noon|afternoon|dusk|night|midnight" weather="..." day="N"/>
 推进世界时间。hours 按 4h/period 步进；period / day 可显式覆盖；weather 短语 ≤30 字。跨午夜自动 day+1。"""
 
+# 战斗系统标签说明
 _TAG_BLOCK_COMBAT = """
 <combat_start>[{{"name":"敌人A","hp":18,"max_hp":18}}, ...]</combat_start>
 开启战斗模式。前端切 CombatPanel 聚合视图；后续 category="combat" 的 dice 被聚合，HP 按 dice outcome 衰减。
@@ -71,6 +107,7 @@ _TAG_BLOCK_COMBAT = """
 <combat_end winner="pc|enemy|flee|draw"/>
 关闭战斗模式。winner: pc=PC胜 / enemy=PC败 / flee=PC逃脱 / draw=平局。"""
 
+# 派系系统标签说明
 _TAG_BLOCK_FACTION = """
 <faction_create name="X" ideology="一句立场" hostile_to='["Y"]' allied_to='["Z"]'>
 30-80 字背景描述
@@ -81,9 +118,12 @@ _TAG_BLOCK_FACTION = """
 PC 名声变化（-20..+20 合理）；最终 clamp 到 -100..100。"""
 
 
-# Dynamic block — turn-by-turn state. Sent as a SECOND system message after
-# the static prefix so LM Studio / llama.cpp KV-cache hits the static prefix
-# verbatim across turns (everything that varies per turn lives here).
+# ── 动态上下文块模板 ──────────────────────────────────────
+# 【设计说明】
+#   这是每回合都会变的部分：玩家角色状态、剧情摘要、世界观等。
+#   用 Python 的 .format() 方法替换其中的占位符（{world}、{character} 等）。
+#   单独作为第二条 system 消息发送，确保静态前缀（上面那个大模板）
+#   可以被 LM Studio 的 KV 缓存命中，只有这个动态块需要重新计算。
 _DYNAMIC_BLOCK_TEMPLATE = """# 当前世界观
 {world}
 
@@ -119,19 +159,26 @@ def _select_conditional_tags(
     has_combat_recent: bool,
     has_time: bool = True,
 ) -> str:
-    """Pick which optional tag-doc blocks to inject this turn. Less context-
-    irrelevant doc → smaller prompts → fewer tokens billed."""
+    # 根据本局游戏的当前状态，决定要在 System Prompt 里注入哪些标签说明。
+    # 返回值是一个字符串，直接插入到静态模板的 {conditional_tags} 占位符里。
+    # 参数全部是关键字参数（*号后面的参数必须用 key=value 形式传入），
+    # 这样调用方代码更清晰，不容易搞错顺序。
     parts: list[str] = []
     if has_screenplay:
-        parts.append(_TAG_BLOCK_SCREENPLAY)
+        parts.append(_TAG_BLOCK_SCREENPLAY)   # 有剧本 → 需要章节推进标签
     if has_time:
-        parts.append(_TAG_BLOCK_TIME)
+        parts.append(_TAG_BLOCK_TIME)          # 默认总是包含时间标签
     if has_combat_recent:
-        parts.append(_TAG_BLOCK_COMBAT)
+        parts.append(_TAG_BLOCK_COMBAT)        # 最近有战斗 → 包含战斗标签
     if has_factions:
-        parts.append(_TAG_BLOCK_FACTION)
+        parts.append(_TAG_BLOCK_FACTION)       # 有派系 → 包含派系标签
     return "\n".join(parts)
 
+# ── 静态系统提示词主体 ────────────────────────────────────
+# 【格式说明】
+#   Python 三引号字符串（"""..."""）中的 {xxx} 是 .format() 格式化占位符。
+#   {{xxx}} 是转义的花括号，在 .format() 之后变成字面的 {xxx}（用于 JSON 示例）。
+#   {character_name} 会被替换成实际角色名，如"楚晓"或"顾之行"。
 _STATIC_PROMPT_TEMPLATE = """# 你的身份
 你是一位专业的 TRPG 跑团主持人（GM）。你的职责：
 - 推动剧情、描写场景与氛围
@@ -524,103 +571,109 @@ doom 是后台暗中累积的"末日值"，玩家不直接看到；累计过阈�
 
 # Backward-compat alias for tests that introspect the template structure
 # (`from dzmm.prompts.gm_template import _SYSTEM_TEMPLATE`).
+# 旧版代码可能直接引用 _SYSTEM_TEMPLATE，这里保留该名称做兼容别名
 _SYSTEM_TEMPLATE = _STATIC_PROMPT_TEMPLATE + "\n\n" + _DYNAMIC_BLOCK_TEMPLATE
 
 
+# ── 从角色卡 Markdown 中提取角色名 ────────────────────────
+# 玩家上传的角色卡是 Markdown 格式，格式不统一。
+# 这里预编译多种正则模式，按优先级尝试提取「姓名」字段。
+# 【正则说明】re.compile() 预编译正则比每次传字符串快（Java: Pattern.compile）。
+# re.MULTILINE 让 ^ $ 匹配每一行的开头/结尾，而不只是整个字符串。
 _NAME_PATTERNS = (
-    re.compile(r"^\s*姓名\s*[:：]\s*(.+?)\s*$", re.MULTILINE),
-    re.compile(r"^\s*名字\s*[:：]\s*(.+?)\s*$", re.MULTILINE),
-    re.compile(r"^\s*name\s*[:：]\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE),
-    re.compile(r"^\s*#\s*(.+?)\s*$", re.MULTILINE),  # markdown title fallback
+    re.compile(r"^\s*姓名\s*[:：]\s*(.+?)\s*$", re.MULTILINE),         # 匹配"姓名：张三"
+    re.compile(r"^\s*名字\s*[:：]\s*(.+?)\s*$", re.MULTILINE),         # 匹配"名字：张三"
+    re.compile(r"^\s*name\s*[:：]\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE),  # 英文 name 字段
+    re.compile(r"^\s*#\s*(.+?)\s*$", re.MULTILINE),  # markdown 一级标题兜底（## 张三）
 )
 
 
 def _extract_pc_name(character_md: str, fallback: str | None = None) -> str:
-    """Best-effort extract PC name from a character profile markdown.
-
-    Used as a fallback when ``character_name`` isn't passed explicitly. The
-    caller (`game.py`) typically passes ``character_name`` directly, so this
-    only matters for tests / older call-sites.
-    """
+    # 从角色卡 Markdown 中尽力提取 PC 名字。
+    # fallback：如果调用方已经知道名字（从数据库读到），直接用；这个函数只是兜底。
+    # 返回的名字会注入到 System Prompt 里，所以必须干净（去掉标点、多余空格）。
     if fallback:
-        return fallback.strip()
+        return fallback.strip()  # 已提供明确名字，直接返回
     if not character_md:
-        return "PC"
+        return "PC"              # 连角色卡都没有，用通用占位符
     for pat in _NAME_PATTERNS:
-        m = pat.search(character_md)
+        m = pat.search(character_md)   # .search() 在整个字符串中找第一个匹配
         if m:
-            name = m.group(1).strip()
-            # strip trailing punctuation / md markers
+            name = m.group(1).strip()  # .group(1) 取第一个捕获组的内容
+            # 去掉名字末尾可能带的标点符号或 markdown 标记
             name = name.split()[0].strip("「」『』\"'，。,.")
             if name:
                 return name
-    # last resort: first non-empty line that doesn't look like a stat line
+    # 所有正则都没匹配到，逐行扫描，找第一行"不像属性行"的内容
     skip_prefixes = ("等级", "level", "lv", "职业", "class", "属性", "stat")
     for line in character_md.strip().splitlines():
-        line = line.strip().lstrip("#").strip()
+        line = line.strip().lstrip("#").strip()  # 去掉行首的 # 号
         if not line:
             continue
         low = line.lower()
+        # 跳过像"等级：5"这样的属性行
         if any(low.startswith(p) for p in skip_prefixes):
             continue
-        # split off a leading "Riku - hacker" → "Riku"
+        # 如果行内有分隔符（如"Riku - hacker"），只取第一个词
         token = re.split(r"[\s,，。:：\-—]", line, maxsplit=1)[0].strip()
         if token:
             return token
-    return "PC"
+    return "PC"  # 最终兜底
 
 
 def _format_live_state(live_state: dict[str, Any]) -> str:
+    # 把实时状态字典格式化为可读的 JSON 字符串，注入到动态上下文块里。
+    # ensure_ascii=False：中文不转义成 \uXXXX，保持可读。
+    # indent=2：缩进两格，方便 LLM 阅读。
     if not live_state:
         return "（尚未初始化）"
     return json.dumps(live_state, ensure_ascii=False, indent=2)
 
 
 def build_gm_messages(
-    *,
-    world_md: str,
-    character_md: str,
-    live_state: dict[str, Any],
-    rules_mode: str,
-    style: str,
-    story_summary: str,
-    key_facts: str,
-    recent_messages: list[Message],
-    current_action: str,
-    character_name: str | None = None,
-    has_screenplay: bool = True,
-    has_factions: bool = False,
-    has_combat_recent: bool = False,
+    *,                              # 所有参数必须用关键字传入，防止顺序错误
+    world_md: str,                  # 世界观 Markdown 文本
+    character_md: str,              # 玩家角色卡 Markdown
+    live_state: dict[str, Any],     # 当前实时状态（HP/背包/位置等）
+    rules_mode: str,                # 规则模式：light/standard/hardcore
+    style: str,                     # 叙事风格：realistic/dark/healing 等
+    story_summary: str,             # 已发生剧情摘要（随回合更新）
+    key_facts: str,                 # 关键事实段落（NPC 列表、剧本进度等）
+    recent_messages: list[Message], # 最近几回合的对话历史
+    current_action: str,            # 玩家本回合的行动输入
+    character_name: str | None = None,   # 可选：直接传角色名（优先级高于从 Markdown 提取）
+    has_screenplay: bool = True,         # 是否有剧本（影响注入哪些标签说明）
+    has_factions: bool = False,          # 是否有派系系统
+    has_combat_recent: bool = False,     # 最近是否有战斗（影响注入战斗标签说明）
 ) -> list[Message]:
+    # 从字典里取对应的描述文本，找不到就用 light 模式兜底
     rules_detail = _RULES_DESCRIPTIONS.get(rules_mode, _RULES_DESCRIPTIONS["light"])
     style_detail = _STYLE_HINTS.get(style, _STYLE_HINTS["realistic"])
 
+    # 提取 PC 名字（优先用传入的 character_name，再尝试从 Markdown 提取）
     pc_name = _extract_pc_name(character_md, fallback=character_name)
 
-    # Substitute the PC name into the few-shot example first.  Note that
-    # _FEW_SHOT_EXAMPLE contains literal `{{` / `}}` for the JSON examples;
-    # after this .format() they collapse to single `{` / `}` and the resulting
-    # text is treated as a *value* (not a format string) when interpolated
-    # into _SYSTEM_TEMPLATE below, so no further escaping is needed.
+    # 把 PC 名字替换进 few-shot 示例（示例里有 {character_name} 占位符）。
+    # 注意：few-shot 里的 JSON 示例用了 {{ }} 转义，.format() 之后变成 { }，
+    # 此后作为字面值插入 System Prompt，不再被二次 .format() 处理。
     example_text = _FEW_SHOT_EXAMPLE.format(character_name=pc_name)
 
+    # 根据本局游戏状态决定注入哪些可选标签说明
     conditional_tags = _select_conditional_tags(
         has_screenplay=has_screenplay,
         has_factions=has_factions,
         has_combat_recent=has_combat_recent,
     )
 
-    # Static prefix — only depends on character_name + game-state shape (which
-    # blocks are present). Same per turn ⇒ LM Studio / llama.cpp KV cache hits.
+    # 构建静态前缀：只依赖角色名和游戏状态形状，每回合不变 → 可命中 KV 缓存
     static_prompt = _STATIC_PROMPT_TEMPLATE.format(
         character_name=pc_name,
         example=example_text,
         conditional_tags=conditional_tags,
     )
 
-    # Dynamic block — turn-by-turn state. Sent as a separate system message
-    # so cache invalidation only affects this segment, not the giant static
-    # prefix above.
+    # 构建动态块：包含每回合都会变化的数据（状态/摘要/关键事实等）
+    # 作为第二条 system 消息发送，缓存失效只影响这个小块，不影响大的静态前缀
     dynamic_block = _DYNAMIC_BLOCK_TEMPLATE.format(
         world=world_md.strip() or "（未提供）",
         rules_label=rules_mode,
@@ -633,10 +686,12 @@ def build_gm_messages(
         key_facts=key_facts.strip() or "（暂无）",
     )
 
+    # 组装最终消息列表：[静态系统消息, 动态系统消息, ...历史对话..., 玩家本回合输入]
+    # LLM 会按这个顺序读取所有内容，然后生成 assistant 回复（GM 的叙事）
     messages: list[Message] = [
-        Message(role="system", content=static_prompt),
-        Message(role="system", content=dynamic_block),
+        Message(role="system", content=static_prompt),   # GM 角色设定（不变）
+        Message(role="system", content=dynamic_block),   # 当前游戏状态（每回合变）
     ]
-    messages.extend(recent_messages)
-    messages.append(Message(role="user", content=current_action))
+    messages.extend(recent_messages)  # 追加最近几回合的历史对话
+    messages.append(Message(role="user", content=current_action))  # 玩家本回合行动
     return messages

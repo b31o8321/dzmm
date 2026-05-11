@@ -4,12 +4,32 @@ Director 读的是「附近可用事件 + 主线进度」，而非章节列表�
 输出格式与旧 Director 相同（plot_directive XML 块），
 增加 <event_trigger event_id="N"/> 标签可标记事件触发。
 """
+# ============================================================
+# 开放世界 Director 提示词
+# ============================================================
+# 【开放世界 vs 线性剧本】
+#   线性剧本模式（director_template.py）：GM 按照预定章节顺序推进剧情，
+#     事件是预先写好的，Director 只是提示"本回合推进哪个事件"。
+#
+#   开放世界模式（本文件）：没有固定剧本，世界里有很多候选事件，
+#     PC 可以自由探索。Director 根据 PC 当前位置、候选事件的得分（优先级）、
+#     势力紧张度等，动态决定"本回合应该让什么事情发生"。
+#
+# 【事件得分（score）】
+#   每个候选事件有一个 score 值，计算公式是：
+#     score = 重要性 × 距离系数 + 加成
+#   score 越高 = 越应该本回合触发。Director 优先推高分事件。
+#
+# 【为什么要分两步（Director + GM）】
+#   见 director_template.py 的注释。总结：Director 做规划，GM 做叙事，分工合作。
+# ============================================================
 from __future__ import annotations
 
 import json
 
 from dzmm.models.client import Message
 
+# Director 的系统角色设定：明确它做什么、不做什么
 _SYSTEM = """你是开放世界 TRPG 的「剧情导演」（Director）。你不写场景描写，不演 NPC 台词。
 
 你的职责：
@@ -59,14 +79,20 @@ def build_open_world_director_messages(
       campaign_phase: str | None
       faction_tensions: list[{name, tension}]
     """
+    # 把 snapshot 字典里的各种数据拼成一段用户消息文本，
+    # 交给 Director LLM 阅读后决定本回合推哪个事件。
+
     lines = [
         f"当前地点：{snapshot.get('current_location', '未知')}",
         f"PC 概要：{snapshot.get('pc_summary', '')}",
     ]
+
+    # 旅伴列表：如果有，拼成"旅伴：A, B"格式
     companions = snapshot.get("companions") or []
     if companions:
         lines.append(f"旅伴：{', '.join(companions)}")
 
+    # 候选事件列表：按 score 排序（调用方已排好序），格式化每个事件
     events = snapshot.get("candidate_events") or []
     if events:
         lines.append("\n候选事件（按优先级排序）：")
@@ -75,28 +101,35 @@ def build_open_world_director_messages(
                 f"  - [{ev['importance']}★] {ev['name']}（score={ev['score']:.1f}）：{ev['summary_md']}"
             )
     else:
-        lines.append("\n候选事件：无（自由探索回合）")
+        lines.append("\n候选事件：无（自由探索回合）")  # 没有候选事件时提示"自由探索"
 
+    # 传闻事件：PC 还没遇到、可以作为"旅人传言"间接投递的事件
     rumors = snapshot.get("rumor_events") or []
     if rumors:
         lines.append("\n可投递传闻：")
         for r in rumors:
             lines.append(f"  - {r['name']}（重要性={r['importance']}）：{r['summary_md']}")
 
+    # 是否有 NPC 主动想联系 PC（如 NPC 的 contact_favor_threshold 被满足）
     proactive = snapshot.get("proactive_npc")
     if proactive:
         lines.append(f"\n建议本回合引入 NPC 主动联系：{proactive}")
 
+    # 主线进度（开放世界也可以有可选的主线任务链）
     phase = snapshot.get("campaign_phase")
     if phase:
         lines.append(f"\n主线进度：{phase}")
 
+    # 势力紧张度：影响 Director 判断哪个派系事件更紧迫
     tensions = snapshot.get("faction_tensions") or []
     if tensions:
         lines.append("\n势力紧张度：" + "；".join(f"{t['name']}={t['tension']}" for t in tensions))
 
     user_content = "\n".join(lines)
+
+    # 消息列表：[system 角色设定] + [历史对话（上几回合 Director 给的指令）] + [本回合状态]
+    # 包含历史是为了让 Director 的指令前后连贯，不会每回合都推同一件事
     msgs: list[Message] = [Message(role="system", content=_SYSTEM)]
-    msgs.extend(history)
+    msgs.extend(history)   # 历史 Director 对话（让它知道上回合推了什么）
     msgs.append(Message(role="user", content=user_content))
     return msgs

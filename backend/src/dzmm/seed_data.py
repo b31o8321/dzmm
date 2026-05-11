@@ -1,3 +1,28 @@
+# ============================================================
+# 默认种子数据（seed_data.py）
+# ============================================================
+# 【种子数据（Seed Data）是什么？】
+#   应用第一次运行时数据库是空的，用户什么也做不了。
+#   种子数据（Seed Data）是一批"出厂默认值"，在数据库为空时自动写入，
+#   让用户打开应用就能立即开始游戏，不需要先手动创建世界观和剧本。
+#
+# 【幂等性（Idempotent）是什么？】
+#   幂等 = 多次执行和执行一次的结果相同。
+#   seed_if_empty() 只在表为空时才插入，如果已经有数据就跳过。
+#   这样即使应用重启多次（每次都会调用 seed_if_empty），数据不会被重复写入。
+#
+# 【这个文件有什么数据？】
+#   1. _WORLDS：10 个预制世界观（赛博朋克/民国谍战/末日废土/修仙/克苏鲁等）
+#      每个世界观包括背景设定、势力描述、禁忌/规则、"此刻"的开场情境
+#   2. _SCREENPLAYS：10 个对应的剧本（每个世界观配一个）
+#      每个剧本包括 PC 背景、属性值（stats）、初始 NPC 阵容
+#   3. _MODEL_CONFIGS：1 个默认本地模型配置（Ollama + qwen2.5:7b）
+#
+# 【为什么要把 NPC 放进剧本而不是单独存？】
+#   NPC 是特定剧本的组成部分——不同剧本里同名 NPC 性格完全不同。
+#   剧本创建时，NPC 数据以 JSON 字符串存入 Screenplay.npcs_json 字段，
+#   游戏开始时再从中实例化真正的 NPC 对象。
+# ============================================================
 """Default seed data for first-run setup.
 
 Called from build_default_app() after init_db(). Idempotent — only inserts
@@ -13,6 +38,17 @@ from dzmm.db.models import ModelConfig, Screenplay, World
 
 log = logging.getLogger(__name__)
 
+# ── 10 个预制世界观 ──────────────────────────────────────────
+# 每个世界观是一个字典，包含：
+#   name：世界观名称（显示在选择界面）
+#   style：风格标签（"dark"/"horror"/"realistic"）
+#   rules_json：游戏规则（JSON 格式，目前仅包含 mode）
+#   content_md：世界观描述（Markdown，约 300-600 字）
+#     格式固定：# 总标题 + 背景段落 + ## 势力 + ## 规则/禁忌 + ## 此刻（开场情境）
+#
+# 【为什么用 Markdown？】
+#   Markdown 是人类可读的格式，GM LLM 能直接理解 # 标题、- 列表的语义。
+#   比 JSON 更适合表达叙事性内容（有层级、有强调、有列表）。
 _WORLDS = [
     {
         "name": "零区禁令：新京都 2091",
@@ -301,6 +337,20 @@ _WORLDS = [
     },
 ]
 
+# ── 10 个预制剧本（每个剧本对应一个世界观）────────────────────
+# 每个剧本字典包含：
+#   world_index：对应 _WORLDS 列表的索引（0~9），关联到上面的世界观
+#   title：剧本标题（显示在游戏选择界面）
+#   genre：剧本类型（"政治阴谋"/"悬疑探案"/"英雄成长"/"灾难求生"等）
+#   pc_name：PC（玩家角色）名字
+#   pc_profile_md：PC 的背景描述（Markdown，GM 和 Player Agent 都会读这份）
+#   pc_base_stats_json：PC 的属性值（JSON 字符串）
+#     格式：{"属性名": 数值, ...}，数值通常是 1-10
+#   npcs：NPC 列表，每个 NPC 包含：
+#     name/gender/archetype/description/state/purpose
+#     - archetype：角色原型（NPC 的职能定位）
+#     - state：当前情绪/态度（GM 用来决定 NPC 如何应对 PC）
+#     - purpose：NPC 的动机（GM 用来驱动 NPC 的主动行为）
 _SCREENPLAYS = [
     {
         "world_index": 0,  # 零区禁令：新京都 2091
@@ -514,6 +564,14 @@ _SCREENPLAYS = [
     },
 ]
 
+# ── 默认模型配置 ──────────────────────────────────────────────
+# 默认提供一个本地 Ollama 配置（qwen2.5:7b 是主流的中文小模型）
+# 用户可以在设置界面手动添加其他模型（如 DeepSeek、Moonshot 等 API）
+# name：显示在选择界面的名称
+# type：客户端类型（"ollama" 或 "openai"），决定用哪个客户端类
+# base_url：API 地址（Ollama 默认在本机 11434 端口）
+# model_name：要使用的具体模型
+# timeout：请求超时时间（秒）
 _MODEL_CONFIGS = [
     {
         "name": "本地 qwen2.5:7b",
@@ -525,11 +583,28 @@ _MODEL_CONFIGS = [
 ]
 
 
+# ── 幂等种子函数 ──────────────────────────────────────────────
 async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None:
     """Insert default worlds/screenplays/model_configs if those tables are empty.
     Each table is checked independently so partial DBs (e.g. user kept worlds
-    but lost model_configs) get filled in for the missing pieces only."""
+    but lost model_configs) get filled in for the missing pieces only.
+
+    【幂等性保证】
+      每个表单独检查是否为空：
+      - 有数据 → 跳过（不重复插入）
+      - 无数据 → 插入默认值
+      即使多次调用，结果也是一样的（不会产生重复数据）。
+
+    【为什么剧本和世界观要在同一个事务里创建？】
+      剧本（Screenplay）通过 world_id 外键引用世界观（World）。
+      如果先创建世界观再提交，再创建剧本，中间如果进程崩溃，
+      就会有世界观但没有剧本的不一致状态。
+      在同一个事务里创建，要么都成功，要么都回滚（原子性）。
+    """
     async with session_maker() as s:
+        # 用 select(...).limit(1) 检查表是否有数据
+        # scalar_one_or_none()：有数据返回 ID，没有数据返回 None
+        # 比 COUNT(*) 更高效（找到一条就停）
         worlds_existing = (
             await s.execute(select(World.id).limit(1))
         ).scalar_one_or_none()
@@ -540,28 +615,35 @@ async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None
             await s.execute(select(ModelConfig.id).limit(1))
         ).scalar_one_or_none()
 
-        added = 0
+        added = 0  # 本次新增的记录数（用于判断是否需要提交事务）
 
         if worlds_existing is None:
+            # 世界观表为空，插入所有预制世界观
+            # [World(**w) for w in _WORLDS]：列表推导，把每个字典解包成 World ORM 对象
             world_objs = [World(**w) for w in _WORLDS]
-            s.add_all(world_objs)
-            await s.flush()  # populate IDs
+            s.add_all(world_objs)  # 批量添加到 session（还没写入数据库）
+            await s.flush()        # flush：执行 SQL INSERT 但不 COMMIT（填充 .id 字段）
+            # flush 之后 world_objs 里每个对象的 .id 字段已被数据库赋值
             added += len(world_objs)
             log.info("seeded %d default worlds", len(world_objs))
 
-            # Screenplays reference worlds by index — only seed them in the same
-            # run where we created the worlds, so the world_index mapping is
-            # meaningful. If the user already has worlds, we don't add screenplays.
+            # 剧本依赖世界观的 ID，必须在 world_objs 写入（flush）之后才能创建
+            # 注意：只在"本次创建了世界观"的情况下才创建剧本
+            # 如果用户之前有世界观（worlds_existing 不为 None），就不插入剧本
+            # 这避免了"用户自定义世界观 + 默认剧本"的错配问题
             if screenplays_existing is None:
                 sp_objs = [
                     Screenplay(
+                        # world_objs[sp["world_index"]].id：通过 world_index 找到对应世界观的数据库 ID
                         world_id=world_objs[sp["world_index"]].id,
-                        session_id=None,
+                        session_id=None,  # 模板剧本不属于任何具体游戏 session
                         title=sp["title"],
                         genre=sp["genre"],
                         pc_name=sp["pc_name"],
                         pc_profile_md=sp["pc_profile_md"],
                         pc_base_stats_json=sp["pc_base_stats_json"],
+                        # npcs 列表转成 JSON 字符串存入数据库（TEXT 类型）
+                        # ensure_ascii=False：保留中文字符，不转成 \uXXXX 转义序列
                         npcs_json=json.dumps(sp.get("npcs", []), ensure_ascii=False),
                     )
                     for sp in _SCREENPLAYS
@@ -571,6 +653,7 @@ async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None
                 added += len(sp_objs)
                 log.info("seeded %d default screenplays", len(sp_objs))
 
+        # 模型配置表为空则插入默认 Ollama 配置
         if models_existing is None:
             model_objs = [ModelConfig(**m) for m in _MODEL_CONFIGS]
             s.add_all(model_objs)
@@ -578,6 +661,8 @@ async def seed_if_empty(session_maker: async_sessionmaker[AsyncSession]) -> None
             log.info("seeded %d default model configs", len(model_objs))
 
         if added > 0:
+            # 有新增数据，提交事务（真正写入数据库）
             await s.commit()
         else:
+            # 所有表都有数据，跳过（不需要提交）
             log.info("default data already present, skipping seed")

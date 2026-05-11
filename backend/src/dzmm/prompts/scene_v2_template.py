@@ -8,11 +8,36 @@ agent 干的活。
 复用现有 messages 表（assistant 消息就是 Scene 的输出，玩家可见），
 所以 prompt 形态接近现有 gm_template 但责任收窄。
 """
+# ============================================================
+# Scene Agent 提示词（多 Agent 架构中的场景演出者）
+# ============================================================
+# 【多 Agent 架构说明】
+#   传统单 Agent GM 模式：一个 LLM 同时写叙事 + 演所有 NPC + 管剧情节奏。
+#   多 Agent 模式（本文件所属的体系）：
+#     - Director  : 规划本回合做什么（见 director_open_world_template.py）
+#     - Scene     : 写场景描写、PC 行动、骰子判定（本文件）
+#     - NPC Actor : 每个主要 NPC 独立一个 Agent，专门生成该 NPC 的对白
+#                   （见 npc_actor_template.py）
+#
+# 【Scene Agent 的边界】
+#   做什么：写 <narrative>、<pc_action>、<dice>、<state_change>、<plot_event>
+#           发出 <npc_cue>（告诉对应 NPC Actor "这回合该说什么方向"）
+#   不做什么：不写 <say>（NPC 对白由各自的 NPC Actor 生成）
+#             不做长期规划（那是 Director 的事）
+#
+# 【npc_cue 是什么？】
+#   Scene 写完叙事后，emit <npc_cue speaker="名字" intent="..."/> 告诉
+#   某个 NPC Actor："这回合你应该做 XXX"。
+#   NPC Actor 读到这个 cue 后，结合自己的历史记忆和情绪，生成具体台词。
+#   好处：Scene 不需要了解每个 NPC 的细节性格，NPC 自己管自己。
+# ============================================================
 from __future__ import annotations
 
 from dzmm.models.client import Message
 
 
+# Scene Agent 的系统提示词
+# {pc_name} 是唯一的格式化占位符，在 build_scene_messages() 里替换
 _SCENE_SYSTEM = """你是 TRPG 的「场景演出」（Scene）agent。你只负责把 Director 下发的本回合剧情指令，具象化成具体的场景文字。
 
 # 你做什么
@@ -95,22 +120,25 @@ narrative 200-400 字，含 ≥2 句感官细节 + 1 处文学性夸张/比喻 +
 
 def build_scene_messages(
     *,
-    pc_name: str,
-    plot_directive: str,
-    world_md: str,
-    character_md: str,
-    live_state_text: str,
-    key_facts: str,
-    recent_messages: list[Message],
-    current_action: str,
+    pc_name: str,                    # PC 角色名，注入到系统提示词中
+    plot_directive: str,             # Director 给的本回合剧情指令
+    world_md: str,                   # 世界观 Markdown
+    character_md: str,               # 角色卡 Markdown
+    live_state_text: str,            # 当前实时状态（文本格式）
+    key_facts: str,                  # 关键事实（包含系统骰子预掷值、周边拓扑等）
+    recent_messages: list[Message],  # 最近几回合的玩家可见消息
+    current_action: str,             # 玩家本回合输入
 ) -> list[Message]:
     """Build Scene's per-turn message list.
 
     Order: [system identity] + [dynamic context: directive/world/character/state/key_facts]
     + [recent player-facing messages] + [current user action].
     """
+    # 把 pc_name 替换进系统提示词（其中有 {pc_name} 占位符）
     static_prompt = _SCENE_SYSTEM.format(pc_name=pc_name)
 
+    # 动态上下文：把多个来源的信息拼成一段文本，作为第二条 system 消息
+    # 这里用 f-string（格式化字符串），直接内嵌变量，比 .format() 更简洁
     dynamic = (
         f"# 本回合剧情指令（Director）\n{plot_directive}\n\n"
         f"# 世界观\n{world_md or '（未提供）'}\n\n"
@@ -119,10 +147,11 @@ def build_scene_messages(
         f"# 关键事实\n{key_facts or '（暂无）'}"
     )
 
+    # 构建消息列表：[静态系统提示] + [动态上下文] + [历史消息] + [本回合玩家输入]
     msgs: list[Message] = [
-        Message(role="system", content=static_prompt),
-        Message(role="system", content=dynamic),
+        Message(role="system", content=static_prompt),  # Scene 的角色设定（相对稳定）
+        Message(role="system", content=dynamic),         # 本回合的动态上下文（每回合变）
     ]
-    msgs.extend(recent_messages)
-    msgs.append(Message(role="user", content=current_action))
+    msgs.extend(recent_messages)  # 追加历史消息（让 Scene 知道剧情走到哪了）
+    msgs.append(Message(role="user", content=current_action))  # 玩家本回合行动
     return msgs

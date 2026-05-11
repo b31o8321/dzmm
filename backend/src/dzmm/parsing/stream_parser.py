@@ -8,7 +8,13 @@
 #     <dice skill="感知" target="12">15</dice>
 #   这个解析器从"字符流"中实时识别这些标签，边接收边处理。
 #
-# 【难点】
+# 【为什么需要流式解析？】
+#   如果等 LLM 全部说完再解析，玩家要等 10-30 秒才能看到任何文字，
+#   体验很差。流式解析让 <narrative> 的内容边生成边显示（打字机效果）。
+#   而其他标签（<state_change>、<npc_update>）需要完整内容才能处理，
+#   所以先缓冲，等闭合标签出现再整体处理。
+#
+# 【流式解析的难点】
 #   标签可能被切在两次 feed() 之间（如第一次收到 "<narr"，第二次才收到 "ative>"）。
 #   因此需要维护"状态机"而不是一次性解析。
 #
@@ -25,6 +31,7 @@ from dzmm.parsing.events import NarrativeDelta, ParseError, ParseEvent, TagCompl
 
 # ── 已知标签白名单 ────────────────────────────────────────
 # 只处理这些已知标签；其他标签（包括 LLM 乱写的）直接丢弃。
+# 用 set（集合）存储，因为 `in` 操作对 set 是 O(1)（比 list 快得多）。
 KNOWN_TAGS: set[str] = {
     "narrative",
     "dice",
@@ -66,12 +73,17 @@ STREAMING_TAGS: set[str] = {"narrative"}
 
 # 匹配开标签，如 <dice skill="感知" target="12"> 或 <location_enter/>
 # 捕获组 1：标签名  捕获组 2：属性字符串  捕获组 3：是否自闭合（/）
+# 解释：
+#   (\w+)               → 标签名（字母/数字/下划线）
+#   ((?:\s+\w+="[^"]*")*) → 0或多个属性（key="value"），(?:...) 是非捕获组
+#   \s*(/?))            → 可选的斜杠（自闭合标签如 <br/>）
 _OPEN_TAG_RE = re.compile(r"<(\w+)((?:\s+\w+=\"[^\"]*\")*)\s*(/?)>")
 
 # 匹配闭标签，如 </narrative>
 _CLOSE_TAG_RE = re.compile(r"</(\w+)\s*>")
 
 # 从属性字符串中提取 key="value" 对
+# 例如 ' skill="感知" target="12"' → [("skill","感知"), ("target","12")]
 _ATTR_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
@@ -83,23 +95,23 @@ def _edit_distance(a: str, b: str) -> int:
     用于判断 LLM 是否写了拼写错误的闭标签（如 </narriative>）。
     """
     if a == b:
-        return 0
+        return 0       # 完全相同，距离为 0
     if not a:
-        return len(b)
+        return len(b)  # a 为空，需要插入 len(b) 次
     if not b:
-        return len(a)
+        return len(a)  # b 为空，需要删除 len(a) 次
     prev = list(range(len(b) + 1))  # 初始化：空字符串变成 b[:j] 需要 j 次插入
-    for i, ca in enumerate(a, 1):
+    for i, ca in enumerate(a, 1):   # enumerate(a, 1)：从 1 开始计数
         curr = [i] + [0] * len(b)   # 当前行，首列 = a[:i] 变成空串需要 i 次删除
         for j, cb in enumerate(b, 1):
-            cost = 0 if ca == cb else 1
+            cost = 0 if ca == cb else 1  # 相同字符替换代价为 0，不同为 1
             curr[j] = min(
-                curr[j - 1] + 1,      # 插入
-                prev[j] + 1,          # 删除
-                prev[j - 1] + cost,   # 替换（相同字符 cost=0）
+                curr[j - 1] + 1,      # 插入操作
+                prev[j] + 1,          # 删除操作
+                prev[j - 1] + cost,   # 替换操作（相同字符 cost=0）
             )
-        prev = curr
-    return prev[-1]
+        prev = curr  # 当前行变成下一轮的前一行（滚动数组）
+    return prev[-1]  # 最后一个元素是完整的编辑距离
 
 
 def _is_typo_close(opened: str, found: str) -> bool:
@@ -115,14 +127,15 @@ def _is_typo_close(opened: str, found: str) -> bool:
     if not opened or not found:
         return False
     if opened == found:
-        return False
+        return False  # 完全相同，不是 typo（应该由精确匹配处理）
     # 快速拒绝：长度差超过 2 的话编辑距离一定 > 2
     if abs(len(opened) - len(found)) > 2:
         return False
+    # SequenceMatcher 计算"公共子序列"长度，ratio 是相似度分数（0-1）
     ratio = SequenceMatcher(None, opened, found).ratio()
     if ratio < 0.7:
         return False
-    return _edit_distance(opened, found) <= 2
+    return _edit_distance(opened, found) <= 2  # 确认编辑距离 <= 2
 
 
 # ── 解析器主类 ────────────────────────────────────────────
@@ -145,11 +158,11 @@ class StreamingTagParser:
     """
 
     def __init__(self) -> None:
-        self._buf: str = ""                   # 尚未处理的原始输入缓冲区
-        self._state: str = "OUTSIDE"          # 当前状态机状态
+        self._buf: str = ""                   # 尚未处理的原始输入缓冲区（跨 chunk 积累）
+        self._state: str = "OUTSIDE"          # 当前状态机状态（4 种之一）
         self._current_tag: str | None = None  # 当前正在处理的标签名
-        self._current_attrs: dict[str, str] = {}  # 当前标签的属性
-        self._tag_buf: str = ""               # 当前标签内已收集的内容
+        self._current_attrs: dict[str, str] = {}  # 当前标签的属性字典
+        self._tag_buf: str = ""               # 当前标签内已收集的内容（缓冲模式用）
 
     def feed(self, chunk: str) -> list[ParseEvent]:
         """喂入一个文本片段，返回本次产生的事件列表。
@@ -159,7 +172,7 @@ class StreamingTagParser:
           - 调用方可以随时调用，不需要知道内部状态
           - 返回列表而不是回调，便于测试和单步调试
         """
-        self._buf += chunk
+        self._buf += chunk   # 把新来的文本追加到缓冲区
         events: list[ParseEvent] = []
 
         # 循环处理缓冲区，直到没有可以消费的内容为止
@@ -168,45 +181,47 @@ class StreamingTagParser:
 
             # ── 状态 1：在标签外 ───────────────────────────
             if self._state == "OUTSIDE":
-                m = _OPEN_TAG_RE.search(self._buf)
+                m = _OPEN_TAG_RE.search(self._buf)   # 在缓冲区里找开标签
                 if not m:
                     # 没有找到开标签：如果缓冲区里也没有 "<"，可以安全清空
+                    # （因为 "<" 可能是某个开标签的开始，需要保留等待后续输入）
                     if "<" not in self._buf:
-                        self._buf = ""
+                        self._buf = ""  # 纯文本，没有标签，可以丢弃（GM 输出规范里标签外的文字会被忽略）
                     break  # 等待更多输入
-                tag = m.group(1).lower()
-                attrs_str = m.group(2) or ""
-                self_close = m.group(3) == "/"          # 是否是自闭合标签（如 <location_enter/>）
+                tag = m.group(1).lower()                              # 标签名（转小写）
+                attrs_str = m.group(2) or ""                          # 属性字符串
+                self_close = m.group(3) == "/"                        # 是否是自闭合标签
                 self._current_tag = tag
                 self._current_attrs = dict(_ATTR_RE.findall(attrs_str))  # 解析所有属性
                 self._tag_buf = ""
-                self._buf = self._buf[m.end():]         # 消费掉开标签之前+开标签本身
+                self._buf = self._buf[m.end():]   # 消费掉开标签之前的内容和开标签本身
 
                 if self_close:
-                    # 自闭合标签没有内容，直接产出 TagComplete
+                    # 自闭合标签（如 <location_enter name="..." />）没有内容体，
+                    # 直接产出 TagComplete，不需要等闭合标签
                     if tag in KNOWN_TAGS:
                         events.append(TagComplete(
                             name=tag,
                             attrs=self._current_attrs,
-                            content="",
+                            content="",  # 自闭合标签内容为空
                         ))
-                    self._state = "OUTSIDE"
+                    self._state = "OUTSIDE"    # 处理完，回到初始状态
                     self._current_tag = None
                     self._current_attrs = {}
                 elif tag in STREAMING_TAGS:
-                    self._state = "IN_STREAMING"   # narrative → 边到边推
+                    self._state = "IN_STREAMING"   # narrative → 边接收边推送
                 elif tag in KNOWN_TAGS:
-                    self._state = "IN_BUFFERED"    # 其他已知 → 缓冲
+                    self._state = "IN_BUFFERED"    # 其他已知标签 → 缓冲整体
                 else:
-                    self._state = "IN_UNKNOWN"     # 未知 → 丢弃
+                    self._state = "IN_UNKNOWN"     # 未知标签 → 静默丢弃
                 consumed = True
 
             # ── 状态 2/3/4：在标签内 ──────────────────────
             elif self._state in ("IN_STREAMING", "IN_BUFFERED", "IN_UNKNOWN"):
-                exact_close = f"</{self._current_tag}>"  # 精确闭合标签
-                exact_idx = self._buf.find(exact_close)
+                exact_close = f"</{self._current_tag}>"  # 精确闭合标签字符串
+                exact_idx = self._buf.find(exact_close)   # 在缓冲区中查找
 
-                # 尝试查找拼写错误的闭合标签（只对已知标签做容错）
+                # 尝试查找拼写错误的闭合标签（只对已知标签做容错，未知标签不做）
                 typo_idx = -1
                 typo_close: str = ""
                 typo_found_name: str = ""
@@ -214,30 +229,33 @@ class StreamingTagParser:
                     for cm in _CLOSE_TAG_RE.finditer(self._buf):
                         found = cm.group(1).lower()
                         if found == self._current_tag:
-                            continue  # 跳过精确匹配（已在上面处理）
+                            continue  # 跳过精确匹配（已在上面用 find 处理）
                         if _is_typo_close(self._current_tag or "", found):
-                            typo_idx = cm.start()
+                            typo_idx = cm.start()    # 记录找到的 typo 闭标签位置
                             typo_close = cm.group(0)
                             typo_found_name = found
-                            break
+                            break  # 找到第一个就够了
 
                 if exact_idx == -1 and typo_idx == -1:
-                    # 还没找到闭合标签：保留足够的尾部缓冲，以防闭合标签被跨块切分
-                    # hold = 精确闭合标签长度 + 2（typo 最多比精确长 2 个字符）
-                    hold = len(exact_close) + 2
+                    # 还没找到闭合标签：需要等待更多输入
+                    # 但可以把"安全"的前缀部分推送出去（避免缓冲区无限增长）
+                    # hold = 保留尾部的长度（确保跨块的闭标签不被切断）
+                    hold = len(exact_close) + 2   # +2 是 typo 最多比精确多 2 个字符
                     safe_len = max(0, len(self._buf) - hold)
                     if safe_len > 0:
                         safe = self._buf[:safe_len]
                         if self._state == "IN_STREAMING":
-                            events.append(NarrativeDelta(safe))  # 流式推送给前端
-                            self._tag_buf += safe
+                            # 流式标签（narrative）：立刻推送给前端显示
+                            events.append(NarrativeDelta(safe))
+                            self._tag_buf += safe   # 同时记录到标签缓冲（finish 时用）
                         elif self._state == "IN_BUFFERED":
-                            self._tag_buf += safe                 # 缓冲，等闭合
-                        # IN_UNKNOWN：静默丢弃
-                        self._buf = self._buf[safe_len:]
+                            self._tag_buf += safe   # 非流式标签：只缓冲，等闭合后整体处理
+                        # IN_UNKNOWN：静默丢弃，什么都不做
+                        self._buf = self._buf[safe_len:]   # 消费掉已处理的部分
                     break  # 等待更多输入
 
-                # 如果两者都找到，选位置更靠前的那个
+                # 如果精确闭合标签和 typo 闭合标签都找到了，选位置更靠前的那个
+                # （更靠前意味着更早结束当前标签，避免把不该包含的内容吃进来）
                 use_typo = (
                     typo_idx != -1
                     and (exact_idx == -1 or typo_idx < exact_idx)
@@ -249,17 +267,20 @@ class StreamingTagParser:
                     idx = exact_idx
                     close_len = len(exact_close)
 
-                inner = self._buf[:idx]  # 闭合标签前的内容就是标签的 body
+                inner = self._buf[:idx]  # 闭合标签之前的内容就是标签的 body
+
                 if self._state == "IN_STREAMING" and inner:
-                    events.append(NarrativeDelta(inner))  # 最后一段文本
+                    # narrative 的最后一段文字
+                    events.append(NarrativeDelta(inner))
                 elif self._state == "IN_BUFFERED":
-                    self._tag_buf += inner
-                    # 缓冲完成 → 产出完整的 TagComplete 事件
+                    self._tag_buf += inner  # 把最后一段内容追加到缓冲区
+                    # 现在缓冲区包含了完整的标签内容，可以产出 TagComplete
                     events.append(TagComplete(
                         name=self._current_tag or "",
                         attrs=self._current_attrs,
-                        content=self._tag_buf.strip(),
+                        content=self._tag_buf.strip(),  # .strip() 去掉首尾空白
                     ))
+
                 if use_typo:
                     # 记录 typo 修复，供调试
                     events.append(ParseError(
@@ -269,7 +290,9 @@ class StreamingTagParser:
                         ),
                         raw=typo_close,
                     ))
-                self._buf = self._buf[idx + close_len:]  # 消费闭合标签
+
+                # 消费掉闭合标签，重置状态机到 OUTSIDE
+                self._buf = self._buf[idx + close_len:]
                 self._state = "OUTSIDE"
                 self._current_tag = None
                 self._current_attrs = {}
@@ -277,7 +300,7 @@ class StreamingTagParser:
                 consumed = True
 
             if not consumed:
-                break  # 没有进展，退出循环，等下一次 feed()
+                break  # 本轮没有进展，退出循环，等下一次 feed()
 
         return events
 
@@ -291,22 +314,26 @@ class StreamingTagParser:
         """
         events: list[ParseEvent] = []
         if self._state == "IN_STREAMING":
-            residual = self._tag_buf + self._buf
+            # LLM 在 narrative 里没有写闭合标签就结束了，把剩余内容推出去
+            residual = self._tag_buf + self._buf   # 已缓冲 + 还未处理的
             if residual:
                 events.append(NarrativeDelta(residual))
         elif self._state == "IN_BUFFERED":
+            # 非流式标签没有闭合（LLM 被截断或忘了写闭标签）
             partial = (self._tag_buf + self._buf).strip()
             events.append(ParseError(
                 message=f"Unclosed tag <{self._current_tag}>",
                 raw=self._tag_buf + self._buf,
             ))
-            # 把收集到的部分内容也产出，而不是丢弃
+            # 尽管不完整，还是把收集到的部分内容产出，而不是完全丢弃
+            # 调用方可以判断 ParseError 之后的 TagComplete 是部分数据，酌情使用
             events.append(TagComplete(
                 name=self._current_tag or "",
                 attrs=dict(self._current_attrs),
                 content=partial,
             ))
-        # 重置所有状态
+
+        # 重置所有状态，供下次使用（虽然通常每次对话都创建新的解析器实例）
         self._buf = ""
         self._state = "OUTSIDE"
         self._current_tag = None

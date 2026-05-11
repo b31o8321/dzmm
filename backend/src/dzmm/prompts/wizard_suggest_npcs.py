@@ -1,4 +1,23 @@
 """Wizard suggest NPCs — world+character-aware NPC concept suggestions."""
+# ============================================================
+# 世界创建向导 - NPC 概念建议（wizard_suggest_npcs.py）
+# ============================================================
+# 【这一步做什么？】
+#   根据已有的世界观和玩家角色卡，为玩家推荐 4 个适合加入游戏的 NPC 概念。
+#   玩家可以选择其中一部分、全部，或者完全自定义 NPC。
+#
+# 【为什么需要 NPC 建议？】
+#   设计有戏剧张力的 NPC 对新手玩家来说很困难。
+#   好的 NPC 需要：
+#   1. 与世界观一致（如中世纪奇幻世界不要出现赛博格刺客）
+#   2. 与主角有关联（至少有一个盟友、一个对手）
+#   3. 有具体的动机（而不是"他是个坏人"这种空泛设定）
+#   4. 性别多样（避免全是男性或全是女性）
+#
+# 【输出 JSON 的原因】
+#   4 个 NPC 概念以 JSON 数组返回，前端可以渲染成卡片供玩家选择。
+#   如果是纯文本，就很难让玩家点选特定 NPC 加入游戏。
+# ============================================================
 from dzmm.models.client import Message
 
 _SYSTEM = """你是 TRPG NPC 设计师。
@@ -30,6 +49,9 @@ _SYSTEM = """你是 TRPG NPC 设计师。
 
 
 def build_suggest_npcs_messages(world_md: str, character_md: str) -> list[Message]:
+    # world_md：完整世界观 Markdown（第 2 步的输出）
+    # character_md：玩家角色卡 Markdown
+    # 两者都截断到合理长度（1000/800 字），避免 token 超限
     user = (
         f"# 世界设定\n{world_md.strip()[:1000]}\n\n"
         f"# 主角\n{character_md.strip()[:800]}\n\n"
