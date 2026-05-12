@@ -13,9 +13,8 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
     // Pinia persisted-state lives under various keys; set both the raw flag
     // and the structured pinia state. Done before any app code runs.
     try {
-      const appState = JSON.stringify({ tourCompleted: true, tourStep: 99 })
-      localStorage.setItem('dzmm.app', appState)
-      localStorage.setItem('dzmm.tourCompleted', '1')
+      // The app store reads this key in loadTourCompleted() → stores/app.ts
+      localStorage.setItem('dzmm.tour_completed', '1')
     } catch { /* ignore */ }
   })
 
