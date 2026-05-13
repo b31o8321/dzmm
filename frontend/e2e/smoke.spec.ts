@@ -37,9 +37,22 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
   )
 
   // 4. Wait for the main layout — sidebar 跑团 link is the canonical signal.
-  await expect(page.getByRole('link', { name: /跑团/ })).toBeVisible({
-    timeout: 30_000,
-  })
+  //    Diagnose what's on screen if we time out.
+  try {
+    await expect(page.getByRole('link', { name: /跑团/ })).toBeVisible({
+      timeout: 30_000,
+    })
+  } catch (e) {
+    const url = page.url()
+    const bodyText = await page.locator('body').innerText().catch(() => '<no body>')
+    const allLinks = await page.locator('a').allInnerTexts()
+    const allButtons = await page.locator('button').allInnerTexts()
+    console.error(`[e2e-debug] URL: ${url}`)
+    console.error(`[e2e-debug] all <a> texts: ${JSON.stringify(allLinks)}`)
+    console.error(`[e2e-debug] all <button> texts: ${JSON.stringify(allButtons)}`)
+    console.error(`[e2e-debug] body snippet: ${bodyText.slice(0, 500)}`)
+    throw e
+  }
 
   // 5. Open the "new session" dialog.
   await page.getByRole('button', { name: /\+ 新开一局/ }).click()
