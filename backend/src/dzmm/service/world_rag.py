@@ -158,25 +158,26 @@ async def index_world_async(
 
 
 def delete_world_index(world_id: int, app_dir: Path | None = None) -> None:
-    # 删除这个世界书的 ChromaDB collection 和磁盘目录
+    # 删除这个世界书的 ChromaDB 磁盘目录
     # 在世界书被删除时调用（级联删除），防止向量数据占用磁盘但对应记录已不存在
     # 任何失败都静默处理 —— 索引清理是"尽力而为"，不能因此阻断删除操作
+    #
+    # 注意：不在这里创建 PersistentClient，否则 Windows 上 sqlite 文件会被锁住
+    # 导致后续 rmtree 失败（PermissionError）。直接删目录即可，不需要先删 collection。
     import shutil
+    import stat
 
-    persist_path = _persist_dir(world_id, app_dir)
-    if not Path(persist_path).exists():
+    persist_path = Path(_persist_dir(world_id, app_dir))
+    if not persist_path.exists():
         return  # 目录不存在，无需操作
+
+    def _remove_readonly(func, path, _exc):
+        # Windows 上部分文件可能是只读属性，先改权限再重试
+        Path(path).chmod(stat.S_IWRITE)
+        func(path)
+
     try:
-        import chromadb  # 延迟导入，测试环境可能没有 chromadb
-        try:
-            client = chromadb.PersistentClient(path=persist_path)
-            client.delete_collection(f"world_{world_id}")
-        except Exception:
-            pass  # collection 可能不存在；继续删目录
-    except Exception as e:  # noqa: BLE001
-        log.debug("world_rag: delete_collection skipped for world %d: %s", world_id, e)
-    try:
-        shutil.rmtree(persist_path, ignore_errors=True)  # 递归删除整个目录
+        shutil.rmtree(persist_path, onerror=_remove_readonly)  # 递归删除整个目录
     except Exception as e:  # noqa: BLE001
         log.debug("world_rag: rmtree failed for world %d: %s", world_id, e)
 
