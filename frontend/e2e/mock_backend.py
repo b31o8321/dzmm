@@ -29,6 +29,16 @@ _BACKEND_SRC = os.path.normpath(os.path.join(_HERE, "..", "..", "backend", "src"
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
+# --- Patch Ollama check so BootGate passes without a real Ollama instance ---
+# _ollama_running() tries to HTTP-GET the Ollama API; in CI there is none.
+# Replace it with a stub that always reports "running" before any routes load.
+from dzmm.api import routes_system as _routes_system  # noqa: E402
+
+async def _ollama_running_stub(timeout: float = 1.5) -> bool:  # noqa: ARG001
+    return True
+
+_routes_system._ollama_running = _ollama_running_stub  # type: ignore[attr-defined]
+
 # --- Patch the model factory to return a deterministic stub --------------
 from dzmm.models import factory as factory_mod  # noqa: E402
 from dzmm.models.client import (  # noqa: E402
