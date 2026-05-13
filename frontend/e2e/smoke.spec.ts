@@ -20,20 +20,21 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
 
   // 1. Open the app.
   await page.goto('/')
-  await page.waitForLoadState('networkidle')
 
-  // 2. Belt-and-braces: if welcome still shows (e.g. store key changed),
-  //    click the skip button. Generous 10s in case Vite is warming up.
+  // 2. If welcome page shows (localStorage key not picked up, store key changed,
+  //    etc.), click "直接进主界面". waitFor actually waits; isVisible does not.
   const skipBtn = page.getByRole('button', { name: /直接进主界面/ })
-  if (await skipBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
-    await skipBtn.click()
-  }
+  await skipBtn.waitFor({ state: 'visible', timeout: 12_000 }).then(
+    () => skipBtn.click(),
+    () => { /* not on welcome page — good */ },
+  )
 
   // 3. BootGate's choose-mode screen appears only under Tauri; harmless skip.
   const localBtn = page.getByRole('button', { name: /仅本机使用/ })
-  if (await localBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await localBtn.click()
-  }
+  await localBtn.waitFor({ state: 'visible', timeout: 3_000 }).then(
+    () => localBtn.click(),
+    () => { /* not shown */ },
+  )
 
   // 4. Wait for the main layout — sidebar 跑团 link is the canonical signal.
   await expect(page.getByRole('link', { name: /跑团/ })).toBeVisible({
