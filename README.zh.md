@@ -4,7 +4,9 @@
 
 > **English** → [README.md](README.md)
 
-> **状态：** 活跃开发中 · 当前版本 **v0.10.1**。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
+> **状态：** 暂停更新 · 最终版本 **v0.10.2**。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
+>
+> 该项目作为一个完整的学习案例存档。代码里附有详细的中文注释（面向只懂 Python 语法的初学者），配套学习文档见 [docs/learning/](docs/learning/)。
 
 ---
 
@@ -167,6 +169,52 @@ dzmm/
 ├── CHANGELOG.md
 └── README.md
 ```
+
+---
+
+---
+
+## 学习文档
+
+项目代码里全面添加了面向初学者的中文注释（假设读者只懂 Python 语法，不懂 FastAPI / SQLAlchemy / 系统架构）。配套的学习文档在 [`docs/learning/`](docs/learning/)：
+
+| 文档 | 内容 |
+|------|------|
+| [**代码阅读路径**](docs/learning/code-reading-path.md) | **推荐入口：** 7 阶段分步学习路线，从启动到多 Agent |
+| [Python 后端实现](docs/learning/python-backend.md) | async/await、SQLAlchemy、FastAPI、数据库迁移 |
+| [LLM 工程化实现](docs/learning/llm-engineering.md) | Prompt 设计、流式解析、上下文管理、弱模型容错 |
+| [Vue3 前端实现](docs/learning/vue-frontend.md) | SSE 消费、Composable、Pinia Store、响应式原理 |
+| [Phase A：LangChain RAG](docs/learning/langchain-rag.md) | OllamaEmbedder、ChromaDB、优雅降级 |
+| [Phase B：LangGraph 多 Agent](docs/learning/langgraph-multiagent.md) | StateGraph、条件边、闭包注入、多 Agent 编排 |
+| [Phase C：自主 Agent 评测](docs/learning/agent-eval.md) | LLM-as-Judge、Player Agent、Judge Agent |
+| [TRPG LLM 优化策略](docs/learning/trpg-llm-optimization.md) | RAG/多Agent/铁律/骰子/流式/三级解析的落地方案 |
+
+---
+
+## 后续规划（未实现）
+
+项目在 v0.10.2 暂停前排好了以下方向，留作参考或后续继续：
+
+**Phase C — 自主 Agent 自动评测**
+- Player Agent（自动扮演玩家，模拟多种决策风格）
+- Judge Agent（LLM-as-Judge，按维度打分：叙事连贯性、状态一致性、骰点公平性）
+- 评测 runner：批量跑存档 → 生成质量报告，为 QLoRA 微调准备数据
+
+**Phase D — QLoRA 微调**
+- 用 Phase C 收集的「好回合」数据，微调一个 TRPG 专用小模型
+- 目标：7B 模型达到 GPT-4o-mini 在 TRPG tag 合规率上的水平
+- 硬件：台式 Linux + RX 9070
+
+**v0.11+ 开放世界框架**（骨架已在 v0.10.2 合入，未完全打磨）
+- WorldFramework：地点 / 势力 / NPC 模板 / 事件库，替代线性剧本章节
+- Director Agent 从「读章节」改为「读附近可用事件 + 主线进度」生成 plot_directive
+- 地理 BFS 距离影响事件优先级，比单纯时间线更自然
+
+**v0.14 剧本驱动（更大重构）**
+- 开新档时 LLM 一次性生成剧本大纲（章节 / 主要 NPC / 关键事件 / 完结条件）
+- GM 每回合围绕大纲发挥，而非凭空创作主线
+- 玩家重大决策触发 `<plot_turn>` 标签 → 后端异步重写后续大纲
+- 大纲完结后可续写（Season 2），或按 genre 模板（悬疑/英雄/政治/恋爱）生成新存档
 
 ---
 

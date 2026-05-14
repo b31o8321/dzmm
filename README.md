@@ -4,7 +4,9 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active development · current release **v0.10.1**. See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Paused · final release **v0.10.2**. See [CHANGELOG](CHANGELOG.md) for the full history.
+>
+> The codebase is archived as a complete learning reference. All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
 
 ---
 
@@ -168,6 +170,52 @@ dzmm/
 ├── CHANGELOG.md
 └── README.md  ←  you are here
 ```
+
+---
+
+---
+
+## Learning docs
+
+All backend Python files carry detailed Chinese inline comments (targeting readers who know Python syntax but not FastAPI / SQLAlchemy / architecture). Companion docs live in [`docs/learning/`](docs/learning/):
+
+| Doc | Contents |
+|-----|----------|
+| [**Code reading path**](docs/learning/code-reading-path.md) | **Start here:** 7-stage guided walkthrough from boot to multi-agent |
+| [Python backend](docs/learning/python-backend.md) | async/await, SQLAlchemy, FastAPI, migrations |
+| [LLM engineering](docs/learning/llm-engineering.md) | Prompt design, streaming parsing, context management |
+| [Vue 3 frontend](docs/learning/vue-frontend.md) | SSE, Composables, Pinia, reactivity |
+| [Phase A: LangChain RAG](docs/learning/langchain-rag.md) | OllamaEmbedder, ChromaDB, graceful degradation |
+| [Phase B: LangGraph multi-agent](docs/learning/langgraph-multiagent.md) | StateGraph, conditional edges, multi-agent orchestration |
+| [Phase C: autonomous eval](docs/learning/agent-eval.md) | LLM-as-Judge, Player Agent, Judge Agent |
+| [TRPG LLM optimisation](docs/learning/trpg-llm-optimization.md) | RAG / multi-agent / rules / dice / streaming in practice |
+
+---
+
+## Planned but unimplemented
+
+Directions that were scoped before the project paused, kept here as a reference:
+
+**Phase C — autonomous agent evaluation**
+- Player Agent that auto-plays sessions with varied decision styles
+- Judge Agent (LLM-as-Judge) scoring narrative coherence, state consistency, dice fairness
+- Evaluation runner → quality reports, dataset for Phase D fine-tuning
+
+**Phase D — QLoRA fine-tuning**
+- Use "good turns" from Phase C to fine-tune a TRPG-specialist small model
+- Target: 7B model matching GPT-4o-mini on tag-compliance in TRPG prompts
+- Hardware: desktop Linux + RX 9070
+
+**v0.11+ open-world framework** (skeleton merged in v0.10.2, not fully polished)
+- WorldFramework: location graph / factions / NPC templates / event pool — replaces linear screenplay chapters
+- Director Agent reads "nearby available events + main-plot progress" instead of chapters
+- Geographic BFS distance weights event priority; feels more organic than a timeline
+
+**v0.14 screenplay-driven overhaul** (larger rework)
+- On session start, one LLM call generates a full screenplay outline (chapters / key NPCs / key events / ending condition)
+- GM narrates *within* the outline rather than improvising the main plot from scratch
+- Player pivotal decisions emit `<plot_turn>` → backend asynchronously rewrites the remaining outline
+- After the ending, players can continue (Season 2) or start fresh from a genre template (mystery / hero / political / romance)
 
 ---
 
