@@ -4,7 +4,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active · current release **v0.11.0** (open-world runtime + Phase C eval JSONL export). See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active · current release **v0.14.0** (screenplay polish + manual outline editor + structured genre templates). See [CHANGELOG](CHANGELOG.md) for the full history.
 >
 > All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
 
@@ -214,18 +214,19 @@ All backend Python files carry detailed Chinese inline comments (targeting reade
 - WorldMapPanel SVG topology view, CampaignProgressPanel phase tracking
 - Event state machine (pending → triggered → completed) + auto Campaign phase advance
 
+**v0.14 screenplay-driven** ✅ (polish complete in v0.14.0)
+- On session start, one LLM call generates a full screenplay outline (chapters / key NPCs / key events / ending condition)
+- GM narrates *within* the outline; player pivotal decisions `<plot_turn>` trigger async outline rewrite
+- `<ending/>` marks the screenplay concluded → spinoff a sequel (Season 2, reusing world + character) or continue next chapter in the same session
+- 5 genre templates (mystery / hero / political / survival / romance) with structured fields: act count, ending archetype, suggested NPC roles
+- Manual outline editor: `PATCH /sessions/{id}/screenplay` + 4-tab UI to fix the occasional bad LLM outline
+
 ## Planned but unimplemented
 
 **Phase D — QLoRA fine-tuning**
 - Use the JSONL training data exported from Phase C to fine-tune a TRPG-specialist small model
 - Target: 7B model matching GPT-4o-mini on TRPG tag-compliance
 - Hardware: desktop Linux + RX 9070
-
-**v0.14 screenplay-driven overhaul** (larger rework)
-- On session start, one LLM call generates a full screenplay outline (chapters / key NPCs / key events / ending condition)
-- GM narrates *within* the outline rather than improvising the main plot from scratch
-- Player pivotal decisions emit `<plot_turn>` → backend asynchronously rewrites the remaining outline
-- After the ending, players can continue (Season 2) or start fresh from a genre template
 
 ---
 

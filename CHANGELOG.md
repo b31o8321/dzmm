@@ -2,6 +2,54 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.14.0] - 2026-05-17
+
+**剧本驱动打磨包 + 死代码大清扫**
+
+v0.14 设计文档（2026-04-30 写的）大部分功能其实已经在 v0.7-v0.11 各版本里散落实现了：剧本大纲生成、`<plot_turn>` 异步重写、`<ending/>` 完结、续作 / 续写下一章、Genre 模板。这一版把缺失的体验拼图补齐，并清理积累的死代码。
+
+### 新增
+
+#### ✏️ 大纲手动编辑（P2）
+- **`PATCH /sessions/{id}/screenplay`** —— 接受 `chapters` / `main_characters` / `ending_md` / `opening_hook` 任意子集，仅更新提供的字段。
+- 每次成功 PATCH 自动写一条 `ScreenplayRevision`（trigger_description="manual_edit"），手动编辑与 LLM 重写在同一 revisions 视图里可见。
+- **ScreenplayView 加「✏️ 编辑大纲」按钮** —— 四 tab 对话框（开场 / 章节 / 主要 NPC / 结局）。章节和 NPC 列表用 JSON textarea（v1，后续可上结构化编辑器）；前端 JSON 解析失败 → 阻止提交 + warning。
+- 6 个新测试覆盖 PATCH 流程。
+
+#### 📚 Genre 模板真正结构化（P5）
+- `KNOWN_GENRES` 从 `dict[str, str]` 升级为 `dict[str, dict]`，每个 genre 含 `desc` / `act_count` / `ending_archetype` / `required_roles`。
+- 悬疑探案(3) / 英雄成长(5) / 政治阴谋(4) / 灾难求生(4) / 恋爱攻略(3) 各自的章数 + 典型结局 + 建议 NPC 原型注入 outliner & rewrite prompt。
+- 前端 `GenreSpec` 类型完全对应；WizardView 复用现有字段不破坏。
+- 3 个新测试。
+
+#### 🎭 剧本面板与开放世界并存（P1）
+- ScreenplayProgressPanel 不再 v-else 排他于框架模式；剧本 tab 与「世界地图」「主线进度」并存。
+- 默认 activeTab：仅框架 → 'map'；仅剧本 → 'screenplay'；两者共存 → 'map' + 剧本 tab 可切换。
+
+#### 🔀 续作 vs 续写下一章 区分（P4）
+- SessionsView「+ 续作」按钮 (spinoff = 新存档) 现在仅在源剧本 `status="concluded"` 时启用；未完结时禁用并 tooltip 指向游戏内「📖 续写下一章」(continue = 当前存档新增章)。
+- 利用 StandaloneScreenplay 已有的 `status` 字段，零后端改动。
+
+### 测试
+
+- **plot_turn → rewrite_in_background 集成测试**（P3）—— 之前最脆弱的胶水代码无端到端测试。+3 测试覆盖正常路径、outliner 失败 fallback、连续两次重大转折的串行化。
+- 后端测试总数：617 → 629（+12）。
+
+### 清理
+
+#### 删除死代码（−516 LoC）
+- 前端：`GenreSelector.vue`（无导入）、`SessionGenerateView.vue` + 路由项（孤儿 view）、`api/wizard.ts` 中 `worldDetails/character/npcs/screenplay` 四个 wrapper、`api/screenplays.ts` 中 `listAll/get/update` 三个 wrapper。
+- 后端：`prompts/director_template.py`（被 director_v2/open_world 取代）、`prompts/npc_react_template.py`（被 npc_actor 取代）、`prompts/rules_template.py`（已并入 gm_template）。
+
+#### 文档归档
+- `docs/superpowers/plans/` 下 26 个 2026-04-30 ~ 2026-05-10 的旧计划文档移到 `archive/`，活动目录只保留当前 roadmap。
+
+### 状态
+
+项目从 v0.10.3「暂停」状态完整重启，连续完成 v0.11.0 + v0.14.0 两个里程碑。Phase A/B/C/v0.11/v0.14 全部已实现，剩余：Phase D（QLoRA 微调，需硬件 + 数据集积累）。
+
+---
+
 ## [v0.11.0] - 2026-05-17
 
 **开放世界运行时打通 + Phase C 评测数据导出**

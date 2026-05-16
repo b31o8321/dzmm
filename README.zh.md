@@ -4,7 +4,7 @@
 
 > **English** → [README.md](README.md)
 
-> **状态：** 开发中 · 当前版本 **v0.11.0**（开放世界运行时打通 + Phase C 评测导出）。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
+> **状态：** 开发中 · 当前版本 **v0.14.0**（剧本驱动打磨 + 大纲手动编辑 + Genre 结构化模板）。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
 >
 > 代码里附有详细的中文注释（面向只懂 Python 语法的初学者），配套学习文档见 [docs/learning/](docs/learning/)。
 
@@ -213,18 +213,19 @@ dzmm/
 - WorldMapPanel SVG 拓扑视图、CampaignProgressPanel 阶段进度
 - 事件状态机（pending → triggered → completed）+ Campaign phase 自动推进
 
+**v0.14 剧本驱动** ✅（v0.14.0 打磨完成）
+- 开新档时 LLM 生成剧本大纲（章节 / 主要 NPC / 关键事件 / 完结条件）
+- GM 每回合围绕大纲发挥；玩家重大决策 `<plot_turn>` 触发后端异步重写后续
+- `<ending/>` 标记完结 → 可生成续作（Season 2，沿用世界观与角色卡）或本存档内续写下一章
+- 5 个 genre 模板（悬疑探案 / 英雄成长 / 政治阴谋 / 灾难求生 / 恋爱攻略）含结构化字段（章数 / 典型结局 / 建议 NPC 原型）
+- 大纲手动编辑：`PATCH /sessions/{id}/screenplay` + 四 tab UI 编辑器，LLM 偶尔生成的坏大纲玩家可直接修正
+
 ## 后续规划（未实现）
 
 **Phase D — QLoRA 微调**
 - 用 Phase C 导出的 JSONL 训练数据，微调一个 TRPG 专用小模型
 - 目标：7B 模型达到 GPT-4o-mini 在 TRPG tag 合规率上的水平
 - 硬件：台式 Linux + RX 9070
-
-**v0.14 剧本驱动（更大重构）**
-- 开新档时 LLM 一次性生成剧本大纲（章节 / 主要 NPC / 关键事件 / 完结条件）
-- GM 每回合围绕大纲发挥，而非凭空创作主线
-- 玩家重大决策触发 `<plot_turn>` 标签 → 后端异步重写后续大纲
-- 大纲完结后可续写（Season 2），或按 genre 模板（悬疑 / 英雄 / 政治 / 恋爱）生成新存档
 
 ---
 
