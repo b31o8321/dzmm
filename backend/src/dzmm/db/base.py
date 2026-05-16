@@ -331,6 +331,19 @@ _V051_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
 }
 
 
+# v0.52 — v0.15 Batch 3: combat initiative order persisted on Session.
+# Stores the sorted combatant list after <initiative_request> is resolved.
+# Default '[]' keeps legacy sessions unaffected.
+_V052_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "sessions": [
+        (
+            "combat_order_json",
+            "combat_order_json TEXT NOT NULL DEFAULT '[]'",
+        ),
+    ],
+}
+
+
 # ── 特殊迁移：将 screenplays.session_id 改为 nullable ────
 # SQLite 不支持 ALTER COLUMN，所以只能用"复制→删旧→改名"三步走。
 # 这个函数是幂等的：如果 session_id 已经 nullable 或者表不存在，直接返回。
@@ -491,6 +504,8 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V050_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V051_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V052_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         # 最后做数据回填：给旧角色补上默认属性值
         await conn.run_sync(_backfill_legacy_base_stats_sync)

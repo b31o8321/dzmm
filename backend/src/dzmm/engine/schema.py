@@ -53,10 +53,13 @@ class ItemEffect(BaseModel):
         "skill_bonus",
         "consume",
         "unlock",
+        "attack_attribute",  # weapon: which attribute drives attack roll (stat="dexterity" = ranged)
+        "armor_bonus",       # armor: flat AC bonus (amount = bonus value)
     ]
-    amount: int = 0               # for heal_hp / heal_sanity / heal_stamina / damage
-    stat: str | None = None       # for stat_bonus: which attribute name
+    amount: int = 0               # for heal_hp / heal_sanity / heal_stamina / damage / armor_bonus
+    stat: str | None = None       # for stat_bonus / attack_attribute: which attribute name
     skill: str | None = None      # for skill_bonus: which skill name
+    formula: str | None = None    # for damage: dice formula, e.g. "1d8+STR"
     duration_turns: int = 0       # 0 = instant; >0 = lasts N turns
 
 

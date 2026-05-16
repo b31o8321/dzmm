@@ -189,8 +189,12 @@ class Session(Base):
     # v0.51 (v0.15 Batch 2) — Python-engine mechanics resolution log.
     # Each turn's dice/skill/item resolutions are appended here so the next
     # turn's _build_key_facts can surface them as "上回合机械结算".
-    # Shape: list[{"turn", "kind": "dice"|"skill"|"item", "input": {}, "result": {}}]
+    # Shape: list[{"turn", "kind": "dice"|"skill"|"item"|"attack"|"initiative", "input": {}, "result": {}}]
     pending_resolutions_json: Mapped[str] = mapped_column(Text, default="[]")
+
+    # v0.52 (v0.15 Batch 3) — current combat initiative order, persisted across turns.
+    # Shape: list[{"kind": "pc"|"npc", "id": int, "name": str, "initiative_total": int}]
+    combat_order_json: Mapped[str] = mapped_column(Text, default="[]")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)

@@ -253,6 +253,49 @@ emit <skill_request/> 请求，下回合 key_facts 会告诉你结果，然后�
 说明：Python 引擎自动处理 HP 恢复和物品消耗；下回合 key_facts 的「## 上回合机械结算」
 会显示「HP +15（已消耗）」，你在叙事里只需描写感官体验和剧情后果即可。
 
+--- 示范8：战斗回合（v0.15 新模式） ---
+
+场景：战斗刚爆发，PC 和两只哥布林同场。
+
+战斗第一回合开头（先攻）：
+
+<initiative_request combatants="PC,哥布林1,哥布林2"/>
+
+<narrative>哥布林们龇牙咧嘴地扑上来，{character_name}本能地握紧了短剑。</narrative>
+
+<bgm mood="battle"/>
+
+<choices>
+- 先出手，冲向最近的哥布林1
+- 退后一步，找个防守位置
+- 趁乱往出口方向跑
+</choices>
+
+--- 下一回合（已从 key_facts 看到先攻顺序：PC(18) → 哥布林1(14) → 哥布林2(7)）---
+
+玩家行动：「我冲上去砍哥布林1」
+
+正确输出：
+
+<narrative>{character_name}踏前一步，短剑划出一道银光。</narrative>
+
+<attack attacker_kind="pc" attacker_id="3" target_kind="npc" target_id="5" weapon="短剑"/>
+
+<narrative>（根据下回合 key_facts 显示的命中/未命中结果补充一句画面描写）</narrative>
+
+<choices>
+- 紧接着攻击哥布林2
+- 后撤观察哥布林1的状态
+- 大喊警告队友
+</choices>
+
+--- 反面示范（战斗中不要这样写） ---
+
+<narrative>{character_name}挥剑砍中哥布林1，造成9点伤害。哥布林1还剩3点HP。</narrative>
+
+注意：不要自己计算和写出伤害数字——emit <attack> 让 Python 算，数字会出现在下回合的
+「## 上回合机械结算」里，你的叙事只需一句场面描写即可。
+
 /* 以上仅为示例。实际输出必须从 <narrative> 开头，不要包含
 「输出范例」「示范」「错误示范」这类元文字，也不要把示例里的
 人名（陈子轩 / 老学者 / 年轻卫兵）抄到无关场景。 */

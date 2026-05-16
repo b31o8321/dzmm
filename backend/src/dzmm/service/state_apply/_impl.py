@@ -62,10 +62,12 @@ from dzmm.service.state_apply.location_item import _apply_location_item # 地点
 from dzmm.service.state_apply.state_change import _apply_state_change   # 通用状态变更（JSON patch）
 from dzmm.service.state_apply.world_time import _apply_time_advance     # 世界时间推进
 from dzmm.service.state_apply.factions import _apply_faction_create, _apply_faction_change  # 派系系统
-from dzmm.service.state_apply.mechanics import (  # v0.15 Batch 2: Python-engine mechanics
+from dzmm.service.state_apply.mechanics import (  # v0.15 Batch 2+3: Python-engine mechanics
+    _apply_attack,
     _apply_dice_request,
-    _apply_skill_request,
+    _apply_initiative_request,
     _apply_item_use,
+    _apply_skill_request,
 )
 
 # Re-export for callers that imported these names from `_impl` directly
@@ -250,6 +252,13 @@ async def apply_tags(
         elif tag.name == "item_use":
             # GM signals player consumed/used an item
             await _apply_item_use(session, session_id, tag.attrs, current_turn)
+        # v0.15 Batch 3 — combat resolution tags
+        elif tag.name == "attack":
+            # GM triggers a single attack roll + damage resolution
+            await _apply_attack(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "initiative_request":
+            # GM triggers initiative rolling for a list of combatants
+            await _apply_initiative_request(session, session_id, tag.attrs, current_turn)
 
     # -------------------------------------------------------
     # 拓扑警告写回数据库

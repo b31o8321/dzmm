@@ -66,6 +66,9 @@ KNOWN_TAGS: set[str] = {
     "dice_request",   # GM asks Python to roll & resolve
     "skill_request",  # GM asks Python to perform skill check
     "item_use",       # GM signals player consumed/used an item
+    # v0.15 Batch 3 — combat resolution tags
+    "attack",              # GM triggers single attack resolution
+    "initiative_request",  # GM triggers initiative rolling for a list of combatants
 }
 
 # 只有 narrative 标签需要"流式"输出（边到边推给前端显示）；

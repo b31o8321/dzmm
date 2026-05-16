@@ -1,18 +1,20 @@
-"""v0.15 Batch 2: mechanics tag handlers.
+"""v0.15 Batch 2+3: mechanics tag handlers.
 
-Three handlers that wire LLM-emitted intent tags to the Python engine:
+Handlers that wire LLM-emitted intent tags to the Python engine:
 
-  _apply_dice_request  — GM asks Python to roll & resolve
-  _apply_skill_request — GM asks Python to perform skill check
-  _apply_item_use      — GM signals player consumed/used an item
+  _apply_dice_request        — GM asks Python to roll & resolve
+  _apply_skill_request       — GM asks Python to perform skill check
+  _apply_item_use            — GM signals player consumed/used an item
+  _apply_attack              — GM triggers a single combat attack resolution
+  _apply_initiative_request  — GM triggers initiative rolling for combatants
 
-All three append a record to Session.pending_resolutions_json so the next
+All append a record to Session.pending_resolutions_json so the next
 turn's _build_key_facts can surface the results as "上回合机械结算".
 
 Record shape:
     {
         "turn": <int>,
-        "kind": "dice" | "skill" | "item",
+        "kind": "dice" | "skill" | "item" | "attack" | "initiative",
         "input": <attrs dict>,
         "result": { ... resolved ... }
     }
@@ -25,11 +27,12 @@ from __future__ import annotations
 import json
 import logging
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import Session as GameSession
-from dzmm.engine.dice import DiceResult, CheckResult, roll, skill_check
+from dzmm.db.models import NPC, Session as GameSession
 from dzmm.engine.character import get_skill_check_modifiers
+from dzmm.engine.dice import CheckResult, DiceResult, roll, skill_check
 
 log = logging.getLogger(__name__)
 
@@ -276,6 +279,214 @@ async def _apply_item_use(
     _append_resolution(sess, {
         "turn": current_turn,
         "kind": "item",
+        "input": dict(attrs),
+        "result": result_dict,
+    })
+    return result_dict
+
+
+# ── v0.15 Batch 3: combat tag handlers ───────────────────────────────────────
+
+async def _apply_attack(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+    rng=None,  # random.Random | None — for testing
+) -> dict | None:
+    """Handle <attack attacker_kind="pc" attacker_id="3" target_kind="npc"
+                      target_id="5" weapon="短剑"/>.
+
+    Resolves via engine.combat.resolve_attack. Appends a "kind: attack" record
+    to pending_resolutions_json. If target is defeated and is an NPC,
+    sets NPC.state = "dead".
+
+    AttackResult record shape in pending_resolutions_json:
+        {
+            "turn": int,
+            "kind": "attack",
+            "input": {attrs},
+            "result": {
+                "attacker_id": int,
+                "attacker_kind": str,
+                "target_id": int,
+                "target_kind": str,
+                "d20": int,
+                "attack_mod": int,
+                "attack_total": int,
+                "ac": int,
+                "hit": bool,
+                "damage_formula": str | None,
+                "damage_rolls": list[int] | None,
+                "damage_mod": int | None,
+                "damage_total": int,
+                "target_hp_before": int,
+                "target_hp_after": int,
+                "target_defeated": bool,
+                "critical_success": bool,
+                "critical_failure": bool,
+            }
+        }
+    """
+    attacker_kind = (attrs.get("attacker_kind") or "").strip().lower()
+    attacker_id_raw = (attrs.get("attacker_id") or "").strip()
+    target_kind = (attrs.get("target_kind") or "").strip().lower()
+    target_id_raw = (attrs.get("target_id") or "").strip()
+    weapon_name = (attrs.get("weapon") or "").strip() or None
+
+    # Validate required attrs
+    if attacker_kind not in ("pc", "npc"):
+        log.warning("_apply_attack: invalid attacker_kind %r, skipping", attacker_kind)
+        return None
+    if target_kind not in ("pc", "npc"):
+        log.warning("_apply_attack: invalid target_kind %r, skipping", target_kind)
+        return None
+
+    try:
+        attacker_id = int(attacker_id_raw)
+        target_id = int(target_id_raw)
+    except (TypeError, ValueError):
+        log.warning(
+            "_apply_attack: invalid attacker_id %r or target_id %r, skipping",
+            attacker_id_raw,
+            target_id_raw,
+        )
+        return None
+
+    # Import here to avoid circular imports at module level
+    from dzmm.engine.combat import resolve_attack
+
+    try:
+        result = await resolve_attack(
+            session,
+            session_id=session_id,
+            attacker_id=attacker_id,
+            attacker_kind=attacker_kind,
+            target_id=target_id,
+            target_kind=target_kind,
+            weapon_name=weapon_name,
+            rng=rng,
+        )
+    except ValueError as exc:
+        log.warning("_apply_attack: resolve_attack failed — %s", exc)
+        return None
+
+    result_dict: dict = {
+        "attacker_id": result.attacker_id,
+        "attacker_kind": attacker_kind,
+        "target_id": result.target_id,
+        "target_kind": target_kind,
+        "d20": result.attack_roll.rolls[0] if result.attack_roll.rolls else 0,
+        "attack_mod": result.attack_roll.modifier,
+        "attack_total": result.attack_roll.total,
+        "ac": result.ac,
+        "hit": result.hit,
+        "damage_formula": result.damage_roll.formula if result.damage_roll else None,
+        "damage_rolls": result.damage_roll.rolls if result.damage_roll else None,
+        "damage_mod": result.damage_roll.modifier if result.damage_roll else None,
+        "damage_total": result.damage_dealt,
+        "target_hp_before": result.target_hp_before,
+        "target_hp_after": result.target_hp_after,
+        "target_defeated": result.target_defeated,
+        "critical_success": result.attack_roll.critical_success,
+        "critical_failure": result.attack_roll.critical_failure,
+    }
+
+    sess = await _load_session(session, session_id)
+    if sess is not None:
+        _append_resolution(sess, {
+            "turn": current_turn,
+            "kind": "attack",
+            "input": dict(attrs),
+            "result": result_dict,
+        })
+    return result_dict
+
+
+async def _apply_initiative_request(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> dict | None:
+    """Handle <initiative_request combatants="PC,goblin_1,goblin_2"/>.
+
+    Resolves NPC names → (kind, id) by looking up NPCs within the session.
+    "PC" (case-insensitive) maps to the session's PC character.
+    Rolls initiative for each combatant. Writes sorted order to:
+      - pending_resolutions_json (for next-turn key_facts display)
+      - Session.combat_order_json (persists across turns)
+
+    Returns the sorted combatant list dict or None on error.
+    """
+    combatants_raw = (attrs.get("combatants") or "").strip()
+    if not combatants_raw:
+        log.warning("_apply_initiative_request: missing combatants attr, skipping")
+        return None
+
+    sess = await _load_session(session, session_id)
+    if sess is None:
+        log.warning("_apply_initiative_request: session %d not found", session_id)
+        return None
+
+    pc_character_id: int = sess.character_id
+
+    # Load all NPCs in this session for name resolution
+    npc_rows = (
+        await session.execute(
+            select(NPC).where(NPC.session_id == session_id)
+        )
+    ).scalars().all()
+    npc_by_name: dict[str, NPC] = {npc.name: npc for npc in npc_rows}
+
+    # Parse combatant names
+    names = [n.strip() for n in combatants_raw.split(",") if n.strip()]
+    combatants: list[tuple[str, int]] = []
+
+    for name in names:
+        if name.upper() == "PC" or name == "玩家" or name == "PC角色":
+            combatants.append(("pc", pc_character_id))
+        elif name in npc_by_name:
+            combatants.append(("npc", npc_by_name[name].id))
+        else:
+            # Try partial match
+            matched_npc = next(
+                (npc for npc_name, npc in npc_by_name.items() if name in npc_name),
+                None,
+            )
+            if matched_npc:
+                combatants.append(("npc", matched_npc.id))
+            else:
+                log.warning(
+                    "_apply_initiative_request: combatant %r not found in session %d, skipping",
+                    name,
+                    session_id,
+                )
+
+    if not combatants:
+        log.warning("_apply_initiative_request: no valid combatants resolved, skipping")
+        return None
+
+    from dzmm.engine.combat import roll_initiative
+
+    order = await roll_initiative(
+        session,
+        session_id=session_id,
+        combatants=combatants,
+    )
+
+    result_dict: dict = {
+        "order": order,
+        "combatant_count": len(order),
+    }
+
+    # Persist to combat_order_json
+    if hasattr(sess, "combat_order_json"):
+        sess.combat_order_json = json.dumps(order, ensure_ascii=False)
+
+    _append_resolution(sess, {
+        "turn": current_turn,
+        "kind": "initiative",
         "input": dict(attrs),
         "result": result_dict,
     })

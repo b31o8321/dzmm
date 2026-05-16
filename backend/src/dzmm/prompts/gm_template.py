@@ -582,10 +582,25 @@ Python 会从角色卡读取属性和技能等级，自动计算修正值并投 
 Python 会处理消耗逻辑和 HP/理智/体力变化；如果背包没有该物品，下回合 key_facts
 会提示「背包没有这个物品」。
 
+## 战斗
+
+战斗也走 Python，你不需要自己计算攻击和伤害：
+
+<initiative_request combatants="PC,哥布林1,哥布林2"/>
+战斗开始时先 emit 这个，列出所有参战者（PC 写"PC"，NPC 写其名称，逗号分隔）。
+Python 会投 d20+DEX 修正值，返回先攻顺序，下一回合的 key_facts 会显示排列结果。
+
+<attack attacker_kind="pc" attacker_id="<PC的ID>" target_kind="npc" target_id="5" weapon="短剑"/>
+单次攻击。attacker_kind/target_kind 填 "pc" 或 "npc"；attacker_id/target_id 填对应 ID；
+weapon 填武器名称（与背包物品名一致），省略则使用背包第一件武器，无武器则徒手（1d4）。
+Python 会投 d20+攻击修正值 vs 目标 AC，命中则投伤害骰并扣 HP；
+目标 HP ≤ 0 时自动标记为"dead"。
+**你的工作是在 attack 标签之后用一两句描写把数字包装成画面感**，不要提前写「你击中了」。
+
 ## 你不再做这些（迁移自旧规则）
 
-- **不要自己写 d20=N 数字**（只有旧版 <dice> 标签才写数字；新版用 <dice_request>/<skill_request>）
-- **不要自己 emit <state_change> 表示战斗伤害**（用 <dice_request formula="..."/> 让 Python 算）
+- **不要自己写 d20=N 数字**（只有旧版 <dice> 标签才写数字；新版用 <dice_request>/<skill_request>/<attack>）
+- **不要自己 emit <state_change> 表示战斗伤害**（用 <attack> 让 Python 算）
 - 仍可 emit <state_change> 表示叙事性效果（如「主角受惊吓 sanity-3」），但 Python 会校验范围
 
 ## 上回合结算结果（注入 key_facts）

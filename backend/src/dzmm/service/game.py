@@ -2052,6 +2052,50 @@ async def _build_key_facts(
                         res_lines.append(
                             f"- 使用物品（{item_name_res}）{removed_note}：{eff_summary}"
                         )
+                elif kind == "attack":
+                    d20 = res.get("d20", "?")
+                    atk_mod = res.get("attack_mod", 0)
+                    atk_total = res.get("attack_total", "?")
+                    ac = res.get("ac", "?")
+                    hit = res.get("hit", False)
+                    dmg_total = res.get("damage_total", 0)
+                    hp_before = res.get("target_hp_before", "?")
+                    hp_after = res.get("target_hp_after", "?")
+                    defeated = res.get("target_defeated", False)
+                    atk_kind = inp.get("attacker_kind", "?")
+                    tgt_kind = inp.get("target_kind", "?")
+                    atk_id = res.get("attacker_id", inp.get("attacker_id", "?"))
+                    tgt_id = res.get("target_id", inp.get("target_id", "?"))
+                    weapon_name = inp.get("weapon", "徒手")
+                    crit_s = "（大成功）" if res.get("critical_success") else ""
+                    crit_f = "（大失败）" if res.get("critical_failure") else ""
+                    atk_mod_str = (f"+{atk_mod}" if atk_mod >= 0 else str(atk_mod)) if atk_mod != 0 else ""
+                    attacker_label = f"{atk_kind.upper()}{atk_id}"
+                    target_label = f"{tgt_kind.upper()}{tgt_id}"
+                    if hit:
+                        dmg_formula = res.get("damage_formula") or "?"
+                        dmg_rolls = res.get("damage_rolls") or []
+                        dmg_mod = res.get("damage_mod", 0)
+                        dmg_rolls_str = "+".join(str(r) for r in dmg_rolls)
+                        dmg_mod_str = (f"+{dmg_mod}" if dmg_mod > 0 else str(dmg_mod)) if dmg_mod and dmg_mod != 0 else ""
+                        defeated_note = " 已被击败" if defeated else f"（HP {hp_before}→{hp_after}）"
+                        res_lines.append(
+                            f"- 攻击 {attacker_label}[{weapon_name}]→{target_label}："
+                            f"d20={d20}{atk_mod_str}={atk_total} vs AC{ac}{crit_s} → 命中；"
+                            f"伤害 {dmg_rolls_str}{dmg_mod_str}={dmg_total}{defeated_note}"
+                        )
+                    else:
+                        res_lines.append(
+                            f"- 攻击 {attacker_label}[{weapon_name}]→{target_label}："
+                            f"d20={d20}{atk_mod_str}={atk_total} vs AC{ac}{crit_f} → 未命中"
+                        )
+                elif kind == "initiative":
+                    order = res.get("order") or []
+                    order_strs = [
+                        f"{entry.get('name', '?')}({entry.get('initiative_total', '?')})"
+                        for entry in order
+                    ]
+                    res_lines.append(f"- 先攻顺序：" + " → ".join(order_strs))
                 else:
                     res_lines.append(f"- [{kind}] {res}")
 
