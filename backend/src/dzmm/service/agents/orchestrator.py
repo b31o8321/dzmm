@@ -44,6 +44,11 @@ from dzmm.db.models import (
     NPC,
     Screenplay,
     Session as GameSession,
+    SessionCampaignState,
+    SessionFactionState,
+    SessionNpcState,
+    WorldFaction,
+    WorldNPCTemplate,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient
 from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete, UsageSummary
@@ -479,6 +484,88 @@ async def _build_director_trigger_state(
             hidden_due = True  # 找到至少一个到期的隐藏事件
             break
 
+    # ── Framework (open-world) 触发字段 ─────────────────────────
+    # 只有 framework_id 非空时才查询这些字段，节省数据库开销
+    is_framework_mode = bool(sess.framework_id)
+    event_triggered_last_turn = False
+    event_completed_last_turn = False
+    phase_advanced_last_turn = False
+    faction_tension_breached = False
+    proactive_npc_pending = False
+
+    if is_framework_mode:
+        # 复用上方已解析的 events 列表，扫描开放世界事件类型
+        if last_msg:
+            try:
+                fw_events = _json.loads(last_msg)
+            except (TypeError, ValueError):
+                fw_events = []
+            if isinstance(fw_events, list):
+                for ev in fw_events:
+                    if not isinstance(ev, dict):
+                        continue
+                    t = ev.get("type")
+                    if t == "event_trigger":
+                        event_triggered_last_turn = True
+                    if t == "event_complete":
+                        payload = ev.get("payload") or {}
+                        if payload.get("event_id"):
+                            event_completed_last_turn = True
+
+        # phase_advanced_last_turn: True iff event_completed_last_turn AND
+        # a SessionCampaignState row exists for this session.
+        # Approximation: we don't snapshot phase_id at turn start, so we
+        # assume any event completion that coincides with an active campaign
+        # represents a phase advance. A more precise check would require
+        # comparing current_phase_id to a per-turn snapshot.
+        if event_completed_last_turn:
+            campaign_state = (await s.execute(
+                select(SessionCampaignState).where(
+                    SessionCampaignState.session_id == session_id
+                )
+            )).scalar_one_or_none()
+            if campaign_state is not None:
+                phase_advanced_last_turn = True
+
+        # faction_tension_breached: True if any active faction's tension
+        # meets or exceeds its threshold_conflict value
+        faction_states = (await s.execute(
+            select(SessionFactionState, WorldFaction).join(
+                WorldFaction, WorldFaction.id == SessionFactionState.faction_id
+            ).where(
+                SessionFactionState.session_id == session_id,
+                SessionFactionState.is_active == True,  # noqa: E712
+            )
+        )).all()
+        for fs, wf in faction_states:
+            try:
+                rules = _json.loads(wf.tension_rules_json or "{}")
+                threshold = int(rules.get("threshold_conflict", 999))
+            except (TypeError, ValueError):
+                threshold = 999
+            if fs.tension >= threshold:
+                faction_tension_breached = True
+                break
+
+        # proactive_npc_pending: True if any revealed+alive NPC has
+        # favor >= contact_favor_threshold AND cooldown has elapsed
+        npc_rows = (await s.execute(
+            select(SessionNpcState, WorldNPCTemplate).join(
+                WorldNPCTemplate,
+                WorldNPCTemplate.id == SessionNpcState.npc_template_id,
+            ).where(
+                SessionNpcState.session_id == session_id,
+                SessionNpcState.is_alive == True,   # noqa: E712
+                SessionNpcState.is_revealed == True,  # noqa: E712
+            )
+        )).all()
+        for ns, wt in npc_rows:
+            favor_ok = ns.favor >= wt.contact_favor_threshold
+            cooldown_ok = (current_turn - ns.last_contact_turn) >= wt.contact_cooldown_turns
+            if favor_ok and cooldown_ok:
+                proactive_npc_pending = True
+                break
+
     # 用 type() 动态构建一个简单对象（类似 namedtuple），
     # 这样 should_run_director() 可以用 .属性名 来访问各字段
     return type("S", (), {
@@ -490,6 +577,13 @@ async def _build_director_trigger_state(
         "hp": hp,
         "sanity": sanity,
         "hidden_event_due": hidden_due,
+        # framework-mode fields (False when not in open-world mode)
+        "is_framework_mode": is_framework_mode,
+        "event_triggered_last_turn": event_triggered_last_turn,
+        "event_completed_last_turn": event_completed_last_turn,
+        "phase_advanced_last_turn": phase_advanced_last_turn,
+        "faction_tension_breached": faction_tension_breached,
+        "proactive_npc_pending": proactive_npc_pending,
     })()
 
 

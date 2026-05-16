@@ -31,6 +31,8 @@ from __future__ import annotations
 
 # 定期触发的间隔：每 5 回合 Director 必须运行一次，即便没有特殊事件
 DIRECTOR_INTERVAL_TURNS = 5
+# 开放世界模式下缩短间隔到 3 回合（地点/事件变化更频繁）
+DIRECTOR_INTERVAL_TURNS_FRAMEWORK = 3
 # 临界状态的阈值：HP 或理智值低于等于这个数字时立即触发 Director
 HP_CRITICAL = 5
 SANITY_CRITICAL = 5
@@ -63,6 +65,20 @@ def should_run_director(stream, session, current_turn: int) -> tuple[bool, str]:
     if getattr(session, "major_plot_turn_last_turn", False):
         return True, "plot_turn_major"
 
+    # ── Framework 模式（开放世界）触发条件 ──────────────────────
+    # 这五个字段由 orchestrator._build_director_trigger_state 填充；
+    # 非 framework 模式下全部为 False，不影响剧本章节模式的逻辑。
+    if getattr(session, "event_completed_last_turn", False):
+        return True, "event_completed"
+    if getattr(session, "phase_advanced_last_turn", False):
+        return True, "phase_advanced"
+    if getattr(session, "event_triggered_last_turn", False):
+        return True, "event_triggered"
+    if getattr(session, "faction_tension_breached", False):
+        return True, "faction_tension"
+    if getattr(session, "proactive_npc_pending", False):
+        return True, "proactive_npc"
+
     # ── 触发条件 4：玩家 HP 临界 ─────────────────────────────
     # HP ≤ 5 说明玩家快死了。Director 需要立刻决定是要给「死亡结局」
     # 还是安排 NPC 救援、剧情转机等。
@@ -82,9 +98,15 @@ def should_run_director(stream, session, current_turn: int) -> tuple[bool, str]:
         return True, "hidden_event_due"
 
     # ── 触发条件 7：定期触发（interval）──────────────────────
-    # 即便没有特殊事件，Director 也要每 5 回合出手一次，
+    # 即便没有特殊事件，Director 也要定期出手一次，
     # 确保故事不会偏离整体方向太远，并为下阶段剧情预埋伏笔。
-    if (current_turn - stream.last_run_turn) >= DIRECTOR_INTERVAL_TURNS:
+    # 开放世界模式使用更短的间隔（3 回合），因为地点/事件变化更频繁。
+    interval = (
+        DIRECTOR_INTERVAL_TURNS_FRAMEWORK
+        if getattr(session, "is_framework_mode", False)
+        else DIRECTOR_INTERVAL_TURNS
+    )
+    if (current_turn - stream.last_run_turn) >= interval:
         return True, "interval"
 
     # 以上条件都不满足，本回合跳过 Director，复用上次的 directive
