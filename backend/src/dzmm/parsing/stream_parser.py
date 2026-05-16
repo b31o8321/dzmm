@@ -61,6 +61,7 @@ KNOWN_TAGS: set[str] = {
     "faction_create",
     "faction_change",
     "npc_cue",
+    "event_trigger",
 }
 
 # 只有 narrative 标签需要"流式"输出（边到边推给前端显示）；

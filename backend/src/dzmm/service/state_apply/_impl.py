@@ -49,10 +49,11 @@ from dzmm.service.state_apply.pc_mood import _apply_pc_mood             # PC 情
 from dzmm.service.state_apply.plot_event import _apply_plot_event       # 剧情线索 / 任务
 from dzmm.service.state_apply.recall import _apply_recall               # NPC 回忆召回（下回合重注入档案）
 from dzmm.service.state_apply.screenplay import (
-    _apply_chapter_advance,   # 推进到下一章节
-    _apply_ending,            # 标记故事结局
-    _apply_event_complete,    # 标记某个剧情事件完成
-    _apply_plot_turn,         # 剧情转折点（可能触发大纲重写）
+    _apply_chapter_advance,          # 推进到下一章节
+    _apply_ending,                   # 标记故事结局
+    _apply_event_complete,           # 标记某个剧情事件完成（线性剧本 + 开放世界双路径）
+    _apply_event_trigger,            # 开放世界：事件触发（pending → triggered）
+    _apply_plot_turn,                # 剧情转折点（可能触发大纲重写）
 )
 from dzmm.service.state_apply.doom import _apply_doom                   # 末日时钟
 from dzmm.service.state_apply.location import _apply_location_enter     # 进入新地点
@@ -198,8 +199,11 @@ async def apply_tags(
             # 推进到剧本的下一章节
             await _apply_chapter_advance(session, session_id, tag.attrs, current_turn)
         elif tag.name == "event_complete":
-            # 标记某个剧情事件已完成，同时自动奖励 XP
+            # 标记某个剧情事件已完成；线性剧本路径自动奖励 XP，开放世界路径推进 Campaign 阶段
             await _apply_event_complete(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "event_trigger":
+            # 开放世界：Director 声明某候选事件已在叙事中发生（pending/triggered → triggered）
+            await _apply_event_trigger(session, session_id, tag.attrs, current_turn)
         elif tag.name == "plot_turn":
             # 剧情重大转折，可能触发大纲自动重写
             await _apply_plot_turn(session, session_id, tag.attrs, current_turn)

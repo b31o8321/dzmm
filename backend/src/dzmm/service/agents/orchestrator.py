@@ -751,8 +751,8 @@ async def run_turn_v10(
             )
         total_tok_in += d_in
         total_tok_out += d_out
-        # Director 可能在 directive 文本里附带 <event_complete> 标签，
-        # 提前 yield 出去，让 apply_tags 在 Scene 运行前就处理完成标记
+        # Director 可能在 directive 文本里附带 <event_complete> 或 <event_trigger> 标签，
+        # 提前 yield 出去，让 apply_tags 在 Scene 运行前就处理完成/触发标记
         for m in re.finditer(
             r'<event_complete\b([^/]*/?)>',
             directive,
@@ -766,7 +766,29 @@ async def run_turn_v10(
                     "director yielded event_complete ch=%s ev=%s type=%s",
                     attrs.get("chapter"), attrs.get("event"), attrs.get("type", "main"),
                 )
-                yield TagComplete(name="event_complete", attrs=attrs)  # 推送给 game.py
+                yield TagComplete(name="event_complete", attrs=attrs)  # 推送给 game.py（线性剧本路径）
+            elif "event_id" in attrs:
+                log.info(
+                    "director yielded event_complete event_id=%s (open-world)",
+                    attrs.get("event_id"),
+                )
+                yield TagComplete(name="event_complete", attrs=attrs)  # 推送给 game.py（开放世界路径）
+
+        # 开放世界：Director 声明事件触发（pending → triggered）
+        for m in re.finditer(
+            r'<event_trigger\b([^/]*/?)>',
+            directive,
+        ):
+            attr_str = m.group(1)
+            attrs_t: dict[str, str] = {}
+            for am in re.finditer(r'(\w+)=["\']([^"\']*)["\']', attr_str):
+                attrs_t[am.group(1)] = am.group(2)
+            if "event_id" in attrs_t:
+                log.info(
+                    "director yielded event_trigger event_id=%s",
+                    attrs_t.get("event_id"),
+                )
+                yield TagComplete(name="event_trigger", attrs=attrs_t)  # 推送给 game.py
     else:
         # 本回合不运行 Director，复用上次的 directive
         directive = await _last_director_directive(s, director_stream.id)

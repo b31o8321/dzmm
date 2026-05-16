@@ -41,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import Character, Screenplay, ScreenplayRevision
 from dzmm.db.models import Session as GameSession
+from dzmm.db.models import Campaign, SessionCampaignState, SessionEventState, WorldEvent
 
 # 事件完成后自动奖励 XP（经验值）的数量
 # 主线事件更重要，奖励更多；支线事件可选，奖励较少
@@ -131,7 +132,16 @@ async def _apply_event_complete(
     # -------------------------------------------------------
     """<event_complete chapter=N event=M type=main|optional/> →
     append {"chapter": N, "event_idx": M, "type": "main|optional"} to
-    completed_events_json. Idempotent: re-emitting same triple is a no-op."""
+    completed_events_json. Idempotent: re-emitting same triple is a no-op.
+
+    Open-world mode: if attrs contains event_id (but not chapter+event), delegate
+    to _apply_event_complete_open_world instead. The two paths are mutually exclusive.
+    """
+    # 开放世界路径：attrs 含 event_id 而不含 chapter/event → 委托给开放世界处理函数
+    if "event_id" in attrs and "chapter" not in attrs:
+        await _apply_event_complete_open_world(session, session_id, attrs, current_turn)
+        return
+
     sp = await _get_active_screenplay(session, session_id)
     if sp is None:
         return
@@ -271,3 +281,203 @@ async def _apply_ending(
         return
     sp.status = "concluded"                                        # 标记为"已结局"
     sp.concluded_at = datetime.now(UTC).replace(tzinfo=None)       # 记录结局时间（不带时区，存 UTC）
+
+
+# ============================================================
+# 开放世界事件状态机
+#
+# 两个标签构成触发→完成的生命周期：
+#   <event_trigger event_id="N"/>   → 事件进入 "triggered" 状态
+#   <event_complete event_id="N"/>  → 事件进入 "completed" 状态，同时推进 Campaign 阶段
+#
+# 线性剧本模式的 <event_complete chapter=N event=M/> 不触发这两个函数。
+# 互斥判断：event_id 属性存在 → 开放世界路径；chapter+event 属性存在 → 线性剧本路径。
+# ============================================================
+
+
+async def _resolve_world_event(
+    session: AsyncSession, session_id: int, event_id: int
+) -> tuple[int | None, bool]:
+    """Return (framework_id, event_matches_framework).
+
+    Returns (None, False) if the session has no framework_id, or if the
+    WorldEvent row doesn't exist, or if the event belongs to a different
+    framework.  Caller should no-op on (None, False) or (_, False).
+    """
+    sess = await session.get(GameSession, session_id)
+    if sess is None or sess.framework_id is None:
+        return None, False
+
+    ev = await session.get(WorldEvent, event_id)
+    if ev is None:
+        return None, False
+
+    if ev.framework_id != sess.framework_id:
+        return None, False
+
+    return sess.framework_id, True
+
+
+async def _apply_event_trigger(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> None:
+    # -------------------------------------------------------
+    # 处理 <event_trigger event_id="N"/> 标签（开放世界模式）
+    #
+    # Director 发现某个候选事件已在叙事中"发生了"时 emit 此标签。
+    # 将对应的 SessionEventState 行从 pending → triggered（幂等）。
+    # -------------------------------------------------------
+    """Upsert SessionEventState to status='triggered'. Idempotent."""
+    try:
+        event_id = int(attrs.get("event_id", ""))
+    except (TypeError, ValueError):
+        return
+
+    framework_id, ok = await _resolve_world_event(session, session_id, event_id)
+    if not ok:
+        return
+
+    row = await session.get(SessionEventState, (session_id, event_id))
+    if row is None:
+        # 新插入 triggered 行
+        row = SessionEventState(
+            session_id=session_id,
+            event_id=event_id,
+            status="triggered",
+            triggered_turn=current_turn,
+        )
+        session.add(row)
+    elif row.status == "pending":
+        # pending → triggered
+        row.status = "triggered"
+        row.triggered_turn = current_turn
+    # 若已经是 triggered 或 completed → 幂等，不做任何变更
+
+
+async def _apply_phase_advance(
+    session: AsyncSession,
+    session_id: int,
+    event_id: int,
+    current_turn: int,
+) -> None:
+    # -------------------------------------------------------
+    # 在事件完成后推进 Campaign 阶段（Phase）
+    #
+    # 逻辑：
+    #   1. 把 event_id 追加到 SessionCampaignState.triggered_key_events_json
+    #   2. 计算哪些 Phase 已完成（key_event_ids 里满足 required_count 个都已完成）
+    #   3. 在未完成的 Phase 中，找前置阶段全部满足且 phase_id 最小的一个，
+    #      更新为 current_phase_id
+    # -------------------------------------------------------
+    """Append event to triggered_key_events, recompute current_phase_id."""
+    sess = await session.get(GameSession, session_id)
+    if sess is None or sess.framework_id is None:
+        return
+
+    # 查找 Campaign（每个 framework 最多一个）
+    result = await session.execute(
+        select(Campaign).where(Campaign.framework_id == sess.framework_id)
+    )
+    campaign = result.scalars().first()
+    if campaign is None:
+        return
+
+    # Get-or-create SessionCampaignState
+    state = await session.get(SessionCampaignState, session_id)
+    if state is None:
+        state = SessionCampaignState(
+            session_id=session_id,
+            current_phase_id=None,
+            triggered_key_events_json="[]",
+        )
+        session.add(state)
+
+    # 解析 triggered_key_events_json
+    try:
+        triggered: list[int] = json.loads(state.triggered_key_events_json or "[]")
+        if not isinstance(triggered, list):
+            triggered = []
+    except (TypeError, ValueError):
+        triggered = []
+
+    # 幂等：同一个 event_id 只追加一次
+    if event_id not in triggered:
+        triggered.append(event_id)
+        state.triggered_key_events_json = json.dumps(triggered, ensure_ascii=False)
+
+    # 解析 phases_json
+    try:
+        phases: list[dict] = json.loads(campaign.phases_json or "[]")
+        if not isinstance(phases, list):
+            phases = []
+    except (TypeError, ValueError):
+        phases = []
+
+    triggered_set = set(triggered)
+
+    def _phase_completed(ph: dict) -> bool:
+        key_ids: list[int] = ph.get("key_event_ids") or []
+        required: int = ph.get("required_count") or len(key_ids)
+        matched = sum(1 for eid in key_ids if eid in triggered_set)
+        return matched >= required
+
+    completed_phase_ids = {
+        ph["phase_id"] for ph in phases if _phase_completed(ph)
+    }
+
+    # 在未完成的 Phase 中，找所有前置阶段都已完成且 phase_id 最小的
+    candidates = [
+        ph for ph in phases
+        if ph["phase_id"] not in completed_phase_ids
+        and all(
+            prereq in completed_phase_ids
+            for prereq in (ph.get("prerequisite_phase_ids") or [])
+        )
+    ]
+
+    if candidates:
+        next_phase = min(candidates, key=lambda ph: ph["phase_id"])
+        state.current_phase_id = next_phase["phase_id"]
+
+
+async def _apply_event_complete_open_world(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict[str, str],
+    current_turn: int,
+) -> None:
+    # -------------------------------------------------------
+    # 处理开放世界模式下的 <event_complete event_id="N"/> 标签
+    #
+    # 将 SessionEventState 推进到 completed，然后触发 Campaign 阶段推进。
+    # -------------------------------------------------------
+    """Upsert SessionEventState to status='completed', then advance Campaign phase."""
+    try:
+        event_id = int(attrs.get("event_id", ""))
+    except (TypeError, ValueError):
+        return
+
+    framework_id, ok = await _resolve_world_event(session, session_id, event_id)
+    if not ok:
+        return
+
+    row = await session.get(SessionEventState, (session_id, event_id))
+    if row is None:
+        row = SessionEventState(
+            session_id=session_id,
+            event_id=event_id,
+            status="completed",
+            triggered_turn=current_turn,
+        )
+        session.add(row)
+    else:
+        if row.status != "completed":
+            if row.triggered_turn == 0:
+                row.triggered_turn = current_turn
+            row.status = "completed"
+        # 已经是 completed → 幂等，不做变更（但仍然执行 phase advance 以防漏推）
+
+    await _apply_phase_advance(session, session_id, event_id, current_turn)
