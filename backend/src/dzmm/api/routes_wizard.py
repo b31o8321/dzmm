@@ -181,11 +181,13 @@ async def character(
 async def _fw_character_impl(payload: dict, s: AsyncSession):
     """Shared implementation for /wizard/character and /wizard/fw/character."""
     client = await _client_for(s, _require_int(payload, "model_config_id"))
-    return await generate_character(
+    result = await generate_character(
         world_md=str(payload.get("world_md") or ""),       # 完整的世界设定文本
         archetype=str(payload.get("archetype") or ""),     # 角色原型，例如"侦探""学者"
         client=client,
+        genre=str(payload.get("genre") or ""),             # v0.15 Batch 4: genre for stat template
     )
+    return result
 
 
 # POST /wizard/npcs

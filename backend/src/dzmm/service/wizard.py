@@ -334,10 +334,11 @@ def _parse_character_json(raw: str) -> dict:
 
 
 async def generate_character(
-    world_md: str, archetype: str, client: ModelClient
+    world_md: str, archetype: str, client: ModelClient, genre: str = ""
 ) -> dict:
     # 根据世界观和角色原型（archetype）生成玩家角色
     # archetype 为空时，让 LLM 自由发挥
+    # genre 用于生成结构化属性（v0.15 Batch 4）
     effective_archetype = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
     async def _attempt():
         # max_tokens=2500: profile_md 本身 600~1500 字符 + JSON 结构开销，
@@ -346,7 +347,14 @@ async def generate_character(
             client, build_character_messages(world_md, effective_archetype),
             max_tokens=2500, json_mode=True,
         )
-        return _parse_character_json(raw)
+        result = _parse_character_json(raw)
+        # v0.15 Batch 4: add structured stats from genre template
+        from dzmm.engine.genre_templates import apply_genre_template
+        tmpl = apply_genre_template(genre.strip())
+        result["stat_block"] = tmpl["stat_block"]
+        result["skills"] = tmpl["skills"]
+        result["inventory"] = tmpl["inventory"]
+        return result
     return await _with_retry(_attempt)
 
 
@@ -489,12 +497,39 @@ async def finalize_wizard(
     await session.flush()  # flush 后 world.id 才会被赋值
 
     # ── 2. 创建玩家角色（关联到世界）─────────────────────────────────────
+    # v0.15 Batch 4: apply structured stat_block / skills / inventory if present
+    stat_block: dict = char_data.get("stat_block") or {}
+    skills_data: dict = char_data.get("skills") or {}
+    inventory_data: list = char_data.get("inventory") or []
+
+    # If not already in char_data, compute from genre template
+    if not stat_block:
+        from dzmm.engine.genre_templates import apply_genre_template
+        tmpl = apply_genre_template(str(bundle.get("genre") or ""))
+        stat_block = tmpl["stat_block"]
+        skills_data = tmpl["skills"]
+        inventory_data = tmpl["inventory"]
+
     char = Character(
         world_id=world.id,
         name=str(char_data.get("name") or "(未命名)")[:120],
         gender=_normalize_gender(char_data.get("gender")),
         profile_md=str(char_data.get("profile_md") or ""),
         base_stats_json=str(char_data.get("base_stats_json") or "{}"),
+        # D&D attributes
+        strength=int(stat_block.get("strength", 10)),
+        dexterity=int(stat_block.get("dexterity", 10)),
+        constitution=int(stat_block.get("constitution", 10)),
+        intelligence=int(stat_block.get("intelligence", 10)),
+        wisdom=int(stat_block.get("wisdom", 10)),
+        charisma=int(stat_block.get("charisma", 10)),
+        # Max vitals
+        max_hp=int(stat_block.get("max_hp", 30)),
+        max_sanity=int(stat_block.get("max_sanity", 50)),
+        max_stamina=int(stat_block.get("max_stamina", 30)),
+        # Skills + inventory
+        skills_json=json.dumps(skills_data, ensure_ascii=False),
+        inventory_json=json.dumps(inventory_data, ensure_ascii=False),
     )
     session.add(char)
     await session.flush()
