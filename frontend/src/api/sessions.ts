@@ -24,6 +24,54 @@ export interface WorldTime {
   weather: string
 }
 
+export interface StatBlock {
+  strength: number
+  dexterity: number
+  constitution: number
+  intelligence: number
+  wisdom: number
+  charisma: number
+}
+
+export interface Vitals {
+  hp: number
+  max_hp: number
+  sanity: number
+  max_sanity: number
+  stamina: number
+  max_stamina: number
+}
+
+export interface ItemEffect {
+  type: string
+  amount?: number
+  stat?: string
+  skill?: string
+  formula?: string
+}
+
+export interface InventoryItem {
+  name: string
+  qty: number
+  item_type: 'weapon' | 'armor' | 'consumable' | 'key' | 'quest'
+  effects: ItemEffect[]
+  description: string
+}
+
+export interface ResolutionRecord {
+  turn: number
+  kind: 'dice' | 'skill' | 'item' | 'attack' | 'initiative'
+  input: Record<string, unknown>
+  result: Record<string, unknown>
+}
+
+export interface CombatSlot {
+  kind: 'pc' | 'npc'
+  id: number
+  name: string
+  initiative_total: number
+}
+
 export interface SessionState {
   stats: Record<string, number>
   inventory: string[]
@@ -32,6 +80,14 @@ export interface SessionState {
   topology_warnings?: string[]
   npcs: { name: string; favor: number; state: string; met?: boolean; emotion?: Record<string, number> }[]
   threads: { type: string; description: string; importance: number }[]
+  // v0.15 extended fields — all optional for backwards compat
+  attributes?: StatBlock
+  vitals?: Vitals
+  skills?: Record<string, number>
+  inventory_v2?: InventoryItem[]
+  equipment?: Record<string, string | null>
+  combat_order?: CombatSlot[]
+  recent_resolutions?: ResolutionRecord[]
 }
 
 export interface PlotThreadItem {

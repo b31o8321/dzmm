@@ -1,6 +1,6 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { sessionsApi, type PCGoalItem } from '@/api/sessions'
+import { sessionsApi, type PCGoalItem, type StatBlock, type Vitals, type InventoryItem, type CombatSlot, type ResolutionRecord } from '@/api/sessions'
 
 export const MAX_DICE = 8
 
@@ -12,6 +12,15 @@ export function useGameState() {
   const threads = ref<{ type: string; description: string; importance: number }[]>([])
   const pcMood = ref<Record<string, number>>({})
   const goals = ref<PCGoalItem[]>([])
+
+  // v0.15 extended mechanical state
+  const attributes = ref<StatBlock | undefined>(undefined)
+  const vitals = ref<Vitals | undefined>(undefined)
+  const skills = ref<Record<string, number> | undefined>(undefined)
+  const inventoryV2 = ref<InventoryItem[] | undefined>(undefined)
+  const equipment = ref<Record<string, string | null> | undefined>(undefined)
+  const combatOrder = ref<CombatSlot[] | undefined>(undefined)
+  const recentResolutions = ref<ResolutionRecord[] | undefined>(undefined)
 
   function applyStateChange(content: string) {
     try {
@@ -103,6 +112,13 @@ export function useGameState() {
     threads,
     pcMood,
     goals,
+    attributes,
+    vitals,
+    skills,
+    inventoryV2,
+    equipment,
+    combatOrder,
+    recentResolutions,
     applyStateChange,
     applyNpcUpdate,
     applyPcMood,

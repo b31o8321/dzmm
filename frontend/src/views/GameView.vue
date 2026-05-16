@@ -201,6 +201,13 @@ const {
   threads,
   pcMood,
   goals,
+  attributes,
+  vitals,
+  skills,
+  inventoryV2,
+  equipment,
+  combatOrder,
+  recentResolutions,
 } = gs
 const refreshGoals = () => gs.refreshGoals(sessionId)
 const updateGoal = (goalId: number, status: 'active' | 'completed' | 'abandoned') =>
@@ -225,6 +232,7 @@ const {
     refreshLocations()  // pick up <location_enter> updates
     refreshNpcs()  // pick up <npc_update> changes (favor/state/location/emotion)
     refreshWorldTime()  // pick up <time_advance> updates
+    refreshV15State()   // pick up v0.15 mechanical state (vitals/skills/inventory/combat)
     refreshSuggestions()
     // Re-fetch open-world panel data after each turn (events/NPCs/factions may have changed)
     if (frameworkId.value) {
@@ -378,6 +386,19 @@ async function refreshWorldTime() {
   try {
     const st = await sessionsApi.state(sessionId)
     if (st.world_time) worldTime.value = { ...st.world_time }
+  } catch { /* ignore */ }
+}
+
+async function refreshV15State() {
+  try {
+    const st = await sessionsApi.state(sessionId)
+    if (st.attributes) attributes.value = st.attributes
+    if (st.vitals) vitals.value = st.vitals
+    if (st.skills) skills.value = st.skills
+    if (st.inventory_v2) inventoryV2.value = st.inventory_v2
+    if (st.equipment) equipment.value = st.equipment
+    if (st.combat_order) combatOrder.value = st.combat_order
+    if (st.recent_resolutions) recentResolutions.value = st.recent_resolutions
   } catch { /* ignore */ }
 }
 
@@ -695,6 +716,13 @@ onMounted(async () => {
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
     if (st.world_time) worldTime.value = { ...st.world_time }
     topologyWarnings.value = st.topology_warnings ?? []
+    if (st.attributes) attributes.value = st.attributes
+    if (st.vitals) vitals.value = st.vitals
+    if (st.skills) skills.value = st.skills
+    if (st.inventory_v2) inventoryV2.value = st.inventory_v2
+    if (st.equipment) equipment.value = st.equipment
+    if (st.combat_order) combatOrder.value = st.combat_order
+    if (st.recent_resolutions) recentResolutions.value = st.recent_resolutions
   } catch {
     /* ignore — fall through to the end-of-mount rehydrate below */
   }
@@ -794,6 +822,13 @@ onMounted(async () => {
     pcMood.value = st.pc_mood ? { ...st.pc_mood } : {}
     if (st.world_time) worldTime.value = { ...st.world_time }
     topologyWarnings.value = st.topology_warnings ?? []
+    if (st.attributes) attributes.value = st.attributes
+    if (st.vitals) vitals.value = st.vitals
+    if (st.skills) skills.value = st.skills
+    if (st.inventory_v2) inventoryV2.value = st.inventory_v2
+    if (st.equipment) equipment.value = st.equipment
+    if (st.combat_order) combatOrder.value = st.combat_order
+    if (st.recent_resolutions) recentResolutions.value = st.recent_resolutions
 
     // Augment with pinned flag and current_location from /npcs endpoint.
     try {
@@ -1104,6 +1139,13 @@ onUnmounted(() => {
                   :topology-warnings="topologyWarnings"
                   :current-location="currentLocation"
                   :world-time="worldTime ?? undefined"
+                  :vitals="vitals"
+                  :attributes="attributes"
+                  :skills="skills"
+                  :inventory-v2="inventoryV2"
+                  :equipment="equipment"
+                  :combat-order="combatOrder"
+                  :recent-resolutions="recentResolutions"
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
       <div class="px-3 pb-3 space-y-3">
@@ -1171,6 +1213,13 @@ onUnmounted(() => {
                     :topology-warnings="topologyWarnings"
                     :current-location="currentLocation"
                     :world-time="worldTime ?? undefined"
+                    :vitals="vitals"
+                    :attributes="attributes"
+                    :skills="skills"
+                    :inventory-v2="inventoryV2"
+                    :equipment="equipment"
+                    :combat-order="combatOrder"
+                    :recent-resolutions="recentResolutions"
                     @select-npc="openNpcDetail"
                     @goal-status="updateGoal" />
         <div class="px-3 pb-3 space-y-3">

@@ -21,12 +21,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.routes_sessions._common import _parse_events_json, get_session_dep
 from dzmm.db.models import (
+    Character,
     CharState,
     Message as MessageRow,
     NPC,
     PlotThread,
     Session as GameSession,
 )
+from dzmm.engine.schema import parse_items, parse_skills
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -167,6 +169,74 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
     world_time.setdefault("period", "morning")
     world_time.setdefault("weather", "clear")
 
+    # ── v0.15 — extended fields from Character + Session ───────────────────
+    char = await s.get(Character, sess.character_id)
+
+    # Attributes (D&D-style 6 stats from Character columns)
+    attributes: dict = {}
+    vitals: dict = {}
+    skills: dict = {}
+    inventory_v2: list = []
+    equipment: dict = {}
+    if char is not None:
+        attributes = {
+            "strength": char.strength,
+            "dexterity": char.dexterity,
+            "constitution": char.constitution,
+            "intelligence": char.intelligence,
+            "wisdom": char.wisdom,
+            "charisma": char.charisma,
+        }
+        # Vitals: current from CharState, max from Character
+        hp_current = int(stats.get("hp", stats.get("HP", char.max_hp)))
+        san_current = int(stats.get("sanity", stats.get("san", char.max_sanity)))
+        stamina_current = cs.stamina if cs is not None else char.max_stamina
+        vitals = {
+            "hp": hp_current,
+            "max_hp": char.max_hp,
+            "sanity": san_current,
+            "max_sanity": char.max_sanity,
+            "stamina": stamina_current,
+            "max_stamina": char.max_stamina,
+        }
+        # Skills: parse from Character.skills_json
+        skills = parse_skills(char.skills_json or "{}")
+        # Inventory v2: structured items from Character.inventory_json
+        items = parse_items(char.inventory_json or "[]")
+        inventory_v2 = [
+            {
+                "name": it.name,
+                "qty": it.qty,
+                "item_type": it.item_type,
+                "effects": [e.model_dump(exclude_none=True) for e in it.effects],
+                "description": it.description,
+            }
+            for it in items
+        ]
+        # Equipment: slot→name dict from Character.equipment_json
+        try:
+            eq = json.loads(char.equipment_json or "{}")
+            equipment = eq if isinstance(eq, dict) else {}
+        except (TypeError, ValueError):
+            equipment = {}
+
+    # Recent resolutions: last 5 from Session.pending_resolutions_json
+    try:
+        all_resolutions = json.loads(sess.pending_resolutions_json or "[]")
+        if not isinstance(all_resolutions, list):
+            all_resolutions = []
+        recent_resolutions = all_resolutions[-5:]
+    except (TypeError, ValueError):
+        recent_resolutions = []
+
+    # Combat order from Session.combat_order_json
+    try:
+        combat_order = json.loads(sess.combat_order_json or "[]")
+        if not isinstance(combat_order, list):
+            combat_order = []
+    except (TypeError, ValueError):
+        combat_order = []
+
     return {
         "stats": stats,
         "inventory": inventory,
@@ -193,4 +263,13 @@ async def get_state(session_id: int, s: AsyncSession = Depends(get_session_dep))
             }
             for t in thread_rows
         ],
+        # v0.15 extended fields — optional; absent on old sessions where Character
+        # row lacks the new columns (they all default so will be present).
+        "attributes": attributes,
+        "vitals": vitals,
+        "skills": skills,
+        "inventory_v2": inventory_v2,
+        "equipment": equipment,
+        "combat_order": combat_order,
+        "recent_resolutions": recent_resolutions,
     }
