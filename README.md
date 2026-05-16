@@ -4,9 +4,9 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Paused · final release **v0.10.3**. See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active · current release **v0.11.0** (open-world runtime + Phase C eval JSONL export). See [CHANGELOG](CHANGELOG.md) for the full history.
 >
-> The codebase is archived as a complete learning reference. All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
+> All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
 
 ---
 
@@ -192,30 +192,40 @@ All backend Python files carry detailed Chinese inline comments (targeting reade
 
 ---
 
+## Implemented technical evolution
+
+**Phase A — LangChain RAG world-book retrieval** ✅
+- OllamaEmbedder + ChromaDB + RecursiveCharacterTextSplitter
+- Large world books auto-chunked; top-k relevant chunks injected per turn
+
+**Phase B — LangGraph multi-agent GM** ✅ (v0.10)
+- Director (strategy) / Scene (narrative) / NPC Actors / Orchestrator
+- StateGraph, conditional edges, closure injection, persistent AgentStream/AgentMessage
+
+**Phase C — autonomous evaluation** ✅ (complete in v0.11.0)
+- Player Agent auto-plays sessions from character_md + recent history
+- Judge Agent (LLM-as-Judge) scores plot_speed / rule_violations / rp_immersion / dice_accuracy
+- Eval runner: A/B compare, Markdown report + JSONL training data export
+- CLI: `python -m dzmm.eval.cli --session-id N --turns 20 --export-jsonl train.jsonl`
+
+**v0.11 open-world framework** ✅ (runtime complete in v0.11.0)
+- WorldFramework: locations / factions / NPC templates / events / Campaign phases
+- Director reads "nearby available events × BFS distance × main-plot progress"
+- WorldMapPanel SVG topology view, CampaignProgressPanel phase tracking
+- Event state machine (pending → triggered → completed) + auto Campaign phase advance
+
 ## Planned but unimplemented
 
-Directions that were scoped before the project paused, kept here as a reference:
-
-**Phase C — autonomous agent evaluation**
-- Player Agent that auto-plays sessions with varied decision styles
-- Judge Agent (LLM-as-Judge) scoring narrative coherence, state consistency, dice fairness
-- Evaluation runner → quality reports, dataset for Phase D fine-tuning
-
 **Phase D — QLoRA fine-tuning**
-- Use "good turns" from Phase C to fine-tune a TRPG-specialist small model
-- Target: 7B model matching GPT-4o-mini on tag-compliance in TRPG prompts
+- Use the JSONL training data exported from Phase C to fine-tune a TRPG-specialist small model
+- Target: 7B model matching GPT-4o-mini on TRPG tag-compliance
 - Hardware: desktop Linux + RX 9070
-
-**v0.11+ open-world framework** (skeleton merged in v0.10.2, not fully polished)
-- WorldFramework: location graph / factions / NPC templates / event pool — replaces linear screenplay chapters
-- Director Agent reads "nearby available events + main-plot progress" instead of chapters
-- Geographic BFS distance weights event priority; feels more organic than a timeline
 
 **v0.14 screenplay-driven overhaul** (larger rework)
 - On session start, one LLM call generates a full screenplay outline (chapters / key NPCs / key events / ending condition)
 - GM narrates *within* the outline rather than improvising the main plot from scratch
 - Player pivotal decisions emit `<plot_turn>` → backend asynchronously rewrites the remaining outline
-- After the ending, players can continue (Season 2) or start fresh from a genre template (mystery / hero / political / romance)
+- After the ending, players can continue (Season 2) or start fresh from a genre template
 
 ---
 

@@ -32,6 +32,7 @@ from dzmm.config import APP_DIR, DEFAULT_DB_URL
 from dzmm.db.base import get_engine, async_session
 from dzmm.db.models import ModelConfig, Session as GameSession  # 别名避免与 Python 内置 Session 冲突
 from dzmm.models.factory import build_client
+from dzmm.eval.export import export_jsonl
 from dzmm.eval.report import generate_report
 from dzmm.eval.runner import EvalConfig, run_eval
 
@@ -121,6 +122,31 @@ async def _main(args: argparse.Namespace) -> None:
         )
         print(f"Session B done. {len(scores_b)} evaluation checkpoints.")
 
+    # ── 可选：导出 JSONL 训练数据（Phase D QLoRA）────────────────────────
+    if args.export_jsonl:
+        export_base = Path(args.export_jsonl)
+        if args.compare and scores_b:
+            # A/B 对比模式：写两个文件
+            path_a = export_base.parent / (export_base.name + ".a.jsonl")
+            path_b = export_base.parent / (export_base.name + ".b.jsonl")
+            n_a = await export_jsonl(
+                args.session_id, scores_a, path_a, session_maker,
+                min_overall=args.min_score,
+            )
+            print(f"Exported {n_a} records to {path_a}")
+            n_b = await export_jsonl(
+                args.session_id_b, scores_b, path_b, session_maker,
+                min_overall=args.min_score,
+            )
+            print(f"Exported {n_b} records to {path_b}")
+        else:
+            # 单组模式：直接写到指定路径
+            n = await export_jsonl(
+                args.session_id, scores_a, export_base, session_maker,
+                min_overall=args.min_score,
+            )
+            print(f"Exported {n} records to {export_base}")
+
     # ── 生成 Markdown 报告 ──────────────────────────────────────────────
     # generate_report() 接收 A/B 两组评分，生成带对比分析的 Markdown 文本
     report = generate_report(scores_a, "single_gm", scores_b, config_b_name)
@@ -161,6 +187,27 @@ def main() -> None:
     # --compare：布尔标志（有则为 True，无则为 False）
     # action="store_true" 表示这是一个开关参数，不需要传值，传了就是 True
     parser.add_argument("--compare", action="store_true")
+
+    # --export-jsonl：导出 JSONL 训练数据到指定路径（Phase D QLoRA 用）
+    # 不传则不导出；传了路径则在评测完成后写文件
+    # --compare 模式下会自动在路径名后加 .a.jsonl / .b.jsonl 后缀
+    parser.add_argument(
+        "--export-jsonl",
+        dest="export_jsonl",
+        default=None,
+        metavar="PATH",
+        help="Export per-turn training records to JSONL at PATH (Phase D QLoRA data).",
+    )
+
+    # --min-score：导出时的综合分下限（低于此分数的回合不写入 JSONL）
+    parser.add_argument(
+        "--min-score",
+        dest="min_score",
+        type=float,
+        default=7.0,
+        metavar="FLOAT",
+        help="Minimum overall score to include in JSONL export (default: 7.0).",
+    )
 
     args = parser.parse_args()  # 解析实际的命令行参数
 

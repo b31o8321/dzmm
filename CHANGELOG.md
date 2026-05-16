@@ -2,6 +2,60 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.11.0] - 2026-05-17
+
+**开放世界运行时打通 + Phase C 评测数据导出**
+
+v0.10.x 把开放世界 wizard、表结构、Director 选型框架合入了，但运行时是断的——前端面板永远空白、事件状态机不写入、Director 触发器只懂剧本模式。v0.11.0 把这条链跑通，并补完 Phase C 自动评测的 Phase D 数据导出。
+
+### 新增
+
+#### 🌐 开放世界运行时数据流（v0.11 Batch 1）
+- **`GET /sessions/{id}/world_state`** —— 单接口聚合返回 locations / factions / npcs / events / pc_location_id / campaign。joins WorldXxx 模板和 SessionXxxState 覆盖层；未揭示 NPC + 未触发事件对玩家隐藏。
+- **GameView onMounted 拉取 + 每回合刷新** —— WorldMapPanel / CampaignProgressPanel 不再永远空白。
+- **WorldMapPanel SVG 拓扑视图** —— 力导向布局（150 ticks Coulomb + Hooke），地点为节点、connections 为边。状态色环、PC 当前位置高亮、未探索置灰。`地图 / 列表` Tab 切换。
+- 测试：+6 (test_world_state.py)
+
+#### 🎯 事件状态机 + Campaign Phase 推进（v0.11 Batch 2）
+- **`<event_trigger event_id="N"/>` 解析器支持** —— KNOWN_TAGS 加入；state_apply 写入 SessionEventState.status="triggered"。
+- **`<event_complete event_id="N"/>` 开放世界路径** —— attrs 里有 event_id 时走开放世界逻辑（写 SessionEventState.status="completed"），有 chapter+event 时仍走剧本逻辑，两条路径互斥共存。
+- **`_apply_phase_advance`** —— event_complete 后追加到 SessionCampaignState.triggered_key_events_json；按前置阶段 DAG 重算 current_phase_id。
+- **Orchestrator 转发** —— Director 输出里的 event_trigger / event_complete 标签提前 yield 给 apply_tags，保证 Scene 运行前事件状态已就绪。
+- **director_open_world_template** —— `_SYSTEM` 加上 trigger→complete 生命周期说明。
+- 测试：+12 (test_world_state_machine.py)
+
+#### 🚦 Director 触发器认知开放世界（v0.11 Batch 3）
+- **5 个新触发条件** —— event_completed / event_triggered / phase_advanced / faction_tension_breached / proactive_npc_pending 任一发生立刻触发 Director。
+- **framework 模式 interval 缩短** —— DIRECTOR_INTERVAL_TURNS_FRAMEWORK = 3（vs 剧本模式 5），开放世界 Director 重新规划更频繁。
+- **`_build_director_trigger_state` 框架字段** —— 当 `sess.framework_id` 为真时计算 5 个新字段，否则全 False（不查询节省成本）。
+- 测试：+12 (test_triggers_framework.py)
+
+#### 🧙 开放世界向导命名收齐 + finalize 完整链
+- **`/wizard/fw/character`** —— 新增端点与 `/wizard/character` 共享 `_fw_character_impl()` 助手；老端点带 @deprecated 标记保留兼容；前端 OpenWorldWizardView 切到新端点。
+- v0.10.3 已包含的 wizard finalize 链式调用（framework → world → character → session → /play）继续生效。
+
+#### 📊 Phase C 评测 JSONL 数据导出（Phase D 准备）
+- **`dzmm.eval.export.export_jsonl`** —— 把通过分数阈值的回合导出为 JSONL（每行一个 (messages, completion, score) 训练记录）。
+- **CLI `--export-jsonl PATH --min-score 7.0`** —— 评测结束后自动生成训练数据。
+- **debug_mode 自动捕获** —— 评测期间 settings.debug_mode 必须开启，否则 prompt_json 为空、该回合跳过并 warning。
+- 测试：覆盖阈值过滤 / 缺失 prompt_json / JSONL 结构 / Unicode 保留。
+
+### 文档
+
+- README 状态从「暂停更新 v0.10.3」改回「开发中 v0.11.0」；标记 Phase C 已实现；后续规划保留 Phase D + v0.14。
+- 学习文档 langchain-rag.md / langgraph-multiagent.md / agent-eval.md 体现 Phase A/B/C 全部已上线。
+
+### 修复（沿用 v0.10.x 累计）
+
+- v0.10.3 的 wizard finalize / 调试链路弹窗 / Windows ChromaDB rmtree / e2e localStorage key / 调试链路 `immediate: true` watcher 等修复全部包含。
+
+### 统计
+
+- 30 新测试（v0.11 Batch 1/2/3）+ JSONL export 新测试 + 2 wizard 新测试。
+- 后端 600+ 测试全绿（v0.10.1 → v0.11.0：~530 → 630+）。
+
+---
+
 ## [v0.10.3] - 2026-05-17
 
 **项目暂停前的 bug 修复打包 + 开放世界向导完整链**
