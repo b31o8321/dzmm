@@ -50,6 +50,7 @@ from dzmm.api.routes_sessions.suggest import router as _suggest_router
 from dzmm.api.routes_sessions.turn import router as _turn_router
 from dzmm.api.routes_sessions.npc_tick import router as _npc_tick_router
 from dzmm.api.routes_sessions.debug_chain import router as _debug_chain_router
+from dzmm.api.routes_sessions.world_state import router as _world_state_router
 
 # 创建本包对外暴露的总 router
 # main.py 只需 `app.include_router(router, prefix="/sessions")` 就能注册全部接口
@@ -72,6 +73,7 @@ for _sub in (
     _suggest_router,
     _npc_tick_router,
     _debug_chain_router,
+    _world_state_router,
 ):
     router.include_router(_sub)
 
@@ -111,6 +113,7 @@ _SUBMODULES = (
     "dzmm.api.routes_sessions.suggest",
     "dzmm.api.routes_sessions.npc_tick",
     "dzmm.api.routes_sessions.debug_chain",
+    "dzmm.api.routes_sessions.world_state",
 )
 
 

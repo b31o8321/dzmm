@@ -37,6 +37,7 @@ import { screenplayApi, type Screenplay } from '@/api/screenplay'
 import WorldMapPanel from '@/components/WorldMapPanel.vue'
 import CampaignProgressPanel from '@/components/CampaignProgressPanel.vue'
 import type { WorldLocationData, WorldNPCStateData, WorldEventStateData, CampaignProgress } from '@/api/framework'
+import { frameworkApi } from '@/api/framework'
 import { archetypeEdgeMap } from '@/utils/ttsArchetype'
 
 const props = defineProps<{ id: string }>()
@@ -225,6 +226,16 @@ const {
     refreshNpcs()  // pick up <npc_update> changes (favor/state/location/emotion)
     refreshWorldTime()  // pick up <time_advance> updates
     refreshSuggestions()
+    // Re-fetch open-world panel data after each turn (events/NPCs/factions may have changed)
+    if (frameworkId.value) {
+      frameworkApi.getWorldState(sessionId).then((ws) => {
+        worldLocations.value = ws.locations
+        worldNpcStates.value = ws.npcs
+        worldEventStates.value = ws.events
+        pcLocationId.value = ws.pc_location_id
+        campaignProgress.value = ws.campaign
+      }).catch(() => { /* ignore */ })
+    }
     // TTS: speak the completed turn with per-speaker voices
     if (appStore.ttsEnabled && !appStore.muted) {
       const raw = currentTurn.value?.rawContent
@@ -708,6 +719,20 @@ onMounted(async () => {
     }
   } catch {
     /* ignore */
+  }
+
+  // Populate open-world panel data (optional — legacy sessions skip silently)
+  if (frameworkId.value) {
+    try {
+      const ws = await frameworkApi.getWorldState(sessionId)
+      worldLocations.value = ws.locations
+      worldNpcStates.value = ws.npcs
+      worldEventStates.value = ws.events
+      pcLocationId.value = ws.pc_location_id
+      campaignProgress.value = ws.campaign
+    } catch {
+      /* open-world data is optional — ignore errors */
+    }
   }
 
   // Start BGM matching the world style

@@ -174,4 +174,14 @@ export const frameworkApi = {
 
   finalize: (b: FwFinalizePayload) =>
     api.post<{ framework_id: number }>('/wizard/fw/finalize', b).then(r => r.data),
+
+  getWorldState: (sessionId: number) =>
+    api.get<{
+      locations: WorldLocationData[]
+      factions: WorldFactionData[]
+      npcs: WorldNPCStateData[]
+      events: WorldEventStateData[]
+      pc_location_id: number | null
+      campaign: CampaignProgress | null
+    }>(`/sessions/${sessionId}/world_state`).then(r => r.data),
 }
