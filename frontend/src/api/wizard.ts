@@ -91,25 +91,6 @@ export const wizardApi = {
       .post<WorldBrief>('/wizard/world_brief', b, { timeout: 600_000 })
       .then((r) => r.data),
 
-  worldDetails: (b: { model_config_id: number; brief_md: string }) =>
-    api
-      .post<{ world_md: string }>('/wizard/world_details', b, {
-        timeout: 600_000,
-      })
-      .then((r) => r.data),
-
-  /**
-   * @deprecated Use `fwCharacter` instead. Kept for backwards compatibility.
-   */
-  character: (b: {
-    model_config_id: number
-    world_md: string
-    archetype: string
-  }) =>
-    api
-      .post<WizardCharacter>('/wizard/character', b, { timeout: 600_000 })
-      .then((r) => r.data),
-
   fwCharacter: (b: {
     model_config_id: number
     world_md: string
@@ -117,15 +98,6 @@ export const wizardApi = {
   }) =>
     api
       .post<WizardCharacter>('/wizard/fw/character', b, { timeout: 600_000 })
-      .then((r) => r.data),
-
-  npcs: (b: {
-    model_config_id: number
-    world_md: string
-    character_md: string
-  }) =>
-    api
-      .post<{ npcs: WizardNPC[] }>('/wizard/npcs', b, { timeout: 600_000 })
       .then((r) => r.data),
 
   generateSingleNpc: (b: {
@@ -136,17 +108,6 @@ export const wizardApi = {
   }) =>
     api
       .post<SingleNpcResponse>('/wizard/npc/single', b, { timeout: 600_000 })
-      .then((r) => r.data),
-
-  screenplay: (b: {
-    model_config_id: number
-    world_md: string
-    character_md: string
-    npcs: WizardNPC[]
-    genre: string
-  }) =>
-    api
-      .post<WizardScreenplay>('/wizard/screenplay', b, { timeout: 600_000 })
       .then((r) => r.data),
 
   suggest: (b: { model_config_id: number; genre?: string }) =>
