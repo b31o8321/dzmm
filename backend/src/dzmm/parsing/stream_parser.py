@@ -62,6 +62,10 @@ KNOWN_TAGS: set[str] = {
     "faction_change",
     "npc_cue",
     "event_trigger",
+    # v0.15 Batch 2 — Python-engine intent tags
+    "dice_request",   # GM asks Python to roll & resolve
+    "skill_request",  # GM asks Python to perform skill check
+    "item_use",       # GM signals player consumed/used an item
 }
 
 # 只有 narrative 标签需要"流式"输出（边到边推给前端显示）；

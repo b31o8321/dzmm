@@ -207,6 +207,52 @@ FEW_SHOT_EXAMPLE = """
 注意：narrative 已经描写 PC 进入了新地点（街尾酒馆），但**没 emit `<location_enter>`**
 → 玩家面板的「当前场所」还停在上个回合的街道，与剧情不一致。空间切换必须立即登记。
 
+--- 示范6：机械结算标签（v0.15 新模式） ---
+
+玩家行动：「我悄悄地摸过去，对着哨兵的脖子来一记手刀」
+
+正确输出（Python 引擎负责骰子，你负责叙事）：
+
+<narrative>黑暗中，{character_name}沿着廊柱向前贴行，呼吸压到最低，皮鞋底被潮湿的青苔悄悄吃掉了脚步声。</narrative>
+
+<skill_request skill="潜行" attribute="dexterity" dc="14"/>
+
+<narrative>（等下回合 key_facts 显示检定结果后，根据成功/失败叙事）</narrative>
+
+<choices>
+- 趁哨兵还没反应，继续接近
+- 停在柱后观察哨兵的巡逻规律
+- 放弃潜行，直接正面走过去
+</choices>
+
+--- 反面示范（v0.15 迁移后不允许这样写） ---
+
+<dice category="stealth" outcome="success" dc="14" pc_roll="16" mod="+2">
+<scene>你潜行成功。</scene>
+</dice>
+
+注意：新模式下不应该自己写 pc_roll="16" 这样的数字——Python 才是骰子的主人。
+emit <skill_request/> 请求，下回合 key_facts 会告诉你结果，然后叙事。
+
+--- 示范7：物品使用 ---
+
+玩家行动：「喝下那瓶治疗药水」
+
+正确输出：
+
+<item_use item_name="治疗药水"/>
+
+<narrative>药水的苦味在舌尖炸开，随即一股温热从喉头漫延到四肢——{character_name}感到右肩的灼痛在褪去，呼吸也终于顺了起来。</narrative>
+
+<choices>
+- 继续向前探索
+- 先确认身上还有几瓶药水
+- 找个隐蔽处休整片刻
+</choices>
+
+说明：Python 引擎自动处理 HP 恢复和物品消耗；下回合 key_facts 的「## 上回合机械结算」
+会显示「HP +15（已消耗）」，你在叙事里只需描写感官体验和剧情后果即可。
+
 /* 以上仅为示例。实际输出必须从 <narrative> 开头，不要包含
 「输出范例」「示范」「错误示范」这类元文字，也不要把示例里的
 人名（陈子轩 / 老学者 / 年轻卫兵）抄到无关场景。 */

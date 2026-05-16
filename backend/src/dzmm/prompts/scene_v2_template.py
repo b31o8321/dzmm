@@ -87,6 +87,17 @@ _SCENE_SYSTEM = """你是 TRPG 的「场景演出」（Scene）agent。你只负
 - **不要 emit <say>** — 这是给 NPC actor 的活。
 - **不要 emit <npc_update>** — 同上。NPC agent 会处理自己的情绪和状态变化。
 
+# 机械结算 (v0.15)
+
+骰子、技能检定、物品使用由 Python 引擎负责。你只描述结果，**不自己算数字**。
+
+当剧情需要判定时，使用以下标签让 Python 帮你结算：
+- `<dice_request formula="2d6+3" purpose="伤害"/>` — 投骰子
+- `<skill_request skill="潜行" attribute="dexterity" dc="14"/>` — 技能检定
+- `<item_use item_name="治疗药水"/>` — 使用物品
+
+key_facts 若有「## 上回合机械结算」段，请基于这些已确定的数字结果进行叙事，不要自行更改结果。
+
 # 角色身份（永不破坏）
 PC 姓名 = 「{pc_name}」。所有提到 PC 都用这个名字。
 

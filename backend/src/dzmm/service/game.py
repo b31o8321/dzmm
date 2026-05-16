@@ -1965,6 +1965,99 @@ async def _build_key_facts(
     if stuck is not None:
         parts.append(build_stuck_warning(d20_values, stuck))  # 注入骰子固化警告
 
+    # ── v0.15 Batch 2: 上回合机械结算（pending_resolutions_json） ────────────
+    # 注入上回合 Python 引擎执行的骰子/技能/物品结算结果，供 GM 叙事时引用。
+    # 只注入 turn == current_turn - 1 的记录（"刚刚结算的"），最多 5 条。
+    # 注入后不清空（drain），由调用方或更新逻辑决定何时丢弃旧记录。
+    if sess is not None:
+        try:
+            pending_raw = json.loads(sess.pending_resolutions_json or "[]")
+            if not isinstance(pending_raw, list):
+                pending_raw = []
+        except (TypeError, ValueError):
+            pending_raw = []
+
+        last_turn = current_turn - 1
+        # Filter to entries from the immediately-preceding turn
+        prev_resolutions = [
+            r for r in pending_raw
+            if isinstance(r, dict) and r.get("turn") == last_turn
+        ]
+        # Cap at 5 to avoid prompt bloat
+        prev_resolutions = prev_resolutions[-5:]
+
+        if prev_resolutions:
+            res_lines = ["\n## 上回合机械结算"]
+            for rec in prev_resolutions:
+                kind = rec.get("kind", "")
+                inp = rec.get("input") or {}
+                res = rec.get("result") or {}
+
+                if kind == "dice":
+                    formula = inp.get("formula", "?")
+                    purpose = res.get("purpose") or inp.get("purpose", "骰点")
+                    rolls = res.get("rolls", [])
+                    modifier = res.get("modifier", 0)
+                    total = res.get("total", 0)
+                    rolls_str = "+".join(str(r) for r in rolls)
+                    mod_str = (f"+{modifier}" if modifier > 0 else str(modifier)) if modifier != 0 else ""
+                    crit_s = "（大成功）" if res.get("critical_success") else ""
+                    crit_f = "（大失败）" if res.get("critical_failure") else ""
+                    res_lines.append(
+                        f"- 投骰子（{purpose}，{formula}）：{rolls_str}{mod_str} = {total}{crit_s}{crit_f}"
+                    )
+                elif kind == "skill":
+                    error = res.get("error")
+                    if error:
+                        res_lines.append(f"- 技能检定：⚠️ {error}")
+                        continue
+                    skill = res.get("skill", "?")
+                    attr = res.get("attribute", "?")
+                    d20 = res.get("d20", "?")
+                    modifier = res.get("modifier", 0)
+                    total = res.get("total", "?")
+                    dc = res.get("dc", "?")
+                    succeeded = res.get("succeeded", False)
+                    crit = res.get("crit", False)
+                    outcome = "大成功" if (crit and succeeded) else ("大失败" if (crit and not succeeded) else ("成功" if succeeded else "失败"))
+                    mod_str = (f"+{modifier}" if modifier > 0 else str(modifier)) if modifier != 0 else ""
+                    res_lines.append(
+                        f"- {skill}检定（{attr}）：d20={d20}{mod_str}={total} vs DC{dc} → {outcome}"
+                    )
+                elif kind == "item":
+                    missing = res.get("missing", False)
+                    item_name_res = res.get("item_name") or inp.get("item_name", "?")
+                    if missing:
+                        warning = res.get("warning", f"背包没有「{item_name_res}」")
+                        res_lines.append(f"- 想用「{item_name_res}」：{warning}")
+                    else:
+                        effects = res.get("applied_effects", [])
+                        removed = res.get("removed_from_inventory", False)
+                        effect_strs: list[str] = []
+                        for eff in effects:
+                            eff_type = eff.get("type", "")
+                            amount = eff.get("amount", 0)
+                            if eff_type == "heal_hp":
+                                effect_strs.append(f"HP +{amount}")
+                            elif eff_type == "heal_sanity":
+                                effect_strs.append(f"理智 +{amount}")
+                            elif eff_type == "heal_stamina":
+                                effect_strs.append(f"体力 +{amount}")
+                            elif eff_type == "damage":
+                                effect_strs.append(f"HP -{amount}")
+                            else:
+                                effect_strs.append(f"{eff_type}({amount})")
+                        eff_summary = "、".join(effect_strs) if effect_strs else "无即时效果"
+                        removed_note = "（已消耗）" if removed else ""
+                        res_lines.append(
+                            f"- 使用物品（{item_name_res}）{removed_note}：{eff_summary}"
+                        )
+                else:
+                    res_lines.append(f"- [{kind}] {res}")
+
+            if len(res_lines) > 1:  # Has entries beyond the header
+                parts.append("\n".join(res_lines))
+
     # ── 本回合要点（动态 GM 指令）────────────────────────────────────────────
     # 这是 key_facts 的最后一块，放在最靠近 LLM 生成的位置（位置越靠后，权重越高）
     # 内容由 Python 根据当前游戏状态动态计算，而不是让 LLM 自己判断

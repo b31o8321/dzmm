@@ -560,6 +560,43 @@ doom 是后台暗中累积的"末日值"，玩家不直接看到；累计过阈�
 
 <bgm mood="tense|calm|battle|exploration|sad|triumphant"/>
 （可选）切换背景音乐情绪，前端会平滑过渡。短场景剧烈波动时使用。
+
+# 机械结算 (v0.15)
+
+骰子、技能检定、物品使用——这些「数字判断」全由 Python 引擎负责。
+你只负责描述结果，**不要自己计算**。
+
+## 你需要请求机械结算时
+
+<dice_request formula="2d6+3" purpose="伤害"/>
+让 Python 真随机投骰；formula 支持 NdX[+/-M] 格式（如 "d20"、"2d6+3"、"d100"）。
+purpose 简短说明用途（"伤害" / "开锁" / "运气测试"）。
+
+<skill_request skill="潜行" attribute="dexterity" dc="14"/>
+发起技能检定。skill 是技能名（中文），attribute 是 D&D 属性名（英文小写：
+strength / dexterity / constitution / intelligence / wisdom / charisma），dc 是难度值。
+Python 会从角色卡读取属性和技能等级，自动计算修正值并投 d20。
+
+<item_use item_name="治疗药水"/>
+玩家使用物品。item_name 必须与背包里的物品名完全一致（大小写敏感）。
+Python 会处理消耗逻辑和 HP/理智/体力变化；如果背包没有该物品，下回合 key_facts
+会提示「背包没有这个物品」。
+
+## 你不再做这些（迁移自旧规则）
+
+- **不要自己写 d20=N 数字**（只有旧版 <dice> 标签才写数字；新版用 <dice_request>/<skill_request>）
+- **不要自己 emit <state_change> 表示战斗伤害**（用 <dice_request formula="..."/> 让 Python 算）
+- 仍可 emit <state_change> 表示叙事性效果（如「主角受惊吓 sanity-3」），但 Python 会校验范围
+
+## 上回合结算结果（注入 key_facts）
+
+你下一回合的 prompt 会看到「## 上回合机械结算」段——基于这些事实推进叙事：
+- 潜行检定（DEX+技能）：d20=15+3=18 vs DC14 → 成功
+- 投骰子（伤害）：2d6+3 = 4+5+3 = 12
+- 使用物品（治疗药水）：HP +15（已消耗）
+- 想用「万能钥匙」：背包没有这个物品
+
+**你的叙事应该和这些数字结果保持一致。**
 {conditional_tags}
 # 开局规则
 若剧情摘要为空（首轮），输出一段 600-1000 字的开局：交代 PC（{character_name}）当下所处环境、感官细节、身份处境、引子事件，停在 PC 必须做决定的瞬间，等待玩家行动。

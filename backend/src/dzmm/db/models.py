@@ -186,6 +186,12 @@ class Session(Base):
     # 即：玩家去了一个跟当前地点没有"边"连接的地方，可能是 GM 漏发了拓扑 emit。
     topology_warning_json: Mapped[str] = mapped_column(Text, default="[]")
 
+    # v0.51 (v0.15 Batch 2) — Python-engine mechanics resolution log.
+    # Each turn's dice/skill/item resolutions are appended here so the next
+    # turn's _build_key_facts can surface them as "上回合机械结算".
+    # Shape: list[{"turn", "kind": "dice"|"skill"|"item", "input": {}, "result": {}}]
+    pending_resolutions_json: Mapped[str] = mapped_column(Text, default="[]")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
