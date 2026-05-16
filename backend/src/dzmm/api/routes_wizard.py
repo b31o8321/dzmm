@@ -164,11 +164,22 @@ async def world_details(
 
 # POST /wizard/character
 # 向导第 3 步：根据世界设定和角色原型（archetype），生成玩家角色（PC）
+# DEPRECATED: kept for backwards compatibility; new code should call /wizard/fw/character instead.
 @router.post("/character")
 async def character(
     payload: dict,
     s: AsyncSession = Depends(get_session_dep),
 ):
+    """Generate player character from world setting and archetype.
+
+    .. deprecated::
+        Kept for backwards compatibility. New code should call ``/wizard/fw/character``.
+    """
+    return await _fw_character_impl(payload, s)
+
+
+async def _fw_character_impl(payload: dict, s: AsyncSession):
+    """Shared implementation for /wizard/character and /wizard/fw/character."""
     client = await _client_for(s, _require_int(payload, "model_config_id"))
     return await generate_character(
         world_md=str(payload.get("world_md") or ""),       # 完整的世界设定文本
@@ -422,6 +433,15 @@ from dzmm.service.wizard_framework import (
     generate_campaign,
     finalize_framework,
 )
+
+
+# POST /wizard/fw/character
+# 框架向导第 6 步：根据世界简介和角色原型，生成玩家角色（PC）
+# 与 /wizard/character 功能相同，命名上与其他 /wizard/fw/* 步骤保持一致。
+@router.post("/fw/character")
+async def fw_character(payload: dict, s: AsyncSession = Depends(get_session_dep)):
+    """Step 6: Generate player character — canonical /fw/* alias for /wizard/character."""
+    return await _fw_character_impl(payload, s)
 
 
 # POST /wizard/fw/locations

@@ -655,3 +655,34 @@ async def test_generate_single_npc_passes_message_instances():
         assert isinstance(m, Message), f"expected Message, got {type(m).__name__}"
         # Real clients depend on this method existing.
         assert callable(getattr(m, "model_dump", None))
+
+
+# ============================================================================
+# /wizard/fw/character alias endpoint
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_post_fw_character_endpoint(http, monkeypatch):
+    """/wizard/fw/character returns the same shape as /wizard/character."""
+    mid = await _make_model_config(http)
+    _patch_wizard_client(monkeypatch, _CHAR_OUTPUT)
+    r = await http.post("/wizard/fw/character", json={
+        "model_config_id": mid, "world_md": "world", "archetype": "黑客",
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["name"] == "林默"
+    assert "神经入侵" in body["profile_md"]
+
+
+@pytest.mark.asyncio
+async def test_fw_character_and_character_return_same_shape(http, monkeypatch):
+    """Both endpoints delegate to the same impl and return identical key sets."""
+    mid = await _make_model_config(http)
+    _patch_wizard_client(monkeypatch, _CHAR_OUTPUT)
+    payload = {"model_config_id": mid, "world_md": "world", "archetype": "黑客"}
+    r1 = await http.post("/wizard/character", json=payload)
+    r2 = await http.post("/wizard/fw/character", json=payload)
+    assert r1.status_code == 200, r1.text
+    assert r2.status_code == 200, r2.text
+    assert set(r1.json().keys()) == set(r2.json().keys())

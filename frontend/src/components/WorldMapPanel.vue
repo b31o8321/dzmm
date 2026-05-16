@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { WorldLocationData, WorldNPCStateData, WorldEventStateData, LocationDetail } from '@/api/framework'
 
 const props = defineProps<{
@@ -11,6 +11,7 @@ const props = defineProps<{
 }>()
 
 const selectedLocation = ref<WorldLocationData | null>(null)
+const activeTab = ref<'map' | 'list'>('map')
 
 const locationDetail = computed((): LocationDetail | null => {
   const loc = selectedLocation.value
@@ -43,11 +44,197 @@ function isExplored(loc: WorldLocationData): boolean {
   ) || props.npcStates.some(n => n.current_location_id === loc.id && n.is_revealed)
   || loc.id === props.pcLocationId
 }
+
+// ── Force-directed layout ──────────────────────────────────
+
+const SVG_W = 800
+const SVG_H = 420
+const PADDING = 48
+const NODE_R = 28
+const SPRING_L = 160   // rest length
+const SPRING_K = 0.04  // attraction strength
+const REPULSE  = 6000  // Coulomb constant
+const DAMPING  = 0.82
+const TICKS    = 150
+
+interface Vec { x: number; y: number }
+
+const nodePositions = ref<Map<number, Vec>>(new Map())
+
+function runLayout(locs: WorldLocationData[]) {
+  if (!locs.length) { nodePositions.value = new Map(); return }
+
+  const n = locs.length
+  const cx = SVG_W / 2
+  const cy = SVG_H / 2
+  const r0 = Math.min(cx, cy) * 0.6
+
+  // initialise on a circle
+  const pos: Vec[] = locs.map((_, i) => ({
+    x: cx + r0 * Math.cos((2 * Math.PI * i) / n),
+    y: cy + r0 * Math.sin((2 * Math.PI * i) / n),
+  }))
+  const vel: Vec[] = locs.map(() => ({ x: 0, y: 0 }))
+
+  // build adjacency (by index)
+  const idxById = new Map(locs.map((l, i) => [l.id, i]))
+  const edges: [number, number][] = []
+  locs.forEach((loc, ai) => {
+    loc.connections.forEach(c => {
+      const bi = idxById.get(c.target_id)
+      if (bi !== undefined && ai < bi) edges.push([ai, bi])
+    })
+  })
+
+  for (let t = 0; t < TICKS; t++) {
+    const force: Vec[] = locs.map(() => ({ x: 0, y: 0 }))
+
+    // repulsion (all pairs)
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        const dx = pos[a].x - pos[b].x
+        const dy = pos[a].y - pos[b].y
+        const d2 = Math.max(dx * dx + dy * dy, 1)
+        const d  = Math.sqrt(d2)
+        const f  = REPULSE / d2
+        const fx = (dx / d) * f
+        const fy = (dy / d) * f
+        force[a].x += fx; force[a].y += fy
+        force[b].x -= fx; force[b].y -= fy
+      }
+    }
+
+    // spring attraction (edges only)
+    edges.forEach(([a, b]) => {
+      const dx = pos[b].x - pos[a].x
+      const dy = pos[b].y - pos[a].y
+      const d  = Math.max(Math.sqrt(dx * dx + dy * dy), 0.1)
+      const f  = SPRING_K * (d - SPRING_L)
+      const fx = (dx / d) * f
+      const fy = (dy / d) * f
+      force[a].x += fx; force[a].y += fy
+      force[b].x -= fx; force[b].y -= fy
+    })
+
+    // integrate + clamp
+    for (let i = 0; i < n; i++) {
+      vel[i].x = (vel[i].x + force[i].x) * DAMPING
+      vel[i].y = (vel[i].y + force[i].y) * DAMPING
+      pos[i].x = Math.max(PADDING + NODE_R, Math.min(SVG_W - PADDING - NODE_R, pos[i].x + vel[i].x))
+      pos[i].y = Math.max(PADDING + NODE_R, Math.min(SVG_H - PADDING - NODE_R, pos[i].y + vel[i].y))
+    }
+  }
+
+  const result = new Map<number, Vec>()
+  locs.forEach((loc, i) => result.set(loc.id, { x: pos[i].x, y: pos[i].y }))
+  nodePositions.value = result
+}
+
+watch(() => props.locations, (locs) => { runLayout(locs) }, { immediate: true })
+
+// ── SVG computed data ──────────────────────────────────────
+
+const svgEdges = computed(() => {
+  const seen = new Set<string>()
+  const result: Array<{
+    x1: number; y1: number; x2: number; y2: number
+    mx: number; my: number
+    label: string
+    strokeWidth: number
+  }> = []
+  props.locations.forEach(loc => {
+    const pa = nodePositions.value.get(loc.id)
+    if (!pa) return
+    loc.connections.forEach(conn => {
+      const key = [Math.min(loc.id, conn.target_id), Math.max(loc.id, conn.target_id)].join('-')
+      if (seen.has(key)) return
+      seen.add(key)
+      const pb = nodePositions.value.get(conn.target_id)
+      if (!pb) return
+      // collect labels from both ends
+      const revConn = props.locations.find(l => l.id === conn.target_id)
+        ?.connections.find(c => c.target_id === loc.id)
+      const label = revConn ? `${conn.direction}/${revConn.direction}` : conn.direction
+      // edge thickness inversely proportional to travel_turns (1=thick, 5+=thin)
+      const strokeWidth = Math.max(1, 4 - (conn.travel_turns - 1) * 0.7)
+      result.push({ x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y,
+        mx: (pa.x + pb.x) / 2, my: (pa.y + pb.y) / 2, label, strokeWidth })
+    })
+  })
+  return result
+})
 </script>
 
 <template>
   <div class="world-map-panel">
-    <div class="locations-grid">
+
+    <!-- Tab toggle -->
+    <div class="map-tabs">
+      <button :class="['tab-btn', activeTab === 'map' ? 'active' : '']" @click="activeTab = 'map'">地图</button>
+      <button :class="['tab-btn', activeTab === 'list' ? 'active' : '']" @click="activeTab = 'list'">列表</button>
+    </div>
+
+    <!-- SVG Topology view -->
+    <div v-if="activeTab === 'map'" class="svg-container">
+      <svg :viewBox="`0 0 ${800} ${420}`" width="100%" height="420" xmlns="http://www.w3.org/2000/svg">
+        <!-- edges -->
+        <g v-for="(e, idx) in svgEdges" :key="idx">
+          <line
+            :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2"
+            stroke="#c0c4cc" :stroke-width="e.strokeWidth" stroke-linecap="round"
+          />
+          <text
+            v-if="e.label"
+            :x="e.mx" :y="e.my - 5"
+            text-anchor="middle" font-size="10" fill="#909399"
+          >{{ e.label }}</text>
+        </g>
+
+        <!-- nodes -->
+        <g
+          v-for="loc in locations"
+          :key="loc.id"
+          :transform="`translate(${nodePositions.get(loc.id)?.x ?? 0}, ${nodePositions.get(loc.id)?.y ?? 0})`"
+          style="cursor:pointer"
+          @click="selectedLocation = loc"
+        >
+          <!-- status ring -->
+          <circle
+            :r="NODE_R + 4"
+            :fill="statusColor(loc)"
+            :opacity="isExplored(loc) ? 0.25 : 0.1"
+          />
+          <!-- main fill -->
+          <circle
+            :r="NODE_R"
+            :fill="loc.id === pcLocationId ? '#67c23a' : (isExplored(loc) ? '#fff' : '#c0c4cc')"
+            :stroke="loc.id === pcLocationId ? '#67c23a' : '#dcdfe6'"
+            :stroke-width="loc.id === pcLocationId ? 3 : 1.5"
+            :opacity="isExplored(loc) ? 1 : 0.5"
+          />
+          <!-- name label -->
+          <text
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size="11"
+            font-weight="600"
+            :fill="loc.id === pcLocationId ? '#fff' : (isExplored(loc) ? '#303133' : '#909399')"
+            :opacity="isExplored(loc) ? 1 : 0.7"
+          >{{ loc.name }}</text>
+          <!-- current indicator -->
+          <text
+            v-if="loc.id === pcLocationId"
+            y="44"
+            text-anchor="middle"
+            font-size="9"
+            fill="#67c23a"
+          >▲ 当前</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Existing grid list view -->
+    <div v-else class="locations-grid">
       <div
         v-for="loc in locations"
         :key="loc.id"
@@ -130,6 +317,23 @@ function isExplored(loc: WorldLocationData): boolean {
 
 <style scoped>
 .world-map-panel { padding: 12px; }
+
+/* tabs */
+.map-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tab-btn {
+  padding: 4px 16px; border-radius: 4px; border: 1px solid #dcdfe6;
+  background: #f5f7fa; color: #606266; cursor: pointer; font-size: 13px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover { border-color: #409eff; color: #409eff; }
+.tab-btn.active { background: #409eff; color: #fff; border-color: #409eff; }
+
+/* SVG map */
+.svg-container {
+  border: 1px solid #dcdfe6; border-radius: 8px; overflow: hidden; background: #fafafa;
+}
+
+/* grid list */
 .locations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

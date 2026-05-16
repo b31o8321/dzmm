@@ -98,6 +98,9 @@ export const wizardApi = {
       })
       .then((r) => r.data),
 
+  /**
+   * @deprecated Use `fwCharacter` instead. Kept for backwards compatibility.
+   */
   character: (b: {
     model_config_id: number
     world_md: string
@@ -105,6 +108,15 @@ export const wizardApi = {
   }) =>
     api
       .post<WizardCharacter>('/wizard/character', b, { timeout: 600_000 })
+      .then((r) => r.data),
+
+  fwCharacter: (b: {
+    model_config_id: number
+    world_md: string
+    archetype: string
+  }) =>
+    api
+      .post<WizardCharacter>('/wizard/fw/character', b, { timeout: 600_000 })
       .then((r) => r.data),
 
   npcs: (b: {

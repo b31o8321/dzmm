@@ -86,7 +86,7 @@ async function generate(stepNum: number) {
         npc_templates: state.npc_templates,
       })
     } else if (stepNum === 6) {
-      const r = await wizardApi.character({
+      const r = await wizardApi.fwCharacter({
         model_config_id: modelConfigId.value,
         world_md: state.world_brief_md + hint,
         archetype: hints[6] || '侦探',
