@@ -2,6 +2,85 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.15.0] - 2026-05-17
+
+**机械引擎重构：Python-first，LLM 只描述**
+
+v0.10-v0.14 把 LLM 当全能 GM 用，让它同时管叙事 + 算骰子 + 算伤害 + 判技能成败。问题：LLM 不会均匀随机（playtest 见过连续 8 次 d20=9）、算术不稳定、伤害数字凭感觉。v0.15 把"数字判断"全部抽到 Python 引擎，LLM 只输出意图，Python 解析、计算、写回 key_facts。
+
+### 新引擎层 `dzmm.engine`
+
+- **`engine.schema`** —— `StatBlock`(6 属性 3-18)、`Skill`、`Item`(name/qty/type/effects)、`ItemEffect`(10 种类型) Pydantic 模型 + safe-fallback 解析器
+- **`engine.dice`** —— `roll(formula)` 支持 d20/2d6+3/d100 标准记号；`skill_check(attr, skill_lvl, dc)` = `d20 + (attr-10)//2 + skill_lvl//10 vs DC`；nat 20 大成功 / nat 1 大失败；可注入 seeded RNG
+- **`engine.character`** —— 加载/写入 StatBlock、skills、inventory；`apply_vital_delta` 自动 clamp HP/Sanity/Stamina 到 [0, max]
+- **`engine.items`** —— `resolve_use_item` 应用 heal_hp / heal_sanity / heal_stamina 效果，消耗品 qty 减 1 或移除
+- **`engine.combat`** —— `resolve_attack` 全流程（攻击命中、伤害骰、击败判定）；`roll_initiative`；STR/DEX 攻击属性自动选择；AC = 10 + DEX_mod + 护甲
+- **`engine.predicates`** —— 6 种结构化谓词（location_reached / npc_state / stat_threshold / item_owned / faction_tension / combined any-all）+ async `evaluate`
+- **`engine.genre_templates`** —— 5 个 genre 的属性/技能/起始装备模板，wizard 创建角色时按 genre 套用
+
+### DB 迁移
+
+- **V050** —— Character 加 6 属性 + max_hp/sanity/stamina + skills_json + inventory_json + equipment_json；NPC 加 stat_block_json；CharState 加 stamina；Session 加 ruleset_version
+- **V051** —— Session 加 pending_resolutions_json（机械结算队列）
+- **V052** —— Session 加 combat_order_json（先攻顺序）
+- 旧 free-form `base_stats_json` 字段保留兼容，新 schema 优先
+
+### 新标签
+
+- `<dice_request formula="2d6+3" purpose="伤害"/>` —— GM 请 Python 摇骰
+- `<skill_request skill="潜行" attribute="dexterity" dc="14"/>` —— 技能检定
+- `<item_use item_name="治疗药水" actor="PC"/>` —— 玩家用物品
+- `<attack attacker_kind="pc" attacker_id=3 target_kind="npc" target_id=5 weapon="短剑"/>` —— 单次攻击
+- `<initiative_request combatants="PC,goblin_1,goblin_2"/>` —— 战斗开始排序
+
+每个标签 Python 解析后写一条 record 到 `Session.pending_resolutions_json`，下回合 `_build_key_facts` 注入「## 上回合机械结算」段告诉 GM 数字结果，GM 据此叙述。
+
+### 事件谓词自动触发
+
+- WorldEvent.trigger_conditions_json 现在可以是结构化谓词，每回合 `event_evaluator.check_and_trigger_events` 自动评估命中即 emit `event_trigger`
+- 旧 free-text 谓词解析为 inert，永不自动触发（仍可由 GM 手动 emit）
+- run_turn 在 `apply_tags` 之后自动调评估器（仅在 sess.framework_id 不为空时）
+
+### Genre 驱动的角色初始化
+
+- 5 个 canonical genre 的起始属性 / 技能 / 物品模板（悬疑探案 INT 高 + 侦探笔记本；英雄成长 STR 高 + 剑甲；政治阴谋 CHA 高 + 文件信物；灾难求生 CON 高 + 医疗包；恋爱攻略 CHA 高 + 礼物香水）
+- 可选 ±2 jitter（seeded rng 保证可复现）
+- wizard `generate_character` 接收 genre 参数；finalize 时把结构化 stat_block/skills/inventory 持久化到 Character 行
+
+### Prompt 改造
+
+- gm_template.py 新增「机械结算 (v0.15)」段：GM 改输出 intent，不再自己算数字；战斗段教 GM 用 initiative_request + attack
+- gm_few_shot.py 加 3 个 few-shot（skill_request / item_use / 完整战斗回合）
+- scene_v2_template.py 同步机械结算说明
+
+### 前端 StatePanel 全面重写
+
+- HP / Sanity / Stamina 进度条（红/紫/黄）
+- 6 属性网格 + modifier 显示（top 2 高亮）
+- 技能条按等级降序，超过 5 个折叠
+- 装备槽（武器 / 护甲 / 饰品）
+- 物品按类型分组 + 效果 chip + el-tooltip 详情
+- 近期机械结算 feed（dice / skill / attack / initiative / item 各种 emoji 前缀）
+- 战斗中显示 Combat HUD（先攻顺序 + 结束战斗按钮）
+- 老存档无 v0.15 数据时 fallback 到 legacy stats/inventory 显示
+
+### state 接口扩展
+
+`GET /sessions/{id}/state` 现在额外返回 attributes / vitals / skills / inventory_v2 / equipment / combat_order / recent_resolutions（旧字段 stats / inventory / npcs 不变，向后兼容）
+
+### 测试
+
+- v0.15 6 个 batch 累计 +159 后端测试（749→788 减去重叠 = 净 +35 跨 batch；其实是 70+22+28+35+4）
+- 全套 788 passed / 1 skipped，0 回归
+
+### 后续
+
+- Phase D（QLoRA 微调）：仍待硬件
+- 战斗 UI 交互（点 NPC 攻击、装备点击换装）：留作下一个迭代
+- 物品商店 / NPC 物品交换：未来
+
+---
+
 ## [v0.14.0] - 2026-05-17
 
 **剧本驱动打磨包 + 死代码大清扫**

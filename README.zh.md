@@ -4,7 +4,7 @@
 
 > **English** → [README.md](README.md)
 
-> **状态：** 开发中 · 当前版本 **v0.14.0**（剧本驱动打磨 + 大纲手动编辑 + Genre 结构化模板）。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
+> **状态：** 开发中 · 当前版本 **v0.15.0**（机械引擎 Python-first：骰子 / 技能 / 物品 / 战斗 / 事件谓词全部由 Python 决策，LLM 只负责叙事描述）。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
 >
 > 代码里附有详细的中文注释（面向只懂 Python 语法的初学者），配套学习文档见 [docs/learning/](docs/learning/)。
 
@@ -219,6 +219,16 @@ dzmm/
 - `<ending/>` 标记完结 → 可生成续作（Season 2，沿用世界观与角色卡）或本存档内续写下一章
 - 5 个 genre 模板（悬疑探案 / 英雄成长 / 政治阴谋 / 灾难求生 / 恋爱攻略）含结构化字段（章数 / 典型结局 / 建议 NPC 原型）
 - 大纲手动编辑：`PATCH /sessions/{id}/screenplay` + 四 tab UI 编辑器，LLM 偶尔生成的坏大纲玩家可直接修正
+
+**v0.15 机械引擎 Python-first** ✅（v0.15.0 完整）
+- 全新 `dzmm.engine` 包：dice / character / items / combat / predicates / schema / genre_templates
+- 骰子真随机（不再让 LLM 摇 d20）；技能检定 = d20 + 属性修正 + 技能/10 vs DC
+- 6 D&D 属性 + HP/Sanity/Stamina 三 vital + 结构化技能字典 + 物品 effects 表
+- 战斗引擎：攻击命中 vs AC、伤害公式、先攻顺序，全 Python 决策
+- 事件结构化谓词：6 种 (location_reached / npc_state / stat_threshold / item_owned / faction_tension / 嵌套 all-any)，每回合自动评估
+- 5 genre 角色起始模板：按 genre 套用属性 / 技能 / 装备
+- 新标签：`<dice_request/>` `<skill_request/>` `<item_use/>` `<attack/>` `<initiative_request/>`
+- StatePanel 全面重写：6 属性条 + 3 vital 进度条 + 技能列表 + 装备槽 + 物品分组 + 近期结算 feed + 战斗 HUD
 
 ## 后续规划（未实现）
 

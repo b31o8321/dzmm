@@ -722,6 +722,11 @@ async def run_turn(
         await check_encounter_warnings(
             session, session_id, completed_tags, current_turn=next_turn,
         )
+        # v0.15 — auto-trigger framework events whose structured predicates
+        # are now satisfied. Inert for legacy free-text predicates.
+        if sess.framework_id:
+            from dzmm.service.event_evaluator import check_and_trigger_events
+            await check_and_trigger_events(session, session_id, next_turn)
         _update_scene_turn_count(sess, completed_tags)
         # ── ⑨ 更新会话状态 ────────────────────────────────────────────────────
         sess.turn_count = next_turn         # 回合计数器 +1
@@ -959,6 +964,12 @@ async def run_turn(
         next_turn,
         completed_tags,
     )
+
+    # v0.15 — auto-trigger framework events whose structured predicates
+    # are now satisfied. Inert for legacy free-text predicates.
+    if sess.framework_id:
+        from dzmm.service.event_evaluator import check_and_trigger_events
+        await check_and_trigger_events(session, session_id, next_turn)
 
     # 软校验：检查本回合是否有 NPC 在非预期地点出场（可能是 GM 忘记铺垫遭遇）
     # 只记录警告，不中断游戏（"软"校验的含义）

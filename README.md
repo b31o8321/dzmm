@@ -4,7 +4,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active · current release **v0.14.0** (screenplay polish + manual outline editor + structured genre templates). See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active · current release **v0.15.0** (Python-first mechanical engine: dice / skills / items / combat / event predicates all resolved by Python; LLM only narrates). See [CHANGELOG](CHANGELOG.md) for the full history.
 >
 > All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
 
@@ -220,6 +220,16 @@ All backend Python files carry detailed Chinese inline comments (targeting reade
 - `<ending/>` marks the screenplay concluded → spinoff a sequel (Season 2, reusing world + character) or continue next chapter in the same session
 - 5 genre templates (mystery / hero / political / survival / romance) with structured fields: act count, ending archetype, suggested NPC roles
 - Manual outline editor: `PATCH /sessions/{id}/screenplay` + 4-tab UI to fix the occasional bad LLM outline
+
+**v0.15 Python-first mechanical engine** ✅ (complete in v0.15.0)
+- New `dzmm.engine` package: dice / character / items / combat / predicates / schema / genre_templates
+- True random dice (no more LLM rolling d20); skill check = d20 + attr_mod + skill//10 vs DC; nat 20 crit / nat 1 fumble
+- 6 D&D attributes + HP/Sanity/Stamina vitals + structured skills dict + items with effects array
+- Combat engine: hit vs AC, damage formula, initiative — all Python decided
+- Event structured predicates (location/stat/item/faction + all-any nesting) auto-evaluated each turn
+- 5-genre starter character templates (attributes / skills / inventory tailored to genre)
+- New tags: `<dice_request/>` `<skill_request/>` `<item_use/>` `<attack/>` `<initiative_request/>` — GM emits intent, Python resolves, result fed back via key_facts
+- StatePanel rewrite: 6-attribute grid, 3 vital progress bars, skills list, equipment slots, inventory grouped by type, recent resolutions feed, combat HUD
 
 ## Planned but unimplemented
 
