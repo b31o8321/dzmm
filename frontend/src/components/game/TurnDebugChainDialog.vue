@@ -34,6 +34,10 @@ watch(
       loading.value = false
     }
   },
+  // immediate: true so that when the dialog is mounted with v-if and
+  // modelValue already true, the load fires on mount instead of waiting
+  // for a value change that never comes.
+  { immediate: true },
 )
 
 function roleLabel(role: string) {
