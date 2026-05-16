@@ -104,6 +104,18 @@ export const screenplayApi = {
         { timeout: 600_000 },
       )
       .then((r) => r.data),
+  update: (
+    sessionId: number,
+    patch: {
+      chapters?: ScreenplayChapter[]
+      main_characters?: ScreenplayMainCharacter[]
+      ending_md?: string
+      opening_hook?: string
+    },
+  ) =>
+    api
+      .patch<Screenplay>(`/sessions/${sessionId}/screenplay`, patch)
+      .then((r) => r.data),
 }
 
 export interface ScreenplayRevision {

@@ -26,9 +26,11 @@
 
 """v0.1.0 — screenplay (outline) API endpoints."""
 import json
+from typing import Any
 
 # FastAPI 核心组件（见 routes_wizard.py 里的说明）
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 # select — SQLAlchemy 的查询构建器，用于写 SELECT 语句
 from sqlalchemy import select
@@ -270,6 +272,75 @@ async def list_revisions(
         }
         for r in rows
     ]
+
+
+# ──────────────────────────────────────────────
+# PATCH /sessions/{session_id}/screenplay — 手动编辑剧本大纲
+# ──────────────────────────────────────────────
+
+class ScreenplayPatch(BaseModel):
+    chapters: list[dict[str, Any]] | None = None         # 完整替换 chapters_json
+    main_characters: list[dict[str, Any]] | None = None  # 完整替换 main_characters_json
+    ending_md: str | None = None
+    opening_hook: str | None = None
+
+
+@router.patch("/{session_id}/screenplay")
+async def patch_screenplay(
+    session_id: int,
+    body: ScreenplayPatch,
+    s: AsyncSession = Depends(get_session_dep),
+):
+    """手动编辑剧本大纲（chapters / main_characters / ending_md / opening_hook）。
+    只更新请求体中非 None 的字段；同时追加一条 ScreenplayRevision 记录。"""
+    # 检查 session 是否存在
+    sess = await s.get(GameSession, session_id)
+    if sess is None:
+        raise HTTPException(404, "session not found")
+
+    # 查询活跃大纲
+    sp = await get_active_screenplay(s, session_id)
+    if sp is None:
+        raise HTTPException(404, "no active screenplay")
+
+    # 保存编辑前的 chapters_json（用于 Revision 记录）
+    before_chapters_json = sp.chapters_json
+
+    # 应用 chapters（完整替换）
+    if body.chapters is not None:
+        try:
+            sp.chapters_json = json.dumps(body.chapters, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(422, f"chapters 无法序列化为 JSON: {exc}") from exc
+
+    # 应用 main_characters（完整替换）
+    if body.main_characters is not None:
+        try:
+            sp.main_characters_json = json.dumps(body.main_characters, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(422, f"main_characters 无法序列化为 JSON: {exc}") from exc
+
+    if body.ending_md is not None:
+        sp.ending_md = body.ending_md
+
+    if body.opening_hook is not None:
+        sp.opening_hook = body.opening_hook
+
+    # 追加 ScreenplayRevision 记录，标记为 manual_edit
+    rev = ScreenplayRevision(
+        screenplay_id=sp.id,
+        revision_num=1,
+        trigger_turn=sess.turn_count if sess else 0,
+        trigger_description="manual_edit",
+        before_chapters_json=before_chapters_json,
+        after_chapters_json=sp.chapters_json,
+        diff_summary="manual edit by user",
+    )
+    s.add(rev)
+
+    await s.commit()
+    await s.refresh(sp)
+    return _screenplay_dict(sp)
 
 
 # POST /sessions/{session_id}/screenplay/revisions/{rev_id}/process

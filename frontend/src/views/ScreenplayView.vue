@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElButton, ElInput, ElTag, ElProgress, ElMessage, ElDialog } from 'element-plus'
+import { ElButton, ElInput, ElTag, ElProgress, ElMessage, ElDialog, ElTabs, ElTabPane } from 'element-plus'
 import {
   screenplayApi,
   eventDescription,
   eventCriteria,
   eventKeywords,
   type Screenplay,
+  type ScreenplayChapter,
+  type ScreenplayMainCharacter,
   type CompletedEvent,
   type ScreenplayRevision,
 } from '@/api/screenplay'
@@ -22,6 +24,64 @@ const loading = ref(true)
 const decisionOpen = ref(false)
 const decisionText = ref('')
 const processingRevId = ref<number | null>(null)
+
+// ── 手动编辑大纲 ─────────────────────────────────────────────
+const editOpen = ref(false)
+const editTab = ref('opening')
+const editOpeningHook = ref('')
+const editChaptersJson = ref('')
+const editNpcsJson = ref('')
+const editEndingMd = ref('')
+const editSaving = ref(false)
+
+function openEditDialog() {
+  if (!screenplay.value) return
+  editOpeningHook.value = screenplay.value.opening_hook ?? ''
+  editChaptersJson.value = JSON.stringify(screenplay.value.chapters, null, 2)
+  editNpcsJson.value = JSON.stringify(screenplay.value.main_characters, null, 2)
+  editEndingMd.value = screenplay.value.ending_md ?? ''
+  editTab.value = 'opening'
+  editOpen.value = true
+}
+
+async function saveEdit() {
+  // Validate JSON textareas before submitting
+  let parsedChapters: ScreenplayChapter[] | undefined
+  let parsedNpcs: ScreenplayMainCharacter[] | undefined
+
+  try {
+    parsedChapters = JSON.parse(editChaptersJson.value)
+    if (!Array.isArray(parsedChapters)) throw new Error('not an array')
+  } catch {
+    ElMessage.warning('章节 JSON 格式不正确')
+    return
+  }
+
+  try {
+    parsedNpcs = JSON.parse(editNpcsJson.value)
+    if (!Array.isArray(parsedNpcs)) throw new Error('not an array')
+  } catch {
+    ElMessage.warning('主要 NPC JSON 格式不正确')
+    return
+  }
+
+  editSaving.value = true
+  try {
+    screenplay.value = await screenplayApi.update(sessionId, {
+      chapters: parsedChapters,
+      main_characters: parsedNpcs,
+      ending_md: editEndingMd.value,
+      opening_hook: editOpeningHook.value,
+    })
+    await loadRevisions()
+    editOpen.value = false
+    ElMessage.success('大纲已更新')
+  } catch (e: any) {
+    ElMessage.error(e?.message ?? '保存失败')
+  } finally {
+    editSaving.value = false
+  }
+}
 
 async function loadRevisions() {
   try {
@@ -142,7 +202,10 @@ function backToGame() {
            class="bg-blue-50 border border-blue-200 rounded p-4 space-y-2">
         <div class="font-bold text-blue-900">🎬 故事已完结</div>
         <div class="text-sm text-slate-700">{{ screenplay.ending_md }}</div>
-        <el-button type="primary" @click="continueNext">📖 续写下一章</el-button>
+        <div class="flex gap-2">
+          <el-button type="primary" @click="continueNext">📖 续写下一章</el-button>
+          <el-button @click="openEditDialog">✏️ 编辑大纲</el-button>
+        </div>
       </div>
 
       <!-- 当前章节 -->
@@ -241,9 +304,10 @@ function backToGame() {
         </div>
       </div>
 
-      <!-- 标记重大决策 -->
-      <div class="border-t pt-4">
+      <!-- 标记重大决策 + 手动编辑大纲 -->
+      <div class="border-t pt-4 flex flex-wrap gap-2">
         <el-button @click="decisionOpen = true">⚡ 这是重要决定（标记后立即重写大纲）</el-button>
+        <el-button v-if="screenplay.status !== 'concluded'" @click="openEditDialog">✏️ 编辑大纲</el-button>
       </div>
 
       <el-dialog v-model="decisionOpen" title="标记重大决定" width="500px">
@@ -252,6 +316,86 @@ function backToGame() {
         <template #footer>
           <el-button @click="decisionOpen = false">取消</el-button>
           <el-button type="primary" @click="submitDecision">提交</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- 手动编辑大纲对话框 -->
+      <el-dialog v-model="editOpen" title="✏️ 编辑大纲" width="700px">
+        <el-tabs v-model="editTab">
+          <!-- Tab: 开场 -->
+          <el-tab-pane label="开场" name="opening">
+            <div class="text-xs text-slate-500 mb-1">开篇引子（游戏开始时展示给玩家）</div>
+            <el-input
+              v-model="editOpeningHook"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 8 }"
+              placeholder="开篇引子文本"
+            />
+          </el-tab-pane>
+
+          <!-- Tab: 章节 -->
+          <el-tab-pane label="章节" name="chapters">
+            <div class="text-xs text-slate-500 mb-2">
+              章节 JSON 数组（每章包含 title / summary / main_events / optional_events / main_npcs）。
+              点击 ➕ / 🗑️ 添加/删除章节，或直接编辑 JSON。
+            </div>
+            <!-- Quick add/remove buttons -->
+            <div class="flex gap-2 mb-2">
+              <el-button size="small" @click="() => {
+                try {
+                  const arr = JSON.parse(editChaptersJson)
+                  arr.push({ title: '', summary: '', main_events: [], optional_events: [], main_npcs: [] })
+                  editChaptersJson = JSON.stringify(arr, null, 2)
+                } catch { ElMessage.warning('请先修正 JSON 格式') }
+              }">➕ 添加章节</el-button>
+              <el-button size="small" type="danger" @click="() => {
+                try {
+                  const arr = JSON.parse(editChaptersJson)
+                  if (arr.length > 0) {
+                    arr.pop()
+                    editChaptersJson = JSON.stringify(arr, null, 2)
+                  }
+                } catch { ElMessage.warning('请先修正 JSON 格式') }
+              }">🗑️ 删除末章</el-button>
+            </div>
+            <el-input
+              v-model="editChaptersJson"
+              type="textarea"
+              :autosize="{ minRows: 8, maxRows: 20 }"
+              placeholder="[]"
+              class="font-mono text-xs"
+            />
+          </el-tab-pane>
+
+          <!-- Tab: 主要 NPC -->
+          <el-tab-pane label="主要 NPC" name="npcs">
+            <div class="text-xs text-slate-500 mb-1">
+              主要角色 JSON 数组（每项含 name / role / description / intro_chapter）
+            </div>
+            <el-input
+              v-model="editNpcsJson"
+              type="textarea"
+              :autosize="{ minRows: 6, maxRows: 16 }"
+              placeholder="[]"
+              class="font-mono text-xs"
+            />
+          </el-tab-pane>
+
+          <!-- Tab: 结局 -->
+          <el-tab-pane label="结局" name="ending">
+            <div class="text-xs text-slate-500 mb-1">预设结局描述（Markdown）</div>
+            <el-input
+              v-model="editEndingMd"
+              type="textarea"
+              :autosize="{ minRows: 4, maxRows: 12 }"
+              placeholder="预设结局文本"
+            />
+          </el-tab-pane>
+        </el-tabs>
+
+        <template #footer>
+          <el-button @click="editOpen = false">取消</el-button>
+          <el-button type="primary" :loading="editSaving" @click="saveEdit">保存</el-button>
         </template>
       </el-dialog>
     </template>
