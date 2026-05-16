@@ -2,6 +2,32 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.10.3] - 2026-05-17
+
+**项目暂停前的 bug 修复打包 + 开放世界向导完整链**
+
+v0.10.2 之后陆续修了几个关键 bug，统一以 v0.10.3 收尾。这也是项目正式暂停前的最终版本。
+
+### 修复
+
+- **开放世界向导 finalize 完整链**（`5f3294d`）—— 之前向导走完只创建 WorldFramework，不创建 World/Character/Session，提示成功后跳到 sessions 列表玩家看不到任何新内容；现在完整链式调用 framework → world → character → session，直接进入游戏页面。
+- **调试链路弹窗空白**（`3300cef`）—— `TurnDebugChainDialog` 的 `watch` 没设 `immediate: true`，组件 mount 时 `modelValue` 已经是 `true`，watcher 监听不到变化所以不调 API，弹窗永远空白。
+- **Windows ChromaDB rmtree 失败**（`921287c`）—— `delete_world_index` 先创建 `PersistentClient` 才删目录，Windows 上 sqlite 文件被锁导致 `rmtree` 报 PermissionError；改成直接删目录跳过 chromadb 客户端。
+- **E2E smoke CI 多次失败**（`0305737` / `e51e798` / `5c72961` / `fcb6e3a`）—— localStorage key 写错、`isVisible` 不会等待、mock backend 没 stub Ollama 检查、新建存档表单字段调整（剧本字段替代角色字段）。
+- **向导卡片网格 UI**（`63b51bd`）—— 步骤 2-5 的列表项换成卡片网格，告别难看的项目符号列表。
+
+### 文档
+
+- **后端全文中文注释**（`f2adde2`）—— 50+ Python 文件加上面向「只懂 Python 语法、不懂 FastAPI/SQLAlchemy/架构」初学者的中文注释
+- **代码阅读路径文档**（`e89ff1f`）—— `docs/learning/code-reading-path.md`，7 阶段分步学习路线
+- **README 增加学习文档章节 + 后续规划章节**（`1c168eb`）—— 列出 `docs/learning/` 全部 8 篇文档，并列出 Phase C/D 与 v0.11+/v0.14 的设计方向（均未实现）
+
+### 状态
+
+项目自 v0.10.3 起暂停更新，作为完整学习案例存档。Phase C（自主 Agent 评测）、Phase D（QLoRA 微调）、v0.14（剧本驱动重构）等方向已在 README 留作未来参考。
+
+---
+
 ## [v0.10.1] - 2026-05-09
 
 **v0.10 体验修复包 — 回合还原 / NPC 关系感知 / 场景一致性**

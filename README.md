@@ -4,7 +4,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Paused · final release **v0.10.2**. See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Paused · final release **v0.10.3**. See [CHANGELOG](CHANGELOG.md) for the full history.
 >
 > The codebase is archived as a complete learning reference. All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
 

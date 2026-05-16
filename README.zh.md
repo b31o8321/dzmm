@@ -4,7 +4,7 @@
 
 > **English** → [README.md](README.md)
 
-> **状态：** 暂停更新 · 最终版本 **v0.10.2**。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
+> **状态：** 暂停更新 · 最终版本 **v0.10.3**。完整更新历史见 [CHANGELOG](CHANGELOG.md)。
 >
 > 该项目作为一个完整的学习案例存档。代码里附有详细的中文注释（面向只懂 Python 语法的初学者），配套学习文档见 [docs/learning/](docs/learning/)。
 
