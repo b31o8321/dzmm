@@ -78,6 +78,30 @@ class Character(Base):
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
 
+    # ── v0.15 mechanical engine columns ──────────────────────────────────
+    # D&D-style attributes (range 3-18 in play; 1-30 allowed by schema).
+    # modifier = (val - 10) // 2
+    strength: Mapped[int] = mapped_column(default=10)
+    dexterity: Mapped[int] = mapped_column(default=10)
+    constitution: Mapped[int] = mapped_column(default=10)
+    intelligence: Mapped[int] = mapped_column(default=10)
+    wisdom: Mapped[int] = mapped_column(default=10)
+    charisma: Mapped[int] = mapped_column(default=10)
+
+    # Max vitals — current vitals live in CharState
+    max_hp: Mapped[int] = mapped_column(default=30)
+    max_sanity: Mapped[int] = mapped_column(default=50)
+    max_stamina: Mapped[int] = mapped_column(default=30)
+
+    # Skills: dict[skill_name, level 0-100] stored as JSON
+    skills_json: Mapped[str] = mapped_column(Text, default="{}")
+    # inventory_json: v0.15 structured format (list[Item] as JSON).
+    # Note: CharState.inventory_json was the legacy field; Character.inventory_json
+    # is the new canonical store. Both coexist during Batch 1 → Batch 2 transition.
+    inventory_json: Mapped[str] = mapped_column(Text, default="[]")
+    # equipment_json: currently equipped items dict {slot: item_name}
+    equipment_json: Mapped[str] = mapped_column(Text, default="{}")
+
     # relationship() 声明 ORM 关联对象。
     # 访问 character.world 时，SQLAlchemy 会自动执行 SELECT * FROM worlds WHERE id = ?
     # 默认是"懒加载"（lazy load）：只有第一次访问 .world 时才查询数据库。
@@ -153,6 +177,8 @@ class Session(Base):
 
     doom_score: Mapped[int] = mapped_column(Integer, default=0)           # 厄运值 0-100，影响事件触发概率
     scene_turn_count: Mapped[int] = mapped_column(Integer, default=0)     # 当前场景已停留的回合数
+    # v0.15 — ruleset version: 1=legacy LLM-driven, 2=Python-driven (default for new sessions)
+    ruleset_version: Mapped[int] = mapped_column(Integer, default=2)
     world_time_json: Mapped[str] = mapped_column(Text, default='{"day": 1, "period": "morning", "weather": "clear"}')  # 世界内时间
 
     # v0.10 — 上一回合 _apply_location_enter 检测到的"无 edge 跨场景"警告，
@@ -232,10 +258,13 @@ class CharState(Base):
     # session_id 作为主键 → 一对一关系（一局游戏只有一套角色当前状态）
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
     stats_json: Mapped[str] = mapped_column(Text, default="{}")      # 当前属性值（hp/sanity/体魄/…）
-    inventory_json: Mapped[str] = mapped_column(Text, default="[]")  # 当前物品栏列表
+    inventory_json: Mapped[str] = mapped_column(Text, default="[]")  # 当前物品栏列表（legacy; v0.15 migrates to Character.inventory_json）
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
+
+    # v0.15 — dedicated stamina column (current value; max stored on Character)
+    stamina: Mapped[int] = mapped_column(default=30)
 
 
 # ── NPC ──────────────────────────────────────────────────
@@ -266,6 +295,9 @@ class NPC(Base):
     last_initiative_turn: Mapped[int] = mapped_column(default=0)     # NPC 上次主动出现的回合（防止刷屏）
     tts_voice: Mapped[str] = mapped_column(String(120), default="")  # TTS 配音声线 ID
     faction_id: Mapped[int | None] = mapped_column(ForeignKey("factions.id"), nullable=True)  # 所属势力（可为空）
+
+    # v0.15 — serialised StatBlock (sparse OK; missing keys default to 10/30/50)
+    stat_block_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
 # ── 剧情线索 ──────────────────────────────────────────────

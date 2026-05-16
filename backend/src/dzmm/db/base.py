@@ -287,6 +287,36 @@ _V044_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# v0.50 — Python-first mechanical engine (v0.15 feature batch 1).
+# Adds D&D-style attributes, max vitals, skills/inventory/equipment JSON,
+# NPC stat block, CharState stamina column, and ruleset_version on Session.
+# ruleset_version: 1 = legacy LLM-driven, 2 = Python-driven (default for new sessions).
+_V050_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "characters": [
+        ("strength",     "strength INTEGER NOT NULL DEFAULT 10"),
+        ("dexterity",    "dexterity INTEGER NOT NULL DEFAULT 10"),
+        ("constitution", "constitution INTEGER NOT NULL DEFAULT 10"),
+        ("intelligence", "intelligence INTEGER NOT NULL DEFAULT 10"),
+        ("wisdom",       "wisdom INTEGER NOT NULL DEFAULT 10"),
+        ("charisma",     "charisma INTEGER NOT NULL DEFAULT 10"),
+        ("max_hp",       "max_hp INTEGER NOT NULL DEFAULT 30"),
+        ("max_sanity",   "max_sanity INTEGER NOT NULL DEFAULT 50"),
+        ("max_stamina",  "max_stamina INTEGER NOT NULL DEFAULT 30"),
+        ("skills_json",  "skills_json TEXT NOT NULL DEFAULT '{}'"),
+        ("inventory_json", "inventory_json TEXT NOT NULL DEFAULT '[]'"),
+        ("equipment_json", "equipment_json TEXT NOT NULL DEFAULT '{}'"),
+    ],
+    "npcs": [
+        ("stat_block_json", "stat_block_json TEXT NOT NULL DEFAULT '{}'"),
+    ],
+    "char_states": [
+        ("stamina", "stamina INTEGER NOT NULL DEFAULT 30"),
+    ],
+    "sessions": [
+        ("ruleset_version", "ruleset_version INTEGER NOT NULL DEFAULT 2"),
+    ],
+}
+
 
 # ── 特殊迁移：将 screenplays.session_id 改为 nullable ────
 # SQLite 不支持 ALTER COLUMN，所以只能用"复制→删旧→改名"三步走。
@@ -444,6 +474,8 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V043_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V044_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V050_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         # 最后做数据回填：给旧角色补上默认属性值
         await conn.run_sync(_backfill_legacy_base_stats_sync)
