@@ -272,7 +272,7 @@ const worldNpcStates = ref<WorldNPCStateData[]>([])
 const worldEventStates = ref<WorldEventStateData[]>([])
 const pcLocationId = ref<number | null>(null)
 const campaignProgress = ref<CampaignProgress | null>(null)
-const activeTab = ref<'state' | 'map' | 'campaign'>('state')
+const activeTab = ref<'state' | 'map' | 'campaign' | 'screenplay'>('state')
 const currentLocation = ref<{ name: string; description: string; items: { name: string; description: string }[] } | null>(null)
 const worldTime = ref<WorldTime | null>(null)
 const topologyWarnings = ref<string[]>([])
@@ -711,7 +711,11 @@ onMounted(async () => {
     turnCount.value = sess.turn_count
     gmModelCfgId.value = sess.gm_model_config_id
     frameworkId.value = sess.framework_id ?? null
-    if (frameworkId.value) activeTab.value = 'map'
+    if (frameworkId.value) {
+      activeTab.value = 'map'
+    } else if (screenplay.value) {
+      activeTab.value = 'screenplay'
+    }
     try {
       character.value = await charactersApi.get(sess.character_id)
     } catch {
@@ -1103,13 +1107,14 @@ onUnmounted(() => {
                   @select-npc="openNpcDetail"
                   @goal-status="updateGoal" />
       <div class="px-3 pb-3 space-y-3">
-        <template v-if="frameworkId">
+        <template v-if="frameworkId || screenplay">
           <div class="panel-tabs">
-            <button :class="{ active: activeTab === 'map' }" @click="activeTab = 'map'">世界地图</button>
-            <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">主线进度</button>
+            <button v-if="frameworkId" :class="{ active: activeTab === 'map' }" @click="activeTab = 'map'">世界地图</button>
+            <button v-if="frameworkId" :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">主线进度</button>
+            <button v-if="screenplay" :class="{ active: activeTab === 'screenplay' }" @click="activeTab = 'screenplay'">剧本</button>
           </div>
           <WorldMapPanel
-            v-if="activeTab === 'map'"
+            v-if="frameworkId && activeTab === 'map'"
             :locations="worldLocations"
             :npc-states="worldNpcStates"
             :event-states="worldEventStates"
@@ -1117,11 +1122,15 @@ onUnmounted(() => {
             :faction-names="{}"
           />
           <CampaignProgressPanel
-            v-if="activeTab === 'campaign'"
+            v-if="frameworkId && activeTab === 'campaign'"
             :campaign="campaignProgress"
           />
+          <ScreenplayProgressPanel
+            v-if="screenplay && activeTab === 'screenplay'"
+            :screenplay="screenplay"
+            :session-id="sessionId"
+          />
         </template>
-        <ScreenplayProgressPanel v-else :screenplay="screenplay" :session-id="sessionId" />
         <!-- Debug stats panel — only visible in debug mode -->
         <DebugPanel
           v-if="debugStore.enabled"
@@ -1165,13 +1174,14 @@ onUnmounted(() => {
                     @select-npc="openNpcDetail"
                     @goal-status="updateGoal" />
         <div class="px-3 pb-3 space-y-3">
-          <template v-if="frameworkId">
+          <template v-if="frameworkId || screenplay">
             <div class="panel-tabs">
-              <button :class="{ active: activeTab === 'map' }" @click="activeTab = 'map'">世界地图</button>
-              <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">主线进度</button>
+              <button v-if="frameworkId" :class="{ active: activeTab === 'map' }" @click="activeTab = 'map'">世界地图</button>
+              <button v-if="frameworkId" :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">主线进度</button>
+              <button v-if="screenplay" :class="{ active: activeTab === 'screenplay' }" @click="activeTab = 'screenplay'">剧本</button>
             </div>
             <WorldMapPanel
-              v-if="activeTab === 'map'"
+              v-if="frameworkId && activeTab === 'map'"
               :locations="worldLocations"
               :npc-states="worldNpcStates"
               :event-states="worldEventStates"
@@ -1179,11 +1189,15 @@ onUnmounted(() => {
               :faction-names="{}"
             />
             <CampaignProgressPanel
-              v-if="activeTab === 'campaign'"
+              v-if="frameworkId && activeTab === 'campaign'"
               :campaign="campaignProgress"
             />
+            <ScreenplayProgressPanel
+              v-if="screenplay && activeTab === 'screenplay'"
+              :screenplay="screenplay"
+              :session-id="sessionId"
+            />
           </template>
-          <ScreenplayProgressPanel v-else :screenplay="screenplay" :session-id="sessionId" />
         </div>
       </div>
     </div>

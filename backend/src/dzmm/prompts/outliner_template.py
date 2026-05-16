@@ -26,12 +26,37 @@ from dzmm.models.client import Message
 
 # 已知故事类型及其说明：用于给 LLM 更清晰的类型指导
 # 键：类型名（前端下拉选项）  值：对该类型的详细说明
-KNOWN_GENRES: dict[str, str] = {
-    "悬疑探案": "PC 是侦探或调查者，剧情围绕解开一桩谜案，逐步揭开真相，最终对峙幕后黑手。",
-    "英雄成长": "PC 从普通人或半吊子起步，遇到挫折后逐步成长，最终面对足以改变世界的关键挑战。",
-    "政治阴谋": "PC 卷入派系斗争，要在多方势力间斡旋、收集情报、做出立场选择，最终决定一方胜负。",
-    "灾难求生": "PC 处于灾难（瘟疫 / 末日 / 战争 / 自然灾害）中，资源稀缺，需要带领或保护一群人活下去。",
-    "恋爱攻略": "PC 与 1-2 位主要 NPC 发展深度关系，关系是剧情核心驱动；外部冲突服务于关系试炼。",
+KNOWN_GENRES: dict[str, dict] = {
+    "悬疑探案": {
+        "desc": "PC 是侦探或调查者，剧情围绕解开一桩谜案，逐步揭开真相，最终对峙幕后黑手。",
+        "act_count": 3,
+        "ending_archetype": "揭露真相",
+        "required_roles": ["怀疑对象", "受害者", "目击者"],
+    },
+    "英雄成长": {
+        "desc": "PC 从普通人或半吊子起步，遇到挫折后逐步成长，最终面对足以改变世界的关键挑战。",
+        "act_count": 5,
+        "ending_archetype": "蜕变成英雄",
+        "required_roles": ["导师", "宿敌", "伙伴"],
+    },
+    "政治阴谋": {
+        "desc": "PC 卷入派系斗争，要在多方势力间斡旋、收集情报、做出立场选择，最终决定一方胜负。",
+        "act_count": 4,
+        "ending_archetype": "势力洗牌",
+        "required_roles": ["幕后主谋", "盟友派系代表", "双面间谍"],
+    },
+    "灾难求生": {
+        "desc": "PC 处于灾难（瘟疫 / 末日 / 战争 / 自然灾害）中，资源稀缺，需要带领或保护一群人活下去。",
+        "act_count": 4,
+        "ending_archetype": "绝境求生",
+        "required_roles": ["需保护的平民", "反派抢夺者", "牺牲者"],
+    },
+    "恋爱攻略": {
+        "desc": "PC 与 1-2 位主要 NPC 发展深度关系，关系是剧情核心驱动；外部冲突服务于关系试炼。",
+        "act_count": 3,
+        "ending_archetype": "关系确立",
+        "required_roles": ["主要恋爱对象", "情敌或阻碍者", "知心好友"],
+    },
 }
 
 
@@ -123,7 +148,13 @@ def build_outliner_messages(
     ]
     # 如果是已知类型，追加详细说明；自定义类型则跳过（LLM 自行推断）
     if genre in KNOWN_GENRES:
-        user_lines.append(f"类型说明：{KNOWN_GENRES[genre]}")
+        g = KNOWN_GENRES[genre]
+        user_lines.append(f"类型说明：{g['desc']}")
+        user_lines.append(
+            f"类型结构：约 {g['act_count']} 章；"
+            f"典型结局：{g['ending_archetype']}；"
+            f"建议 NPC 原型：{g['required_roles']}"
+        )
     # 玩家可以在 UI 里填写额外要求（比如"我希望有个书店"）
     if custom_prompt.strip():
         user_lines.append("# 玩家自定义补充")
@@ -193,7 +224,13 @@ def build_rewrite_messages(
         f"# 故事类型：{genre}",
     ]
     if genre in KNOWN_GENRES:
-        user_lines.append(f"类型说明：{KNOWN_GENRES[genre]}")
+        g = KNOWN_GENRES[genre]
+        user_lines.append(f"类型说明：{g['desc']}")
+        user_lines.append(
+            f"类型结构：约 {g['act_count']} 章；"
+            f"典型结局：{g['ending_archetype']}；"
+            f"建议 NPC 原型：{g['required_roles']}"
+        )
     user_lines.extend([
         "",
         f"# 当前章节进度：第 {current_chapter} 章",

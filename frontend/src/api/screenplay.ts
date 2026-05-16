@@ -116,11 +116,62 @@ export interface ScreenplayRevision {
   created_at: string | null
 }
 
-export const KNOWN_GENRES: { key: string; label: string; desc: string }[] = [
-  { key: '悬疑探案', label: '🔍 悬疑探案', desc: '解谜 / 调查 / 真相揭露' },
-  { key: '英雄成长', label: '⚔️ 英雄成长', desc: '从凡人到救世' },
-  { key: '政治阴谋', label: '🎭 政治阴谋', desc: '势力斡旋 / 立场抉择' },
-  { key: '灾难求生', label: '🌋 灾难求生', desc: '资源稀缺 / 生死逃亡' },
-  { key: '恋爱攻略', label: '💕 恋爱攻略', desc: '关系养成 / 情感试炼' },
-  { key: '自定义', label: '✏️ 自定义', desc: '你说想要什么样的故事' },
+export interface GenreSpec {
+  key: string
+  label: string
+  desc: string
+  act_count: number
+  ending_archetype: string
+  required_roles: string[]
+}
+
+export const KNOWN_GENRES: GenreSpec[] = [
+  {
+    key: '悬疑探案',
+    label: '🔍 悬疑探案',
+    desc: '解谜 / 调查 / 真相揭露',
+    act_count: 3,
+    ending_archetype: '揭露真相',
+    required_roles: ['怀疑对象', '受害者', '目击者'],
+  },
+  {
+    key: '英雄成长',
+    label: '⚔️ 英雄成长',
+    desc: '从凡人到救世',
+    act_count: 5,
+    ending_archetype: '蜕变成英雄',
+    required_roles: ['导师', '宿敌', '伙伴'],
+  },
+  {
+    key: '政治阴谋',
+    label: '🎭 政治阴谋',
+    desc: '势力斡旋 / 立场抉择',
+    act_count: 4,
+    ending_archetype: '势力洗牌',
+    required_roles: ['幕后主谋', '盟友派系代表', '双面间谍'],
+  },
+  {
+    key: '灾难求生',
+    label: '🌋 灾难求生',
+    desc: '资源稀缺 / 生死逃亡',
+    act_count: 4,
+    ending_archetype: '绝境求生',
+    required_roles: ['需保护的平民', '反派抢夺者', '牺牲者'],
+  },
+  {
+    key: '恋爱攻略',
+    label: '💕 恋爱攻略',
+    desc: '关系养成 / 情感试炼',
+    act_count: 3,
+    ending_archetype: '关系确立',
+    required_roles: ['主要恋爱对象', '情敌或阻碍者', '知心好友'],
+  },
+  {
+    key: '自定义',
+    label: '✏️ 自定义',
+    desc: '你说想要什么样的故事',
+    act_count: 3,
+    ending_archetype: '',
+    required_roles: [],
+  },
 ]

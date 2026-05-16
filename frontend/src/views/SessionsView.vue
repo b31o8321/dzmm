@@ -350,6 +350,21 @@ const screenplayTitleById = computed(() => {
   return m
 })
 
+const screenplayStatusById = computed(() => {
+  const m = new Map<number, 'active' | 'concluded' | 'superseded'>()
+  for (const [, sps] of spStore.byWorld) {
+    for (const sp of sps) m.set(sp.id, sp.status)
+  }
+  return m
+})
+
+function isScreenplayConcluded(row: GameSession): boolean {
+  if (!row.screenplay_id) return false
+  const status = screenplayStatusById.value.get(row.screenplay_id)
+  // If status not loaded yet, default to showing the button (conservative)
+  return status === 'concluded'
+}
+
 // --- Spinoff ---
 const spinoffTarget = ref<{ id: number; name: string } | null>(null)
 const spinoffName = ref('')
@@ -472,13 +487,33 @@ onMounted(async () => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button
-            class="ml-2"
-            size="small"
-            type="success"
-            plain
-            @click="openSpinoff(row)"
-          >+ 续作</el-button>
+          <el-tooltip
+            v-if="isScreenplayConcluded(row)"
+            content="创建一个新存档作为本剧本的「第二季」。世界观与角色卡保留，开启一段新冒险。"
+            placement="top"
+          >
+            <el-button
+              class="ml-2"
+              size="small"
+              type="success"
+              plain
+              @click="openSpinoff(row)"
+            >+ 续作</el-button>
+          </el-tooltip>
+          <el-tooltip
+            v-else-if="row.screenplay_id"
+            content="仅当剧本完结后才能创建续作（新存档 · 第二季）。若要继续当前故事，请在游戏内使用「📖 续写下一章」。"
+            placement="top"
+          >
+            <span class="ml-2 inline-flex">
+              <el-button
+                size="small"
+                type="success"
+                plain
+                disabled
+              >+ 续作</el-button>
+            </span>
+          </el-tooltip>
           <el-button
             class="ml-2"
             size="small"
