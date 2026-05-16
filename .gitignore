@@ -1,2 +1,22 @@
 .claude/
 .DS_Store
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Python build / cache
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Tauri build
+frontend/src-tauri/target/
+
+# Project-local DB / logs
+*.db
+*.log
