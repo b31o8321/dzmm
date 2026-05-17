@@ -54,6 +54,7 @@ from dzmm.db.models import (
     Session as GameSession,  # 游戏会话（一次游玩记录）：turn_count、world_id 等
     StorySummary, # 故事摘要：summarizer 把早期历史压缩成文字摘要存在这里
     World,        # 世界设定表：世界观文档（Markdown）、风格、规则模式
+    WorldLocation, # 开放世界预定义地点（含 connections_json travel_turns）
 )
 # ModelClient 是我们自己封装的 LLM 客户端接口，屏蔽了 OpenAI/Ollama/Claude 的差异
 # Message 是 LLM 消息格式（role + content）；GenerationParams 是生成参数（温度/最大 token）
@@ -1522,17 +1523,70 @@ async def _build_key_facts(
                 LocationEdge.to_loc_id == current_loc.id,
             )
         )).all()
+        # v0.15.1 D2 — 若有 framework_id，加载 WorldLocation.connections_json
+        # 用来在拓扑行里附加"路程 N 回合"信息，让 GM 感知距离远近。
+        # 结构：{peer_name -> travel_turns}（仅当 framework_id 存在时有效）
+        world_travel_map: dict[str, int] = {}
+        if sess is not None and sess.framework_id:
+            try:
+                # 找到与当前 Location 同名的 WorldLocation（在相同 framework 下）
+                wl_row = (await session.execute(
+                    select(WorldLocation).where(
+                        WorldLocation.framework_id == sess.framework_id,
+                        WorldLocation.name == current_loc.name,
+                    )
+                )).scalar_one_or_none()
+                if wl_row is not None:
+                    raw_conns = json.loads(wl_row.connections_json or "[]")
+                    if isinstance(raw_conns, list):
+                        # 先建 target_id → WorldLocation 名字的映射
+                        target_ids = [
+                            c.get("target_id") for c in raw_conns
+                            if isinstance(c, dict) and isinstance(c.get("target_id"), int)
+                        ]
+                        if target_ids:
+                            peer_wl_rows = (await session.execute(
+                                select(WorldLocation).where(
+                                    WorldLocation.id.in_(target_ids)
+                                )
+                            )).scalars().all()
+                            id_to_name = {r.id: r.name for r in peer_wl_rows}
+                            for c in raw_conns:
+                                if not isinstance(c, dict):
+                                    continue
+                                tid = c.get("target_id")
+                                tt = c.get("travel_turns")
+                                if isinstance(tid, int) and isinstance(tt, int) and tid in id_to_name:
+                                    world_travel_map[id_to_name[tid]] = tt
+            except Exception:  # noqa: BLE001
+                pass  # 防御：JSON 解析失败或数据库异常时静默跳过
+
         topo_lines: list[str] = []
+        seen_peer_names: set[str] = set()
         for e, peer in edges_out:
-            topo_lines.append(
-                f"- 此处 {e.relation} → {peer.name}"
-                + (f"（{e.description}）" if e.description else "")
-            )
+            suffix = f"（{e.description}）" if e.description else ""
+            tt = world_travel_map.get(peer.name)
+            if tt is not None:
+                suffix += f"（路程 {tt} 回合）"
+            topo_lines.append(f"- 此处 {e.relation} → {peer.name}" + suffix)
+            seen_peer_names.add(peer.name)
         for e, peer in edges_in:
-            topo_lines.append(
-                f"- {peer.name} {e.relation} → 此处"
-                + (f"（{e.description}）" if e.description else "")
-            )
+            suffix = f"（{e.description}）" if e.description else ""
+            tt = world_travel_map.get(peer.name)
+            if tt is not None:
+                suffix += f"（路程 {tt} 回合）"
+            topo_lines.append(f"- {peer.name} {e.relation} → 此处" + suffix)
+            seen_peer_names.add(peer.name)
+
+        # framework 会话：对于尚未在 LocationEdge 中登记的 WorldLocation 邻居，
+        # 也渲染出来（开放世界早期阶段 GM 可能还没 emit location_edge）
+        if sess is not None and sess.framework_id and world_travel_map:
+            for peer_name, tt in world_travel_map.items():
+                if peer_name not in seen_peer_names:
+                    topo_lines.append(
+                        f"- （预设）→ {peer_name}（路程 {tt} 回合，尚未确认进入）"
+                    )
+
         if topo_lines:
             parts.append(
                 "\n## 周边拓扑（已确认，禁止违背）\n" + "\n".join(topo_lines)
@@ -1782,20 +1836,75 @@ async def _build_key_facts(
                             f'<event_complete chapter="{sp.current_chapter}" '
                             f'event="{next_idx}" type="main"/>'
                         )
-                        urgency = "❗❗ 极度紧急" if turns_since_progress >= 6 else "⚠️ 剧情强推"
-                        parts.append(
-                            f"## {urgency}（已 {turns_since_progress} 回合无主线进展）\n"
-                            f"**本回合必须完成主线事件**：「{_render_event(next_event)}」\n\n"
-                            f"操作步骤（严格按顺序）：\n"
-                            f"1. 立刻安排 NPC 或环境事件将 PC 引向该主线事件（1-2 句即可）\n"
-                            f"2. 在 narrative 中演出该事件的核心一幕（≤150 字，抓住最戏剧性的瞬间）\n"
-                            f"3. **核心一幕演完后，立刻输出以下 tag（在当前回合任意位置均可，无需等叙事结束）**：\n"
-                            f"```\n{emit_tag}\n```\n"
-                            f"4. emit 完成后可继续补充叙事细节或 choices，但 event_complete 不能推到下回合\n\n"
-                            f"⚠️ 误区纠正：event_complete 是**进度标记**，不是叙事终止符。"
-                            f"你不需要等「整个事件叙事结束」才 emit——演出核心即标记完成。\n"
-                            f"**如本回合未 emit 该 tag，系统视为未完成，下回合继续强推。**"
-                        )
+
+                        # v0.15.1 C4+ — 8-turn stall: auto-complete the first
+                        # pending main event directly in the DB so the GM doesn't
+                        # have to. This fires ONCE per stall episode (the auto
+                        # entry carries turn=current_turn so next build will see
+                        # turns_since_progress ≈ 0 and stop firing).
+                        if turns_since_progress >= 8:
+                            try:
+                                auto_entry = {
+                                    "chapter": sp.current_chapter,
+                                    "event_idx": next_idx,
+                                    "type": "main",
+                                    "turn": current_turn,
+                                    "auto": True,
+                                }
+                                completed_updated = list(completed)
+                                completed_updated.append(auto_entry)
+                                sp.completed_events_json = json.dumps(
+                                    completed_updated, ensure_ascii=False
+                                )
+                                log.info(
+                                    "stall_auto_advance session=%s turn=%s "
+                                    "chapter=%s event_idx=%s",
+                                    session_id,
+                                    current_turn,
+                                    sp.current_chapter,
+                                    next_idx,
+                                )
+                                event_desc = _render_event(next_event)
+                                parts.append(
+                                    f"## ❗ 系统自动推进（8 回合无进度）\n"
+                                    f"已自动完成主线事件：本章事件 #{next_idx + 1}"
+                                    f"「{event_desc}」\n"
+                                    f"原因：剧情长时间停滞，系统帮 GM 推进。\n"
+                                    f"本回合 GM 必须叙述该事件如何在故事中发生"
+                                    f"（不必精确，但必须呈现结果）。"
+                                )
+                            except Exception:  # noqa: BLE001
+                                # 防御：任何失败（Screenplay 不存在、JSON 损坏等）
+                                # 回退到普通强推警告
+                                urgency = "❗❗ 极度紧急"
+                                parts.append(
+                                    f"## {urgency}（已 {turns_since_progress} 回合无主线进展）\n"
+                                    f"**本回合必须完成主线事件**：「{_render_event(next_event)}」\n\n"
+                                    f"操作步骤（严格按顺序）：\n"
+                                    f"1. 立刻安排 NPC 或环境事件将 PC 引向该主线事件（1-2 句即可）\n"
+                                    f"2. 在 narrative 中演出该事件的核心一幕（≤150 字，抓住最戏剧性的瞬间）\n"
+                                    f"3. **核心一幕演完后，立刻输出以下 tag（在当前回合任意位置均可，无需等叙事结束）**：\n"
+                                    f"```\n{emit_tag}\n```\n"
+                                    f"4. emit 完成后可继续补充叙事细节或 choices，但 event_complete 不能推到下回合\n\n"
+                                    f"⚠️ 误区纠正：event_complete 是**进度标记**，不是叙事终止符。"
+                                    f"你不需要等「整个事件叙事结束」才 emit——演出核心即标记完成。\n"
+                                    f"**如本回合未 emit 该 tag，系统视为未完成，下回合继续强推。**"
+                                )
+                        else:
+                            urgency = "❗❗ 极度紧急" if turns_since_progress >= 6 else "⚠️ 剧情强推"
+                            parts.append(
+                                f"## {urgency}（已 {turns_since_progress} 回合无主线进展）\n"
+                                f"**本回合必须完成主线事件**：「{_render_event(next_event)}」\n\n"
+                                f"操作步骤（严格按顺序）：\n"
+                                f"1. 立刻安排 NPC 或环境事件将 PC 引向该主线事件（1-2 句即可）\n"
+                                f"2. 在 narrative 中演出该事件的核心一幕（≤150 字，抓住最戏剧性的瞬间）\n"
+                                f"3. **核心一幕演完后，立刻输出以下 tag（在当前回合任意位置均可，无需等叙事结束）**：\n"
+                                f"```\n{emit_tag}\n```\n"
+                                f"4. emit 完成后可继续补充叙事细节或 choices，但 event_complete 不能推到下回合\n\n"
+                                f"⚠️ 误区纠正：event_complete 是**进度标记**，不是叙事终止符。"
+                                f"你不需要等「整个事件叙事结束」才 emit——演出核心即标记完成。\n"
+                                f"**如本回合未 emit 该 tag，系统视为未完成，下回合继续强推。**"
+                            )
 
         # v0.10.5 — 本章主要场所 + 主要 NPC 常驻场所。受铁律 36 约束：
         # GM 在引入新 NPC 时若 PC 不在 NPC 的 primary_location，必须先 emit

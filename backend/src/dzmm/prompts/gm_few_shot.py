@@ -76,7 +76,7 @@ FEW_SHOT_EXAMPLE = """
 
 <narrative>卫兵下意识把左臂往身后藏，那截深褐色血迹分外刺眼。</narrative>
 
-<dice skill="洞察" target="12">d20=15，成功</dice>
+<skill_request skill="洞察" attribute="wisdom" dc="12" actor="PC"/>
 
 <npc_update>
 {{"name": "年轻卫兵", "emotion": {{"fear": +15}}, "state": "强装镇定"}}
@@ -143,26 +143,19 @@ FEW_SHOT_EXAMPLE = """
 
 说明：location="" 表示陈伯留在茶馆，不再出现在「九龙黑街」的在场NPC列表。物品同理用 `<location_item action="add|remove"/>`。
 
---- 示范4：dice 检定的密度峰值（潜行成功示范）---
+--- 示范4：技能检定的密度峰值（v0.15 潜行成功示范）---
 
 玩家行动「悄悄绕到守卫背后，去偷桌上的钥匙」
 
-正确输出：
+正确输出（emit skill_request，然后在叙事里预判两种结果方向）：
 
-<narrative>李少卿沿着墙根挪到值班室门口。</narrative>
+<narrative>李少卿沿着墙根挪到值班室门口，门轴几乎没出声。屋里只有一盏油灯，摇曳的光把守卫的影子投在墙上像个昏睡的巨人。</narrative>
 
-<dice category="stealth" outcome="success" dc="12" pc_roll="15" mod="+2">
-<scene>
-门轴几乎没出声。屋里只有一盏油灯，摇曳的光把守卫的影子投在墙上像个昏睡的巨人。
-李少卿屏住呼吸，三步、两步——指尖触到铜制的钥匙串。冰凉。
-桌角的茶杯冒着热气，那个守卫前一秒还在抿酒。
-</scene>
-<reaction speaker="守卫张三" mood="无察觉">
-（在椅子上轻微动了一下，喉咙里发出含糊的呓语）「……再来……一壶……」
-</reaction>
-</dice>
+<pc_action>李少卿屏住呼吸，三步、两步——指尖触到铜制的钥匙串，冰凉。</pc_action>
 
-<narrative>钥匙到手。李少卿沿原路退出，把门带上半寸。</narrative>
+<skill_request skill="潜行" attribute="dexterity" dc="12" actor="PC"/>
+
+<narrative>（成功：钥匙到手，沿原路退出，把门带上半寸；失败：茶杯被袖口扫落，守卫猛地抬起头——等下回合 key_facts 显示结果后叙事）</narrative>
 
 <choices>
 - 立即去打开囚室
@@ -170,14 +163,13 @@ FEW_SHOT_EXAMPLE = """
 - 顺手翻一下桌上的文件
 </choices>
 
---- 反面示范（绝对不要这样输出） ---
+--- 反面示范（v0.15 迁移后不允许这样写）---
 
-<narrative>你成功潜行到守卫背后偷到了钥匙。</narrative>
-<dice category="stealth" outcome="success" dc="12" pc_roll="15">潜行检定成功</dice>
-<choices>...</choices>
+<dice category="stealth" outcome="success" dc="12" pc_roll="15" mod="+2">
+<scene>你成功偷到了钥匙。</scene>
+</dice>
 
-注意：dice 内没有详细的感官 scene 和 NPC reaction = 错过了让玩家「看到」和「听到」的
-机会，回合质感骤降。dice 是叙事密度的峰值——普通 narrative 可以白描快推进，dice 必须慢镜头。
+注意：v0.15 后技能检定不应自写 pc_roll 数字——emit <skill_request/> 请求，Python 结算，下回合 key_facts 告知结果再叙事。叙事密度（感官细节）放在 <narrative> 和 <pc_action> 里，不依赖旧 dice 格式。
 
 --- 示范5：场所切换必须立即登记 ---
 
@@ -295,6 +287,74 @@ emit <skill_request/> 请求，下回合 key_facts 会告诉你结果，然后�
 
 注意：不要自己计算和写出伤害数字——emit <attack> 让 Python 算，数字会出现在下回合的
 「## 上回合机械结算」里，你的叙事只需一句场面描写即可。
+
+--- 示范9：PC 开锁（skill_request 模式）---
+
+玩家行动：「{character_name}蹲下来研究门锁，取出撬锁工具试着开」
+
+正确输出（发出检定请求，不自写骰子数字）：
+
+<narrative>锁孔蒙着一层绿锈，{character_name}抽出两根细铁钎，凑近灯光仔细打量——内部是标准三杆结构，不难，但失手会有声音。</narrative>
+
+<pc_action>{character_name}屏住呼吸，左手固定拨杆，右手拨动转杆，耳朵贴近门缝。</pc_action>
+
+<skill_request skill="开锁" attribute="dexterity" dc="14"/>
+
+<narrative>（等下回合 key_facts 显示检定结果后根据成功/失败叙事：成功→锁舌轻响退开；失败→拨杆崩断，发出一声脆响）</narrative>
+
+<choices>
+- 【高风险】加力猛拨，一次成功但噪音更大
+- 【中等风险】保持当前手法，等待结果
+- 【低风险】放弃开锁，绕去找另一条路
+</choices>
+
+--- 反面示范（v0.15 禁止）---
+
+<dice category="stealth" outcome="success" dc="14" pc_roll="16" mod="+2">
+<scene>你成功开了锁。</scene>
+</dice>
+
+注意：不要自写 pc_roll="16"，不要用旧版 <dice> 做技能检定——emit <skill_request/> 请求，下回合 key_facts 告知结果再叙事。
+
+--- 示范10：战斗回合（initiative + attack，完整示范）---
+
+场景：{character_name}发现哥布林闯入，战斗爆发。
+
+**回合一：战斗开始，发起先攻**
+
+<narrative>哥布林从暗处蹿出，爪子带着腥气直扑过来，{character_name}本能地侧开身子，已无退路。</narrative>
+
+<initiative_request combatants="PC,哥布林甲,哥布林乙"/>
+
+<bgm mood="battle"/>
+
+<choices>
+- 【高风险】立刻冲向最近的哥布林甲，抢占先手
+- 【中等风险】退后半步，等先攻结果再决定
+- 【低风险】大喊制造声响，让哥布林短暂迟疑
+</choices>
+
+**回合二（已从 key_facts 看到先攻顺序：PC(17) → 哥布林甲(11) → 哥布林乙(6)）**
+
+玩家行动：「我冲上去劈哥布林甲」
+
+<narrative>{character_name}踏前一步，手中短剑横削而出，剑风带起一缕腥风。</narrative>
+
+<attack attacker_kind="pc" attacker_id="3" target_kind="npc" target_id="5" weapon="短剑"/>
+
+<narrative>（根据下回合 key_facts 命中/未命中结果补一句画面描写——命中则写钢铁切入皮甲的钝响；未命中则写哥布林身子一歪堪堪躲过）</narrative>
+
+<choices>
+- 【高风险】追击哥布林甲，争取本回合击倒
+- 【中等风险】盯防哥布林乙，防止被夹击
+- 【低风险】后退两步，观察双方血量再决定
+</choices>
+
+--- 反面示范（战斗中绝对禁止）---
+
+<narrative>{character_name}挥剑砍中哥布林甲，造成7点伤害，哥布林甲还剩5点HP。</narrative>
+
+注意：不要自己写伤害数字和剩余 HP——emit <attack> 让 Python 结算，你的叙事只写画面感。
 
 /* 以上仅为示例。实际输出必须从 <narrative> 开头，不要包含
 「输出范例」「示范」「错误示范」这类元文字，也不要把示例里的

@@ -259,6 +259,9 @@ async def apply_tags(
         elif tag.name == "initiative_request":
             # GM triggers initiative rolling for a list of combatants
             await _apply_initiative_request(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "say":
+            # Auto-create NPC row when GM uses <say speaker="..."> for an unknown speaker.
+            await _apply_say(session, session_id, tag.attrs, current_turn)
 
     # -------------------------------------------------------
     # 拓扑警告写回数据库
@@ -362,3 +365,68 @@ async def _bump_appearances_from_narrative(
         # 只有当 last_seen_turn 还没更新到当前回合时才写入，避免重复赋值
         if matched and (npc.last_seen_turn or 0) < current_turn:
             npc.last_seen_turn = current_turn
+
+
+async def _apply_say(
+    session: AsyncSession,
+    session_id: int,
+    attrs: dict | None,
+    current_turn: int,
+) -> None:
+    """Auto-create an NPC row when GM emits <say speaker="..."> for an unknown name.
+
+    This ensures that NPCs introduced purely through dialogue (without a prior
+    <npc_update>) are tracked in the NPC table and will receive dossier injection
+    on the next turn. The auto-created row uses safe defaults; the GM can refine
+    them later via <npc_update>.
+
+    Non-fatal: any exception during NPC creation is caught and logged.
+    """
+    if not attrs:
+        return
+    speaker = (attrs.get("speaker") or "").strip()
+    if not speaker:
+        return  # empty or whitespace-only speaker — nothing to do
+
+    try:
+        # Check whether this NPC already exists to avoid duplicates.
+        existing = (
+            await session.execute(
+                select(NPC).where(
+                    NPC.session_id == session_id,
+                    NPC.name == speaker,
+                )
+            )
+        ).scalar_one_or_none()
+
+        if existing is not None:
+            return  # already tracked — nothing to do
+
+        npc = NPC(
+            session_id=session_id,
+            name=speaker,
+            state="alive",
+            favor=0,
+            description="",
+            emotion_json="{}",
+            affinity_json="{}",
+            last_seen_turn=current_turn,
+            current_location=None,
+            purpose="",
+            archetype="neutral",
+            pinned=False,
+            revealed_json='{"name": true}',
+        )
+        session.add(npc)
+        log.info(
+            "_apply_say: auto-created NPC %r in session %d (first appearance via <say>)",
+            speaker,
+            session_id,
+        )
+    except Exception:  # noqa: BLE001
+        log.warning(
+            "_apply_say: failed to auto-create NPC %r in session %d — skipping",
+            speaker,
+            session_id,
+            exc_info=True,
+        )

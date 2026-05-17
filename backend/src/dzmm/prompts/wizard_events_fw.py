@@ -42,20 +42,40 @@ _SYSTEM = """你是开放世界 TRPG 的事件设计师，负责设计事件库�
     "scope_location_name": "地点名（scope_type=location时填）",
     "scope_faction_name": "势力名（scope_type=faction时填）",
     "importance": 1-5,
-    "trigger_conditions": [
-      {"type": "location", "location_name": "地点名"},
-      {"type": "npc_met", "npc_name": "NPC名"},
-      {"type": "stat_gte", "stat": "属性名", "value": N},
-      {"type": "event_done", "event_name": "事件名"},
-      {"type": "faction_rep", "faction_name": "势力名", "op": "gte", "value": N}
-    ],
+    "trigger_conditions": <v0.15 谓词，见下>,
     "is_repeatable": false,
     "cooldown_turns": 0
   }
 ]
 
+# trigger_conditions 格式（v0.15 谓词）
+
+trigger_conditions 是单个谓词对象（不是数组），支持以下格式：
+
+单条件（直接使用 type 字段）：
+  {"type": "location_reached", "location_name": "圣殿"}
+  {"type": "npc_state", "npc_template_name": "李影", "state": "dead"}
+  {"type": "stat_threshold", "stat": "hp", "op": "lte", "value": 5}
+  {"type": "item_owned", "item_name": "古老地图", "min_qty": 1}
+  {"type": "faction_tension", "faction_name": "暗夜公会", "op": "gte", "value": 70}
+
+AND 组合（所有子条件同时满足才触发）：
+  {"type": "all", "children": [{"type": "location_reached", "location_name": "地点A"}, {"type": "stat_threshold", "stat": "hp", "op": "lte", "value": 10}]}
+
+OR 组合（任一子条件满足即触发）：
+  {"type": "any", "children": [{...}, {...}]}
+
+空触发（任何时候都可以触发）：
+  {"type": "all", "children": []}
+
+注意：
+- 用 _name 后缀（location_name、npc_template_name、faction_name）填写名字，Python 会自动解析为 ID
+- op 支持：gte / lte / gt / lt / eq
+- stat 支持：hp / sanity / stamina / doom_score
+- state 支持：dead / alive / contacted
+
 要求：15-25个事件；importance 分布：1-2=次要(40%), 3=普通(40%), 4-5=重要(20%)；
-trigger_conditions 为空列表表示随时可触发；多个条件为AND逻辑。
+trigger_conditions 不可为 null，无条件事件用 {{"type": "all", "children": []}}；单条件直接用对应 type，不要包成 all/any。
 """
 
 

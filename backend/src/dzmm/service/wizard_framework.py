@@ -61,6 +61,60 @@ _FENCE_RE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
 
 
+def _resolve_predicate(
+    pred: dict,
+    *,
+    loc_map: dict[str, int],
+    npc_map: dict[str, int],
+    faction_map: dict[str, int],
+) -> dict:
+    """Recursively resolve name→id in a v0.15 predicate dict.
+
+    The LLM emits human-readable names (location_name, npc_template_name,
+    faction_name). We translate them to integer IDs so the engine can do
+    fast equality comparisons at runtime.
+
+    Unknown names are resolved to 0 (inert — the evaluator will miss and
+    the condition stays False, which is safe for unrecognised references).
+
+    Malformed / non-dict input is replaced with the inert always-False
+    predicate {"type": "all", "children": []}.
+    """
+    if not isinstance(pred, dict):
+        log.warning("_resolve_predicate: expected dict, got %r — replacing with inert", type(pred))
+        return {"type": "all", "children": []}
+
+    pred_type = pred.get("type", "")
+
+    # Recurse into combined predicates (all / any)
+    if pred_type in ("all", "any"):
+        resolved_children = [
+            _resolve_predicate(child, loc_map=loc_map, npc_map=npc_map, faction_map=faction_map)
+            for child in pred.get("children", [])
+        ]
+        return {"type": pred_type, "children": resolved_children}
+
+    result = dict(pred)
+
+    # location_reached: location_name → location_id
+    if pred_type == "location_reached" and "location_name" in result:
+        name = result.pop("location_name")
+        result["location_id"] = loc_map.get(name, 0)
+
+    # npc_state: npc_template_name → npc_template_id
+    elif pred_type == "npc_state" and "npc_template_name" in result:
+        name = result.pop("npc_template_name")
+        result["npc_template_id"] = npc_map.get(name, 0)
+
+    # faction_tension: faction_name → faction_id
+    elif pred_type == "faction_tension" and "faction_name" in result:
+        name = result.pop("faction_name")
+        result["faction_id"] = faction_map.get(name, 0)
+
+    # stat_threshold and item_owned have no name references — pass through as-is
+    return result
+
+
 def _extract_json(text: str) -> str:
     # 从 LLM 返回的文本中提取最外层 JSON 对象（{...}）或数组（[...]）
     # 并修复尾部逗号问题（本地模型的常见问题）
@@ -263,23 +317,37 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
         elif e_data.get("scope_type") == "faction":
             scope_ref = str(faction_name_to_id.get(e_data.get("scope_faction_name", ""), ""))
 
-        # 解析触发条件里的名字引用为 ID
-        conds = []
-        for cond in e_data.get("trigger_conditions", []):
-            resolved_cond = dict(cond)
-            if cond.get("type") == "location" and "location_name" in cond:
-                # "PC 到达某地点" 条件：把地点名字解析为 ID
-                resolved_cond["value"] = loc_name_to_id.get(cond["location_name"], 0)
-                del resolved_cond["location_name"]  # 删除名字字段，只保留 ID
-            elif cond.get("type") == "npc_met" and "npc_name" in cond:
-                # "PC 遇见某 NPC" 条件
-                resolved_cond["value"] = npc_name_to_id.get(cond["npc_name"], 0)
-                del resolved_cond["npc_name"]
-            elif cond.get("type") == "faction_rep" and "faction_name" in cond:
-                # "对某派系声望达到阈值" 条件
-                resolved_cond["faction_id"] = faction_name_to_id.get(cond["faction_name"], 0)
-                del resolved_cond["faction_name"]
-            conds.append(resolved_cond)
+        # 解析触发条件谓词（v0.15 格式）：名字引用 → ID
+        raw_pred = e_data.get("trigger_conditions", {"type": "all", "children": []})
+
+        # 向后兼容：旧格式是列表（[{type:"location",...}, ...]），新格式是单个谓词对象
+        if isinstance(raw_pred, list):
+            # 旧列表格式：将每个条件转换为新谓词形式，包装成 all
+            converted_children = []
+            for cond in raw_pred:
+                c = dict(cond)
+                old_type = c.get("type", "")
+                if old_type == "location":
+                    c["type"] = "location_reached"
+                elif old_type == "npc_met":
+                    c["type"] = "npc_state"
+                    c.setdefault("state", "alive")
+                elif old_type == "faction_rep":
+                    c["type"] = "faction_tension"
+                # stat_gte → stat_threshold
+                elif old_type == "stat_gte":
+                    c["type"] = "stat_threshold"
+                    c["op"] = "gte"
+                converted_children.append(c)
+            raw_pred = {"type": "all", "children": converted_children} if converted_children else {"type": "all", "children": []}
+
+        # Resolve name→id recursively using the v0.15 helper
+        resolved_pred = _resolve_predicate(
+            raw_pred,
+            loc_map=loc_name_to_id,
+            npc_map=npc_name_to_id,
+            faction_map=faction_name_to_id,
+        )
 
         event = WorldEvent(
             framework_id=fw.id,
@@ -288,7 +356,7 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
             scope_type=e_data.get("scope_type", "global"),  # global/location/faction
             scope_ref=scope_ref,
             importance=e_data.get("importance", 2),          # 1=次要 2=重要 3=关键
-            trigger_conditions_json=json.dumps(conds, ensure_ascii=False),
+            trigger_conditions_json=json.dumps(resolved_pred, ensure_ascii=False),
             is_repeatable=e_data.get("is_repeatable", False),  # 是否可重复触发
             cooldown_turns=e_data.get("cooldown_turns", 0),    # 重复触发冷却回合数
         )

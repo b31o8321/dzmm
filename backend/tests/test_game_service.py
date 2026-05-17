@@ -926,9 +926,10 @@ async def test_key_facts_force_progress_uses_legacy_estimate(seeded):
         await s.commit()
 
     sys_msg = "\n".join(m.content for m in captured.last_messages if m.role == "system")
-    # At turn 72 (>= 6) urgency escalates to ❗❗ 极度紧急; the shared subtitle
-    # "已 N 回合无主线进展" uniquely identifies the injected block regardless.
-    assert "回合无主线进展）" in sys_msg
+    # At turn 72 (>= 8 turns since progress) the system auto-advances and emits
+    # "系统自动推进" instead of the legacy "回合无主线进展" warning.
+    # Both cases must surface the pending event name.
+    assert ("回合无主线进展）" in sys_msg or "系统自动推进" in sys_msg)
     # Pending events name the next one (event_idx=1, "事件一")
     assert "事件一" in sys_msg
 
