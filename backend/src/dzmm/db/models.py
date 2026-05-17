@@ -201,6 +201,14 @@ class Session(Base):
     # Shape: list[{"kind": "pc"|"npc", "id": int, "name": str, "initiative_total": int}]
     combat_order_json: Mapped[str] = mapped_column(Text, default="[]")
 
+    # v0.54 — legacy mechanic tag rejection warnings.
+    # Records cases where the GM used banned/deprecated tags (e.g. <state_change hp="-N"/>
+    # for combat damage, or the legacy <dice> tag).  _build_key_facts drains entries
+    # from the PREVIOUS turn and injects them as a ⚠️ block so the GM is forced to
+    # migrate to the correct v0.15 tags.
+    # Shape: list[{"turn", "kind", "tag", "attempted"?, "reason"}]
+    mechanic_warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )

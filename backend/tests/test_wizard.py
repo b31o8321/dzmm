@@ -70,9 +70,9 @@ async def test_generate_world_brief_parses_three_sections():
     assert "共感协议" in out["conflict"]
     # raw_md is synthesized from JSON fields for backward-compat with
     # consumers (frontend, world_details prompt).
-    assert out["raw_md"].startswith("## 名字")
-    assert "赛博九龙" in out["raw_md"]
-    assert "## 核心冲突" in out["raw_md"]
+    assert out["raw_md"].startswith("# 赛博九龙")
+    assert "## 时代背景" in out["raw_md"]
+    assert "## ⚡ 当下危机" in out["raw_md"]
 
 
 

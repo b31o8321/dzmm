@@ -2255,6 +2255,52 @@ async def _build_key_facts(
             if len(res_lines) > 1:  # Has entries beyond the header
                 parts.append("\n".join(res_lines))
 
+    # ── v0.54: 上回合标签使用警告（mechanic_warnings_json） ─────────────────
+    # 注入上回合 GM 使用了被禁用/废弃标签的警告，强制 GM 迁移到正确的 v0.15 标签。
+    # 只注入 turn == current_turn - 1 的记录，最多 5 条，注入后清空（drain）。
+    if sess is not None:
+        try:
+            mw_raw = json.loads(getattr(sess, "mechanic_warnings_json", None) or "[]")
+            if not isinstance(mw_raw, list):
+                mw_raw = []
+        except (TypeError, ValueError):
+            mw_raw = []
+
+        last_turn = current_turn - 1
+        prev_mw = [
+            w for w in mw_raw
+            if isinstance(w, dict) and w.get("turn") == last_turn
+        ]
+        prev_mw = prev_mw[:5]  # cap at 5
+
+        if prev_mw:
+            mw_lines = ["\n## ⚠️ 上回合标签使用警告（共 {} 条）".format(len(prev_mw))]
+            for w in prev_mw:
+                kind = w.get("kind", "")
+                reason = w.get("reason", "")
+                attempted = w.get("attempted") or {}
+                if kind == "rejected_damage":
+                    hp_delta = attempted.get("hp", "?")
+                    mw_lines.append(
+                        f"- 你用了 <state_change hp=\"{hp_delta}\"/> 写战斗伤害（已忽略，未扣血）。\n"
+                        "  战斗必须走 <attack ...> 或 <dice_request formula=\"...\">."
+                    )
+                elif kind == "rejected_dice":
+                    mw_lines.append(
+                        "- 你用了旧版 <dice> 标签（已忽略 outcome）。\n"
+                        "  改用 <skill_request skill=\"...\" attribute=\"...\" dc=\"...\"/> 让 Python 算。"
+                    )
+                else:
+                    mw_lines.append(f"- {reason}")
+            parts.append("\n".join(mw_lines))
+
+        # Drain: clear warnings for last turn so they don't repeat.
+        remaining = [
+            w for w in mw_raw
+            if not (isinstance(w, dict) and w.get("turn") == last_turn)
+        ]
+        sess.mechanic_warnings_json = json.dumps(remaining, ensure_ascii=False)
+
     # ── 本回合要点（动态 GM 指令）────────────────────────────────────────────
     # 这是 key_facts 的最后一块，放在最靠近 LLM 生成的位置（位置越靠后，权重越高）
     # 内容由 Python 根据当前游戏状态动态计算，而不是让 LLM 自己判断

@@ -37,6 +37,7 @@ async def session_with_state(tmp_path):
 
 
 async def test_apply_state_change_updates_stats(session_with_state):
+    """v0.54: negative HP delta is now rejected (blocked); sanity decay is still allowed."""
     s, sid = session_with_state
     tag = TagComplete(name="state_change", content='{"hp": -5, "sanity": -2}')
     await apply_tags(s, sid, current_turn=1, tags=[tag])
@@ -46,7 +47,9 @@ async def test_apply_state_change_updates_stats(session_with_state):
         select(CharState).where(CharState.session_id == sid)
     )).scalar_one()
     stats = json.loads(cs.stats_json)
-    assert stats["hp"] == 15
+    # HP must NOT be changed — negative HP delta is rejected (use <attack>/<dice_request>)
+    assert stats["hp"] == 20
+    # Sanity decay is narrative and still applied
     assert stats["sanity"] == 13
 
 

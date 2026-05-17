@@ -59,7 +59,7 @@ from dzmm.service.state_apply.doom import _apply_doom                   # 末日
 from dzmm.service.state_apply.location import _apply_location_enter     # 进入新地点
 from dzmm.service.state_apply.location_edge import _apply_location_edge # 地点间的空间关系边
 from dzmm.service.state_apply.location_item import _apply_location_item # 地点内的道具
-from dzmm.service.state_apply.state_change import _apply_state_change   # 通用状态变更（JSON patch）
+from dzmm.service.state_apply.state_change import _apply_state_change, _record_mechanic_warning  # 通用状态变更（JSON patch）
 from dzmm.service.state_apply.world_time import _apply_time_advance     # 世界时间推进
 from dzmm.service.state_apply.factions import _apply_faction_create, _apply_faction_change  # 派系系统
 from dzmm.service.state_apply.mechanics import (  # v0.15 Batch 2+3: Python-engine mechanics
@@ -80,6 +80,25 @@ __all__ = [
     "_parse_reveal_attr",
     "apply_tags",
 ]
+
+
+async def _record_legacy_dice_warning(
+    session: AsyncSession,
+    session_id: int,
+    current_turn: int,
+) -> None:
+    """Record a mechanic warning when the GM emits a legacy <dice> tag.
+
+    The <dice> tag outcome is NOT applied to state (it never was — the tag is
+    narrative-only). But we now explicitly warn the GM so they migrate to
+    <skill_request> or <dice_request>.
+    """
+    await _record_mechanic_warning(session, session_id, {
+        "turn": current_turn,
+        "kind": "rejected_dice",
+        "tag": "dice",
+        "reason": "旧版 <dice> 不再被系统解析，请用 <skill_request> 或 <dice_request>",
+    })
 
 
 def _enforce_dice_outcome(tags: list[TagComplete]) -> None:
@@ -171,7 +190,7 @@ async def apply_tags(
         # 根据标签名路由到对应处理函数
         if tag.name == "state_change":
             # 通用状态变更，content 是 JSON patch 字符串
-            await _apply_state_change(session, session_id, tag.content)
+            await _apply_state_change(session, session_id, tag.content, current_turn)
         elif tag.name == "npc_update":
             # NPC 信息更新（创建或修改），attrs 含 name/favor_delta/state 等
             await _apply_npc_update(
@@ -262,6 +281,12 @@ async def apply_tags(
         elif tag.name == "say":
             # Auto-create NPC row when GM uses <say speaker="..."> for an unknown speaker.
             await _apply_say(session, session_id, tag.attrs, current_turn)
+        elif tag.name == "dice":
+            # v0.54: legacy <dice> tag — outcome is NOT applied to state.
+            # _enforce_dice_outcome above already corrects arithmetic; dice_monitor
+            # uses extract_d20_value for stuck-dice detection (both safe to keep).
+            # Record a warning so _build_key_facts can surface it to the GM.
+            await _record_legacy_dice_warning(session, session_id, current_turn)
 
     # -------------------------------------------------------
     # 拓扑警告写回数据库

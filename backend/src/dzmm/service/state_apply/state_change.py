@@ -1,14 +1,26 @@
-"""<state_change> handler — mutate CharState stats / inventory."""
+"""<state_change> handler — mutate CharState stats / inventory.
+
+v0.54: negative HP deltas are now **rejected** — they silently bypassed the
+Python combat engine (<attack> / <dice_request>) and let models skip the
+proper resolution path. Rejection records are stored in
+Session.mechanic_warnings_json so that _build_key_facts can surface them
+as a ⚠️ warning block for the GM next turn.
+
+Negative sanity / stamina deltas are still allowed (narrative decay is
+acceptable and not combat-driven).
+"""
 
 import json
+import logging
 from datetime import datetime, UTC
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import CharState
+from dzmm.db.models import CharState, Session as GameSession
 from dzmm.parsing.repair import parse_loose_json
 
+log = logging.getLogger(__name__)
 
 # Vital stats — these represent "life/mind/stamina" and clamp at 0 on the
 # low side. Letting them drop arbitrarily negative (e.g. HP=-250) hides
@@ -28,8 +40,28 @@ _VITAL_STATS = frozenset({"hp", "sanity", "stamina"})
 _VITAL_DELTA_MAX = 25
 
 
+async def _record_mechanic_warning(
+    session: AsyncSession,
+    session_id: int,
+    record: dict,
+) -> None:
+    """Append a warning record to Session.mechanic_warnings_json (max 20 stored)."""
+    sess = await session.get(GameSession, session_id)
+    if sess is None:
+        return
+    try:
+        existing: list = json.loads(getattr(sess, "mechanic_warnings_json", None) or "[]")
+        if not isinstance(existing, list):
+            existing = []
+    except (TypeError, ValueError):
+        existing = []
+    existing.append(record)
+    # Keep a reasonable cap to prevent unbounded growth
+    sess.mechanic_warnings_json = json.dumps(existing[-20:], ensure_ascii=False)
+
+
 async def _apply_state_change(
-    session: AsyncSession, session_id: int, raw: str
+    session: AsyncSession, session_id: int, raw: str, current_turn: int = 0
 ) -> None:
     payload = parse_loose_json(raw)
     if not payload:
@@ -56,6 +88,31 @@ async def _apply_state_change(
                     inventory.remove(item)
         elif isinstance(val, (int, float)):
             delta = val
+
+            # v0.54: Reject negative HP deltas — combat damage must go through
+            # <attack> or <dice_request>, not <state_change hp="-N"/>.
+            if key == "hp" and delta < 0:
+                log.warning(
+                    "state_change: rejected negative HP delta %s for session %d "
+                    "(use <attack> or <dice_request> for combat damage)",
+                    delta, session_id,
+                )
+                await _record_mechanic_warning(session, session_id, {
+                    "turn": current_turn,
+                    "kind": "rejected_damage",
+                    "tag": "state_change",
+                    "attempted": {"hp": delta},
+                    "reason": "战斗伤害走 <attack> 或 <dice_request>，<state_change hp=-N> 已禁用",
+                })
+                continue  # skip applying this delta
+
+            # Narrative sanity / stamina decay is acceptable — allow but log.
+            if key in ("sanity", "stamina") and delta < 0:
+                log.info(
+                    "state_change: narrative %s decay %s for session %d (allowed)",
+                    key, delta, session_id,
+                )
+
             if key in _VITAL_STATS and abs(delta) > _VITAL_DELTA_MAX:
                 # Preserve sign, cap magnitude. The GM narrative still
                 # describes "巨大伤害"; we just refuse to let the number

@@ -45,7 +45,24 @@ _SYSTEM = """你是一位经验丰富的 TRPG 世界观设计师。
 - 不要 ```json 代码块包裹
 - 不要前后加「这是」「以下是」之类的解释
 - 风格紧扣 genre 和 theme，不要写成空泛的奇幻
+- conflict 必须命名至少一个 NPC（人物名）和一个地点（城市/街区/建筑名），\
+不要泛指"某神秘人"/"某地点"。例如：
+  ✓ "雨夜码头连续出现尸体；私家侦探陈墨衍发现警员张猛涉嫌掩盖。"
+  ✗ "近期发生了一些怪事，需要调查。"
 """
+
+# 每个已知类型的当下危机提示（注入 user message，引导 LLM 生成具体冲突）
+_GENRE_CONFLICT_HINTS: dict[str, str] = {
+    "悬疑探案": "近期 N 起相同手法的案件、警方压案、有目击者失踪",
+    "英雄成长": "即将到来的威胁（特定名字的敌人 / 异常事件正在累积）",
+    "政治阴谋": "派系冲突逼近临界点、阴谋揭露差一步、关键人物即将失势",
+    "灾难求生": "灾变正在发生或刚刚开始，幸存者面临具体短缺",
+    "恋爱攻略": "PC 与某具名 NPC 之间的关键关系障碍（婚约 / 误会 / 阶层差距）",
+    "奇幻冒险": "古老封印的崩坏 / 失落物品被觊觎 / 神祇沉默",
+    "赛博朋克": "企业争霸的次级冲突 / 黑色市场动荡 / 一个被泄露的秘密",
+    "东方武侠": "门派恩怨 / 武林秘籍现世 / 朝廷压力 / 一桩被掩盖的旧案",
+    "恐怖求生": "未知存在已经开始影响人群 / 安全圈在缩小 / 通讯失联",
+}
 
 
 def build_world_brief_messages(genre: str, theme: str) -> list[Message]:
@@ -53,9 +70,17 @@ def build_world_brief_messages(genre: str, theme: str) -> list[Message]:
     # genre：故事类型（如"悬疑探案"、"政治阴谋"）
     # theme：玩家输入的主题关键词（可能很粗糙，如"科幻反乌托邦"）
     # 默认值兜底：如果玩家没填主题，用"（玩家未指定）"
+    genre_str = genre.strip() or "悬疑探案"
+    hint = _GENRE_CONFLICT_HINTS.get(genre_str)
+    hint_line = (
+        f"\n# 当下危机提示（conflict 字段请围绕以下要素展开）\n{hint}\n"
+        if hint
+        else ""
+    )
     user = (
-        f"# 故事类型\n{genre.strip() or '悬疑探案'}\n\n"
-        f"# 主题\n{theme.strip() or '（玩家未指定）'}\n\n"
+        f"# 故事类型\n{genre_str}\n\n"
+        f"# 主题\n{theme.strip() or '（玩家未指定）'}\n"
+        f"{hint_line}\n"
         "现在生成基础世界设定的 JSON。"
     )
     return [

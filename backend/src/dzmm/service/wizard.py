@@ -206,12 +206,13 @@ async def _with_retry(
 
 
 def _render_brief_md(name: str, setting: str, conflict: str) -> str:
-    # 把世界概要的三个字段（名称/年代地点/核心冲突）渲染成 Markdown
+    # 把世界概要的三个字段（名称/年代地点/当下危机）渲染成 Markdown
     # 输出格式与 world_details Prompt 期望的输入格式匹配
     return (
-        f"## 名字\n{name.strip()}\n\n"
-        f"## 年代与地点\n{setting.strip()}\n\n"
-        f"## 核心冲突\n{conflict.strip()}\n"
+        f"# {name.strip()}\n\n"
+        f"## 时代背景\n{setting.strip()}\n\n"
+        f"## ⚡ 当下危机\n{conflict.strip()}\n\n"
+        "（这是世界开局时正在发生的具体冲突，PC 第 1 章会立即接触到它。）\n"
     )
 
 
