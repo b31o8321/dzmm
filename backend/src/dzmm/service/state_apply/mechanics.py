@@ -431,6 +431,15 @@ async def _apply_initiative_request(
 
     pc_character_id: int = sess.character_id
 
+    # Load PC's actual name so GMs that pass it literally (e.g. "侦探陈")
+    # resolve correctly, not just the canonical "PC"/"玩家"/"PC角色" tokens.
+    pc_name: str | None = None
+    if pc_character_id is not None:
+        from dzmm.db.models import Character as _Character
+        pc_row = await session.get(_Character, pc_character_id)
+        if pc_row is not None:
+            pc_name = pc_row.name
+
     # Load all NPCs in this session for name resolution
     npc_rows = (
         await session.execute(
@@ -444,7 +453,12 @@ async def _apply_initiative_request(
     combatants: list[tuple[str, int]] = []
 
     for name in names:
-        if name.upper() == "PC" or name == "玩家" or name == "PC角色":
+        if (
+            name.upper() == "PC"
+            or name == "玩家"
+            or name == "PC角色"
+            or (pc_name is not None and name == pc_name)
+        ):
             combatants.append(("pc", pc_character_id))
         elif name in npc_by_name:
             combatants.append(("npc", npc_by_name[name].id))
