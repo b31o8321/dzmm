@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { frameworkApi } from '@/api/framework'
 import type {
   FwLocationInput, FwFactionInput, FwNpcTemplateInput,
@@ -17,12 +17,17 @@ import MarkdownView from '@/components/MarkdownView.vue'
 const router = useRouter()
 const modelStore = useModelConfigsStore()
 
+// localStorage draft key — survives app restart / browser refresh.
+// Cleared when wizard finalizes successfully.
+const DRAFT_KEY = 'dzmm.openWorldWizard.draft'
+
 const step = ref(0)
 const loading = ref(false)
 const hints = reactive<Record<number, string>>({})
 
 const state = reactive({
   genre: '悬疑探案',
+  model_config_id: 0,   // 0 = use preferred default; user can pick a specific one in step 0
   world_brief_md: '',
   world_name: '',
   locations: [] as FwLocationInput[],
@@ -35,7 +40,105 @@ const state = reactive({
   character_profile_md: '',
 })
 
-const modelConfigId = computed(() => modelStore.preferredId())
+// Save draft to localStorage whenever state or step changes
+function saveDraft() {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      step: step.value,
+      state: { ...state },
+      hints: { ...hints },
+      savedAt: new Date().toISOString(),
+    }))
+  } catch { /* quota / serialization — silent */ }
+}
+
+watch([step, state, hints], saveDraft, { deep: true })
+
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+}
+
+function hasDraft(): boolean {
+  try { return !!localStorage.getItem(DRAFT_KEY) } catch { return false }
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return
+    const d = JSON.parse(raw)
+    if (typeof d.step === 'number') step.value = d.step
+    if (d.state && typeof d.state === 'object') {
+      Object.assign(state, d.state)
+    }
+    if (d.hints && typeof d.hints === 'object') {
+      Object.assign(hints, d.hints)
+    }
+  } catch { /* malformed draft — ignore */ }
+}
+
+onMounted(async () => {
+  if (hasDraft()) {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      const d = raw ? JSON.parse(raw) : null
+      const savedAt = d?.savedAt ? new Date(d.savedAt).toLocaleString('zh-CN') : '未知时间'
+      const stepLabel = STEP_LABELS[d?.step ?? 0] ?? `第 ${d?.step ?? 0} 步`
+      await ElMessageBox.confirm(
+        `检测到上次未完成的世界草稿（保存于 ${savedAt}，进度：${stepLabel}）。\n是否继续？`,
+        '恢复上次草稿',
+        {
+          confirmButtonText: '继续上次',
+          cancelButtonText: '从头开始',
+          type: 'info',
+        },
+      )
+      loadDraft()
+      ElMessage.success(`已恢复到「${stepLabel}」`)
+    } catch {
+      // User chose to start fresh
+      clearDraft()
+    }
+  }
+})
+
+async function resetWizard() {
+  try {
+    await ElMessageBox.confirm(
+      '清空所有草稿并从头开始？已生成的地点 / 势力 / NPC 等会全部丢失。',
+      '确认清空',
+      { confirmButtonText: '清空', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  clearDraft()
+  step.value = 0
+  state.genre = '悬疑探案'
+  state.world_brief_md = ''
+  state.world_name = ''
+  state.locations = []
+  state.factions = []
+  state.npc_templates = []
+  state.events = []
+  state.campaign = null
+  state.include_campaign = false
+  state.character_name = ''
+  state.character_profile_md = ''
+  for (const k in hints) delete hints[Number(k)]
+  ElMessage.success('已清空')
+}
+
+// User-picked model takes precedence; falls back to preferred (default)
+const modelConfigId = computed(() => state.model_config_id || modelStore.preferredId())
+
+// Initialize default once on mount if user hasn't picked yet
+onMounted(async () => {
+  if (!state.model_config_id) {
+    await modelStore.refresh()
+    state.model_config_id = modelStore.preferredId() ?? 0
+  }
+})
 
 async function generate(stepNum: number) {
   if (!modelConfigId.value) {
@@ -154,6 +257,7 @@ async function finalize() {
     })
 
     ElMessage.success('开放世界存档创建成功！')
+    clearDraft()  // wizard succeeded — discard the local draft
     router.push(`/play/${session.id}`)
   } catch (e: unknown) {
     ElMessage.error(`创建失败：${e instanceof Error ? e.message : String(e)}`)
@@ -176,6 +280,19 @@ const STEP_LABELS = [
 
     <!-- Step 0: Setup -->
     <el-card v-if="step === 0">
+      <h3>选择 LLM 模型</h3>
+      <div style="margin-bottom:8px; color:#909399; font-size:13px">
+        向导生成 5-10 次 LLM 调用，本地小模型可能卡，建议大模型或云端。
+      </div>
+      <el-select v-model="state.model_config_id" placeholder="选择模型" style="width: 100%; margin-bottom: 20px">
+        <el-option
+          v-for="m in modelStore.items"
+          :key="m.id"
+          :label="`${m.name}（${m.model_name}）`"
+          :value="m.id"
+        />
+      </el-select>
+
       <h3>选择类型</h3>
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px">
         <label
@@ -336,6 +453,12 @@ const STEP_LABELS = [
       <el-button v-else type="success" :loading="loading" @click="finalize">
         创建开放世界存档
       </el-button>
+      <el-button text type="danger" @click="resetWizard" style="margin-left: auto">
+        🗑️ 清空草稿
+      </el-button>
+    </div>
+    <div class="muted" style="margin-top: 6px; text-align: right; font-size: 12px">
+      ✓ 自动保存到本地，关闭窗口后可从「{{ STEP_LABELS[step] }}」继续
     </div>
   </div>
 </template>
