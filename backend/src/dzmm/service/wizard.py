@@ -176,13 +176,25 @@ async def _stream_text(
     #   直接让 json.loads 处理空字符串会报 "Expecting value: line 1 column 1"，
     #   错误信息对用户不友好。主动抛出有描述性的 ValueError 更好。
     chunks: list[str] = []
+    chunk_count = 0
     async for ch in client.stream(
         messages, GenerationParams(max_tokens=max_tokens, temperature=0.85, json_mode=json_mode)
     ):
+        chunk_count += 1
         if ch.delta:
             chunks.append(ch.delta)
     out = "".join(chunks).strip()
+    log.debug(
+        "wizard._stream_text: client=%s json_mode=%s max_tokens=%d "
+        "chunks_received=%d output_chars=%d",
+        getattr(client, "name", "?"), json_mode, max_tokens, chunk_count, len(out),
+    )
     if not out:
+        log.warning(
+            "wizard._stream_text: empty output (client=%s json_mode=%s "
+            "max_tokens=%d chunks=%d)",
+            getattr(client, "name", "?"), json_mode, max_tokens, chunk_count,
+        )
         raise ValueError(
             "LLM 返回空内容（可能：API 限额 / 模型不支持 JSON mode / "
             "鉴权失效 / 推理模型把全部输出当成隐藏 reasoning）"
@@ -193,15 +205,24 @@ async def _stream_text(
 async def _with_retry(
     fn: Callable[[], Awaitable[_T]],
     max_attempts: int = 3,
+    label: str = "wizard_call",
 ) -> _T:
     # 通用重试包装：对 ValueError 和 JSONDecodeError 最多重试 max_attempts 次
     # 用于处理 LLM 偶发的格式错误（本地模型有 5~10% 的概率返回格式不合法的 JSON）
     last_err: Exception = RuntimeError("no attempts made")
-    for _ in range(max_attempts):
+    for attempt in range(1, max_attempts + 1):
         try:
             return await fn()
         except (ValueError, json.JSONDecodeError) as e:
             last_err = e
+            log.warning(
+                "wizard[%s] attempt %d/%d failed: %s",
+                label, attempt, max_attempts, str(e)[:300],
+            )
+    log.error(
+        "wizard[%s] all %d attempts exhausted; raising last error: %s",
+        label, max_attempts, str(last_err)[:300],
+    )
     raise last_err  # 三次全部失败，把最后一个错误抛给调用方
 
 
@@ -243,13 +264,17 @@ def _parse_brief_json(raw: str) -> dict:
 async def generate_world_brief(genre: str, theme: str, client: ModelClient) -> dict:
     # 根据游戏类型和主题，生成世界概要（名称 + 年代/地点 + 核心冲突）
     # 带重试（json_mode=True 使用 JSON 模式，部分模型必须如此才能返回 JSON）
+    log.info("wizard.world_brief: start (genre=%r theme=%r client=%s)",
+             genre, theme, getattr(client, "name", "?"))
     async def _attempt():
         raw = await _stream_text(
             client, build_world_brief_messages(genre, theme), max_tokens=600,
             json_mode=True,
         )
         return _parse_brief_json(raw)
-    return await _with_retry(_attempt)
+    result = await _with_retry(_attempt, label="world_brief")
+    log.info("wizard.world_brief: success (name=%r)", result.get("name"))
+    return result
 
 
 def _parse_character_json(raw: str) -> dict:
@@ -325,6 +350,10 @@ async def generate_character(
     # archetype 为空时，让 LLM 自由发挥
     # genre 用于生成结构化属性（v0.15 Batch 4）
     effective_archetype = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
+    log.info(
+        "wizard.character: start (archetype=%r genre=%r world_md_chars=%d client=%s)",
+        archetype, genre, len(world_md), getattr(client, "name", "?"),
+    )
     async def _attempt():
         # max_tokens=2500: profile_md 本身 600~1500 字符 + JSON 结构开销，
         # 1800 容易被截断导致 JSON 不合法，提高到 2500
@@ -340,7 +369,12 @@ async def generate_character(
         result["skills"] = tmpl["skills"]
         result["inventory"] = tmpl["inventory"]
         return result
-    return await _with_retry(_attempt)
+    result = await _with_retry(_attempt, label="character")
+    log.info(
+        "wizard.character: success (name=%r profile_md_chars=%d)",
+        result.get("name"), len(result.get("profile_md") or ""),
+    )
+    return result
 
 
 async def generate_single_npc(
@@ -366,6 +400,10 @@ async def generate_single_npc(
         Message(role="user", content=f"NPC 提示：{hint_text}"),
     ]
 
+    log.info(
+        "wizard.single_npc: start (hint=%r client=%s)",
+        hint_text, getattr(client, "name", "?"),
+    )
     async def _attempt():
         raw = await _stream_text(client, messages, max_tokens=400, json_mode=True)
         try:
@@ -377,7 +415,9 @@ async def generate_single_npc(
         npc["gender"] = _normalize_gender(npc.get("gender"))
         return npc
 
-    return await _with_retry(_attempt)
+    result = await _with_retry(_attempt, label="single_npc")
+    log.info("wizard.single_npc: success (name=%r)", result.get("name"))
+    return result
 
 
 async def finalize_wizard(

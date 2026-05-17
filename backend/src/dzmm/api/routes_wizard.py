@@ -40,7 +40,10 @@ The session dependency is reused from `routes_sessions` so the FastAPI
 override applied in `main.py` covers this router automatically.
 """
 import json
+import logging
 from collections.abc import AsyncIterator
+
+log = logging.getLogger(__name__)
 
 # FastAPI 核心组件：
 #   APIRouter  — 把路由分组，最终挂载到主 app
@@ -140,14 +143,34 @@ async def world_brief(
 
 async def _fw_character_impl(payload: dict, s: AsyncSession):
     """Shared implementation for /wizard/character and /wizard/fw/character."""
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    result = await generate_character(
-        world_md=str(payload.get("world_md") or ""),       # 完整的世界设定文本
-        archetype=str(payload.get("archetype") or ""),     # 角色原型，例如"侦探""学者"
-        client=client,
-        genre=str(payload.get("genre") or ""),             # v0.15 Batch 4: genre for stat template
+    log.info(
+        "route /wizard/fw/character: model_config_id=%s archetype=%r genre=%r world_md_chars=%d",
+        payload.get("model_config_id"),
+        payload.get("archetype"),
+        payload.get("genre"),
+        len(str(payload.get("world_md") or "")),
     )
-    return result
+    try:
+        client = await _client_for(s, _require_int(payload, "model_config_id"))
+        result = await generate_character(
+            world_md=str(payload.get("world_md") or ""),       # 完整的世界设定文本
+            archetype=str(payload.get("archetype") or ""),     # 角色原型，例如"侦探""学者"
+            client=client,
+            genre=str(payload.get("genre") or ""),             # v0.15 Batch 4: genre for stat template
+        )
+        log.info(
+            "route /wizard/fw/character OK: name=%r profile_md_chars=%d",
+            result.get("name"), len(result.get("profile_md") or ""),
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001 — surface error detail to caller + log
+        log.exception("route /wizard/fw/character FAILED: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"角色生成失败：{type(e).__name__}: {str(e)[:200]}",
+        ) from e
 
 
 

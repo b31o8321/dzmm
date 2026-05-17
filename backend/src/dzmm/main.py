@@ -58,6 +58,42 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
         allow_headers=["*"],      # 允许所有请求头
     )
 
+    # ── 请求日志中间件：方便排查前端报错 ────────────────────────────────────
+    # uvicorn 的 access log 默认走 stdout，没进入 ~/.dzmm/dzmm.log，
+    # 排查"前端报错但日志只看到 LLM 调用"时很难定位。这里记录所有 wizard/
+    # sessions 写操作的入站请求和响应状态码到 dzmm.log。
+    import logging as _logging
+    import time as _time
+    _req_log = _logging.getLogger("dzmm.requests")
+
+    @app.middleware("http")
+    async def _request_logger(request, call_next):
+        path = request.url.path
+        # 只记录关键路径，避免 SSE / state 轮询噪音
+        interesting = (
+            path.startswith("/wizard")
+            or path.startswith("/worlds")
+            or path.startswith("/characters")
+            or path.startswith("/model_configs")
+            or (path.startswith("/sessions") and request.method != "GET")
+        )
+        if not interesting:
+            return await call_next(request)
+        started = _time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            _req_log.exception("%s %s — UNHANDLED EXCEPTION", request.method, path)
+            raise
+        elapsed_ms = int((_time.perf_counter() - started) * 1000)
+        level = _logging.WARNING if response.status_code >= 400 else _logging.INFO
+        _req_log.log(
+            level,
+            "%s %s -> %d (%dms)",
+            request.method, path, response.status_code, elapsed_ms,
+        )
+        return response
+
     # ── 依赖注入：把「获取数据库会话」的函数注入给各路由 ────────────────────
     # FastAPI 的「依赖注入」机制：路由函数可以声明参数 session: AsyncSession = Depends(get_session_dep)，
     # FastAPI 会自动调用 get_session_dep()，把它的返回值传给路由函数，无需路由函数自己创建数据库连接。
