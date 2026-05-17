@@ -26,11 +26,8 @@ from dzmm.service.wizard import (
     _with_retry,
     finalize_wizard,
     generate_character,
-    generate_npcs,
-    generate_screenplay_from_wizard,
     generate_single_npc,
     generate_world_brief,
-    generate_world_details,
 )
 
 
@@ -77,29 +74,6 @@ async def test_generate_world_brief_parses_three_sections():
     assert "赛博九龙" in out["raw_md"]
     assert "## 核心冲突" in out["raw_md"]
 
-
-_DETAILS_OUTPUT = """## 地理与环境
-高密度立体城市，街道分三层。
-
-## 社会与势力
-- **荒坂集团**：保守派
-- **义体黑市**：地下势力
-- **教会残党**：精神控制
-
-## 风俗
-义体改造日普及程度极高，每年「电节」时整城停电。
-
-## 关键地点
-- **九龙天井**：废弃电梯井改造的黑市
-- **慈光教堂**：实验对象的最后归宿
-"""
-
-
-async def test_generate_world_details_returns_world_md():
-    client = StubLLM(_DETAILS_OUTPUT)
-    out = await generate_world_details("brief here", client)
-    assert "world_md" in out
-    assert "九龙天井" in out["world_md"]
 
 
 _CHAR_PROFILE_MD = """## 基本信息
@@ -178,87 +152,17 @@ async def test_generate_character_rejects_truncated_json_envelope():
         await generate_character("w", "a", client)
 
 
-_NPC_OUTPUT = json.dumps([
-    {"name": "陈子轩", "role": "盟友",
-     "description": "中年华人男子，前 SWAT", "motivation": "替女儿复仇"},
-    {"name": "苍井博士", "role": "对手",
-     "description": "白发精瘦，神经科学权威", "motivation": "完成共感协议"},
-    {"name": "K", "role": "导师",
-     "description": "永远只露半张脸的黑客", "motivation": "训练接班人"},
-], ensure_ascii=False)
-
-
-async def test_generate_npcs_parses_json():
-    client = StubLLM(_NPC_OUTPUT)
-    out = await generate_npcs("w", "c", client)
-    assert len(out["npcs"]) == 3
-    assert out["npcs"][0]["name"] == "陈子轩"
-    assert out["npcs"][1]["role"] == "对手"
-
-
-async def test_generate_npcs_strips_code_fence():
-    fenced = "```json\n" + _NPC_OUTPUT + "\n```"
-    client = StubLLM(fenced)
-    out = await generate_npcs("w", "c", client)
-    assert len(out["npcs"]) == 3
-
-
-async def test_generate_npcs_rejects_non_list():
-    client = StubLLM('{"not": "a list"}')
-    with pytest.raises(ValueError):
-        await generate_npcs("w", "c", client)
-
-
-async def test_generate_npcs_wraps_single_object_fallback():
-    """Local models sometimes return one NPC dict instead of an array — we
-    treat any object with a `name` field as a one-element list."""
-    single = json.dumps({
-        "name": "孤狼", "role": "对手",
-        "description": "一身黑衣的赏金猎人",
-        "motivation": "追杀 PC 是为兑现 5 年前的契约",
-    }, ensure_ascii=False)
-    client = StubLLM(single)
-    out = await generate_npcs("w", "c", client)
-    assert len(out["npcs"]) == 1
-    assert out["npcs"][0]["name"] == "孤狼"
-
-
 _SCREENPLAY_OUTPUT = json.dumps({
     "chapters": [
         {"title": "第一章：雨幕", "summary": "调查",
          "main_events": ["接到委托", "前往九龙天井"],
          "optional_events": ["搜查教堂"],
          "main_npcs": ["陈子轩"]},
-        {"title": "第二章：协议", "summary": "对峙博士",
-         "main_events": ["潜入实验室", "对峙苍井"],
-         "optional_events": [],
-         "main_npcs": ["苍井博士"]},
     ],
-    "main_characters": [
-        {"name": "陈子轩", "role": "盟友",
-         "description": "前 SWAT，PC 的线人", "intro_chapter": 1},
-    ],
+    "main_characters": [],
     "ending": "PC 销毁共感协议或将之据为己有",
     "opening_hook": "雨夜，电话响起，对方只说了一个地址",
 }, ensure_ascii=False)
-
-
-async def test_generate_screenplay_from_wizard_parses():
-    client = StubLLM(_SCREENPLAY_OUTPUT)
-    npcs = [
-        {"name": "陈子轩", "role": "盟友",
-         "description": "前 SWAT", "motivation": "复仇"},
-    ]
-    out = await generate_screenplay_from_wizard(
-        world_md="赛博九龙",
-        character_md="林默 黑客",
-        npcs=npcs,
-        genre="悬疑探案",
-        client=client,
-    )
-    assert len(out["chapters"]) == 2
-    assert out["chapters"][0]["title"] == "第一章：雨幕"
-    assert "雨夜" in out["opening_hook"]
 
 
 # ============================================================================
@@ -417,103 +321,6 @@ async def test_post_world_brief_endpoint(http, monkeypatch):
     assert "2089" in body["setting"]
     assert "共感协议" in body["conflict"]
 
-
-async def test_post_world_details_endpoint(http, monkeypatch):
-    mid = await _make_model_config(http)
-    _patch_wizard_client(monkeypatch, _DETAILS_OUTPUT)
-    r = await http.post("/wizard/world_details", json={
-        "model_config_id": mid, "brief_md": "已确认的 brief",
-    })
-    assert r.status_code == 200, r.text
-    assert "九龙天井" in r.json()["world_md"]
-
-
-async def test_post_character_endpoint(http, monkeypatch):
-    mid = await _make_model_config(http)
-    _patch_wizard_client(monkeypatch, _CHAR_OUTPUT)
-    r = await http.post("/wizard/character", json={
-        "model_config_id": mid, "world_md": "world", "archetype": "黑客",
-    })
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["name"] == "林默"
-    assert "神经入侵" in body["profile_md"]
-
-
-async def test_post_npcs_endpoint(http, monkeypatch):
-    mid = await _make_model_config(http)
-    _patch_wizard_client(monkeypatch, _NPC_OUTPUT)
-    r = await http.post("/wizard/npcs", json={
-        "model_config_id": mid, "world_md": "w", "character_md": "c",
-    })
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert len(body["npcs"]) == 3
-
-
-async def test_post_screenplay_endpoint(http, monkeypatch):
-    mid = await _make_model_config(http)
-    _patch_wizard_client(monkeypatch, _SCREENPLAY_OUTPUT)
-    r = await http.post("/wizard/screenplay", json={
-        "model_config_id": mid,
-        "world_md": "w",
-        "character_md": "c",
-        "npcs": [{"name": "陈子轩", "role": "盟友",
-                  "description": "前 SWAT", "motivation": "复仇"}],
-        "genre": "悬疑探案",
-    })
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert len(body["chapters"]) == 2
-    assert "雨夜" in body["opening_hook"]
-
-
-async def test_post_finalize_endpoint(http, app):
-    # Seed model configs via API so we have valid IDs.
-    mid = await _make_model_config(http)
-    bundle = {
-        "world": {"name": "赛博九龙", "content_md": "霓虹永不熄灭", "style": "dark"},
-        "character": {
-            "name": "林默",
-            "profile_md": "黑客",
-            "base_stats_json": '{"hp":20}',
-        },
-        "pinned_npcs": [
-            {"name": "陈子轩", "role": "盟友",
-             "description": "前 SWAT", "motivation": "复仇"},
-        ],
-        "screenplay": {
-            "chapters": [{"title": "第一章", "summary": "x", "main_events": [],
-                          "optional_events": [], "main_npcs": []}],
-            "main_characters": [],
-            "ending_md": "销毁协议",
-            "opening_hook": "雨夜电话",
-        },
-        "session_name": "九龙之雨",
-        "gm_model_config_id": mid,
-        "summarizer_model_config_id": mid,
-        "genre": "赛博朋克",
-    }
-    r = await http.post("/wizard/finalize", json=bundle)
-    assert r.status_code == 200, r.text
-    sid = r.json()["session_id"]
-    assert isinstance(sid, int)
-
-    # Verify session is fetchable through the regular API.
-    r = await http.get(f"/sessions/{sid}")
-    assert r.status_code == 200
-    assert r.json()["name"] == "九龙之雨"
-
-    # Verify NPC was created.
-    r = await http.get(f"/sessions/{sid}/npcs")
-    assert r.status_code == 200
-    npcs = r.json()
-    assert any(n["name"] == "陈子轩" and n["pinned"] is True for n in npcs)
-
-
-async def test_post_finalize_rejects_invalid_bundle(http):
-    r = await http.post("/wizard/finalize", json={"world": {"name": "x"}})
-    assert r.status_code == 400
 
 
 async def test_world_brief_404_when_model_missing(http, monkeypatch):
@@ -675,14 +482,3 @@ async def test_post_fw_character_endpoint(http, monkeypatch):
     assert "神经入侵" in body["profile_md"]
 
 
-@pytest.mark.asyncio
-async def test_fw_character_and_character_return_same_shape(http, monkeypatch):
-    """Both endpoints delegate to the same impl and return identical key sets."""
-    mid = await _make_model_config(http)
-    _patch_wizard_client(monkeypatch, _CHAR_OUTPUT)
-    payload = {"model_config_id": mid, "world_md": "world", "archetype": "黑客"}
-    r1 = await http.post("/wizard/character", json=payload)
-    r2 = await http.post("/wizard/fw/character", json=payload)
-    assert r1.status_code == 200, r1.text
-    assert r2.status_code == 200, r2.text
-    assert set(r1.json().keys()) == set(r2.json().keys())

@@ -40,14 +40,7 @@ from dzmm.db.models import (
 from dzmm.models.client import GenerationParams, Message, ModelClient
 
 from dzmm.prompts.wizard_character import build_character_messages
-from dzmm.prompts.wizard_npcs import build_npcs_messages
-from dzmm.prompts.wizard_refine_theme import build_refine_theme_messages
-from dzmm.prompts.wizard_screenplay import build_wizard_screenplay_messages
-from dzmm.prompts.wizard_suggest import build_suggest_messages
-from dzmm.prompts.wizard_suggest_archetypes import build_suggest_archetypes_messages
-from dzmm.prompts.wizard_suggest_npcs import build_suggest_npcs_messages
 from dzmm.prompts.wizard_world_brief import build_world_brief_messages
-from dzmm.prompts.wizard_world_details import build_world_details_messages
 
 # 正则：匹配并剥除 LLM 可能输出的 ```json ... ``` 围栏
 _FENCE_RE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
@@ -258,15 +251,6 @@ async def generate_world_brief(genre: str, theme: str, client: ModelClient) -> d
     return await _with_retry(_attempt)
 
 
-async def generate_world_details(brief_md: str, client: ModelClient) -> dict:
-    # 把精简的世界概要（brief_md）扩展成完整的世界观 Markdown
-    # 不需要 JSON，直接返回 Markdown 文本
-    world_md = await _stream_text(
-        client, build_world_details_messages(brief_md), max_tokens=1500
-    )
-    return {"world_md": world_md}
-
-
 def _parse_character_json(raw: str) -> dict:
     # 解析角色生成 JSON（{"name": "...", "profile_md": "...markdown..."}）
     # 两个 fallback 路径：
@@ -358,31 +342,6 @@ async def generate_character(
     return await _with_retry(_attempt)
 
 
-async def generate_npcs(
-    world_md: str, character_md: str, client: ModelClient
-) -> dict:
-    # 根据世界观和玩家角色，生成一批主要 NPC
-    # 返回 {"npcs": [{name, gender, description, archetype, purpose}, ...]}
-    async def _attempt():
-        raw = await _stream_text(
-            client, build_npcs_messages(world_md, character_md), max_tokens=1800,
-            json_mode=True,
-        )
-        try:
-            data = json.loads(_extract_json(raw))
-        except json.JSONDecodeError as e:
-            raise ValueError(f"NPCs JSON parse error: {e}; raw={raw[:200]!r}") from e
-        npcs = _unwrap_npc_list(data)
-        out: list[dict] = []
-        for n in npcs:
-            if not isinstance(n, dict) or not n.get("name"):
-                continue
-            n["gender"] = _normalize_gender(n.get("gender"))  # 规范化性别字段
-            out.append(n)
-        return {"npcs": out}
-    return await _with_retry(_attempt)
-
-
 async def generate_single_npc(
     world_md: str,
     character_md: str,
@@ -417,40 +376,6 @@ async def generate_single_npc(
         npc["gender"] = _normalize_gender(npc.get("gender"))
         return npc
 
-    return await _with_retry(_attempt)
-
-
-async def generate_screenplay_from_wizard(
-    world_md: str,
-    character_md: str,
-    npcs: list,      # 之前生成的 NPC 列表
-    genre: str,
-    client: ModelClient,
-) -> dict:
-    # 根据世界观、角色、NPC 列表生成剧本大纲 JSON
-    # 返回包含 chapters/main_characters/ending/opening_hook 的字典
-    async def _attempt():
-        raw = await _stream_text(
-            client,
-            build_wizard_screenplay_messages(
-                world_md=world_md,
-                character_md=character_md,
-                npcs=list(npcs or []),
-                genre=genre,
-            ),
-            max_tokens=4000,  # 完整剧本可能很长，给足够的 token
-            json_mode=True,
-        )
-        cleaned = _extract_json(raw)
-        try:
-            data = json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"screenplay JSON parse error: {e}; raw={raw[:200]!r}"
-            ) from e
-        if not isinstance(data, dict):
-            raise ValueError("screenplay JSON root must be an object")
-        return data
     return await _with_retry(_attempt)
 
 
@@ -650,158 +575,3 @@ async def stream_world_brief(genre: str, theme: str, client: ModelClient) -> _St
     yield "result", result  # 推送最终解析结果
 
 
-async def stream_world_details(brief_md: str, client: ModelClient) -> _StreamYield:
-    # 流式生成完整世界观 Markdown
-    messages = build_world_details_messages(brief_md)
-    chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85)):
-        if ch.delta:
-            chunks.append(ch.delta)
-            yield "delta", {"text": ch.delta}
-    world_md = "".join(chunks).strip()
-    yield "result", {"world_md": world_md}
-
-
-async def stream_character(world_md: str, archetype: str, client: ModelClient) -> _StreamYield:
-    # 流式生成玩家角色（包含 JSON 解析）
-    effective = archetype.strip() or "（请根据世界观自由发挥，创造一个有深度的主角）"
-    messages = build_character_messages(world_md, effective)
-    chunks: list[str] = []
-    # max_tokens=2500：见 generate_character 的注释
-    async for ch in client.stream(
-        messages, GenerationParams(max_tokens=2500, temperature=0.85, json_mode=True),
-    ):
-        if ch.delta:
-            chunks.append(ch.delta)
-            yield "delta", {"text": ch.delta}
-    raw = "".join(chunks).strip()
-    try:
-        result = _parse_character_json(raw)
-    except (ValueError, json.JSONDecodeError) as e:
-        log.warning("stream_character JSON parse failed: %s; raw=%r", e, raw[:200])
-        yield "error", {"message": f"角色 JSON 解析失败：{e}"}
-        return
-    yield "result", result
-
-
-async def stream_npcs(world_md: str, character_md: str, client: ModelClient) -> _StreamYield:
-    # 流式生成 NPC 列表
-    messages = build_npcs_messages(world_md, character_md)
-    chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=1800, temperature=0.85, json_mode=True)):
-        if ch.delta:
-            chunks.append(ch.delta)
-            yield "delta", {"text": ch.delta}
-    raw = "".join(chunks).strip()
-    try:
-        data = json.loads(_extract_json(raw))
-        npcs = _unwrap_npc_list(data)
-        # 过滤掉没有 name 的条目（LLM 可能返回格式不完整的 NPC）
-        npcs = [n for n in npcs if isinstance(n, dict) and n.get("name")]
-        yield "result", {"npcs": npcs}
-    except Exception as e:
-        yield "error", {"message": f"NPC 解析失败: {e}"}
-
-
-async def stream_screenplay(
-    world_md: str, character_md: str, npcs: list, genre: str, client: ModelClient,
-) -> _StreamYield:
-    # 流式生成剧本大纲 JSON
-    messages = build_wizard_screenplay_messages(
-        world_md=world_md, character_md=character_md, npcs=list(npcs or []), genre=genre,
-    )
-    chunks: list[str] = []
-    async for ch in client.stream(messages, GenerationParams(max_tokens=4000, temperature=0.85, json_mode=True)):
-        if ch.delta:
-            chunks.append(ch.delta)
-            yield "delta", {"text": ch.delta}
-    raw = "".join(chunks).strip()
-    try:
-        data = json.loads(_extract_json(raw))
-        if not isinstance(data, dict):
-            raise ValueError("screenplay root must be object")
-        yield "result", data
-    except Exception as e:
-        yield "error", {"message": f"剧本解析失败: {e}"}
-
-
-async def suggest_archetypes(world_md: str, client: ModelClient) -> dict:
-    # 根据世界观生成 4 个角色原型建议（帮助玩家选择角色方向）
-    async def _attempt():
-        raw = await _stream_text(
-            client, build_suggest_archetypes_messages(world_md), max_tokens=600,
-            json_mode=True,
-        )
-        data = json.loads(_extract_json(raw))
-        archetypes = data.get("archetypes", [])
-        # 过滤并截断，防止前端渲染超长文本
-        validated = [
-            {"description": str(a["description"])[:60], "hook": str(a.get("hook", ""))[:60]}
-            for a in archetypes
-            if isinstance(a, dict) and a.get("description")
-        ]
-        if not validated:
-            raise ValueError("empty archetypes")
-        return {"archetypes": validated}
-    return await _with_retry(_attempt)
-
-
-async def suggest_npcs(world_md: str, character_md: str, client: ModelClient) -> dict:
-    # 根据世界观和角色生成 4 个 NPC 建议（帮助玩家选择初始 NPC 配置）
-    async def _attempt():
-        raw = await _stream_text(
-            client, build_suggest_npcs_messages(world_md, character_md), max_tokens=800,
-            json_mode=True,
-        )
-        data = json.loads(_extract_json(raw))
-        npcs = data.get("npcs", [])
-        validated = [
-            {
-                "name": str(n["name"])[:20],
-                "gender": _normalize_gender(n.get("gender")),
-                "role": str(n.get("role", ""))[:20],
-                "description": str(n.get("description", ""))[:200],
-                "motivation": str(n.get("motivation", ""))[:100],
-            }
-            for n in npcs
-            if isinstance(n, dict) and n.get("name")
-        ]
-        if not validated:
-            raise ValueError("empty npcs")
-        return {"npcs": validated}
-    return await _with_retry(_attempt)
-
-
-async def refine_theme(genre: str, rough: str, client: ModelClient) -> dict:
-    # 把玩家输入的粗略主题方向打磨成一句精炼的主题描述
-    # （如"探险+背叛" → "在异邦土地上，背叛比敌人更危险"）
-    raw = await _stream_text(
-        client, build_refine_theme_messages(genre, rough), max_tokens=200
-    )
-    # 去掉模型可能加上的引号和前后标点
-    theme = raw.strip().strip('"\'""')
-    return {"theme": theme}
-
-
-async def generate_suggestions(genre_hint: str, client: ModelClient) -> dict:
-    # 生成 4 套完整的游戏场景推荐（每套包含：游戏类型 + 主题 + 角色原型）
-    # 用于向导的"帮我推荐"功能，让不知道玩什么的玩家快速入门
-    async def _attempt():
-        raw = await _stream_text(
-            client, build_suggest_messages(genre_hint), max_tokens=800, json_mode=True,
-        )
-        data = json.loads(_extract_json(raw))
-        suggestions = data.get("suggestions", [])
-        validated = []
-        for s in suggestions:
-            # 三个字段都必须有值才算一套有效推荐
-            if isinstance(s, dict) and s.get("genre") and s.get("theme") and s.get("archetype"):
-                validated.append({
-                    "genre": str(s["genre"])[:20],
-                    "theme": str(s["theme"])[:200],
-                    "archetype": str(s["archetype"])[:100],
-                })
-        if not validated:
-            raise ValueError("empty suggestions")
-        return {"suggestions": validated}
-    return await _with_retry(_attempt)

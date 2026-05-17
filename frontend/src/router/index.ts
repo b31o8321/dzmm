@@ -20,8 +20,6 @@ const router = createRouter({
         { path: 'characters', name: 'characters',
           component: () => import('@/views/CharactersView.vue') },
         { path: 'sessions', name: 'sessions', component: () => import('@/views/SessionsView.vue') },
-        { path: 'sessions/wizard', name: 'session-wizard',
-          component: () => import('@/views/WizardView.vue') },
         { path: 'sessions/wizard/framework', name: 'open-world-wizard',
           component: () => import('@/views/OpenWorldWizardView.vue') },
         { path: 'play/:id', name: 'play', component: () => import('@/views/GameView.vue'), props: true },

@@ -18,31 +18,6 @@ export interface WizardNPC {
   avatarAssetId?: number | null
 }
 
-export interface WizardScreenplayChapter {
-  title?: string
-  summary?: string
-  main_events?: string[]
-  optional_events?: string[]
-  main_npcs?: string[]
-  [k: string]: any
-}
-
-export interface WizardScreenplayMainCharacter {
-  name?: string
-  role?: string
-  description?: string
-  intro_chapter?: number
-  [k: string]: any
-}
-
-export interface WizardScreenplay {
-  chapters: WizardScreenplayChapter[]
-  main_characters: WizardScreenplayMainCharacter[]
-  ending_md?: string
-  ending?: string
-  opening_hook: string
-}
-
 export interface SingleNpcResponse {
   name: string
   gender?: '' | 'male' | 'female'
@@ -55,28 +30,6 @@ export interface WizardCharacter {
   name: string
   gender?: '' | 'male' | 'female'
   profile_md: string
-}
-
-export interface ThemeSuggestion {
-  genre: string
-  theme: string
-  archetype: string
-}
-
-export interface ArchetypeSuggestion {
-  description: string
-  hook: string
-}
-
-export interface FinalizePayload {
-  world: { name: string; content_md: string }
-  character: { name: string; gender?: '' | 'male' | 'female'; profile_md: string }
-  pinned_npcs: WizardNPC[]
-  screenplay: WizardScreenplay
-  session_name: string
-  gm_model_config_id: number
-  summarizer_model_config_id: number
-  genre: string
 }
 
 // ---- api calls ----
@@ -110,26 +63,4 @@ export const wizardApi = {
       .post<SingleNpcResponse>('/wizard/npc/single', b, { timeout: 600_000 })
       .then((r) => r.data),
 
-  suggest: (b: { model_config_id: number; genre?: string }) =>
-    api
-      .post<{ suggestions: ThemeSuggestion[] }>('/wizard/suggest', b, { timeout: 120_000 })
-      .then((r) => r.data),
-
-  suggestArchetypes: (b: { model_config_id: number; world_md: string }) =>
-    api
-      .post<{ archetypes: ArchetypeSuggestion[] }>('/wizard/suggest_archetypes', b, { timeout: 120_000 })
-      .then((r) => r.data),
-
-  suggestNpcs: (b: { model_config_id: number; world_md: string; character_md: string }) =>
-    api
-      .post<{ npcs: WizardNPC[] }>('/wizard/suggest_npcs', b, { timeout: 120_000 })
-      .then((r) => r.data),
-
-  refineTheme: (b: { model_config_id: number; genre: string; rough: string }) =>
-    api
-      .post<{ theme: string }>('/wizard/refine_theme', b, { timeout: 60_000 })
-      .then((r) => r.data),
-
-  finalize: (b: FinalizePayload) =>
-    api.post<{ session_id: number; world_id: number; npc_ids: Record<string, number> }>('/wizard/finalize', b).then((r) => r.data),
 }

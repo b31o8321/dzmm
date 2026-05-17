@@ -65,22 +65,10 @@ from dzmm.models.factory import build_client
 
 # service.wizard 里是具体的业务逻辑函数，这里只是路由层（负责解析参数、调用服务、返回结果）
 from dzmm.service.wizard import (
-    finalize_wizard,
     generate_character,
-    generate_npcs,
-    generate_screenplay_from_wizard,
     generate_single_npc,
-    generate_suggestions,
     generate_world_brief,
-    generate_world_details,
-    refine_theme,
-    stream_character,
-    suggest_npcs,
-    stream_npcs,
-    stream_screenplay,
     stream_world_brief,
-    stream_world_details,
-    suggest_archetypes,
 )
 
 # 创建路由组：所有路径都以 /wizard 开头，在 API 文档中归类到 "wizard" 标签
@@ -148,34 +136,6 @@ async def world_brief(
     )
 
 
-# POST /wizard/world_details
-# 向导第 2 步：在世界简介（brief_md）的基础上，让 LLM 扩展更详细的世界设定
-@router.post("/world_details")
-async def world_details(
-    payload: dict,
-    s: AsyncSession = Depends(get_session_dep),
-):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    return await generate_world_details(
-        brief_md=str(payload.get("brief_md") or ""),  # 上一步生成的世界简介 Markdown 文本
-        client=client,
-    )
-
-
-# POST /wizard/character
-# 向导第 3 步：根据世界设定和角色原型（archetype），生成玩家角色（PC）
-# DEPRECATED: kept for backwards compatibility; new code should call /wizard/fw/character instead.
-@router.post("/character")
-async def character(
-    payload: dict,
-    s: AsyncSession = Depends(get_session_dep),
-):
-    """Generate player character from world setting and archetype.
-
-    .. deprecated::
-        Kept for backwards compatibility. New code should call ``/wizard/fw/character``.
-    """
-    return await _fw_character_impl(payload, s)
 
 
 async def _fw_character_impl(payload: dict, s: AsyncSession):
@@ -189,44 +149,6 @@ async def _fw_character_impl(payload: dict, s: AsyncSession):
     )
     return result
 
-
-# POST /wizard/npcs
-# 向导第 4 步：根据世界和角色，批量生成若干 NPC（非玩家角色）
-@router.post("/npcs")
-async def npcs(
-    payload: dict,
-    s: AsyncSession = Depends(get_session_dep),
-):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    try:
-        return await generate_npcs(
-            world_md=str(payload.get("world_md") or ""),
-            character_md=str(payload.get("character_md") or ""),  # 玩家角色设定文本
-            client=client,
-        )
-    except ValueError as e:
-        # LLM 返回的 JSON 格式不符合预期时会抛 ValueError，转成 502 返回给前端
-        raise HTTPException(502, f"NPC generation parse failed: {e}") from e
-
-
-# POST /wizard/screenplay
-# 向导第 5 步：根据世界、角色、NPC 列表，生成剧本大纲（章节/关键事件/结局）
-@router.post("/screenplay")
-async def screenplay(
-    payload: dict,
-    s: AsyncSession = Depends(get_session_dep),
-):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    try:
-        return await generate_screenplay_from_wizard(
-            world_md=str(payload.get("world_md") or ""),
-            character_md=str(payload.get("character_md") or ""),
-            npcs=list(payload.get("npcs") or []),           # NPC 列表（dict 列表）
-            genre=str(payload.get("genre") or "悬疑探案"),
-            client=client,
-        )
-    except ValueError as e:
-        raise HTTPException(502, f"screenplay generation parse failed: {e}") from e
 
 
 # POST /wizard/npc/single
@@ -281,145 +203,6 @@ async def world_brief_stream(payload: dict, s: AsyncSession = Depends(get_sessio
         client=client,
     ))
 
-
-# POST /wizard/world_details/stream
-# 流式版本：实时推送世界细节的生成过程
-@router.post("/world_details/stream")
-async def world_details_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    return _sse(stream_world_details(
-        brief_md=str(payload.get("brief_md") or ""),
-        client=client,
-    ))
-
-
-# POST /wizard/character/stream
-# 流式版本：实时推送角色生成过程
-@router.post("/character/stream")
-async def character_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    return _sse(stream_character(
-        world_md=str(payload.get("world_md") or ""),
-        archetype=str(payload.get("archetype") or ""),
-        client=client,
-    ))
-
-
-# POST /wizard/npcs/stream
-# 流式版本：实时推送 NPC 批量生成过程
-@router.post("/npcs/stream")
-async def npcs_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    return _sse(stream_npcs(
-        world_md=str(payload.get("world_md") or ""),
-        character_md=str(payload.get("character_md") or ""),
-        client=client,
-    ))
-
-
-# POST /wizard/screenplay/stream
-# 流式版本：实时推送剧本大纲生成过程
-@router.post("/screenplay/stream")
-async def screenplay_stream(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    return _sse(stream_screenplay(
-        world_md=str(payload.get("world_md") or ""),
-        character_md=str(payload.get("character_md") or ""),
-        npcs=list(payload.get("npcs") or []),
-        genre=str(payload.get("genre") or "悬疑探案"),
-        client=client,
-    ))
-
-
-# ──────────────────────────────────────────────
-# 辅助建议接口（帮助用户填写向导表单）
-# ──────────────────────────────────────────────
-
-# POST /wizard/suggest_archetypes
-# 根据世界设定，让 LLM 推荐几种适合的角色原型（比如"冷面侦探""热血记者"）
-@router.post("/suggest_archetypes")
-async def suggest_archetypes_route(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    try:
-        return await suggest_archetypes(
-            world_md=str(payload.get("world_md") or ""),
-            client=client,
-        )
-    except Exception as e:
-        raise HTTPException(502, f"archetype suggestion failed: {e}") from e
-
-
-# POST /wizard/suggest_npcs
-# 根据世界和角色，让 LLM 推荐适合加入的 NPC 角色名称/类型
-@router.post("/suggest_npcs")
-async def suggest_npcs_route(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    try:
-        return await suggest_npcs(
-            world_md=str(payload.get("world_md") or ""),
-            character_md=str(payload.get("character_md") or ""),
-            client=client,
-        )
-    except Exception as e:
-        raise HTTPException(502, f"NPC suggestion failed: {e}") from e
-
-
-# POST /wizard/refine_theme
-# 用户输入模糊主题关键词（rough），让 LLM 帮助完善成更具体的主题描述
-@router.post("/refine_theme")
-async def refine_theme_route(payload: dict, s: AsyncSession = Depends(get_session_dep)):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    try:
-        return await refine_theme(
-            genre=str(payload.get("genre") or ""),   # 游戏类型
-            rough=str(payload.get("rough") or ""),   # 用户填的粗略主题
-            client=client,
-        )
-    except Exception as e:
-        raise HTTPException(502, f"theme refinement failed: {e}") from e
-
-
-# POST /wizard/suggest
-# 向导首页：根据类型（genre_hint），让 LLM 生成几个主题/创意建议供用户选择
-@router.post("/suggest")
-async def suggest(
-    payload: dict,
-    s: AsyncSession = Depends(get_session_dep),
-):
-    client = await _client_for(s, _require_int(payload, "model_config_id"))
-    try:
-        return await generate_suggestions(
-            genre_hint=str(payload.get("genre") or ""),
-            client=client,
-        )
-    except (ValueError, Exception) as e:
-        raise HTTPException(502, f"suggestion generation failed: {e}") from e
-
-
-# ──────────────────────────────────────────────
-# 旧版向导最终步骤（已废弃）
-# ──────────────────────────────────────────────
-
-# DEPRECATED(Plan-D): Old Screenplay-based wizard finalize.
-# Remove once WizardView.vue fully migrates to /wizard/fw/* flow.
-# POST /wizard/finalize
-# 旧版向导的最后一步：把向导收集的全部数据（世界/角色/NPC/剧本）一次性写入数据库。
-# 使用数据库事务（commit/rollback）保证原子性——要么全部写入，要么全部回滚。
-@router.post("/finalize")
-async def finalize(
-    payload: dict,
-    s: AsyncSession = Depends(get_session_dep),
-):
-    try:
-        # finalize_wizard 会在数据库里创建 World + Character + Session + NPC + Screenplay
-        result = await finalize_wizard(s, payload)
-        # commit() 把本次事务的所有改动永久写入数据库
-        await s.commit()
-    except (KeyError, ValueError, TypeError) as e:
-        # 如果数据格式有问题，回滚所有未提交的改动，返回 400 错误
-        await s.rollback()
-        raise HTTPException(400, f"invalid bundle: {e}") from e
-    return result
 
 
 # ──────────────────────────────────────────────

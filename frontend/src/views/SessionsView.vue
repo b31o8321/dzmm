@@ -71,72 +71,6 @@ async function saveFixModel() {
 
 const dialogOpen = ref(false)
 const submitting = ref(false)
-const createMode = ref<'screenplay' | 'new-screenplay' | 'fresh'>('screenplay')
-
-// Tier-2 (existing world, new screenplay) — separate world picker so
-// it doesn't fight with tier-1's screenplay-pinned world.
-const tier2WorldId = ref(0)
-
-function goWizard() {
-  // Tier 3: full wizard. Don't clear an in-progress draft — wizard will
-  // surface a "草稿已恢复" hint and the user can refresh to wipe it.
-  dialogOpen.value = false
-  router.push({ name: 'session-wizard' })
-}
-
-function goWizardWithWorld() {
-  // Tier 2: prime the wizard's localStorage draft with an existing world,
-  // then jump to step 3 (PC). The wizard's loadDraft() will restore from
-  // this entry on mount.
-  if (!tier2WorldId.value) {
-    ElMessage.warning('请先选择世界观')
-    return
-  }
-  const w = worldsStore.items.find((x) => x.id === tier2WorldId.value)
-  if (!w) {
-    ElMessage.error('找不到所选世界观')
-    return
-  }
-  const draft = {
-    step: 3,
-    state: {
-      wizard_model_config_id: modelsStore.preferredId() ?? null,
-      gm_model_config_id: form.value.gm_model_config_id || (modelsStore.preferredId() ?? null),
-      summarizer_model_config_id:
-        form.value.summarizer_model_config_id || (modelsStore.preferredId() ?? null),
-      genre: '悬疑探案',
-      custom_genre: '',
-      theme: '',
-      session_name: form.value.name || '',
-      world_brief: {
-        name: w.name,
-        setting: '',
-        conflict: '',
-        raw_md: w.content_md,
-      },
-      world_md: w.content_md,
-      worldCoverAssetId: null,
-      archetype: '',
-      character_name: '',
-      character_gender: '',
-      character_md: '',
-      npcs: [],
-      pinned_npc_names: [],
-      screenplay: null,
-      chapterBgmAssetIds: [],
-      sceneAssets: [],
-      raw_outputs: {},
-    },
-  }
-  try {
-    localStorage.setItem('dzmm_wizard_draft', JSON.stringify(draft))
-  } catch (e: any) {
-    ElMessage.error(`无法写入草稿：${e?.message ?? e}`)
-    return
-  }
-  dialogOpen.value = false
-  router.push({ name: 'session-wizard' })
-}
 
 const form = ref({
   name: '',
@@ -163,7 +97,6 @@ function resetForm() {
     contentLevel: 'safe',
   }
   selectedWorldId.value = 0
-  tier2WorldId.value = 0
 }
 
 async function exportSession(id: number, format: 'json' | 'md') {
@@ -657,92 +590,18 @@ onMounted(async () => {
     </el-dialog>
 
     <el-dialog v-model="dialogOpen" title="新开一局" width="640px" @closed="resetForm">
-      <div class="flex flex-col gap-2 w-full mb-3">
-        <label
-          v-for="opt in [
-            { value: 'screenplay', icon: '⚡', title: '用现有剧本直接玩', desc: '最快，1 分钟内进游戏' },
-            { value: 'new-screenplay', icon: '🌍', title: '用现有世界观，重新创作剧本', desc: '向导跳过世界观环节，直接生成 PC + NPC + 剧本' },
-            { value: 'fresh', icon: '🪄', title: '全部重新创建', desc: '完整向导：世界观 → PC → NPC → 剧本' },
-          ]"
-          :key="opt.value"
-          class="flex items-center gap-3 border rounded p-3 cursor-pointer transition-colors"
-          :class="createMode === opt.value ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'"
-        >
-          <input type="radio" v-model="createMode" :value="opt.value" class="shrink-0 accent-blue-500" />
-          <div class="flex flex-col gap-0.5 min-w-0">
-            <span class="font-medium">{{ opt.icon }} {{ opt.title }}</span>
-            <span class="text-xs text-slate-500">{{ opt.desc }}</span>
-          </div>
-        </label>
-      </div>
-
-      <!-- Tier 3: full wizard -->
-      <div v-if="createMode === 'fresh'" class="space-y-3 p-2 bg-slate-50 border border-slate-200 rounded">
-        <div class="text-sm text-slate-700 leading-relaxed">
-          分 6 步引导你创建独有的世界、主角、剧本。每一步都可以审阅、
-          编辑、重新生成。本地 12B+ 模型也能生成有质感的世界观。
+      <!-- Open-world wizard shortcut -->
+      <div class="mb-4 p-3 bg-slate-50 border border-slate-200 rounded flex items-center justify-between gap-3">
+        <div class="text-sm text-slate-600 leading-relaxed">
+          想从零开始？用开放世界向导生成世界观、主角和剧本。
         </div>
-        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800 leading-relaxed">
-          💡 向导耗时较长（每步 30-90s × 6 步 ≈ 5-10 分钟）。
-          如果用本地小模型容易卡，建议切到云端模型（满血推荐）。
-        </div>
-        <div class="flex gap-2">
-          <el-button type="primary" size="large" @click="goWizard">
-            📜 进入向导
-          </el-button>
-          <el-button size="large" @click="$router.push({ name: 'open-world-wizard' })">
-            🌐 开放世界（新）
-          </el-button>
-        </div>
-      </div>
-
-      <!-- Tier 2: existing world, new screenplay -->
-      <div v-else-if="createMode === 'new-screenplay'" class="p-2 bg-slate-50 border border-slate-200 rounded">
-        <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-3 leading-relaxed">
-          💡 沿用一个已有世界观，向导从「主角生成」步骤开始（节省 2-3 分钟世界观生成时间）。
-        </div>
-        <el-form label-width="100px">
-          <el-form-item label="存档名称">
-            <el-input v-model="form.name" placeholder="留空则进入向导后自动命名" />
-          </el-form-item>
-          <el-form-item label="世界观" required>
-            <el-select v-model="tier2WorldId" placeholder="选择已有世界观">
-              <el-option
-                v-for="w in worldsStore.items"
-                :key="w.id"
-                :label="w.name"
-                :value="w.id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="GM 模型">
-            <el-select v-model="form.gm_model_config_id" placeholder="向导内可改">
-              <el-option
-                v-for="m in modelsStore.items"
-                :key="m.id"
-                :label="`${m.name} (${m.model_name})`"
-                :value="m.id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="摘要模型">
-            <el-select v-model="form.summarizer_model_config_id" placeholder="向导内可改">
-              <el-option
-                v-for="m in modelsStore.items"
-                :key="m.id"
-                :label="`${m.name} (${m.model_name})`"
-                :value="m.id"
-              />
-            </el-select>
-          </el-form-item>
-        </el-form>
-        <el-button type="primary" size="large" :disabled="!tier2WorldId" @click="goWizardWithWorld">
-          📜 进入向导（从主角开始）
+        <el-button size="default" @click="$router.push({ name: 'open-world-wizard' }); dialogOpen = false">
+          🌐 开放世界向导
         </el-button>
       </div>
 
-      <!-- Tier 1: existing screenplay -->
-      <div v-else class="p-2 bg-slate-50 border border-slate-200 rounded">
+      <!-- Existing screenplay form -->
+      <div class="p-2 bg-slate-50 border border-slate-200 rounded">
         <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-3 leading-relaxed">
           💡 选择已有的世界观与剧本，直接进入游戏。
         </div>
@@ -810,7 +669,6 @@ onMounted(async () => {
       <template #footer>
         <el-button @click="dialogOpen = false">取消</el-button>
         <el-button
-          v-if="createMode === 'screenplay'"
           type="primary"
           :loading="submitting"
           @click="onCreate"
