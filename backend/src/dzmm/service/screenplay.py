@@ -296,6 +296,53 @@ async def rewrite_screenplay_after_decision(
     return rev
 
 
+async def schedule_pending_rewrites(session_maker, session_id: int) -> int:
+    """Scan pending ScreenplayRevision rows for session_id and fire background rewrites.
+
+    A revision is "pending" when:
+      - before_chapters_json == after_chapters_json  (placeholder state)
+      - diff_summary contains "pending"
+
+    For each such row, launches asyncio.create_task(rewrite_in_background(...)).
+    Returns the count of tasks created (0 if nothing pending or no active screenplay).
+
+    This function is extracted from the SSE turn route so it can be unit-tested
+    independently of the HTTP layer.
+    """
+    import asyncio as _asyncio
+
+    tasks_created = 0
+    try:
+        async with session_maker() as _s:
+            _active_sp = (await _s.execute(
+                select(Screenplay)
+                .where(
+                    Screenplay.session_id == session_id,
+                    Screenplay.status == "active",
+                )
+                .order_by(Screenplay.version.desc())
+            )).scalars().first()
+            if _active_sp is None:
+                return 0
+            _pending = (await _s.execute(
+                select(ScreenplayRevision).where(
+                    ScreenplayRevision.screenplay_id == _active_sp.id,
+                    ScreenplayRevision.before_chapters_json
+                        == ScreenplayRevision.after_chapters_json,
+                )
+            )).scalars().all()
+            for _rev in _pending:
+                if "pending" not in (_rev.diff_summary or "").lower():
+                    continue
+                _asyncio.create_task(rewrite_in_background(
+                    session_maker, session_id, _rev.id, _rev.trigger_description or "",
+                ))
+                tasks_created += 1
+    except Exception:  # noqa: BLE001
+        pass  # background scheduling failure must never block the turn
+    return tasks_created
+
+
 async def rewrite_in_background(
     session_maker,           # SQLAlchemy AsyncSessionMaker，用于开启新的数据库会话
     session_id: int,
@@ -338,3 +385,17 @@ async def rewrite_in_background(
             "rewrite_in_background failed (session=%d, revision=%d): %s",
             session_id, revision_id, e,
         )
+        # 标记改写失败，防止因 diff_summary 仍含 "pending" 而被反复重试
+        # Mark the revision as failed so the scheduler doesn't re-fire it on
+        # every subsequent turn (pending filter would keep matching forever).
+        try:
+            async with session_maker() as _sf:
+                _rev = await _sf.get(ScreenplayRevision, revision_id)
+                if _rev is not None and "pending" in (_rev.diff_summary or "").lower():
+                    _rev.diff_summary = f"(rewrite failed: {str(e)[:200]})"
+                    await _sf.commit()
+        except Exception as _inner:  # noqa: BLE001
+            log.warning(
+                "rewrite_in_background: could not mark revision %d as failed: %s",
+                revision_id, _inner,
+            )

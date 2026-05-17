@@ -388,6 +388,18 @@ async def _apply_say(
     if not speaker:
         return  # empty or whitespace-only speaker — nothing to do
 
+    # Skip if the speaker is the PC themselves; the PC has its own Character
+    # row and should never appear in the NPC table.
+    try:
+        from dzmm.db.models import Character as _Character, Session as _Session
+        sess_row = await session.get(_Session, session_id)
+        if sess_row is not None and sess_row.character_id is not None:
+            pc_row = await session.get(_Character, sess_row.character_id)
+            if pc_row is not None and pc_row.name and pc_row.name.strip() == speaker:
+                return
+    except Exception:  # noqa: BLE001
+        pass  # best-effort guard; fall through to NPC creation logic
+
     try:
         # Check whether this NPC already exists to avoid duplicates.
         existing = (

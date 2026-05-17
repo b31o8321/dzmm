@@ -715,6 +715,9 @@ async def run_turn(
             tokens_in=v10_usage.tokens_in,
             tokens_out=v10_usage.tokens_out,
         ))
+        # v0.15.2 — forward usage summary to external consumers
+        # (eval / playtest scripts). API SSE layer filters this out.
+        yield UsageSummary(tokens_in=v10_usage.tokens_in, tokens_out=v10_usage.tokens_out)
         await apply_tags(session, session_id, next_turn, completed_tags)
         # v0.10.5 — soft validation: warn if a brand-new NPC appeared
         # outside their primary_location with no encounter_setup. Soft
@@ -951,6 +954,11 @@ async def run_turn(
         prompt_json=_debug_prompt_json,
         snapshot_json=snapshot_str,  # 本回合开始前的状态快照（用于撤回）
     ))
+
+    # v0.15.2 — yield UsageSummary so external consumers (eval / playtest
+    # scripts) can capture per-turn token costs without re-reading the DB.
+    # API SSE layer filters this event out before forwarding to clients.
+    yield UsageSummary(tokens_in=usage.input_tokens, tokens_out=usage.output_tokens)
 
     # ── ⑦ 执行所有 XML 标签的状态变更副作用 ──────────────────────────────────
     # apply_tags 是"状态机"：遍历 completed_tags，每种标签触发对应的 DB 更新：

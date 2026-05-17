@@ -42,7 +42,7 @@ from dzmm.db.models import (
 )
 from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
 from dzmm.service.game import run_turn
-from dzmm.service.screenplay import rewrite_in_background
+from dzmm.service.screenplay import rewrite_in_background, schedule_pending_rewrites
 from dzmm.service.summarizer import maybe_summarize
 from sqlalchemy import delete, func, select
 

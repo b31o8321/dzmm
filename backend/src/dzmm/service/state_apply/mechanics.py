@@ -57,6 +57,9 @@ def _load_resolutions(sess: GameSession) -> list[dict]:
         return []
 
 
+_RESOLUTIONS_RETAIN_TURNS = 3  # keep entries from last N turns (current_turn - retain)
+
+
 def _save_resolutions(sess: GameSession, records: list[dict]) -> None:
     # Cap at _MAX_PENDING_RESOLUTIONS; drop oldest entries from the front
     if len(records) > _MAX_PENDING_RESOLUTIONS:
@@ -66,6 +69,13 @@ def _save_resolutions(sess: GameSession, records: list[dict]) -> None:
 
 def _append_resolution(sess: GameSession, record: dict) -> None:
     records = _load_resolutions(sess)
+    # v0.15.2 — GC: drop records older than _RESOLUTIONS_RETAIN_TURNS turns.
+    # key_facts only injects entries with turn == current_turn - 1, so anything
+    # older is dead weight that grows the JSON column unboundedly.
+    new_turn = int(record.get("turn") or 0)
+    if new_turn > _RESOLUTIONS_RETAIN_TURNS:
+        cutoff = new_turn - _RESOLUTIONS_RETAIN_TURNS
+        records = [r for r in records if int(r.get("turn") or 0) >= cutoff]
     records.append(record)
     _save_resolutions(sess, records)
 

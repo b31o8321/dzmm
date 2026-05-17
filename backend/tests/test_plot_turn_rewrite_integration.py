@@ -4,8 +4,12 @@ The scheduler in routes_sessions/turn.py detects pending ScreenplayRevision rows
 (those with diff_summary="(pending outliner rewrite)") and fires
 asyncio.create_task(rewrite_in_background(...)).  These tests verify the
 underlying coroutine — rewrite_screenplay_after_decision — and the
-rewrite_in_background wrapper that opens its own session, so the scheduler's
-one-liner create_task call is the only untested surface.
+rewrite_in_background wrapper that opens its own session.
+
+New tests (Batch 6):
+  test_post_turn_scheduler_picks_up_pending_revisions
+  test_scheduler_skips_already_processed
+  test_scheduler_marks_failed_rewrites
 """
 import json
 from collections.abc import AsyncIterator
