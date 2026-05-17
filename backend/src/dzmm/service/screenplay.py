@@ -361,6 +361,7 @@ async def rewrite_in_background(
     from dzmm.db.models import ModelConfig as _MC, Session as _GS  # 本地导入：避免循环依赖
     from dzmm.models.factory import build_client as _build
 
+    _fail_reason: str | None = None
     try:
         async with session_maker() as s:  # 开启一个独立的数据库会话
             sess = await s.get(_GS, session_id)
@@ -379,20 +380,28 @@ async def rewrite_in_background(
             )
             if result is not None:
                 await s.commit()  # 改写成功才提交
+            else:
+                # rewrite_screenplay_after_decision swallows errors and returns None
+                # on LLM failure or JSON parse failure. We need to mark the revision
+                # as failed so the scheduler's "pending" filter doesn't keep re-firing.
+                _fail_reason = "outliner returned None (LLM error or parse failure)"
     except Exception as e:  # noqa: BLE001
         # 吞掉异常，仅记录错误，不影响调用方
         log.error(
             "rewrite_in_background failed (session=%d, revision=%d): %s",
             session_id, revision_id, e,
         )
-        # 标记改写失败，防止因 diff_summary 仍含 "pending" 而被反复重试
-        # Mark the revision as failed so the scheduler doesn't re-fire it on
-        # every subsequent turn (pending filter would keep matching forever).
+        _fail_reason = str(e)[:200]
+
+    # 标记改写失败，防止因 diff_summary 仍含 "pending" 而被反复重试
+    # Mark the revision as failed so the scheduler doesn't re-fire it on
+    # every subsequent turn (pending filter would keep matching forever).
+    if _fail_reason is not None:
         try:
             async with session_maker() as _sf:
                 _rev = await _sf.get(ScreenplayRevision, revision_id)
                 if _rev is not None and "pending" in (_rev.diff_summary or "").lower():
-                    _rev.diff_summary = f"(rewrite failed: {str(e)[:200]})"
+                    _rev.diff_summary = f"(rewrite failed: {_fail_reason})"
                     await _sf.commit()
         except Exception as _inner:  # noqa: BLE001
             log.warning(

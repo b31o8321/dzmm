@@ -301,6 +301,8 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
             contact_favor_threshold=n_data.get("contact_favor_threshold", 70),
             # 同一 NPC 两次主动联络之间的最少回合间隔
             contact_cooldown_turns=n_data.get("contact_cooldown_turns", 10),
+            # v0.53: 1-sentence verbal tic (may be absent in older LLM outputs)
+            speech_pattern=n_data.get("speech_pattern", ""),
         )
         s.add(npc)
         await s.flush()

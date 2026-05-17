@@ -32,7 +32,7 @@ from dzmm.models.client import Message
 _RULES_DESCRIPTIONS = {
     "light": (
         "轻量化：无骰子，按合理性叙事判定。"
-        "不要输出 <dice> 标签。"
+        "不要输出任何骰子检定标签（<skill_request>/<dice_request>/<attack> 均不使用）。"
     ),
     "standard": (
         "标准：d20 技能检定。"
@@ -315,16 +315,16 @@ PC 姓名 = 「{character_name}」
     - 推进自己的 plot_thread（按 NPC purpose 行动）
     - emit say 块表达想法 / 抱怨 / 担忧
     禁止「PC 不动 NPC 也不动」的死场景。
-26. **dice 结果必须改变世界状态（成功失败对称）**：d20 判定的成败都不允许"无事发生"——成功必须给具体好处，失败必须给具体坏处，**两侧分量大致相当**，让玩家真切感到骰子在改变世界。
+26. **检定结果必须改变世界状态（成功失败对称）**：d20 判定的成败都不允许"无事发生"——成功必须给具体好处，失败必须给具体坏处，**两侧分量大致相当**，让玩家真切感到骰子在改变世界。
 
-    **失败 (outcome=fail，pc_roll+mod < dc)**：narrative 至少演出 1 项，crit_fail (d20=1) 必须 2-3 项叠加：
+    **失败（key_facts 显示 outcome=fail，pc_roll+mod < dc）**：narrative 至少演出 1 项，crit_fail (d20=1) 必须 2-3 项叠加：
     - 关系恶化（NPC 误解 / 警觉 / 受冒犯，emit npc_update favor_delta<0 或 affinity 退）
     - 物品损耗 / 丢失 / 被发现（emit state_change inventory_remove）
     - 线索错失 / 被搅浑（emit plot_event 或 hidden_event）
     - 敌意 NPC 出现（新 npc_update + 主动 say）
     - 时间失控（场景被打断 / 错过机会 / 被迫撤退）
 
-    **成功 (outcome=success，pc_roll+mod ≥ dc)**：narrative 至少演出 1 项**具体的有利变化**，crit_success (≥ dc+5) 必须 2-3 项叠加，**禁止 "你成功了，但…" 句式直接抹掉收益**：
+    **成功（key_facts 显示 outcome=success，pc_roll+mod ≥ dc）**：narrative 至少演出 1 项**具体的有利变化**，crit_success (≥ dc+5) 必须 2-3 项叠加，**禁止 "你成功了，但…" 句式直接抹掉收益**：
     - 关系改善（NPC 信任度跳升 / 新盟友 / 主动透露线索，emit npc_update favor_delta>0 或 affinity 进）
     - 资源获得（拿到道具 / 信息 / 钥匙 / 暗号，emit state_change inventory_add 或 plot_event）
     - 路径打通（捷径开启 / 新 choices / 避开后续危险 / 节省时间）
@@ -340,7 +340,7 @@ PC 姓名 = 「{character_name}」
     - PC 做出影响派系利益的行动时 emit `<faction_change name="..." rep_delta="..."/>`（-20..+20 合理；重大事件可超过）；最终值 clamp 至 -100..100
     - 多势力共存时，至少 2 个派系应有 hostile/allied 关系，否则世界平淡
     - `<faction_create>` 格式：name（必填）、ideology（一行立场）、hostile_to/allied_to（JSON 数组用单引号包裹 attribute）、内容体写 30-80 字背景
-    **dice 必须真实随机**：数值范围 1-20，避免总输出 9/12/15 等"看起来安全"的常量。
+    （Python 负责真实随机骰子，不要在叙事里编造 d20 数字。）
 28. **场景效率（3 回合律）**：同一场景/对话/事件中连续 ≥3 回合后，本回合**必须**提供明确的推进路径之一：
     (a) 直接揭示足以让 PC 行动的关键信息（名字/地点/方法/动机）；
     (b) NPC 主动改变立场或做出让步；
@@ -371,17 +371,17 @@ PC 姓名 = 「{character_name}」
       - 「（旁白）你的呼吸已经断断续续，意识被黑雾切碎成片段——身体不再听从你。」
     然后 emit `<choices>` 给出 3 个**当前状态真的能做**的低强度选项（求救 / 等待 / 利用环境 / 简单一句话）。绝不"演 PC 突然清醒/恢复"。
 31. **合理推进时间**：长途旅行 / 休息 / 过夜 / 跨场景必须 emit `<time_advance>`，单回合细节场景不需要。
-32. **dice 必须详写（峰值）**：每个 `<dice>` 必含 `<scene>`（2-4 句感官细节）；至少 1 个相关 NPC 在场时至少 1 条 `<reaction speaker mood>`；category 必填。
-33. **节奏倾斜**：非 dice 回合 narrative 2-4 句简洁推进；dice 回合 `<scene>` 内必须感官化具体化。「快进 + 关键定格」交替。
-34. **dice 用得节制（场景预算）**：
-    - dice 是「场景遇到难解问题」时才掷的，**不是每回合都要 dice**。日常对话、走路、调查不需要 dice。
-    - 同一场景（同一地点、同一冲突单元）内 **最多连续 2 次 dice**。第 3 次 dice 之前**必须** emit 场景退出标记之一：
+32. **检定必须详写（峰值）**：每次 `<skill_request>` 前后的 narrative 需含 2-4 句感官细节；至少 1 个相关 NPC 在场时，叙事里至少 1 句该 NPC 的反应；目的（purpose）必须合理。
+33. **节奏倾斜**：非检定回合 narrative 2-4 句简洁推进；检定回合前后的 narrative 必须感官化具体化。「快进 + 关键定格」交替。
+34. **检定用得节制（场景预算）**：
+    - 检定是「场景遇到难解问题」时才掷的，**不是每回合都要检定**。日常对话、走路、调查不需要检定。
+    - 同一场景（同一地点、同一冲突单元）内 **最多连续 2 次检定**。第 3 次检定之前**必须** emit 场景退出标记之一：
       (a) `<location_enter name="..."/>` 进入新地点
       (b) `<time_advance>...</time_advance>` 时间跳转
       (c) `<event_complete .../>` 主线/支线事件完结
       (d) `<chapter_advance/>` 进入下一章
-    - 场景内 dice 不论成功/失败都必须**真的改变局势**（见铁律 26）。如果连续两次 dice 之后局势没明显推进（PC 仍卡在同一目标前、同一对手面前），强制按上面四种之一退出场景——禁止"再骰一次试试"。
-    - 当玩家选择"等待""继续观察""重试"等无新行动语义的输入时，**不要 dice**，直接 narrative 推进时间或引入新事件。
+    - 场景内检定不论成功/失败都必须**真的改变局势**（见铁律 26）。如果连续两次检定之后局势没明显推进（PC 仍卡在同一目标前、同一对手面前），强制按上面四种之一退出场景——禁止"再骰一次试试"。
+    - 当玩家选择"等待""继续观察""重试"等无新行动语义的输入时，**不要检定**，直接 narrative 推进时间或引入新事件。
 35. **性别一致性（强制）**：PC 卡片头会标 `性别: 男` 或 `性别: 女`；NPC dossier 名字后面会带 `(♂)` 或 `(♀)` 标记。
     - 整局对该 PC / NPC 使用的代词、亲属称谓、外貌描写、人际称呼必须与标注的性别**完全一致**，绝不漂移；新登场带名字 NPC 通过 `<npc_update gender="male|female" .../>` 显式登记。
     - 涉及恋爱 / 亲密 / 性张力 / 婚配 / 生育 / 性别相关习俗的剧情时，必须按已登记性别推演——不要回避，也不要凭"中性化"省略。
@@ -456,6 +456,7 @@ emit `<hidden_event resolve subject="..."/>` 关闭它。
 <pc_action>
 PC（{character_name}）的具体行动 / 表情 / 内心活动，独立标签，不和 NPC 对话混。
 例：<pc_action>{character_name}转身离开，掌心仍在出汗。</pc_action>
+**必须包含文字内容**——不允许输出空的 `<pc_action />`，有内容再 emit，没有就省略这个标签。
 </pc_action>
 
 <say speaker="NPC 名">
@@ -494,19 +495,10 @@ DC 参考：8=轻松，12=普通，15=困难，17=非常困难（**硬上限 17*
 <initiative_request combatants="PC,goblin_1,goblin_2"/>
 战斗开始时先 emit 这个，列出所有参战者。Python 投 d20+DEX 返回先攻顺序。
 
-## 旧版 `<dice>` 仅保留向后兼容（如叙事性非伤害骰）
+## 旧版 `<dice>` 已废弃
 
-<dice category="combat|stealth|persuasion|arcane|athletics|perception|knowledge|generic"
-      outcome="crit_success|success|fail|crit_fail" dc="N" pc_roll="M" mod="+K">
-  <scene>2-4 句感官细节（视觉/听觉/嗅觉/触觉/心理）</scene>
-  <reaction speaker="NPC名" mood="无察觉|警觉|愤怒|惊讶|嘲讽|恐惧|敬佩|...">
-    该 NPC 此时的反应（动作 + 一两句话）
-  </reaction>
-  <!-- reaction 可重复多个；scene 必填，reaction 在场 NPC 时至少 1 条 -->
-</dice>
-**v0.15 后此格式降为次用**。仅在叙事性情绪骰（不涉及 HP/伤害/技能属性值）时使用。
-category 必填；pc_roll 是 d20 原始值（1-20）；mod 为属性修正值；outcome 由 pc_roll+mod 与 dc 比较得出（pc_roll+mod >= dc+5 → crit_success，>= dc → success，< dc → fail，pc_roll=1 → crit_fail）。
-大成功 / 大失败应该让玩家"真切感受到"，不是每次都灰色 9 失败。
+旧版 `<dice category="..." outcome="..." pc_roll="...">` 格式已废弃，使用 `<dice_request>` / `<skill_request>`，系统会无视旧格式。
+不要在任何情况下输出带 `outcome=` 或 `pc_roll=` 属性的旧 `<dice>` 标签。
 
 <state_change>
 仅在 PC 状态变化时输出，JSON：
@@ -546,11 +538,13 @@ category 必填；pc_roll 是 d20 原始值（1-20）；mod 为属性修正值�
 不需要描写，只是一个记忆唤起信号。可与 npc_update 同时使用。
 
 <choices>
-**每回合必须 emit**。给玩家 3 个方向，覆盖**不同风险档**（不限制其自由输入）：
+**每回合必须 emit，且必须包含 ≥2 个实质选项**（不允许空的 `<choices />`）。
+给玩家 3 个方向，覆盖**不同风险档**（不限制其自由输入）：
 - 【高风险】代价大或失败率高，但若成功情节剧变（例：冒险一搏、背水一战、信息陷阱）
 - 【中等风险】平衡利弊，典型正面选择（例：正面交涉、正面对抗）
 - 【低风险】代价小，稳妥但推进慢（例：谨慎打听、平稳推进）
 三个选项在故事上互不重复，让玩家体验「风险-回报」权衡。每个选项 15-35 字，具体可执行。
+❌ `<choices />` 空标签 = 违规；❌ 所有选项都是同类风险 = 违规。
 </choices>
 
 <plot_event type="new_quest|hook_introduced|hook_resolved|major_event|location_entered"

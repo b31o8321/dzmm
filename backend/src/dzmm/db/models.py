@@ -101,6 +101,11 @@ class Character(Base):
     inventory_json: Mapped[str] = mapped_column(Text, default="[]")
     # equipment_json: currently equipped items dict {slot: item_name}
     equipment_json: Mapped[str] = mapped_column(Text, default="{}")
+    # v0.53: one-shot level-up announcement. Set by engine.character.level_up();
+    # consumed (drained to '') by _build_key_facts on the next GM turn.
+    # JSON: {"old_level": N, "new_level": N+K, "attribute_raised": str, "skill_raised": str}
+    # Empty string = no pending announcement.
+    level_up_pending_json: Mapped[str] = mapped_column(Text, default="")
 
     # relationship() 声明 ORM 关联对象。
     # 访问 character.world 时，SQLAlchemy 会自动执行 SELECT * FROM worlds WHERE id = ?
@@ -308,6 +313,8 @@ class NPC(Base):
 
     # v0.15 — serialised StatBlock (sparse OK; missing keys default to 10/30/50)
     stat_block_json: Mapped[str] = mapped_column(Text, default="{}")
+    # v0.53 — 1-sentence verbal tic injected into npc_actor system prompt
+    speech_pattern: Mapped[str] = mapped_column(Text, default="")
 
 
 # ── 剧情线索 ──────────────────────────────────────────────
@@ -736,6 +743,8 @@ class WorldNPCTemplate(Base):
     # contact_cooldown_turns  = 两次主动联系之间的最小间隔回合数
     contact_favor_threshold: Mapped[int] = mapped_column(default=70)
     contact_cooldown_turns: Mapped[int] = mapped_column(default=10)
+    # v0.53 — 1-sentence verbal tic injected into npc_actor system prompt
+    speech_pattern: Mapped[str] = mapped_column(Text, default="")
 
 
 class WorldEvent(Base):

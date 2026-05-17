@@ -36,13 +36,11 @@ from dzmm.api.schemas import TurnRequest
 from dzmm.db.models import (
     Message as MessageRow,
     ModelConfig,
-    Screenplay,
-    ScreenplayRevision,
     Session as GameSession,
 )
 from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
 from dzmm.service.game import run_turn
-from dzmm.service.screenplay import rewrite_in_background, schedule_pending_rewrites
+from dzmm.service.screenplay import schedule_pending_rewrites
 from dzmm.service.summarizer import maybe_summarize
 from sqlalchemy import delete, func, select
 
@@ -291,37 +289,8 @@ async def take_turn(
         # 当 GM 输出了 <plot_turn impact="major"> 标签时，意味着剧情发生重大转折，
         # 需要重写剧本章节大纲。这个重写是耗时操作（需要再调一次 LLM），
         # 所以主提交后扫描待处理的 revision，启动后台任务异步完成，不阻塞 SSE 流。
-        try:
-            async with session_maker() as _s_bg:
-                # 找当前存档激活的剧本
-                _active_sp = (await _s_bg.execute(
-                    select(Screenplay)
-                    .where(
-                        Screenplay.session_id == session_id,
-                        Screenplay.status == "active",
-                    )
-                    .order_by(Screenplay.version.desc())  # 取最新版本
-                )).scalars().first()
-                if _active_sp is not None:
-                    # 找所有"待处理"的剧本修订行（before == after 且 diff_summary 含 "pending"）
-                    _pending = (await _s_bg.execute(
-                        select(ScreenplayRevision).where(
-                            ScreenplayRevision.screenplay_id == _active_sp.id,
-                            # before_chapters_json == after_chapters_json 说明还没真正重写
-                            ScreenplayRevision.before_chapters_json
-                                == ScreenplayRevision.after_chapters_json,
-                        )
-                    )).scalars().all()
-                    for _rev in _pending:
-                        if "pending" not in (_rev.diff_summary or "").lower():
-                            continue
-                        # asyncio.create_task：启动后台协程，不等待结果
-                        # rewrite_in_background 会异步重写章节并更新 revision 行
-                        asyncio.create_task(rewrite_in_background(
-                            session_maker, session_id, _rev.id, _rev.trigger_description,
-                        ))
-        except Exception:  # noqa: BLE001
-            pass  # background scheduling failure must never block the turn
+        # schedule_pending_rewrites 封装了扫描和 create_task 逻辑，便于独立单测。
+        await schedule_pending_rewrites(session_maker, session_id)
 
         # ── 第二个 DB 会话：运行摘要器 ───────────────────
         # 用新会话而非上面那个，因为 commit 后数据已持久化，

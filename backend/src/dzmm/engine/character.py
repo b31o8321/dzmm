@@ -12,6 +12,8 @@ Public API:
                                                   -> tuple[int, int]
   apply_vital_delta(s, session_id, character_id, *, hp, sanity, stamina)
                                                   -> dict
+  level_up(s, character_id)
+                                                  -> dict | None
 """
 
 from __future__ import annotations
@@ -159,3 +161,123 @@ async def apply_vital_delta(
     state.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
     return {"hp": new_hp, "sanity": new_sanity, "stamina": new_stamina}
+
+
+# ── Skill → attribute mapping (used by level_up heuristic) ───────────────────
+# Skills listed here map to their governing attribute.
+# Unlisted skills default to "intelligence".
+_SKILL_TO_ATTR: dict[str, str] = {
+    # wisdom
+    "调查": "wisdom",
+    "察言观色": "wisdom",
+    "搜索": "wisdom",
+    # dexterity
+    "潜行": "dexterity",
+    "开锁": "dexterity",
+    "闪避": "dexterity",
+    # strength
+    "近战": "strength",
+    "攻击": "strength",
+    # charisma
+    "说服": "charisma",
+    "魅惑": "charisma",
+    # intelligence
+    "推理": "intelligence",
+    "破解": "intelligence",
+    "学问": "intelligence",
+    # constitution
+    "体力": "constitution",
+    "坚持": "constitution",
+}
+
+_ALL_ATTRS = ("strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma")
+
+
+async def level_up(s: AsyncSession, character_id: int) -> dict | None:
+    """Check if Character should level up; apply +1 level / +1 attribute / +5 skill.
+
+    Returns {"level": new_level, "attribute_raised": str, "skill_raised": str}
+    or None if not enough XP.  Idempotent: can be called every turn.
+    Threshold formula: required_xp = level * 100.
+    Loops if multiple levels can be granted at once.
+
+    Attribute heuristic (in priority order):
+      1. Attribute that governs the highest-level skill (ties broken by
+         attribute name alphabetically for determinism).
+      2. If no skills, pick the attribute with the highest current value
+         (favours what the PC is already good at).
+      3. Fallback: "intelligence".
+
+    Skill raised: the highest-level skill (ties broken by name). +5, capped at 100.
+    """
+    char = await s.get(Character, character_id)
+    if char is None:
+        raise ValueError(f"Character {character_id} not found")
+
+    # Determine if at least one level-up is possible
+    if char.xp < char.level * 100:
+        return None
+
+    old_level = char.level
+    last_result: dict | None = None
+
+    while char.xp >= char.level * 100:
+        required = char.level * 100
+        char.xp -= required
+
+        # ── 1. Pick skill to raise ────────────────────────────────────────
+        skills = parse_skills(char.skills_json)
+        if skills:
+            # Highest-level skill; ties broken alphabetically (deterministic)
+            top_skill_name = max(skills, key=lambda k: (skills[k], k))
+            top_skill_level = skills[top_skill_name]
+        else:
+            top_skill_name = ""
+            top_skill_level = 0
+
+        # ── 2. Pick attribute to raise ────────────────────────────────────
+        if top_skill_name:
+            attr_to_raise = _SKILL_TO_ATTR.get(top_skill_name, "intelligence")
+        else:
+            # No skills → pick attribute with highest current value (ties by name)
+            attr_to_raise = max(
+                _ALL_ATTRS,
+                key=lambda a: (getattr(char, a), a),
+            )
+
+        # ── 3. Apply changes ──────────────────────────────────────────────
+        char.level += 1
+        setattr(char, attr_to_raise, getattr(char, attr_to_raise) + 1)
+
+        if top_skill_name:
+            skills[top_skill_name] = min(100, top_skill_level + 5)
+            char.skills_json = json.dumps(skills, ensure_ascii=False)
+
+        last_result = {
+            "level": char.level,
+            "attribute_raised": attr_to_raise,
+            "skill_raised": top_skill_name,
+        }
+        logger.info(
+            "level_up: character %d → Lv %d (+%s +5 %s)",
+            character_id, char.level, attr_to_raise, top_skill_name,
+        )
+
+    # Store one-shot announcement so _build_key_facts can surface it next turn.
+    # We record old_level → new_level so the GM message shows the delta clearly.
+    if last_result is not None:
+        char.level_up_pending_json = json.dumps(
+            {
+                "old_level": old_level,
+                "new_level": char.level,
+                "attribute_raised": last_result["attribute_raised"],
+                "skill_raised": last_result["skill_raised"],
+            },
+            ensure_ascii=False,
+        )
+
+    # Flush so the changes are visible to the same session's subsequent reads
+    # (e.g. refresh() or nested queries). Caller is still responsible for commit.
+    await s.flush()
+
+    return last_result

@@ -32,7 +32,7 @@ this meta text".
 #   输出会更稳定、更符合预期。
 #
 # 【为什么 TRPG 需要 few-shot？】
-#   GM 的输出格式很复杂——需要同时输出多种 XML 标签（<narrative>、<dice>、
+#   GM 的输出格式很复杂——需要同时输出多种 XML 标签（<narrative>、<skill_request>、
 #   <npc_update> 等），并保持正确的顺序和内容结构。
 #   不给例子，LLM 很容易格式漂移（随便发明新标签、顺序乱、属性写错）。
 #   有了正例 + 反例，LLM 就有了"对照样本"，格式遵从率大幅提升。

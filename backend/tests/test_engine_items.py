@@ -121,15 +121,70 @@ async def test_resolve_use_item_raises_on_unknown_item(db):
         await resolve_use_item(db, sess.id, char.id, "Nonexistent Sword")
 
 
-async def test_resolve_use_item_non_consumable_decrements(db):
-    """Non-consumable items also lose qty on use (decrement, not necessarily removed)."""
+async def test_resolve_use_item_non_consumable_does_not_decrement(db):
+    """Non-consumable (weapon) items should NOT lose qty on use."""
     sword = Item(name="Sword", qty=2, item_type="weapon")
     char, sess, _ = await _make_scenario(db, [sword])
     result = await resolve_use_item(db, sess.id, char.id, "Sword")
     assert result["removed_from_inventory"] is False
     await db.refresh(char)
     items = parse_items(char.inventory_json)
+    # qty unchanged — weapons are not depleted on use
+    assert items[0].qty == 2
+
+
+async def test_resolve_use_quest_item_does_not_decrement(db):
+    """Quest items keep their qty when used."""
+    ring = Item(name="印章戒指", qty=1, item_type="quest")
+    char, sess, _ = await _make_scenario(db, [ring])
+    result = await resolve_use_item(db, sess.id, char.id, "印章戒指")
+    assert result["removed_from_inventory"] is False
+    await db.refresh(char)
+    items = parse_items(char.inventory_json)
+    assert len(items) == 1
     assert items[0].qty == 1
+
+
+async def test_resolve_use_key_item_does_not_decrement(db):
+    """Key items keep their qty when used."""
+    key = Item(name="Master Key", qty=1, item_type="key")
+    char, sess, _ = await _make_scenario(db, [key])
+    result = await resolve_use_item(db, sess.id, char.id, "Master Key")
+    assert result["removed_from_inventory"] is False
+    await db.refresh(char)
+    items = parse_items(char.inventory_json)
+    assert len(items) == 1
+    assert items[0].qty == 1
+
+
+async def test_resolve_use_weapon_does_not_decrement(db):
+    """Weapon items keep their qty when used (effects still apply)."""
+    # Weapon with a heal effect (unusual but tests that effects still fire)
+    staff = Item(
+        name="Healing Staff",
+        qty=3,
+        item_type="weapon",
+        effects=[ItemEffect(type="heal_hp", amount=5)],
+    )
+    char, sess, _ = await _make_scenario(db, [staff])
+    result = await resolve_use_item(db, sess.id, char.id, "Healing Staff")
+    # Effect applied
+    assert any(e["type"] == "heal_hp" for e in result["applied_effects"])
+    # Qty unchanged
+    assert result["removed_from_inventory"] is False
+    await db.refresh(char)
+    items = parse_items(char.inventory_json)
+    assert items[0].qty == 3
+
+
+async def test_resolve_use_consumable_decrements(db):
+    """Consumable items lose qty on use (original behavior preserved)."""
+    char, sess, _ = await _make_scenario(db, [_potion(qty=3)])
+    await resolve_use_item(db, sess.id, char.id, "Health Potion")
+    await db.refresh(char)
+    items = parse_items(char.inventory_json)
+    assert len(items) == 1
+    assert items[0].qty == 2
 
 
 # ── add_item_to_inventory ─────────────────────────────────────────────────────

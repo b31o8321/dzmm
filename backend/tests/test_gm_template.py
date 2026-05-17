@@ -163,7 +163,7 @@ def test_light_rules_explicitly_no_dice():
         recent_messages=[], current_action="x",
     )
     sys = _all_sys(msgs)
-    assert "不要输出 <dice>" in sys
+    assert "不要输出任何骰子检定标签" in sys
 
 
 def test_character_xp_documented():

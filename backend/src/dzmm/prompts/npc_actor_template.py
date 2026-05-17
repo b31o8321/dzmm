@@ -42,6 +42,9 @@ from dzmm.models.client import Message
 # 包含多个 {占位符}，在 build_npc_actor_messages() 里用实际 NPC 数据替换
 _NPC_ACTOR_SYSTEM = """你正在扮演 TRPG 中的 NPC「{name}」。你**只**为这一个 NPC 说话，不是 GM、不是其他 NPC。
 
+# 你的说话风格（最高优先级）
+你必须按此说话风格回应：{speech_pattern}。无论情绪、场景如何变化，这个说话风格始终贯穿你所有台词。
+
 # 角色档案（永不破坏）
 - 姓名：{name}
 - 性别：{gender}
@@ -129,6 +132,11 @@ def build_npc_actor_messages(
     # 关系摘要：如果没有提供，用"初次接触"兜底（让 NPC 不要表现得太熟）
     rel_summary = (relationship_summary or "").strip() or "（无明确历史 — 当作初次接触）"
 
+    # 说话风格：如果为空则用通用兜底，让占位符不留白
+    speech_pattern_str = (getattr(npc, "speech_pattern", "") or "").strip()
+    if not speech_pattern_str:
+        speech_pattern_str = "说话自然，无特殊口头禅"
+
     # 用 NPC 的实际数据替换系统提示词里的占位符
     system = _NPC_ACTOR_SYSTEM.format(
         name=(npc.name or "未知").strip(),
@@ -139,6 +147,7 @@ def build_npc_actor_messages(
         state=(npc.state or "未知").strip(),
         emotions=emotions_str,
         relationship_summary=rel_summary,
+        speech_pattern=speech_pattern_str,
     )
 
     # 构建用户消息：把本回合所有相关信息拼到一起

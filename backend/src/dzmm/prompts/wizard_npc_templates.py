@@ -38,11 +38,12 @@ _SYSTEM = """你是开放世界 TRPG 的角色设计师，负责设计 NPC 模�
     "home_location_name": "主要驻留地点名",
     "faction_name": "所属势力名或null",
     "contact_favor_threshold": 70,
-    "contact_cooldown_turns": 10
+    "contact_cooldown_turns": 10,
+    "speech_pattern": "一句话说话风格/口头禅（例：总用反问句反将一军 / 三句必有一个比喻 / 口头禅：「啧」/ 说话总是慢半拍，停顿很长）"
   }
 ]
 
-要求：8-12个NPC；覆盖多个势力；包含盟友/中立/潜在敌对三类。
+要求：8-12个NPC；覆盖多个势力；包含盟友/中立/潜在敌对三类；每个NPC必须有独特的speech_pattern，让NPC声音各不相同。
 """
 
 

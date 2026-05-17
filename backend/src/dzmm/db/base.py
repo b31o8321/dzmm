@@ -344,6 +344,33 @@ _V052_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
 }
 
 
+# v0.53 — v0.15.2:
+#   - characters.level_up_pending_json: one-shot level-up announcement (consumed
+#     by _build_key_facts and then cleared).  Default '' = no pending announcement.
+#   - npcs.speech_pattern / world_npc_templates.speech_pattern: 1-sentence verbal
+#     tic injected into the NPC actor system prompt for vocal distinctiveness.
+_V053_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "characters": [
+        (
+            "level_up_pending_json",
+            "level_up_pending_json TEXT NOT NULL DEFAULT ''",
+        ),
+    ],
+    "npcs": [
+        (
+            "speech_pattern",
+            "speech_pattern TEXT NOT NULL DEFAULT ''",
+        ),
+    ],
+    "world_npc_templates": [
+        (
+            "speech_pattern",
+            "speech_pattern TEXT NOT NULL DEFAULT ''",
+        ),
+    ],
+}
+
+
 # ── 特殊迁移：将 screenplays.session_id 改为 nullable ────
 # SQLite 不支持 ALTER COLUMN，所以只能用"复制→删旧→改名"三步走。
 # 这个函数是幂等的：如果 session_id 已经 nullable 或者表不存在，直接返回。
@@ -506,6 +533,8 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V051_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V052_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V053_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         # 最后做数据回填：给旧角色补上默认属性值
         await conn.run_sync(_backfill_legacy_base_stats_sync)

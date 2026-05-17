@@ -28,11 +28,12 @@
 #   <character_xp delta="-10"/> （罚扣 10 XP，极少见）
 # ============================================================
 
-"""<character_xp> handler — bump Character.xp."""
+"""<character_xp> handler — bump Character.xp and auto-level-up if threshold met."""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import Character, Session as GameSession
+from dzmm.engine.character import level_up
 
 
 async def _apply_character_xp(
@@ -48,12 +49,13 @@ async def _apply_character_xp(
     # 1. 解析 delta 属性（整数，正数加 XP，负数扣 XP）
     # 2. 通过 session_id → GameSession → character_id → Character 找到角色
     # 3. 把 delta 累加到 Character.xp，并确保 XP 不低于 0
+    # 4. 调用 level_up() 检查是否满足升级条件，如满足则自动升级
     # -------------------------------------------------------
     """Apply <character_xp delta="N"> by mutating Character.xp.
 
-    Note: we don't auto-bump Character.level here; the frontend detects when
-    the threshold is crossed and routes the user through /levelup, which
-    advances the level and applies the player-chosen stat bonus.
+    After updating XP, calls level_up() to apply automatic level-up if the
+    threshold is crossed (required_xp = level * 100). Level-up applies +1 to
+    level, +1 to the attribute governing the top skill, +5 to the top skill.
     """
     try:
         delta = int(attrs.get("delta", "0"))  # 解析增量，默认为 0
@@ -72,3 +74,6 @@ async def _apply_character_xp(
     if char is None:
         return  # 角色不存在，跳过（理论上不应发生）
     char.xp = max(0, char.xp + delta)  # 累加 XP，确保不低于 0（XP 不应为负数）
+
+    # 检查是否升级：level_up() 是幂等的，XP 不足时返回 None
+    await level_up(session, char.id)

@@ -155,6 +155,11 @@ def _format_npc_dossier(npc: NPC) -> str:
         if desc:
             lines.append(f"  备注：{desc[:60]}")  # 截取前 60 字符，避免档案过长
 
+    # v0.53: speech_pattern — GM-only vocal tic hint (never counts as "revealed")
+    speech_pattern = (getattr(npc, "speech_pattern", "") or "").strip()
+    if speech_pattern:
+        lines.append(f"  说话风格：{speech_pattern}")
+
     # 【未揭示字段列表】
     # 收集所有"有内容但玩家还不知道"的字段，提示 GM 可以有意识地通过叙事揭示它们
     hidden_fields: list[str] = []

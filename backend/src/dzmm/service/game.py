@@ -1378,6 +1378,31 @@ async def _build_key_facts(
         )
         parts.append("\n".join(identity_lines))
 
+    # 升级公告：角色刚刚升级时，在 key_facts 里注入一条醒目提示，
+    # 让 GM 在本回合叙事中自然呈现升级感。公告是一次性的（消费后清空）。
+    if character is not None:
+        _pending_lu = (character.level_up_pending_json or "").strip()
+        if _pending_lu:
+            try:
+                import json as _json
+                _lu = _json.loads(_pending_lu)
+                _old_lv = _lu.get("old_level", "?")
+                _new_lv = _lu.get("new_level", "?")
+                _attr = _lu.get("attribute_raised", "")
+                _skill = _lu.get("skill_raised", "")
+                _lu_lines = [
+                    "## 🎉 角色升级",
+                    f"第 {_old_lv} 级 → 第 {_new_lv} 级。提升: {_attr} +1",
+                ]
+                if _skill:
+                    _lu_lines[-1] += f", {_skill} +5"
+                _lu_lines.append("（GM 请在本回合叙事中自然呈现角色的成长感，不要直接宣布数字）")
+                parts.append("\n".join(_lu_lines))
+            except Exception:  # noqa: BLE001
+                pass
+            # Drain: consume the announcement so it only appears once
+            character.level_up_pending_json = ""
+
     # 世界时间：注入当前游戏内时间（如"第 3 天 · 深夜 · 小雨"）
     # GM 用这个信息决定什么时候推进时间轴，叙事中自然引用天气/时段
     if sess is not None:

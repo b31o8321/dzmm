@@ -101,15 +101,21 @@ async def resolve_use_item(
                 )
                 applied_effects.append({"type": effect.type, "amount": effect.amount})
 
-    # Determine whether to decrement or remove
+    # Determine whether to decrement or remove.
+    # Non-consumable types (weapon/armor/key/quest) are not depleted on use —
+    # they are "activated" but remain in inventory at the same qty.
+    # Only consumable items lose qty and are removed when qty reaches 0.
+    _CONSUMABLE_ONLY_TYPES = {"consumable"}
     removed = False
-    new_qty = item.qty - 1
 
-    if new_qty <= 0:
-        inventory.pop(idx)
-        removed = True
-    else:
-        inventory[idx] = item.model_copy(update={"qty": new_qty})
+    if item.item_type in _CONSUMABLE_ONLY_TYPES:
+        new_qty = item.qty - 1
+        if new_qty <= 0:
+            inventory.pop(idx)
+            removed = True
+        else:
+            inventory[idx] = item.model_copy(update={"qty": new_qty})
+    # else: weapon / armor / key / quest — qty unchanged, item stays
 
     await _save_inventory(s, char, inventory)
 
