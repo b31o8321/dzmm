@@ -104,14 +104,15 @@ export interface FwNpcTemplateInput {
   faction_name: string | null
   contact_favor_threshold: number
   contact_cooldown_turns: number
+  speech_pattern?: string   // v0.15.2: 口头禅 / 语气特征
 }
 
 export interface FwEventInput {
   name: string
   summary_md: string
   scope_type: 'location' | 'faction' | 'global'
-  scope_location_name?: string
-  scope_faction_name?: string
+  scope_location_name?: string | null
+  scope_faction_name?: string | null
   importance: number
   trigger_conditions: unknown[]
   is_repeatable: boolean
