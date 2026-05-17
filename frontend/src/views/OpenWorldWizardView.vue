@@ -40,8 +40,14 @@ const state = reactive({
   character_profile_md: '',
 })
 
-// Save draft to localStorage whenever state or step changes
+// Save draft to localStorage whenever state, step, or hints change.
+// `draftReady` gates the watch so we don't OVERWRITE the saved draft
+// with an empty state during the initial mount, BEFORE the user has
+// had a chance to choose "continue" vs "start fresh".
+const draftReady = ref(false)
+
 function saveDraft() {
+  if (!draftReady.value) return  // see comment above
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({
       step: step.value,
@@ -49,13 +55,21 @@ function saveDraft() {
       hints: { ...hints },
       savedAt: new Date().toISOString(),
     }))
-  } catch { /* quota / serialization — silent */ }
+    console.log('[wizard] draft saved', { step: step.value })
+  } catch (e) {
+    console.warn('[wizard] saveDraft failed', e)
+  }
 }
 
-watch([step, state, hints], saveDraft, { deep: true })
+// Use getter form so each ref/reactive is tracked individually + deep
+watch(
+  () => [step.value, JSON.stringify(state), JSON.stringify(hints)],
+  saveDraft,
+)
 
 function clearDraft() {
   try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+  console.log('[wizard] draft cleared')
 }
 
 function hasDraft(): boolean {
@@ -65,19 +79,43 @@ function hasDraft(): boolean {
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
-    if (!raw) return
+    if (!raw) {
+      console.warn('[wizard] loadDraft: localStorage empty')
+      return
+    }
     const d = JSON.parse(raw)
-    if (typeof d.step === 'number') step.value = d.step
+    console.log('[wizard] loadDraft: parsed', {
+      step: d.step,
+      world_name: d.state?.world_name,
+      locations: d.state?.locations?.length ?? 0,
+      factions: d.state?.factions?.length ?? 0,
+      npc_templates: d.state?.npc_templates?.length ?? 0,
+      events: d.state?.events?.length ?? 0,
+      character_name: d.state?.character_name,
+    })
     if (d.state && typeof d.state === 'object') {
       Object.assign(state, d.state)
     }
     if (d.hints && typeof d.hints === 'object') {
       Object.assign(hints, d.hints)
     }
-  } catch { /* malformed draft — ignore */ }
+    // step LAST so v-if doesn't tear down already-restored content
+    if (typeof d.step === 'number') step.value = d.step
+  } catch (e) {
+    console.warn('[wizard] loadDraft failed', e)
+  }
 }
 
 onMounted(async () => {
+  console.log('[wizard] mount; hasDraft=', hasDraft())
+
+  // Initialize default model FIRST so saved model_config_id (loaded below)
+  // can override it without race.
+  if (!state.model_config_id) {
+    await modelStore.refresh()
+    state.model_config_id = modelStore.preferredId() ?? 0
+  }
+
   if (hasDraft()) {
     try {
       const raw = localStorage.getItem(DRAFT_KEY)
@@ -100,6 +138,9 @@ onMounted(async () => {
       clearDraft()
     }
   }
+
+  // Now allow the auto-save watch to fire. Any further changes get persisted.
+  draftReady.value = true
 })
 
 async function resetWizard() {
@@ -129,16 +170,10 @@ async function resetWizard() {
   ElMessage.success('已清空')
 }
 
-// User-picked model takes precedence; falls back to preferred (default)
+// User-picked model takes precedence; falls back to preferred (default).
+// Initialization is done inside the main onMounted above (so draft load
+// can override the default cleanly without race).
 const modelConfigId = computed(() => state.model_config_id || modelStore.preferredId())
-
-// Initialize default once on mount if user hasn't picked yet
-onMounted(async () => {
-  if (!state.model_config_id) {
-    await modelStore.refresh()
-    state.model_config_id = modelStore.preferredId() ?? 0
-  }
-})
 
 async function generate(stepNum: number) {
   if (!modelConfigId.value) {

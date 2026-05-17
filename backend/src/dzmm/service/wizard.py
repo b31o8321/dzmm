@@ -293,7 +293,11 @@ def _parse_character_json(raw: str) -> dict:
             ) from e
 
         # 旧版 fallback：模型直接返回 Markdown 而不是 JSON
-        log.warning("character generation returned non-JSON; falling back to markdown regex")
+        log.warning(
+            "character generation returned non-JSON; falling back to markdown regex "
+            "(raw_chars=%d head=%r)",
+            len(raw), raw[:120],
+        )
         info = _parse_section(raw, "基本信息")
         # 从 Markdown 里用正则提取姓名（排除反斜杠，防止 \n 字面量被粘连）
         m = (
@@ -306,6 +310,10 @@ def _parse_character_json(raw: str) -> dict:
             or re.search(r"性别[:：]\s*([^\s\n*`\\]+)", raw)
         )
         gender = _normalize_gender(gm.group(1)) if gm else ""
+        log.info(
+            "character markdown-fallback: extracted name=%r gender=%r profile_md_chars=%d",
+            name, gender, len(raw),
+        )
         return {"name": name, "gender": gender, "profile_md": raw}
 
     if not isinstance(data, dict):
