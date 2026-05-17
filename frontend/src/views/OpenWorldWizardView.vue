@@ -170,6 +170,137 @@ async function resetWizard() {
   ElMessage.success('已清空')
 }
 
+// Bug 6: clear stale campaign when user unchecks include_campaign
+watch(() => state.include_campaign, (newVal) => {
+  if (!newVal) state.campaign = null
+})
+
+// ─── CRUD dialog ───────────────────────────────────────────────────────────────
+type DialogKind = 'location' | 'faction' | 'npc' | 'event'
+
+interface EditDialog {
+  visible: boolean
+  kind: DialogKind
+  mode: 'add' | 'edit'
+  index: number
+  draft: any
+}
+
+const editDialog = reactive<EditDialog>({
+  visible: false,
+  kind: 'location',
+  mode: 'add',
+  index: -1,
+  draft: {},
+})
+
+function blankLocation(): FwLocationInput {
+  return { name: '', description_md: '', location_type: 'city', connections: [], initial_state: 'normal' }
+}
+
+function blankFaction(): FwFactionInput {
+  return {
+    name: '', description_md: '',
+    rival_faction_names: [], ally_faction_names: [],
+    tension_rules: { passive_gain_per_turn: 1, threshold_conflict: 50 },
+  }
+}
+
+function blankNpc(): FwNpcTemplateInput {
+  return {
+    name: '', gender: '', role: '', description_md: '', motivation: '',
+    home_location_name: '', faction_name: null,
+    contact_favor_threshold: 70, contact_cooldown_turns: 10,
+    speech_pattern: '',
+  }
+}
+
+function blankEvent(): FwEventInput {
+  return {
+    name: '', summary_md: '', scope_type: 'global',
+    scope_location_name: null, scope_faction_name: null,
+    importance: 3, is_repeatable: false, cooldown_turns: 0,
+    trigger_conditions: [],
+  }
+}
+
+function openAdd(kind: DialogKind) {
+  editDialog.kind = kind
+  editDialog.mode = 'add'
+  editDialog.index = -1
+  if (kind === 'location') editDialog.draft = blankLocation()
+  else if (kind === 'faction') editDialog.draft = blankFaction()
+  else if (kind === 'npc') editDialog.draft = blankNpc()
+  else editDialog.draft = blankEvent()
+  editDialog.visible = true
+}
+
+function openEdit(kind: DialogKind, index: number) {
+  editDialog.kind = kind
+  editDialog.mode = 'edit'
+  editDialog.index = index
+  if (kind === 'location') {
+    editDialog.draft = { ...state.locations[index] }
+  } else if (kind === 'faction') {
+    const f = state.factions[index]
+    editDialog.draft = {
+      ...f,
+      rival_faction_names: [...f.rival_faction_names],
+      ally_faction_names: [...f.ally_faction_names],
+      tension_rules: { ...(f.tension_rules ?? { passive_gain_per_turn: 1, threshold_conflict: 50 }) },
+    }
+  } else if (kind === 'npc') {
+    editDialog.draft = { ...state.npc_templates[index] }
+  } else {
+    editDialog.draft = { ...state.events[index] }
+  }
+  editDialog.visible = true
+}
+
+function saveDialog() {
+  const d = editDialog.draft
+  if (!d.name?.trim()) {
+    ElMessage.warning('名称不能为空')
+    return
+  }
+  if (editDialog.mode === 'add') {
+    if (editDialog.kind === 'location') state.locations.push({ ...d })
+    else if (editDialog.kind === 'faction') state.factions.push({ ...d, rival_faction_names: [...d.rival_faction_names], ally_faction_names: [...d.ally_faction_names] })
+    else if (editDialog.kind === 'npc') state.npc_templates.push({ ...d })
+    else state.events.push({ ...d })
+    ElMessage.success('已新增')
+  } else {
+    const idx = editDialog.index
+    if (editDialog.kind === 'location') state.locations.splice(idx, 1, { ...d })
+    else if (editDialog.kind === 'faction') state.factions.splice(idx, 1, { ...d, rival_faction_names: [...d.rival_faction_names], ally_faction_names: [...d.ally_faction_names] })
+    else if (editDialog.kind === 'npc') state.npc_templates.splice(idx, 1, { ...d })
+    else state.events.splice(idx, 1, { ...d })
+    ElMessage.success('已保存')
+  }
+  editDialog.visible = false
+}
+
+async function deleteItem(kind: DialogKind, index: number) {
+  try {
+    await ElMessageBox.confirm('确认删除？', '删除确认', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
+    })
+  } catch { return }
+  if (kind === 'location') state.locations.splice(index, 1)
+  else if (kind === 'faction') state.factions.splice(index, 1)
+  else if (kind === 'npc') state.npc_templates.splice(index, 1)
+  else state.events.splice(index, 1)
+  ElMessage.success('已删除')
+}
+
+function factionNamesExcluding(selfName: string) {
+  return state.factions.map(f => f.name).filter(n => n !== selfName)
+}
+
+function importanceStars(n: number) {
+  return '★'.repeat(Math.min(Math.max(n, 1), 5))
+}
+
 // User-picked model takes precedence; falls back to preferred (default).
 // Initialization is done inside the main onMounted above (so draft load
 // can override the default cleanly without race).
@@ -181,8 +312,9 @@ async function generate(stepNum: number) {
     return
   }
   loading.value = true
+  const usedHint = hints[stepNum] || ''
   try {
-    const hint = hints[stepNum] ? `\n\n用户引导：${hints[stepNum]}` : ''
+    const hint = usedHint ? `\n\n用户引导：${usedHint}` : ''
     const brief = state.world_brief_md + hint
 
     if (stepNum === 1) {
@@ -239,6 +371,11 @@ async function generate(stepNum: number) {
         events: state.events,
       })
     }
+    // Bug 7: clear hint after successful generation; toast if one was used
+    if (usedHint) {
+      ElMessage.success(`已应用引导词「${usedHint}」`)
+    }
+    hints[stepNum] = ''
   } catch (e: unknown) {
     ElMessage.error(`生成失败：${e instanceof Error ? e.message : String(e)}`)
   } finally {
@@ -250,52 +387,65 @@ async function finalize() {
   if (!modelConfigId.value) return
   loading.value = true
   try {
-    // 1. 提交 WorldFramework（地点/势力/NPC/事件/主线）
-    const payload: FwFinalizePayload = {
-      name: state.world_name,
-      genre: state.genre,
-      style: '',
-      description_md: state.world_brief_md,
-      locations: state.locations,
-      factions: state.factions,
-      npc_templates: state.npc_templates,
-      events: state.events,
-      campaign: state.include_campaign ? state.campaign : null,
+    let phase = 'framework'
+    try {
+      // 1. 提交 WorldFramework（地点/势力/NPC/事件/主线）
+      const payload: FwFinalizePayload = {
+        name: state.world_name,
+        genre: state.genre,
+        style: '',
+        description_md: state.world_brief_md,
+        locations: state.locations,
+        factions: state.factions,
+        npc_templates: state.npc_templates,
+        events: state.events,
+        campaign: state.include_campaign ? state.campaign : null,
+      }
+      const { framework_id } = await frameworkApi.finalize(payload)
+
+      // 2. 创建 World（存储世界观文本）
+      phase = 'world'
+      const world = await worldsApi.create({
+        name: state.world_name || state.genre,
+        content_md: state.world_brief_md,
+        style: state.genre,
+        rules_mode: 'simple',
+      })
+
+      // 3. 创建 Character
+      phase = 'character'
+      const character = await charactersApi.create({
+        world_id: world.id,
+        name: state.character_name || '主角',
+        gender: '',
+        profile_md: state.character_profile_md,
+        base_stats_json: '{}',
+      })
+
+      // 4. 创建 Session，绑定 framework_id
+      phase = 'session'
+      const session = await sessionsApi.create({
+        name: `${state.world_name || state.genre} · ${state.character_name || '主角'}`,
+        world_id: world.id,
+        character_id: character.id,
+        framework_id,
+        gm_model_config_id: modelConfigId.value,
+        summarizer_model_config_id: modelConfigId.value,
+      })
+
+      ElMessage.success('开放世界存档创建成功！')
+      clearDraft()  // wizard succeeded — discard the local draft
+      router.push(`/play/${session.id}`)
+    } catch (e) {
+      const stepLabel = ({
+        framework: '世界框架',
+        world: '世界条目',
+        character: '角色',
+        session: '存档',
+      } as Record<string, string>)[phase]
+      ElMessage.error(`创建${stepLabel}失败：${e instanceof Error ? e.message : String(e)}`)
+      throw e  // let outer finally fire
     }
-    const { framework_id } = await frameworkApi.finalize(payload)
-
-    // 2. 创建 World（存储世界观文本）
-    const world = await worldsApi.create({
-      name: state.world_name || state.genre,
-      content_md: state.world_brief_md,
-      style: state.genre,
-      rules_mode: 'simple',
-    })
-
-    // 3. 创建 Character
-    const character = await charactersApi.create({
-      world_id: world.id,
-      name: state.character_name || '主角',
-      gender: '',
-      profile_md: state.character_profile_md,
-      base_stats_json: '{}',
-    })
-
-    // 4. 创建 Session，绑定 framework_id
-    const session = await sessionsApi.create({
-      name: `${state.world_name || state.genre} · ${state.character_name || '主角'}`,
-      world_id: world.id,
-      character_id: character.id,
-      framework_id,
-      gm_model_config_id: modelConfigId.value,
-      summarizer_model_config_id: modelConfigId.value,
-    })
-
-    ElMessage.success('开放世界存档创建成功！')
-    clearDraft()  // wizard succeeded — discard the local draft
-    router.push(`/play/${session.id}`)
-  } catch (e: unknown) {
-    ElMessage.error(`创建失败：${e instanceof Error ? e.message : String(e)}`)
   } finally {
     loading.value = false
   }
@@ -331,7 +481,7 @@ const STEP_LABELS = [
       <h3>选择类型</h3>
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px">
         <label
-          v-for="g in ['悬疑探案', '奇幻冒险', '赛博朋克', '东方武侠', '恐怖求生']"
+          v-for="g in ['悬疑探案', '英雄成长', '政治阴谋', '灾难求生', '恋爱攻略', '奇幻冒险', '赛博朋克', '东方武侠', '恐怖求生']"
           :key="g"
           class="genre-pill"
           :class="{ selected: state.genre === g }"
@@ -361,18 +511,28 @@ const STEP_LABELS = [
         <div v-if="!state.locations.length">
           <el-button :loading="loading" @click="generate(2)">生成地点网络</el-button>
         </div>
-        <div v-else class="card-grid">
-          <div v-for="(loc, i) in state.locations" :key="i" class="fw-card">
-            <div class="fw-card-header">
-              <span class="fw-card-name">{{ loc.name }}</span>
-              <span class="fw-badge" :class="`type-${loc.location_type}`">
-                {{ { city: '城镇', dungeon: '地下城', wilderness: '荒野', landmark: '地标' }[loc.location_type] ?? loc.location_type }}
-              </span>
+        <div v-else>
+          <div class="card-grid">
+            <div v-for="(loc, i) in state.locations" :key="i" class="fw-card">
+              <div class="fw-card-header">
+                <span class="fw-card-name">{{ loc.name }}</span>
+                <span class="fw-badge" :class="`type-${loc.location_type}`">
+                  {{ { city: '城镇', dungeon: '地下城', wilderness: '荒野', landmark: '地标' }[loc.location_type] ?? loc.location_type }}
+                </span>
+              </div>
+              <p class="fw-card-desc">{{ loc.description_md }}</p>
+              <div class="fw-card-meta">
+                <span v-if="loc.connections.length">{{ loc.connections.length }} 个出口</span>
+                <span v-else class="muted">0 个出口</span>
+              </div>
+              <div class="fw-card-actions">
+                <el-button size="small" text @click="openEdit('location', i)">✏️ 编辑</el-button>
+                <el-button size="small" text type="danger" @click="deleteItem('location', i)">🗑️</el-button>
+              </div>
             </div>
-            <p class="fw-card-desc">{{ loc.description_md }}</p>
-            <div v-if="loc.connections.length" class="fw-card-meta">
-              {{ loc.connections.length }} 个出口
-            </div>
+          </div>
+          <div class="add-btn-row">
+            <el-button size="small" @click="openAdd('location')">➕ 新增地点</el-button>
           </div>
         </div>
       </div>
@@ -382,17 +542,27 @@ const STEP_LABELS = [
         <div v-if="!state.factions.length">
           <el-button :loading="loading" @click="generate(3)">生成势力</el-button>
         </div>
-        <div v-else class="card-grid">
-          <div v-for="(f, i) in state.factions" :key="i" class="fw-card">
-            <div class="fw-card-header">
-              <span class="fw-card-name">{{ f.name }}</span>
-              <span class="fw-badge type-faction">势力</span>
+        <div v-else>
+          <div class="card-grid">
+            <div v-for="(f, i) in state.factions" :key="i" class="fw-card">
+              <div class="fw-card-header">
+                <span class="fw-card-name">{{ f.name }}</span>
+                <span class="fw-badge type-faction">势力</span>
+              </div>
+              <p class="fw-card-desc">{{ f.description_md }}</p>
+              <div class="fw-card-meta">
+                <span v-if="f.ally_faction_names.length">盟友 {{ f.ally_faction_names.length }}</span>
+                <span v-if="f.rival_faction_names.length">对立 {{ f.rival_faction_names.length }}</span>
+                <span v-if="f.tension_rules" class="tension-hint">张力 +{{ f.tension_rules.passive_gain_per_turn }}/回合, 阈值 {{ f.tension_rules.threshold_conflict }}</span>
+              </div>
+              <div class="fw-card-actions">
+                <el-button size="small" text @click="openEdit('faction', i)">✏️ 编辑</el-button>
+                <el-button size="small" text type="danger" @click="deleteItem('faction', i)">🗑️</el-button>
+              </div>
             </div>
-            <p class="fw-card-desc">{{ f.description_md }}</p>
-            <div class="fw-card-meta">
-              <span v-if="f.ally_faction_names.length">盟友 {{ f.ally_faction_names.length }}</span>
-              <span v-if="f.rival_faction_names.length">对立 {{ f.rival_faction_names.length }}</span>
-            </div>
+          </div>
+          <div class="add-btn-row">
+            <el-button size="small" @click="openAdd('faction')">➕ 新增势力</el-button>
           </div>
         </div>
       </div>
@@ -402,14 +572,24 @@ const STEP_LABELS = [
         <div v-if="!state.npc_templates.length">
           <el-button :loading="loading" @click="generate(4)">生成NPC模板</el-button>
         </div>
-        <div v-else class="card-grid">
-          <div v-for="(n, i) in state.npc_templates" :key="i" class="fw-card">
-            <div class="fw-card-header">
-              <span class="fw-card-name">{{ n.name }}</span>
-              <span class="fw-badge type-npc">{{ n.gender === 'male' ? '男' : n.gender === 'female' ? '女' : '?' }} · {{ n.role }}</span>
+        <div v-else>
+          <div class="card-grid">
+            <div v-for="(n, i) in state.npc_templates" :key="i" class="fw-card">
+              <div class="fw-card-header">
+                <span class="fw-card-name">{{ n.name }}</span>
+                <span class="fw-badge type-npc">{{ n.gender === 'male' ? '男' : n.gender === 'female' ? '女' : '?' }} · {{ n.role }}</span>
+              </div>
+              <p class="fw-card-desc">{{ n.description_md }}</p>
+              <em v-if="n.speech_pattern" class="fw-speech-pattern">「{{ n.speech_pattern }}」</em>
+              <div class="fw-card-meta">📍 {{ n.home_location_name }}</div>
+              <div class="fw-card-actions">
+                <el-button size="small" text @click="openEdit('npc', i)">✏️ 编辑</el-button>
+                <el-button size="small" text type="danger" @click="deleteItem('npc', i)">🗑️</el-button>
+              </div>
             </div>
-            <p class="fw-card-desc">{{ n.description_md }}</p>
-            <div class="fw-card-meta">📍 {{ n.home_location_name }}</div>
+          </div>
+          <div class="add-btn-row">
+            <el-button size="small" @click="openAdd('npc')">➕ 新增NPC</el-button>
           </div>
         </div>
       </div>
@@ -419,16 +599,28 @@ const STEP_LABELS = [
         <div v-if="!state.events.length">
           <el-button :loading="loading" @click="generate(5)">生成事件库</el-button>
         </div>
-        <div v-else class="card-grid">
-          <div v-for="(ev, i) in state.events" :key="i" class="fw-card">
-            <div class="fw-card-header">
-              <span class="fw-card-name">{{ ev.name }}</span>
-              <span class="fw-badge" :class="`imp-${Math.min(ev.importance, 5)}`">
-                ★ {{ ev.importance }}
-              </span>
+        <div v-else>
+          <div class="card-grid">
+            <div v-for="(ev, i) in state.events" :key="i" class="fw-card">
+              <div class="fw-card-header">
+                <span class="fw-card-name">{{ ev.name }}</span>
+                <span class="fw-badge" :class="`imp-${Math.min(ev.importance, 5)}`">
+                  重要性 {{ importanceStars(ev.importance) }}
+                </span>
+              </div>
+              <p class="fw-card-desc">{{ ev.summary_md }}</p>
+              <div class="fw-card-meta">
+                <span>{{ ev.scope_type === 'global' ? '全局' : ev.scope_type === 'faction' ? '势力' : '地点' }}</span>
+                <span v-if="ev.is_repeatable">可重复</span>
+              </div>
+              <div class="fw-card-actions">
+                <el-button size="small" text @click="openEdit('event', i)">✏️ 编辑</el-button>
+                <el-button size="small" text type="danger" @click="deleteItem('event', i)">🗑️</el-button>
+              </div>
             </div>
-            <p class="fw-card-desc">{{ ev.summary_md }}</p>
-            <div class="fw-card-meta">{{ ev.scope_type === 'global' ? '全局' : ev.scope_type === 'faction' ? '势力' : '地点' }}</div>
+          </div>
+          <div class="add-btn-row">
+            <el-button size="small" @click="openAdd('event')">➕ 新增事件</el-button>
           </div>
         </div>
       </div>
@@ -495,6 +687,166 @@ const STEP_LABELS = [
     <div class="muted" style="margin-top: 6px; text-align: right; font-size: 12px">
       ✓ 自动保存到本地，关闭窗口后可从「{{ STEP_LABELS[step] }}」继续
     </div>
+
+    <!-- ─── Shared CRUD dialog ──────────────────────────────────────────────── -->
+    <el-dialog
+      v-model="editDialog.visible"
+      :title="editDialog.mode === 'add' ? '新增' : '编辑'"
+      width="520px"
+      destroy-on-close
+    >
+      <!-- Location form -->
+      <el-form v-if="editDialog.kind === 'location'" label-width="90px" label-position="right">
+        <el-form-item label="名称">
+          <el-input v-model="editDialog.draft.name" placeholder="地点名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="editDialog.draft.description_md" type="textarea" :rows="3" placeholder="地点描述" />
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="editDialog.draft.location_type" style="width:100%">
+            <el-option value="city" label="城镇" />
+            <el-option value="dungeon" label="地下城" />
+            <el-option value="wilderness" label="荒野" />
+            <el-option value="landmark" label="地标" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="初始状态">
+          <el-select v-model="editDialog.draft.initial_state" style="width:100%">
+            <el-option value="normal" label="正常" />
+            <el-option value="damaged" label="受损" />
+            <el-option value="destroyed" label="毁坏" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="出口">
+          <span class="muted">{{ editDialog.draft.connections?.length ?? 0 }} 个出口（连接编辑暂不支持）</span>
+        </el-form-item>
+      </el-form>
+
+      <!-- Faction form -->
+      <el-form v-else-if="editDialog.kind === 'faction'" label-width="110px" label-position="right">
+        <el-form-item label="名称">
+          <el-input v-model="editDialog.draft.name" placeholder="势力名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="editDialog.draft.description_md" type="textarea" :rows="3" placeholder="势力描述" />
+        </el-form-item>
+        <el-form-item label="盟友">
+          <el-select v-model="editDialog.draft.ally_faction_names" multiple style="width:100%" placeholder="选择盟友势力">
+            <el-option
+              v-for="n in factionNamesExcluding(editDialog.draft.name)"
+              :key="n" :value="n" :label="n"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="对立">
+          <el-select v-model="editDialog.draft.rival_faction_names" multiple style="width:100%" placeholder="选择对立势力">
+            <el-option
+              v-for="n in factionNamesExcluding(editDialog.draft.name)"
+              :key="n" :value="n" :label="n"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="张力/回合">
+          <el-input-number
+            v-model="editDialog.draft.tension_rules.passive_gain_per_turn"
+            :min="0" :max="10" :step="1" style="width:100%"
+          />
+        </el-form-item>
+        <el-form-item label="冲突阈值">
+          <el-input-number
+            v-model="editDialog.draft.tension_rules.threshold_conflict"
+            :min="0" :max="100" :step="5" style="width:100%"
+          />
+        </el-form-item>
+      </el-form>
+
+      <!-- NPC form -->
+      <el-form v-else-if="editDialog.kind === 'npc'" label-width="110px" label-position="right">
+        <el-form-item label="名称">
+          <el-input v-model="editDialog.draft.name" placeholder="NPC姓名" />
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-select v-model="editDialog.draft.gender" style="width:100%">
+            <el-option value="" label="未知" />
+            <el-option value="male" label="男" />
+            <el-option value="female" label="女" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="职业/角色">
+          <el-input v-model="editDialog.draft.role" placeholder="如：侦探、商人" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="editDialog.draft.description_md" type="textarea" :rows="3" placeholder="NPC描述" />
+        </el-form-item>
+        <el-form-item label="动机">
+          <el-input v-model="editDialog.draft.motivation" placeholder="NPC核心动机" />
+        </el-form-item>
+        <el-form-item label="说话风格">
+          <el-input v-model="editDialog.draft.speech_pattern" placeholder="如：口头禅「啧」 / 说话总用反问句" />
+        </el-form-item>
+        <el-form-item label="所在地点">
+          <el-select v-model="editDialog.draft.home_location_name" style="width:100%" clearable placeholder="选择地点">
+            <el-option v-for="loc in state.locations" :key="loc.name" :value="loc.name" :label="loc.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所属势力">
+          <el-select v-model="editDialog.draft.faction_name" style="width:100%" clearable placeholder="无势力">
+            <el-option v-for="f in state.factions" :key="f.name" :value="f.name" :label="f.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="好感阈值">
+          <el-input-number v-model="editDialog.draft.contact_favor_threshold" :min="0" :max="100" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="冷却回合">
+          <el-input-number v-model="editDialog.draft.contact_cooldown_turns" :min="0" :max="50" style="width:100%" />
+        </el-form-item>
+      </el-form>
+
+      <!-- Event form -->
+      <el-form v-else-if="editDialog.kind === 'event'" label-width="110px" label-position="right">
+        <el-form-item label="名称">
+          <el-input v-model="editDialog.draft.name" placeholder="事件名称" />
+        </el-form-item>
+        <el-form-item label="摘要">
+          <el-input v-model="editDialog.draft.summary_md" type="textarea" :rows="3" placeholder="事件描述" />
+        </el-form-item>
+        <el-form-item label="范围类型">
+          <el-select v-model="editDialog.draft.scope_type" style="width:100%">
+            <el-option value="global" label="全局" />
+            <el-option value="location" label="地点" />
+            <el-option value="faction" label="势力" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="editDialog.draft.scope_type === 'location'" label="地点">
+          <el-select v-model="editDialog.draft.scope_location_name" style="width:100%" clearable placeholder="选择地点">
+            <el-option v-for="loc in state.locations" :key="loc.name" :value="loc.name" :label="loc.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="editDialog.draft.scope_type === 'faction'" label="势力">
+          <el-select v-model="editDialog.draft.scope_faction_name" style="width:100%" clearable placeholder="选择势力">
+            <el-option v-for="f in state.factions" :key="f.name" :value="f.name" :label="f.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="重要性">
+          <el-input-number v-model="editDialog.draft.importance" :min="1" :max="5" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="可重复">
+          <el-checkbox v-model="editDialog.draft.is_repeatable" />
+        </el-form-item>
+        <el-form-item label="冷却回合">
+          <el-input-number v-model="editDialog.draft.cooldown_turns" :min="0" :max="50" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="触发条件">
+          <span class="muted">（高级，可在创建后编辑）</span>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="editDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="saveDialog">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -531,7 +883,11 @@ const STEP_LABELS = [
 .fw-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .fw-card-name { font-weight: 600; font-size: 15px; color: #1a1a2e; }
 .fw-card-desc { font-size: 13px; color: #5a5a72; line-height: 1.55; margin: 0; flex: 1; }
-.fw-card-meta { font-size: 12px; color: #909399; margin-top: 2px; display: flex; gap: 8px; }
+.fw-card-meta { font-size: 12px; color: #909399; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+.fw-card-actions { display: flex; gap: 4px; margin-top: 4px; }
+.fw-speech-pattern { font-size: 12px; color: #7a7a9a; font-style: italic; }
+.tension-hint { color: #b0820a; }
+.add-btn-row { margin-top: 12px; display: flex; justify-content: flex-start; }
 
 /* Type badges */
 .fw-badge {

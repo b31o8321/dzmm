@@ -126,7 +126,27 @@ async def test_generate_character_markdown_fallback_when_model_skips_json():
     client = StubLLM(md_only)
     out = await generate_character("w", "a", client)
     assert out["name"] == "阿离"
-    assert "隐匿" in out["profile_md"]
+    # The fallback now extracts the 背景 section body; heading lines are stripped
+    assert "孤儿" in out["profile_md"]
+    assert "## 基本信息" not in out["profile_md"]
+
+
+async def test_generate_character_markdown_fallback_strips_基本信息_heading():
+    """profile_md returned from the markdown-fallback path must NOT contain
+    the raw '## 基本信息' heading line — it should use the 背景 section body
+    or strip the header block so the frontend MarkdownView stays clean."""
+    md_only = (
+        "# 基本信息\n姓名：张三\n性别：男\n年龄：35\n\n"
+        "# 角色简介\n他是一名侦探，擅长推理。\n\n"
+        "# 背景\n出生于上海，幼年丧父。"
+    )
+    client = StubLLM(md_only)
+    out = await generate_character("w", "a", client)
+    assert out["name"] == "张三"
+    # profile_md must NOT contain the raw heading line
+    assert "# 基本信息" not in out["profile_md"]
+    # profile_md must contain the sectioned body text
+    assert "他是一名侦探" in out["profile_md"]
 
 
 async def test_generate_character_fallback_when_no_name():

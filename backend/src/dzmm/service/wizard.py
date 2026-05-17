@@ -310,11 +310,30 @@ def _parse_character_json(raw: str) -> dict:
             or re.search(r"性别[:：]\s*([^\s\n*`\\]+)", raw)
         )
         gender = _normalize_gender(gm.group(1)) if gm else ""
+        # 尝试从常见章节名中提取干净的简介文本，避免把 "# 基本信息" 等标题行暴露给前端
+        profile_md: str = ""
+        profile_sectioned = False
+        for _sec in ("角色简介", "背景", "profile", "人物简介", "简介"):
+            _body = _parse_section(raw, _sec)
+            if _body:
+                profile_md = _body
+                profile_sectioned = True
+                break
+        if not profile_md:
+            # 备用：去掉"基本信息"标题及其内容块，保留其余内容
+            _stripped = re.sub(
+                r"^##?\s*基本信息\s*$.*?(?=^##?\s|\Z)",
+                "",
+                raw,
+                flags=re.MULTILINE | re.DOTALL,
+            ).strip()
+            profile_md = _stripped if _stripped else raw
         log.info(
-            "character markdown-fallback: extracted name=%r gender=%r profile_md_chars=%d",
-            name, gender, len(raw),
+            "character markdown-fallback: extracted name=%r gender=%r "
+            "profile_md_chars=%d sectioned=%s",
+            name, gender, len(profile_md), profile_sectioned,
         )
-        return {"name": name, "gender": gender, "profile_md": raw}
+        return {"name": name, "gender": gender, "profile_md": profile_md}
 
     if not isinstance(data, dict):
         raise ValueError(f"character JSON expected object, got {type(data).__name__}")
@@ -370,7 +389,10 @@ async def generate_character(
             max_tokens=2500, json_mode=True,
         )
         result = _parse_character_json(raw)
-        # v0.15 Batch 4: add structured stats from genre template
+        # v0.15 Batch 4: add structured stats from genre template.
+        # NOTE: this block runs unconditionally, covering both the normal JSON
+        # path and the markdown-fallback path — stat_block/skills/inventory are
+        # always present in the returned dict regardless of which path fired.
         from dzmm.engine.genre_templates import apply_genre_template
         tmpl = apply_genre_template(genre.strip())
         result["stat_block"] = tmpl["stat_block"]
