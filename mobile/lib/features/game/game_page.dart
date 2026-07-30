@@ -257,11 +257,14 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
           waiting: _streamingNarrative.isEmpty,
         ),
       if (_turnError != null)
-        Card(
-          color: Theme.of(context).colorScheme.errorContainer,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Text(_turnError!),
+        Semantics(
+          liveRegion: true,
+          child: Card(
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(_turnError!),
+            ),
           ),
         ),
     ];
@@ -464,15 +467,21 @@ class _StreamingCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: waiting
-            ? const Row(
-                children: [
-                  SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+            ? Semantics(
+                liveRegion: true,
+                label: '世界正在回应',
+                child: const ExcludeSemantics(
+                  child: Row(
+                    children: [
+                      SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('世界正在回应…'),
+                    ],
                   ),
-                  SizedBox(width: 12),
-                  Text('世界正在回应…'),
-                ],
+                ),
               )
             : MarkdownBody(data: narrative),
       ),

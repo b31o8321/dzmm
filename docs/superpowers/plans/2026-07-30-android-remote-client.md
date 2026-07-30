@@ -525,7 +525,13 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 
 **Gate 6:** fresh-pair-to-three-turn journey passes on a packaged Mac app and physical Android device.
 
-Automated evidence (2026-07-31): `flutter analyze`, 44 Flutter tests, debug/release APK and release AAB builds, 926 backend tests plus Ruff, 9 Vue tests, the Vue production build, and the local Playwright SSE recovery journey pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
+Automated evidence (2026-07-31): `flutter analyze`, 46 Flutter tests,
+debug/release APK and release AAB builds, 926 backend tests plus Ruff, 9 Vue
+tests, the Vue production build, and the local Playwright SSE recovery journey
+pass. The scan sheet remains scrollable with 12 hosts at 800x400, and the game
+waiting/error states expose deliberate live-region semantics without announcing
+every stream chunk. Packaged-Mac, physical-device, TalkBack, and real-model
+acceptance remains open.
 
 ## Phase 7 — Resilience, security review, and release
 

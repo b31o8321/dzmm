@@ -24,14 +24,14 @@ required Android 30-turn journey.
 | Dimension | Weight | Current | Weighted | Evidence and remaining gap |
 |---|---:|---:|---:|---|
 | Core gameplay completeness | 20% | 75 | 15.00 | Session hydration, streaming, choices, state, lifecycle, and 500-message widget tests pass; packaged-Mac/phone three-turn and 30-turn play are open |
-| Connection and onboarding | 15% | 72 | 10.80 | Packaged-host mDNS advertisement plus discovery, manual entry, approval, QR, PIN, secure persistence, and reconnect tests pass; phone discovery, two routers, mDNS-blocked LAN, and DHCP change are open |
+| Connection and onboarding | 15% | 73 | 10.95 | Packaged-host mDNS plus discovery, manual entry, approval, QR, PIN, secure persistence, reconnect, and a 12-host landscape scan layout pass; phone discovery, two routers, mDNS-blocked LAN, and DHCP change are open |
 | Security and privacy | 15% | 85 | 12.75 | Explicit route matrix, token hashing/redaction/storage tests, concurrent claim tests, OSV and license review pass; physical Android preferences/crash-output inspection is open |
 | Reliability and recovery | 15% | 78 | 11.70 | Idempotent runs, event-gap E2E, terminal-lease ordering, 100-run disconnect soak, and app-resume check pass; real Wi-Fi/Mac restart/revoke injection is open |
-| UX clarity and accessibility | 10% | 75 | 7.50 | Loading, empty, revoked, incompatible, retry, streaming, state, and jump-to-latest widgets pass; physical touch, screen-reader, rotation, and visual review are open |
+| UX clarity and accessibility | 10% | 77 | 7.70 | Loading, empty, revoked, incompatible, retry, streaming, state, jump-to-latest, landscape overflow, and live-region widgets pass; physical touch, TalkBack, rotation, and visual review are open |
 | Mac host control | 10% | 80 | 8.00 | Default-local host controls, enable/disable, approval, QR/PIN, device revoke, Vue tests, and packaged-sidecar smoke pass; the packaged Tauri UI transition is open |
 | Performance | 5% | 72 | 3.60 | 500-message history is lazy, replay buffers are bounded, and five isolated packaged-LAN cold starts completed in 1.817–2.046 seconds; target-phone discovery/render/chunk timing is unmeasured |
 | Test and release readiness | 10% | 84 | 8.40 | Backend, Vue, Flutter, current-head E2E/Android and macOS/Windows release CI, downloaded checksummed artifacts, sealed ad-hoc Mac bundle with working mDNS, and signed internal Android RC exist; Developer ID/notarized Mac and physical installation/acceptance are open |
-| **Total** | **100%** |  | **77.75** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
+| **Total** | **100%** |  | **78.10** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
 
 The score is intentionally evidence-limited. Automated tests cannot award the
 missing physical-network, target-device, installation, or real-play points.
@@ -44,7 +44,9 @@ missing physical-network, target-device, installation, or real-play points.
 - Playwright: local SSE run/reload/event-gap recovery journey and
   [CI run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869)
   pass.
-- Flutter: analyze and 44 unit/widget tests pass.
+- Flutter: analyze and 46 unit/widget tests pass. A 12-host scan remains
+  scrollable at 800x400 without overflow; the game waiting state and turn
+  errors expose live-region semantics without announcing each stream chunk.
 - Android local builds: debug APK, unsigned release APK, and unsigned release
   AAB pass.
 - Android CI: [run 30575604848](https://github.com/b31o8321/dzmm/actions/runs/30575604848)

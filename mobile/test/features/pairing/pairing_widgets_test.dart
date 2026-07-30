@@ -11,6 +11,53 @@ import '../../connection/lan_scanner_test.dart'
     show FakeMdns, FakeNetworkInfo, GrantedPermission, RecordingProbe;
 
 void main() {
+  testWidgets('scan results remain usable in landscape with many hosts', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final endpoints = List.generate(
+      12,
+      (index) => HostEndpoint(
+        host: '192.168.1.${index + 10}',
+        port: 8765,
+        source: DiscoverySource.mdns,
+        name: 'Mac ${index + 1}',
+      ),
+    );
+    final scanner = LanScanner(
+      probe: RecordingProbe({
+        for (final endpoint in endpoints)
+          endpoint.host: HealthInfo(
+            version: '0.16.0',
+            apiVersion: 1,
+            serverId: 'server-${endpoint.host}',
+            remoteAccess: true,
+            capabilities: const {'session_hydration'},
+          ),
+      }),
+      mdns: FakeMdns(endpoints),
+      networkInfo: const FakeNetworkInfo(null),
+      permissionGate: const GrantedPermission(),
+      scanDuration: Duration.zero,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConnectionOnboardingPage(scanner: scanner, onSelected: (_) {}),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('查找 Mac'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+  });
+
   testWidgets('scan shows compatible hosts incrementally and paired status', (
     tester,
   ) async {

@@ -77,6 +77,36 @@ void main() {
     expect(transport.createCalls, 1);
   });
 
+  testWidgets('exposes the waiting state as a live region', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final transport = WaitingTurnTransport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GamePage(
+          session: const GameSessionSummary(id: 4, name: '雾港', turnCount: 2),
+          repository: SessionRepository(FakeHydrationTransport()),
+          turnClient: TurnRunClient(transport: transport, delay: (_) async {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '等待回应');
+    await tester.tap(find.byTooltip('发送行动'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('世界正在回应…'), findsOneWidget);
+    final liveRegion = tester.widget<Semantics>(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == '世界正在回应',
+      ),
+    );
+    expect(liveRegion.properties.liveRegion, isTrue);
+
+    transport.finish.complete();
+    await tester.pumpAndSettle();
+    semantics.dispose();
+  });
+
   testWidgets('a 500-message save builds history lazily', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -233,4 +263,33 @@ class StreamingTurnTransport implements TurnRunTransport {
     readCalls += 1;
     return _record(readCalls == 1 ? 'running' : 'completed');
   }
+}
+
+class WaitingTurnTransport implements TurnRunTransport {
+  final finish = Completer<void>();
+
+  @override
+  Future<TurnRunRecord> create(
+    int sessionId,
+    String requestId,
+    String action, {
+    CancellationToken? cancellationToken,
+  }) async => _record('running');
+
+  @override
+  Stream<SseEvent> events(
+    int sessionId,
+    String runId, {
+    required int lastEventId,
+    CancellationToken? cancellationToken,
+  }) async* {
+    await finish.future;
+  }
+
+  @override
+  Future<TurnRunRecord> read(
+    int sessionId,
+    String runId, {
+    CancellationToken? cancellationToken,
+  }) async => _record(finish.isCompleted ? 'completed' : 'running');
 }
