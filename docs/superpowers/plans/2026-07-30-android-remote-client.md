@@ -462,9 +462,9 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 - Create: `mobile/lib/features/sessions/session_list_page.dart`
 - Add unit/widget tests
 
-- [ ] List saves and enter one without exposing authoring actions.
-- [ ] Show loading, empty, offline, revoked, incompatible, and retry states.
-- [ ] Parse messages/state defensively for optional backward-compatible fields.
+- [x] List saves and enter one without exposing authoring actions.
+- [x] Show loading, empty, offline, revoked, incompatible, and retry states.
+- [x] Parse messages/state defensively for optional backward-compatible fields.
 
 ### Task 6.2: Reconnectable turn client
 
@@ -474,11 +474,11 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 - Create: `mobile/lib/features/game/turn_run_client.dart`
 - Add parser/reconnect tests
 
-- [ ] Parse multiline SSE data, IDs, comments/heartbeats, structured event types, and UTF-8 chunk boundaries.
-- [ ] Create one request UUID per action and preserve it across retries.
-- [ ] Reconnect with `Last-Event-ID` and exponential backoff capped at 30 seconds.
-- [ ] On event gap, rehydrate messages/state rather than resubmit.
-- [ ] On app resume, query active run status before enabling a new send.
+- [x] Parse multiline SSE data, IDs, comments/heartbeats, structured event types, and UTF-8 chunk boundaries.
+- [x] Create one request UUID per action and preserve it across retries.
+- [x] Reconnect with `Last-Event-ID` and exponential backoff capped at 30 seconds.
+- [x] On event gap, rehydrate messages/state rather than resubmit.
+- [x] On app resume, query active run status before enabling a new send.
 
 ### Task 6.3: Build the core game screen
 
@@ -488,12 +488,12 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 - Create focused widgets under `mobile/lib/features/game/widgets/`
 - Add widget and integration tests
 
-- [ ] Render persisted user/assistant history and a streaming current turn.
-- [ ] Render safe Markdown, dialogue/speaker sections, dice, choices, and diagnostics appropriate for players.
-- [ ] Add multiline action composer, optional suggestion chips, send state, and session-busy recovery.
-- [ ] Add compact vitals/inventory/NPC/goals/location access without copying desktop debug panels.
-- [ ] Preserve scroll position while streaming and provide an explicit jump-to-latest action.
-- [ ] Rehydrate on refresh/re-entry and after transport recovery.
+- [x] Render persisted user/assistant history and a streaming current turn.
+- [x] Render safe Markdown, dialogue/speaker sections, dice, choices, and diagnostics appropriate for players.
+- [x] Add multiline action composer, optional suggestion chips, send state, and session-busy recovery.
+- [x] Add compact vitals/inventory/NPC/goals/location access without copying desktop debug panels.
+- [x] Preserve scroll position while streaming and provide an explicit jump-to-latest action.
+- [x] Rehydrate on refresh/re-entry and after transport recovery.
 
 ### Task 6.4: Real-model playtest
 
@@ -503,6 +503,8 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 - [ ] Record model failures separately from remote transport failures.
 
 **Gate 6:** fresh-pair-to-three-turn journey passes on a packaged Mac app and physical Android device.
+
+Automated evidence (2026-07-31): `flutter analyze`, 42 Flutter tests, debug/release APK builds, 33 backend remote-auth/turn-run tests, 9 Vue tests, and the Vue production build pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
 
 ## Phase 7 — Resilience, security review, and release
 

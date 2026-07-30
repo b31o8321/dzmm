@@ -1,13 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'api/dzmm_api.dart';
+import 'api/sse_client.dart';
 import 'connection/connection_controller.dart';
 import 'connection/lan_scanner.dart';
 import 'connection/paired_server.dart';
+import 'features/game/game_page.dart';
+import 'features/game/turn_run_client.dart';
 import 'features/pairing/connection_onboarding_page.dart';
 import 'features/pairing/pairing_controller.dart';
 import 'features/pairing/pairing_method_page.dart';
 import 'features/pairing/qr_scan_page.dart';
+import 'features/sessions/session_list_page.dart';
+import 'features/sessions/session_models.dart';
+import 'features/sessions/session_repository.dart';
 
 const _ink = Color(0xFF172033);
 const _fog = Color(0xFFF0F3F7);
@@ -59,7 +68,10 @@ class _AppShellState extends State<AppShell> {
       appBar: AppBar(title: const Text('dzmm')),
       body: IndexedStack(
         index: _selectedIndex,
-        children: const [ConnectionHome(), GameLanding()],
+        children: [
+          ConnectionHome(onConnected: () => setState(() => _selectedIndex = 1)),
+          const GameLanding(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -83,7 +95,9 @@ class _AppShellState extends State<AppShell> {
 }
 
 class ConnectionHome extends ConsumerStatefulWidget {
-  const ConnectionHome({super.key});
+  const ConnectionHome({this.onConnected, super.key});
+
+  final VoidCallback? onConnected;
 
   @override
   ConsumerState<ConnectionHome> createState() => _ConnectionHomeState();
@@ -105,12 +119,44 @@ class _ConnectionHomeState extends ConsumerState<ConnectionHome> {
   }
 
   Future<void> _select(DiscoveredServer discovered) async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => PairingMethodPage(discovered: discovered),
-      ),
-    );
+    final known = _pairedServers
+        .where((server) => server.serverId == discovered.serverId)
+        .firstOrNull;
+    if (known == null || known.credentialState == CredentialState.revoked) {
+      final paired = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => PairingMethodPage(discovered: discovered),
+        ),
+      );
+      if (paired != true || !mounted) return;
+    }
     await _loadPairedServers();
+    await _connect(discovered);
+  }
+
+  Future<void> _connect(DiscoveredServer discovered) async {
+    final pairing = await ref
+        .read(connectionStoreProvider)
+        .loadPairing(discovered.serverId);
+    if (pairing == null || !mounted) return;
+    await ref
+        .read(connectionControllerProvider.notifier)
+        .connect(
+          server: pairing.server,
+          host: discovered.endpoint.uri,
+          deviceToken: pairing.deviceToken,
+        );
+    if (!mounted) return;
+    final connected =
+        ref.read(connectionControllerProvider).status ==
+        ConnectionStatus.connected;
+    if (connected) {
+      widget.onConnected?.call();
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已配对，但当前无法建立游戏连接。')));
+    }
   }
 
   Future<void> _pairQr(DzmmQrPayload payload) async {
@@ -139,6 +185,7 @@ class _ConnectionHomeState extends ConsumerState<ConnectionHome> {
       SnackBar(content: Text(paired ? '配对成功' : '配对码已过期、已使用或 Mac 不可达')),
     );
     if (paired) await _loadPairedServers();
+    if (paired) await _connect(discovered);
   }
 
   @override
@@ -152,17 +199,125 @@ class _ConnectionHomeState extends ConsumerState<ConnectionHome> {
   }
 }
 
-class GameLanding extends StatelessWidget {
+class GameLanding extends ConsumerStatefulWidget {
   const GameLanding({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const _LandingPanel(
-      icon: Icons.hourglass_empty,
-      title: '等待连接',
-      detail: '连接并配对后，可在这里继续已有跑团。',
+  ConsumerState<GameLanding> createState() => _GameLandingState();
+}
+
+class _GameLandingState extends ConsumerState<GameLanding> {
+  String? _connectionKey;
+  Future<_GameServices?>? _services;
+
+  Future<_GameServices?> _loadServices(DzmmConnectionState connection) async {
+    final server = connection.server;
+    final host = connection.host;
+    if (server == null || host == null) return null;
+    final pairing = await ref
+        .read(connectionStoreProvider)
+        .loadPairing(server.serverId);
+    if (pairing == null) return null;
+    final api = DzmmApi(baseUri: host, deviceToken: pairing.deviceToken);
+    final repository = SessionRepository(DzmmSessionTransport(api));
+    final turnClient = TurnRunClient(
+      transport: DzmmTurnRunTransport(
+        api: api,
+        sse: HttpSseClient(baseUri: host, deviceToken: pairing.deviceToken),
+      ),
+    );
+    return _GameServices(
+      api: api,
+      repository: repository,
+      turnClient: turnClient,
     );
   }
+
+  void _resetServices() {
+    final previous = _services;
+    _services = null;
+    if (previous != null) {
+      unawaited(previous.then((services) => services?.api.close()));
+    }
+  }
+
+  @override
+  void dispose() {
+    _resetServices();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final connection = ref.watch(connectionControllerProvider);
+    if (connection.status != ConnectionStatus.connected) {
+      if (_connectionKey != null) {
+        _connectionKey = null;
+        _resetServices();
+      }
+      return _LandingPanel(
+        icon: connection.status == ConnectionStatus.revoked
+            ? Icons.link_off
+            : Icons.hourglass_empty,
+        title: connection.status == ConnectionStatus.revoked
+            ? '需要重新配对'
+            : '等待连接',
+        detail: '在“连接”页选择已配对的 Mac 后，可继续已有跑团。',
+      );
+    }
+    final key = '${connection.server?.serverId}|${connection.host}';
+    if (_connectionKey != key) {
+      _resetServices();
+      _connectionKey = key;
+      _services = _loadServices(connection);
+    }
+    return FutureBuilder<_GameServices?>(
+      future: _services,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final services = snapshot.data;
+        if (services == null) {
+          return const _LandingPanel(
+            icon: Icons.link_off,
+            title: '授权不可用',
+            detail: '返回连接页重新配对这台 Mac。',
+          );
+        }
+        return SessionListPage(
+          repository: services.repository,
+          onSelected: (session) => _openGame(context, services, session),
+        );
+      },
+    );
+  }
+
+  Future<void> _openGame(
+    BuildContext context,
+    _GameServices services,
+    GameSessionSummary session,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => GamePage(
+        session: session,
+        repository: services.repository,
+        turnClient: services.turnClient,
+      ),
+    ),
+  );
+}
+
+class _GameServices {
+  const _GameServices({
+    required this.api,
+    required this.repository,
+    required this.turnClient,
+  });
+
+  final DzmmApi api;
+  final SessionRepository repository;
+  final TurnRunClient turnClient;
 }
 
 class _LandingPanel extends StatelessWidget {
