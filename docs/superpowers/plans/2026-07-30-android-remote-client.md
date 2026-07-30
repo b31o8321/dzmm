@@ -194,11 +194,19 @@ cd backend
 
 Do not proceed to Android gameplay until the remote authorization matrix is green.
 
-**Gate 1 evidence (2026-07-31):** `36 passed` in the focused remote suite;
-`906 passed, 1 skipped` in the complete backend suite; full Ruff passed. A local
-mDNS smoke registered `_dzmm._tcp.local` on both detected LAN IPv4 addresses and
-unregistered cleanly. Tests use temporary SQLite databases and did not touch the
-real user database.
+**Gate 1 evidence (2026-07-31):** the complete backend suite now has `926 passed,
+1 skipped`; full Ruff passed. A packaged-LAN check exposed synchronous zeroconf
+registration blocking the running FastAPI event loop. Discovery now uses
+`AsyncZeroconf` for registration and shutdown; focused lifecycle tests pass, and
+both source and rebuilt packaged-sidecar smokes register a resolvable
+`_dzmm._tcp.local` service with the expected port and TXT identity before
+unregistering cleanly. Tests and smokes use temporary SQLite databases and did
+not touch the real user database.
+
+Regression principle: mDNS acceptance must exercise the running async app
+lifecycle (and, for release evidence, the packaged sidecar). A direct
+`RemoteDiscovery` call from a synchronous script is insufficient because it
+cannot reveal event-loop blocking during FastAPI startup.
 
 ## Phase 2 — Mac app remote-access control plane
 
@@ -256,9 +264,11 @@ request creation without accessing the real database. The installed app currentl
 owns port 8765, so the same transition has not yet been clicked through from the
 packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
 The latest branch build produced a 111 MB DMG with SHA-256
-`febb68a7a516c47b3e09db899195e755952ac7ff1604a0eb995698ef21fc43c5`;
+`d896166c4c68781df0f9be0a8239c99caf62f37f108b8d3a67c68d55bc5147c3`;
 `hdiutil verify` passes and the packaged sidecar again passed isolated local
-and LAN smoke checks. LAN readiness took about 23 seconds. The app is not a
+and LAN smoke checks. The rebuilt packaged sidecar is also discoverable through
+macOS `dns-sd`, including its dynamic port, `server_id`, version, API version,
+and pairing flag. LAN readiness took about 23 seconds. The app is not a
 distribution RC: its complete ad-hoc signature seals resources and passes
 strict `codesign`, but Gatekeeper rejects it because it has no Developer ID
 or notarization. The reproducible internal-build command is

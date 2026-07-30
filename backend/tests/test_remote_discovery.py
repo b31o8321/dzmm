@@ -16,7 +16,7 @@ class FakeServiceInfo:
         self.kwargs = kwargs
 
 
-class FakeZeroconf:
+class FakeAsyncZeroconf:
     instances = []
 
     def __init__(self):
@@ -25,13 +25,13 @@ class FakeZeroconf:
         self.closed = False
         self.instances.append(self)
 
-    def register_service(self, info):
+    async def async_register_service(self, info):
         self.registered.append(info)
 
-    def unregister_service(self, info):
+    async def async_unregister_service(self, info):
         self.unregistered.append(info)
 
-    def close(self):
+    async def async_close(self):
         self.closed = True
 
 
@@ -43,39 +43,43 @@ def test_discovery_only_advertises_private_lan_ipv4():
     assert not _is_supported_lan_ipv4("8.8.8.8")
 
 
-def test_discovery_registers_identity_and_stops(monkeypatch):
+@pytest.mark.asyncio
+async def test_discovery_registers_identity_and_stops(monkeypatch):
     fake_module = ModuleType("zeroconf")
+    fake_asyncio_module = ModuleType("zeroconf.asyncio")
     fake_module.ServiceInfo = FakeServiceInfo
-    fake_module.Zeroconf = FakeZeroconf
+    fake_asyncio_module.AsyncZeroconf = FakeAsyncZeroconf
     monkeypatch.setitem(sys.modules, "zeroconf", fake_module)
+    monkeypatch.setitem(sys.modules, "zeroconf.asyncio", fake_asyncio_module)
     monkeypatch.setattr(
         "dzmm.remote.discovery._lan_ipv4_addresses",
         lambda: [socket.inet_aton("192.168.1.20")],
     )
-    FakeZeroconf.instances.clear()
+    FakeAsyncZeroconf.instances.clear()
 
     discovery = RemoteDiscovery()
-    assert discovery.start(
+    assert await discovery.start(
         server_id="server-uuid",
         version="0.16.0",
         api_version=1,
         port=8765,
     )
-    zeroconf = FakeZeroconf.instances[0]
+    zeroconf = FakeAsyncZeroconf.instances[0]
     info = zeroconf.registered[0]
     assert info.service_type == "_dzmm._tcp.local."
     assert info.kwargs["port"] == 8765
     assert info.kwargs["properties"]["server_id"] == "server-uuid"
     assert info.kwargs["properties"]["api_version"] == "1"
 
-    discovery.stop()
+    await discovery.stop()
     assert zeroconf.unregistered == [info]
     assert zeroconf.closed
 
 
-def test_discovery_is_best_effort_without_lan_address(monkeypatch):
+@pytest.mark.asyncio
+async def test_discovery_is_best_effort_without_lan_address(monkeypatch):
     monkeypatch.setattr("dzmm.remote.discovery._lan_ipv4_addresses", lambda: [])
-    assert not RemoteDiscovery().start(
+    assert not await RemoteDiscovery().start(
         server_id="server-uuid",
         version="0.16.0",
         api_version=1,
@@ -87,11 +91,11 @@ def test_discovery_is_best_effort_without_lan_address(monkeypatch):
 async def test_remote_enabled_app_runs_discovery_lifecycle(tmp_path, monkeypatch):
     calls = []
 
-    def fake_start(self, **kwargs):
+    async def fake_start(self, **kwargs):
         calls.append(("start", kwargs))
         return True
 
-    def fake_stop(self):
+    async def fake_stop(self):
         calls.append(("stop", {}))
 
     monkeypatch.setattr(RemoteDiscovery, "start", fake_start)

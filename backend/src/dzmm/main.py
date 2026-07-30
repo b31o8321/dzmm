@@ -231,7 +231,7 @@ def create_app(
         app.state.remote_discovery = discovery
 
         async def _start_remote_discovery() -> None:
-            discovery.start(
+            await discovery.start(
                 server_id=await pairing_manager.server_id(),
                 version=__version__,
                 api_version=REMOTE_API_VERSION,

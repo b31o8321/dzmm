@@ -24,21 +24,22 @@ required Android 30-turn journey.
 | Dimension | Weight | Current | Weighted | Evidence and remaining gap |
 |---|---:|---:|---:|---|
 | Core gameplay completeness | 20% | 75 | 15.00 | Session hydration, streaming, choices, state, lifecycle, and 500-message widget tests pass; packaged-Mac/phone three-turn and 30-turn play are open |
-| Connection and onboarding | 15% | 70 | 10.50 | Discovery, manual entry, approval, QR, PIN, secure persistence, and reconnect tests pass; two routers, mDNS-blocked LAN, and DHCP change are open |
+| Connection and onboarding | 15% | 72 | 10.80 | Packaged-host mDNS advertisement plus discovery, manual entry, approval, QR, PIN, secure persistence, and reconnect tests pass; phone discovery, two routers, mDNS-blocked LAN, and DHCP change are open |
 | Security and privacy | 15% | 85 | 12.75 | Explicit route matrix, token hashing/redaction/storage tests, concurrent claim tests, OSV and license review pass; physical Android preferences/crash-output inspection is open |
 | Reliability and recovery | 15% | 78 | 11.70 | Idempotent runs, event-gap E2E, terminal-lease ordering, 100-run disconnect soak, and app-resume check pass; real Wi-Fi/Mac restart/revoke injection is open |
 | UX clarity and accessibility | 10% | 75 | 7.50 | Loading, empty, revoked, incompatible, retry, streaming, state, and jump-to-latest widgets pass; physical touch, screen-reader, rotation, and visual review are open |
 | Mac host control | 10% | 80 | 8.00 | Default-local host controls, enable/disable, approval, QR/PIN, device revoke, Vue tests, and packaged-sidecar smoke pass; the packaged Tauri UI transition is open |
 | Performance | 5% | 65 | 3.25 | 500-message history is lazy and replay buffers are bounded; packaged LAN startup took about 23 seconds, while target-phone discovery/render/chunk timing is unmeasured |
-| Test and release readiness | 10% | 82 | 8.20 | Backend, Vue, Flutter, latest E2E/Android CI, downloaded checksummed artifacts, sealed ad-hoc Mac bundle, and signed internal Android RC exist; Developer ID/notarized Mac and physical installation/acceptance are open |
-| **Total** | **100%** |  | **76.90** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
+| Test and release readiness | 10% | 83 | 8.30 | Backend, Vue, Flutter, latest E2E/Android CI, downloaded checksummed artifacts, sealed ad-hoc Mac bundle with working mDNS, and signed internal Android RC exist; Developer ID/notarized Mac and physical installation/acceptance are open |
+| **Total** | **100%** |  | **77.30** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
 
 The score is intentionally evidence-limited. Automated tests cannot award the
 missing physical-network, target-device, installation, or real-play points.
 
 ## Verified evidence
 
-- Backend: 926 tests pass with one unrelated skip; Ruff passes.
+- Backend: 926 tests pass with one unrelated skip; Ruff passes. Remote
+  discovery uses the asynchronous zeroconf lifecycle covered by focused tests.
 - Vue: 9 Vitest tests and production build pass.
 - Playwright: local SSE run/reload/event-gap recovery journey and
   [CI run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869)
@@ -61,12 +62,15 @@ missing physical-network, target-device, installation, or real-play points.
   are mode 600 and must be preserved for upgrade compatibility.
 - A fresh branch build produced `dzmm.app` and
   `dzmm_0.16.0_aarch64.dmg`; the DMG checksum is
-  `febb68a7a516c47b3e09db899195e755952ac7ff1604a0eb995698ef21fc43c5`
+  `d896166c4c68781df0f9be0a8239c99caf62f37f108b8d3a67c68d55bc5147c3`
   and `hdiutil verify` passes. Its complete ad-hoc signature seals 1,856
   resources and passes strict `codesign` verification, while Gatekeeper
   correctly rejects the non-Developer-ID build. The packaged sidecar starts
   against an isolated database in loopback mode and in LAN mode; LAN
-  readiness took about 23 seconds.
+  readiness took about 23 seconds. A packaged-LAN regression initially exposed
+  synchronous zeroconf registration failing inside the async startup loop; the
+  repaired package is now discoverable as `_dzmm._tcp` and advertises the
+  expected port, server identity, API version, app version, and pairing flag.
 - Transport soak: 100 runs each disconnect after the first event, resume from
   the cursor, and retry the same request ID; exactly 100 completed records and
   100 producer calls remain.
@@ -79,7 +83,7 @@ missing physical-network, target-device, installation, or real-play points.
 | Journey | Current evidence | Status |
 |---|---|---|
 | Mac opens on unknown Wi-Fi in loopback-only mode | Packaged sidecar listens only on loopback; Tauri launch transition is not clicked through | Blocked on packaged Tauri UI |
-| Enable LAN remote access and advertise mDNS | Packaged sidecar listens on all interfaces and serves Vue; mDNS and UI control remain unverified | Blocked on packaged Tauri UI + phone |
+| Enable LAN remote access and advertise mDNS | Packaged sidecar listens on all interfaces, serves Vue, and advertises a resolvable `_dzmm._tcp` record; UI control and Android discovery remain unverified | Blocked on packaged Tauri UI + phone |
 | Scan and approve a fresh Android install | Fake-server/widget tests | Blocked on phone |
 | QR and PIN fresh-install fallback | API/parser/widget tests | Blocked on phone |
 | Enter an existing save and compare with Vue | Hydration/widget tests | Blocked on phone |
@@ -123,4 +127,8 @@ missing physical-network, target-device, installation, or real-play points.
   for compatible upgrades.
 - Flutter reports a future Built-in Kotlin migration warning for
   `mobile_scanner` and `nsd_android`; current Flutter 3.44 builds pass.
+- A direct low-token probe of `huihui-ai_qwen3-14b-abliterated` reached the
+  correct LM Studio model but returned extra repetitive text instead of only
+  the requested marker. Treat prompt adherence and repetition as model-quality
+  observations during the 30-turn test, separate from remote transport.
 - Play distribution is intentionally undecided until internal RC acceptance.

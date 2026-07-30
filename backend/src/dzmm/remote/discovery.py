@@ -55,7 +55,7 @@ class RemoteDiscovery:
         self._zeroconf: Any = None
         self._service_info: Any = None
 
-    def start(
+    async def start(
         self,
         *,
         server_id: str,
@@ -70,7 +70,8 @@ class RemoteDiscovery:
             log.warning("remote discovery disabled: no LAN IPv4 address found")
             return False
         try:
-            from zeroconf import ServiceInfo, Zeroconf
+            from zeroconf import ServiceInfo
+            from zeroconf.asyncio import AsyncZeroconf
 
             hostname = socket.gethostname() or "dzmm"
             safe_name = hostname.replace(".", "-")
@@ -87,18 +88,18 @@ class RemoteDiscovery:
                 },
                 server=f"{safe_name}.local.",
             )
-            zeroconf = Zeroconf()
+            zeroconf = AsyncZeroconf()
             self._zeroconf = zeroconf
             self._service_info = info
-            zeroconf.register_service(info)
+            await zeroconf.async_register_service(info)
             log.info("remote discovery started on _dzmm._tcp port %d", port)
             return True
         except Exception as exc:  # noqa: BLE001
-            log.warning("remote discovery unavailable: %s", exc)
-            self.stop()
+            log.warning("remote discovery unavailable: %s: %r", type(exc).__name__, exc)
+            await self.stop()
             return False
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         zeroconf = self._zeroconf
         info = self._service_info
         self._zeroconf = None
@@ -107,11 +108,11 @@ class RemoteDiscovery:
             return
         try:
             if info is not None:
-                zeroconf.unregister_service(info)
+                await zeroconf.async_unregister_service(info)
         except Exception as exc:  # noqa: BLE001
             log.debug("remote discovery unregister failed: %s", exc)
         finally:
             try:
-                zeroconf.close()
+                await zeroconf.async_close()
             except Exception:  # noqa: BLE001
                 pass
