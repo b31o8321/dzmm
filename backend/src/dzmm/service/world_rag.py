@@ -122,26 +122,26 @@ def index_world(
     embedder = _embedder or OllamaEmbedder(ollama_url, model)
     persist_path = _persist_dir(world_id, app_dir)
     # PersistentClient：向量数据库存储到磁盘（不是内存），重启后数据还在
-    client = chromadb.PersistentClient(path=persist_path)
-    col_name = f"world_{world_id}"  # collection（集合）名称，相当于数据库里的表名
+    with chromadb.PersistentClient(path=persist_path) as client:
+        col_name = f"world_{world_id}"  # collection（集合）名称，相当于数据库里的表名
 
-    # 幂等设计：先删除旧 collection 再建新的
-    # 这样重新索引时不会出现"旧数据 + 新数据"混在一起的情况
-    try:
-        client.delete_collection(col_name)
-    except Exception:
-        pass  # 不存在时删除会报错，忽略即可
-    col = client.create_collection(col_name)
+        # 幂等设计：先删除旧 collection 再建新的
+        # 这样重新索引时不会出现"旧数据 + 新数据"混在一起的情况
+        try:
+            client.delete_collection(col_name)
+        except Exception:
+            pass  # 不存在时删除会报错，忽略即可
+        col = client.create_collection(col_name)
 
-    # 批量向量化所有文本块（可能有几十个块，每个调用一次 Ollama API）
-    embeddings = embedder.embed_documents(chunks)
-    # 把文本 + 向量一起存入 ChromaDB
-    # ids: 每条记录的唯一标识，格式 "world_id_序号"
-    col.add(
-        ids=[f"{world_id}_{i}" for i in range(len(chunks))],
-        documents=chunks,      # 原始文本（检索时返回给调用方）
-        embeddings=embeddings, # 对应的向量（用于计算相似度）
-    )
+        # 批量向量化所有文本块（可能有几十个块，每个调用一次 Ollama API）
+        embeddings = embedder.embed_documents(chunks)
+        # 把文本 + 向量一起存入 ChromaDB
+        # ids: 每条记录的唯一标识，格式 "world_id_序号"
+        col.add(
+            ids=[f"{world_id}_{i}" for i in range(len(chunks))],
+            documents=chunks,      # 原始文本（检索时返回给调用方）
+            embeddings=embeddings, # 对应的向量（用于计算相似度）
+        )
     log.info("world_rag: indexed world %d → %d chunks", world_id, len(chunks))
 
 
@@ -203,20 +203,20 @@ def retrieve_world_context(
 
     _app_dir = app_dir if app_dir is not None else APP_DIR
     embedder = _embedder or OllamaEmbedder(ollama_url, model)
-    client = chromadb.PersistentClient(path=_persist_dir(world_id, _app_dir))
-    col = client.get_collection(f"world_{world_id}")
+    with chromadb.PersistentClient(path=_persist_dir(world_id, _app_dir)) as client:
+        col = client.get_collection(f"world_{world_id}")
 
-    count = col.count()
-    if count == 0:
-        return ""  # 空数据库，直接返回空字符串
+        count = col.count()
+        if count == 0:
+            return ""  # 空数据库，直接返回空字符串
 
-    # 向量化查询文本
-    query_embedding = embedder.embed_query(query)
-    # n_results 不能超过数据库里实际有的条数（ChromaDB 限制）
-    results = col.query(
-        query_embeddings=[query_embedding],
-        n_results=min(k, count),
-    )
+        # 向量化查询文本
+        query_embedding = embedder.embed_query(query)
+        # n_results 不能超过数据库里实际有的条数（ChromaDB 限制）
+        results = col.query(
+            query_embeddings=[query_embedding],
+            n_results=min(k, count),
+        )
     # results["documents"] 是二维列表（支持批量查询），取第一个查询的结果
     docs: list[str] = results["documents"][0]
     # 用分割线拼接各块，让 GM 看到清晰的段落分隔
