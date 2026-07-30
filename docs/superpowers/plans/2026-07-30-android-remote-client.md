@@ -239,7 +239,7 @@ real user database.
 
 ### Task 2.3: Package-level LAN acceptance
 
-- [ ] Build/install the Mac app, not only Vite dev mode.
+- [x] Build the Mac app and DMG, not only Vite dev mode.
 - [ ] Verify `127.0.0.1` listener at startup.
 - [ ] Enable remote and verify `0.0.0.0:8765` plus mDNS.
 - [ ] Disable and verify LAN denial plus local Vue health.
@@ -255,6 +255,15 @@ HOME and port 39123 proved `127.0.0.1 -> 0.0.0.0 -> 127.0.0.1`, stable
 request creation without accessing the real database. The installed app currently
 owns port 8765, so the same transition has not yet been clicked through from the
 packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
+The latest branch build produced a 111 MB DMG with SHA-256
+`febb68a7a516c47b3e09db899195e755952ac7ff1604a0eb995698ef21fc43c5`;
+`hdiutil verify` passes and the packaged sidecar again passed isolated local
+and LAN smoke checks. LAN readiness took about 23 seconds. The app is not a
+distribution RC: its complete ad-hoc signature seals resources and passes
+strict `codesign`, but Gatekeeper rejects it because it has no Developer ID
+or notarization. The reproducible internal-build command is
+`python packaging/build.py --adhoc-sign`; the default release path remains
+unchanged.
 
 ## Phase 3 — Single-writer, idempotent, reconnectable turns
 
@@ -550,7 +559,7 @@ Automated resilience evidence (2026-07-31): the Android game list lazily builds 
 - [ ] Keep desktop release workflow green after backend/Tauri changes.
 - [ ] Decide Play distribution only after internal RC acceptance; it is not required for the first local install.
 
-CI evidence (2026-07-31): [Android run 30573547536](https://github.com/b31o8321/dzmm/actions/runs/30573547536) passed analyze, 43 tests, debug APK, unsigned release APK/AAB, checksums, and artifact upload.
+CI evidence (2026-07-31): [Android run 30575604848](https://github.com/b31o8321/dzmm/actions/runs/30575604848) passed analyze, 44 tests, debug APK, unsigned release APK/AAB, checksums, and artifact upload. The artifact was downloaded locally; ZIP integrity and all three included SHA-256 entries pass. The debug APK has one Android Debug v2 signer; the release APK and AAB are confirmed unsigned. [E2E run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869) passes both Playwright journeys.
 
 ### Task 7.5: Final maturity review
 

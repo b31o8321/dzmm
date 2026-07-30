@@ -28,9 +28,9 @@ required Android 30-turn journey.
 | Security and privacy | 15% | 85 | 12.75 | Explicit route matrix, token hashing/redaction/storage tests, concurrent claim tests, OSV and license review pass; physical Android preferences/crash-output inspection is open |
 | Reliability and recovery | 15% | 78 | 11.70 | Idempotent runs, event-gap E2E, terminal-lease ordering, 100-run disconnect soak, and app-resume check pass; real Wi-Fi/Mac restart/revoke injection is open |
 | UX clarity and accessibility | 10% | 75 | 7.50 | Loading, empty, revoked, incompatible, retry, streaming, state, and jump-to-latest widgets pass; physical touch, screen-reader, rotation, and visual review are open |
-| Mac host control | 10% | 80 | 8.00 | Default-local host controls, enable/disable, approval, QR/PIN, device revoke, and Vue tests exist; packaged-app inspection is open |
-| Performance | 5% | 65 | 3.25 | 500-message history is lazy and replay buffers are bounded; target-phone discovery/render/chunk timing is unmeasured |
-| Test and release readiness | 10% | 78 | 7.80 | Backend, Vue, Flutter, E2E, Android CI, checksums, APK and AAB evidence exist; signed RC and physical acceptance are open |
+| Mac host control | 10% | 80 | 8.00 | Default-local host controls, enable/disable, approval, QR/PIN, device revoke, Vue tests, and packaged-sidecar smoke pass; the packaged Tauri UI transition is open |
+| Performance | 5% | 65 | 3.25 | 500-message history is lazy and replay buffers are bounded; packaged LAN startup took about 23 seconds, while target-phone discovery/render/chunk timing is unmeasured |
+| Test and release readiness | 10% | 78 | 7.80 | Backend, Vue, Flutter, latest E2E/Android CI, downloaded checksummed artifacts, and sealed ad-hoc Mac bundle evidence exist; Developer ID/notarized Mac and signed Android RC plus physical acceptance are open |
 | **Total** | **100%** |  | **76.50** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
 
 The score is intentionally evidence-limited. Automated tests cannot award the
@@ -40,13 +40,27 @@ missing physical-network, target-device, signed-RC, or real-play points.
 
 - Backend: 926 tests pass with one unrelated skip; Ruff passes.
 - Vue: 9 Vitest tests and production build pass.
-- Playwright: local SSE run/reload/event-gap recovery journey passes.
+- Playwright: local SSE run/reload/event-gap recovery journey and
+  [CI run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869)
+  pass.
 - Flutter: analyze and 44 unit/widget tests pass.
 - Android local builds: debug APK, unsigned release APK, and unsigned release
   AAB pass.
-- Android CI: [run 30573547536](https://github.com/b31o8321/dzmm/actions/runs/30573547536)
+- Android CI: [run 30575604848](https://github.com/b31o8321/dzmm/actions/runs/30575604848)
   passed analyze, tests, all three builds, SHA-256 generation, and artifact
   upload.
+- The latest CI artifact was downloaded locally; its installable debug APK,
+  unsigned release APK, and unsigned AAB all match the included
+  `SHA256SUMS`. The debug APK verifies with one Android Debug v2 signer;
+  the release APK and AAB are confirmed unsigned.
+- A fresh branch build produced `dzmm.app` and
+  `dzmm_0.16.0_aarch64.dmg`; the DMG checksum is
+  `febb68a7a516c47b3e09db899195e755952ac7ff1604a0eb995698ef21fc43c5`
+  and `hdiutil verify` passes. Its complete ad-hoc signature seals 1,856
+  resources and passes strict `codesign` verification, while Gatekeeper
+  correctly rejects the non-Developer-ID build. The packaged sidecar starts
+  against an isolated database in loopback mode and in LAN mode; LAN
+  readiness took about 23 seconds.
 - Transport soak: 100 runs each disconnect after the first event, resume from
   the cursor, and retry the same request ID; exactly 100 completed records and
   100 producer calls remain.
@@ -58,8 +72,8 @@ missing physical-network, target-device, signed-RC, or real-play points.
 
 | Journey | Current evidence | Status |
 |---|---|---|
-| Mac opens on unknown Wi-Fi in loopback-only mode | Source and backend tests only | Blocked on packaged app |
-| Enable LAN remote access and advertise mDNS | Source and Vue tests only | Blocked on packaged app + phone |
+| Mac opens on unknown Wi-Fi in loopback-only mode | Packaged sidecar listens only on loopback; Tauri launch transition is not clicked through | Blocked on packaged Tauri UI |
+| Enable LAN remote access and advertise mDNS | Packaged sidecar listens on all interfaces and serves Vue; mDNS and UI control remain unverified | Blocked on packaged Tauri UI + phone |
 | Scan and approve a fresh Android install | Fake-server/widget tests | Blocked on phone |
 | QR and PIN fresh-install fallback | API/parser/widget tests | Blocked on phone |
 | Enter an existing save and compare with Vue | Hydration/widget tests | Blocked on phone |
@@ -73,8 +87,9 @@ missing physical-network, target-device, signed-RC, or real-play points.
 
 ## Required path to 85
 
-1. Produce a packaged Mac build from this branch and a signed internal Android
-   RC; record checksums and installation results.
+1. Complete the packaged Tauri UI transition, Developer-ID sign/notarize the
+   Mac bundle, and produce a signed internal Android RC; record installation
+   results.
 2. Run approval, QR, PIN, deny, expiry, replay, revoke, disable, and app-restart
    journeys on a physical Android device.
 3. Validate two home routers plus one mDNS-blocked path, including DHCP address
@@ -94,6 +109,9 @@ missing physical-network, target-device, signed-RC, or real-play points.
 ## Known limitations before RC
 
 - Trusted-LAN HTTP is not safe for public, shared, or hostile networks.
+- The current Mac test bundle is not distribution-ready: its complete ad-hoc
+  signature passes strict `codesign`, but it has no Developer ID or
+  notarization, so Gatekeeper assessment fails.
 - Release APK/AAB builds are unsigned until an ignored internal keystore is
   supplied; the CI debug APK is for internal installation only.
 - Flutter reports a future Built-in Kotlin migration warning for

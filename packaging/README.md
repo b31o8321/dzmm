@@ -8,6 +8,9 @@
 # macOS / Linux
 python packaging/build.py
 
+# macOS 内部验收包：完整 ad-hoc 封装签名，可做 codesign 完整性检查
+python packaging/build.py --adhoc-sign
+
 # Windows（PowerShell）
 .\packaging\build.ps1
 ```
@@ -19,6 +22,10 @@ python packaging/build.py
 4. `backend/build_sidecar.py`：PyInstaller `--onedir` 打 `dzmm-backend` → `frontend/src-tauri/backend-runtime/`
 5. `frontend/`：`npm run tauri:build`（Rust release）
 6. 把 `frontend/src-tauri/target/release/bundle/{dmg,nsis,msi,deb,appimage}/*` 拷到 `packaging/dist/`
+
+`--adhoc-sign` 只用于 macOS 内部验收。它会 seal app bundle resources，
+因此 `codesign --verify --deep --strict` 可以检查包完整性，但它不等同于
+Developer ID 签名或 Apple 公证，Gatekeeper 仍会拒绝该测试包。
 
 ## 单独运行某一段
 

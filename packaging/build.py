@@ -10,6 +10,7 @@
 用法：
     python packaging/build.py            # 默认走 release
     python packaging/build.py --debug    # tauri build --debug
+    python packaging/build.py --adhoc-sign  # macOS 内部验收签名
 
 最终产物路径：packaging/dist/
 """
@@ -70,11 +71,18 @@ def run_pyinstaller() -> None:
     )
 
 
-def run_tauri(debug: bool) -> None:
+def run_tauri(debug: bool, adhoc_sign: bool) -> None:
     print("\n=== [2/3] Tauri build (Rust release，首次约 3-6 分钟) ===")
     cmd = ["npm", "run", "tauri:build"]
-    if debug:
-        cmd = ["npx", "tauri", "build", "--debug"]
+    if debug or adhoc_sign:
+        cmd = ["npx", "tauri", "build"]
+        if debug:
+            cmd.append("--debug")
+        if adhoc_sign:
+            cmd.extend([
+                "--config",
+                '{"bundle":{"macOS":{"signingIdentity":"-"}}}',
+            ])
     subprocess.check_call(cmd, cwd=str(FRONTEND_DIR))
 
 
@@ -121,8 +129,15 @@ def collect_artifacts() -> list[Path]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true", help="tauri build --debug")
+    parser.add_argument(
+        "--adhoc-sign",
+        action="store_true",
+        help="macOS: seal the internal test app with an ad-hoc signature",
+    )
     parser.add_argument("--skip-deps", action="store_true", help="跳过 venv / npm install 检查")
     args = parser.parse_args()
+    if args.adhoc_sign and sys.platform != "darwin":
+        parser.error("--adhoc-sign is supported only on macOS")
 
     print("=== 检查依赖 ===")
     check("python3" if sys.platform != "win32" else "python",
@@ -135,7 +150,7 @@ def main() -> int:
         ensure_frontend_deps()
 
     run_pyinstaller()
-    run_tauri(debug=args.debug)
+    run_tauri(debug=args.debug, adhoc_sign=args.adhoc_sign)
     artifacts = collect_artifacts()
 
     print("\n=== 完成 ===")
