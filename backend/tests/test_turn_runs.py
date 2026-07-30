@@ -354,6 +354,60 @@ async def test_terminal_event_is_visible_only_after_session_lease_release(turn_r
 
 
 @pytest.mark.asyncio
+async def test_one_hundred_turn_disconnect_soak_has_no_duplicate_runs(turn_run_db):
+    session_maker, session_id = turn_run_db
+    coordinator = SessionTurnCoordinator()
+    manager = TurnRunManager(session_maker, coordinator)
+    producer_calls = 0
+
+    for turn in range(100):
+        async def producer():
+            nonlocal producer_calls
+            producer_calls += 1
+            yield {"event": "narrative", "data": f'{{"text":"turn-{turn}"}}'}
+            await asyncio.sleep(0)
+            yield {"event": "done", "data": f'{{"assistant_msg_id":{turn + 1}}}'}
+
+        payload, created = await manager.create_or_get(
+            session_id=session_id,
+            request_id=f"soak-request-{turn}",
+            action=f"action-{turn}",
+            producer_factory=producer,
+        )
+        repeated, repeated_created = await manager.create_or_get(
+            session_id=session_id,
+            request_id=f"soak-request-{turn}",
+            action="must-not-replace",
+            producer_factory=producer,
+        )
+        assert created is True
+        assert repeated_created is False
+        assert repeated["run_id"] == payload["run_id"]
+
+        first_connection = await manager.subscribe(payload["run_id"], 0)
+        first = await anext(first_connection)
+        assert first["event"] == "narrative"
+        await first_connection.aclose()
+
+        await manager.wait(payload["run_id"])
+        resumed = await manager.subscribe(payload["run_id"], int(first["id"]))
+        replay = [event async for event in resumed]
+        assert [event["event"] for event in replay] == ["done"]
+
+    async with session_maker() as session:
+        runs = (
+            await session.execute(
+                select(TurnRun).where(TurnRun.session_id == session_id)
+            )
+        ).scalars().all()
+
+    assert producer_calls == 100
+    assert len(runs) == 100
+    assert all(run.status == "completed" for run in runs)
+    assert await coordinator.get_active(session_id) is None
+
+
+@pytest.mark.asyncio
 async def test_turn_run_api_commits_only_one_message_pair_for_repeated_submit(
     turn_run_db,
     monkeypatch,

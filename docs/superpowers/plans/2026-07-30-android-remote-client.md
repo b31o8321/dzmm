@@ -504,7 +504,7 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 
 **Gate 6:** fresh-pair-to-three-turn journey passes on a packaged Mac app and physical Android device.
 
-Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/release APK and release AAB builds, 923 backend tests plus Ruff, 9 Vue tests, the Vue production build, and the local Playwright SSE recovery journey pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
+Automated evidence (2026-07-31): `flutter analyze`, 44 Flutter tests, debug/release APK and release AAB builds, 926 backend tests plus Ruff, 9 Vue tests, the Vue production build, and the local Playwright SSE recovery journey pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
 
 ## Phase 7 — Resilience, security review, and release
 
@@ -521,7 +521,7 @@ Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/rele
 
 - [x] Route-policy test covers every FastAPI route.
 - [ ] Inspect DB, logs, Android preferences, crash output, QR payload, and URLs for secret leakage.
-- [ ] Verify PIN/QR/request expiration and rate limits under concurrent attempts.
+- [x] Verify PIN/QR/request expiration and rate limits under concurrent attempts.
 - [x] Verify public/non-private manual hosts are rejected by default.
 - [x] Document trusted-LAN HTTP limitations in Mac and Android UI/help.
 - [x] Review dependency licenses and known vulnerabilities.
@@ -531,9 +531,11 @@ Security evidence (2026-07-31): every hosted Pub dependency contains a license f
 ### Task 7.3: Performance and soak testing
 
 - [ ] Measure scan-first-result and full-sweep time on at least three routers.
-- [ ] Test a save with 500 messages and decide whether pagination is needed before release.
-- [ ] Run 100 turns with injected disconnect/reconnect events and assert no duplicate commits.
-- [ ] Confirm memory stays bounded for turn event buffers and expired pairing requests.
+- [x] Test a save with 500 messages and decide whether pagination is needed before release.
+- [x] Run 100 turns with injected disconnect/reconnect events and assert no duplicate commits.
+- [x] Confirm memory stays bounded for turn event buffers and expired pairing requests.
+
+Automated resilience evidence (2026-07-31): the Android game list lazily builds a 500-message save, lifecycle resume rechecks the active run, the backend completes a 100-run disconnect/replay soak with exactly 100 persisted run records, and bounded replay/expired-pairing cleanup tests pass. Target-device timings and physical network injection remain open.
 
 ### Task 7.4: CI and Android release path
 

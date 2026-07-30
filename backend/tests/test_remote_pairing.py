@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from datetime import timedelta
 from sqlalchemy import func, select
@@ -104,6 +106,35 @@ async def test_qr_claim_is_single_use(remote_app):
 
 
 @pytest.mark.asyncio
+async def test_concurrent_qr_claim_has_exactly_one_winner(remote_app):
+    app, _, _ = remote_app
+    async with app_client(app) as local:
+        created = await local.post("/remote/admin/pairing/qr")
+    claim = created.json()["claim"]
+
+    async def submit(host: str, device_id: str):
+        async with app_client(app, host) as remote:
+            return await remote.post(
+                "/remote/pair/qr-claim",
+                json={
+                    "device_id": device_id,
+                    "device_name": "QR Phone",
+                    "claim": claim,
+                },
+            )
+
+    results = await asyncio.gather(
+        submit("192.168.1.41", "android-qr-race-1"),
+        submit("192.168.1.42", "android-qr-race-2"),
+    )
+
+    assert sorted(response.status_code for response in results) == [200, 410]
+    assert sum("device_token" in response.json() for response in results) == 1
+    loser = next(response for response in results if response.status_code == 410)
+    assert loser.json()["detail"]["code"] == "claim_invalid"
+
+
+@pytest.mark.asyncio
 async def test_qr_claim_attempts_are_rate_limited_per_ip(remote_app):
     app, _, _ = remote_app
     body = {
@@ -146,6 +177,35 @@ async def test_pin_rate_limit_and_success_closes_window(remote_app):
         )
     assert limited.status_code == 429
     assert limited.json()["detail"]["code"] == "rate_limited"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_pin_exchange_has_exactly_one_winner(remote_app):
+    app, _, _ = remote_app
+    async with app_client(app) as local:
+        opened = await local.post("/remote/admin/pairing/pin")
+    pin = opened.json()["pin"]
+
+    async def submit(host: str, device_id: str):
+        async with app_client(app, host) as remote:
+            return await remote.post(
+                "/remote/pair/pin",
+                json={
+                    "device_id": device_id,
+                    "device_name": "PIN Phone",
+                    "pin": pin,
+                },
+            )
+
+    results = await asyncio.gather(
+        submit("192.168.1.43", "android-pin-race-1"),
+        submit("192.168.1.44", "android-pin-race-2"),
+    )
+
+    assert sorted(response.status_code for response in results) == [200, 409]
+    assert sum("device_token" in response.json() for response in results) == 1
+    loser = next(response for response in results if response.status_code == 409)
+    assert loser.json()["detail"]["code"] == "pairing_closed"
 
 
 @pytest.mark.asyncio

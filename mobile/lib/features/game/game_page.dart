@@ -249,27 +249,29 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   }
 
   Widget _buildMessages(SessionHydration hydration) {
-    return ListView(
+    final tail = <Widget>[
+      if (_pendingAction != null) _PlayerActionCard(action: _pendingAction!),
+      if (_sending || _streamingNarrative.isNotEmpty)
+        _StreamingCard(
+          narrative: _streamingNarrative,
+          waiting: _streamingNarrative.isEmpty,
+        ),
+      if (_turnError != null)
+        Card(
+          color: Theme.of(context).colorScheme.errorContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text(_turnError!),
+          ),
+        ),
+    ];
+    return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        for (final message in hydration.messages)
-          _MessageCard(message: message),
-        if (_pendingAction != null) _PlayerActionCard(action: _pendingAction!),
-        if (_sending || _streamingNarrative.isNotEmpty)
-          _StreamingCard(
-            narrative: _streamingNarrative,
-            waiting: _streamingNarrative.isEmpty,
-          ),
-        if (_turnError != null)
-          Card(
-            color: Theme.of(context).colorScheme.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(_turnError!),
-            ),
-          ),
-      ],
+      itemCount: hydration.messages.length + tail.length,
+      itemBuilder: (context, index) => index < hydration.messages.length
+          ? _MessageCard(message: hydration.messages[index])
+          : tail[index - hydration.messages.length],
     );
   }
 

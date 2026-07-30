@@ -7,6 +7,7 @@ import 'package:dzmm_mobile/features/game/turn_run_client.dart';
 import 'package:dzmm_mobile/features/sessions/session_models.dart';
 import 'package:dzmm_mobile/features/sessions/session_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -64,9 +65,37 @@ void main() {
     );
     expect(sendButton.onPressed, isNull);
 
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(transport.readCalls, greaterThanOrEqualTo(2));
+
     transport.finish.complete();
     await tester.pumpAndSettle();
     expect(transport.createCalls, 1);
+  });
+
+  testWidgets('a 500-message save builds history lazily', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GamePage(
+          session: const GameSessionSummary(
+            id: 4,
+            name: '长篇存档',
+            turnCount: 250,
+          ),
+          repository: SessionRepository(LargeHydrationTransport()),
+          turnClient: TurnRunClient(transport: CompletedTurnTransport()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('长篇存档'), findsOneWidget);
+    expect(find.textContaining('叙事 499'), findsOneWidget);
+    expect(find.byType(MarkdownBody).evaluate().length, lessThan(30));
   });
 }
 
@@ -106,6 +135,31 @@ class FakeHydrationTransport implements SessionTransport {
     '/sessions/4/locations' => [
       {'name': '船舱', 'is_current': true},
     ],
+    _ => throw StateError('Unexpected $path'),
+  };
+}
+
+class LargeHydrationTransport implements SessionTransport {
+  @override
+  Future<Object?> get(
+    String path, {
+    CancellationToken? cancellationToken,
+  }) async => switch (path) {
+    '/sessions/4' => {'id': 4, 'name': '长篇存档', 'turn_count': 250},
+    '/sessions/4/messages' => List.generate(
+      500,
+      (index) => {
+        'id': index + 1,
+        'role': index.isEven ? 'user' : 'assistant',
+        'content': index.isEven
+            ? '行动 $index'
+            : '<narrative>叙事 $index</narrative>',
+        'turn': (index ~/ 2) + 1,
+      },
+    ),
+    '/sessions/4/state' => <String, Object?>{},
+    '/sessions/4/goals' => <Object?>[],
+    '/sessions/4/locations' => <Object?>[],
     _ => throw StateError('Unexpected $path'),
   };
 }
