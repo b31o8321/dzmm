@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import socket
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+
+def _is_supported_lan_ipv4(address: str) -> bool:
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    return (
+        isinstance(parsed, ipaddress.IPv4Address)
+        and parsed.is_private
+        and not parsed.is_loopback
+        and not parsed.is_link_local
+        and not parsed.is_unspecified
+    )
 
 
 def _lan_ipv4_addresses() -> list[bytes]:
@@ -19,14 +34,14 @@ def _lan_ipv4_addresses() -> list[bytes]:
                 address = item.ip
                 if not isinstance(address, str):
                     continue
-                if not address.startswith("127.") and not address.startswith("169.254."):
+                if _is_supported_lan_ipv4(address):
                     addresses.add(address)
     except (ImportError, OSError):
         pass
     try:
         for item in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
             address = item[4][0]
-            if not address.startswith("127.") and not address.startswith("169.254."):
+            if _is_supported_lan_ipv4(address):
                 addresses.add(address)
     except OSError:
         return []

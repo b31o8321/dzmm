@@ -192,10 +192,16 @@ async def test_cors_allows_tauri_and_rejects_unknown_web_origins(remote_app):
             "/sessions",
             headers={"Origin": "tauri://localhost", **preflight_headers},
         )
+        local_dev = await local.options(
+            "/sessions",
+            headers={"Origin": "http://127.0.0.1:25173", **preflight_headers},
+        )
         denied = await local.options(
             "/sessions",
             headers={"Origin": "https://evil.example", **preflight_headers},
         )
     assert allowed.status_code == 200
     assert allowed.headers["access-control-allow-origin"] == "tauri://localhost"
+    assert local_dev.status_code == 200
+    assert local_dev.headers["access-control-allow-origin"] == "http://127.0.0.1:25173"
     assert denied.status_code == 400

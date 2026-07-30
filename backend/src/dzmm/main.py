@@ -76,9 +76,8 @@ def create_app(
             "tauri://localhost",
             "http://tauri.localhost",
             "https://tauri.localhost",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
         ],
+        allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=False,  # 不允许携带 cookie
         allow_methods=["*"],      # 允许所有 HTTP 方法（GET/POST/PUT/DELETE 等）
         allow_headers=["*"],      # 允许所有请求头

@@ -6,7 +6,7 @@ import pytest
 
 from dzmm.db.base import async_session, get_engine, init_db
 from dzmm.main import create_app
-from dzmm.remote.discovery import RemoteDiscovery
+from dzmm.remote.discovery import RemoteDiscovery, _is_supported_lan_ipv4
 
 
 class FakeServiceInfo:
@@ -33,6 +33,14 @@ class FakeZeroconf:
 
     def close(self):
         self.closed = True
+
+
+def test_discovery_only_advertises_private_lan_ipv4():
+    assert _is_supported_lan_ipv4("192.168.31.20")
+    assert _is_supported_lan_ipv4("10.0.0.20")
+    assert not _is_supported_lan_ipv4("100.64.0.170")
+    assert not _is_supported_lan_ipv4("127.0.0.1")
+    assert not _is_supported_lan_ipv4("8.8.8.8")
 
 
 def test_discovery_registers_identity_and_stops(monkeypatch):

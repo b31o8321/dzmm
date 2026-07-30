@@ -211,11 +211,11 @@ real user database.
 - Modify: `frontend/src-tauri/src/lib.rs`
 - Modify: `frontend/tests/api.test.ts` or add a focused component test
 
-- [ ] Remove the startup local/LAN choice and start `lan_mode=false` automatically in Tauri.
-- [ ] Track backend mode and transition state explicitly rather than with only `lanMode: bool`.
-- [ ] Extend Tauri commands to report backend state and restart local/remote predictably.
-- [ ] Pass an explicit remote-mode environment flag so FastAPI knows whether to advertise and enforce the remote control plane.
-- [ ] Preserve close-window sidecar cleanup.
+- [x] Remove the startup local/LAN choice and start `lan_mode=false` automatically in Tauri.
+- [x] Track backend mode and transition state explicitly rather than with only `lanMode: bool`.
+- [x] Extend Tauri commands to report backend state and restart local/remote predictably.
+- [x] Pass an explicit remote-mode environment flag so FastAPI knows whether to advertise and enforce the remote control plane.
+- [x] Preserve close-window sidecar cleanup.
 
 ### Task 2.2: Build the Settings remote-access card
 
@@ -227,14 +227,14 @@ real user database.
 - Modify: `frontend/src/stores/app.ts`
 - Add focused Vitest coverage
 
-- [ ] Show local/remote/restarting/error status and current LAN addresses.
-- [ ] Enable only after trusted-network confirmation and backend health probe.
-- [ ] Disable by returning to loopback; retain paired devices.
-- [ ] Show pending phone requests with approve/deny actions.
-- [ ] Generate/expire QR and PIN pairing windows.
-- [ ] List paired devices with paired/last-seen timestamps and revoke action.
-- [ ] Poll only while the card is visible or a pairing window is active.
-- [ ] Cover loading, empty, failure, recovery, and refresh/re-entry states.
+- [x] Show local/remote/restarting/error status and current LAN addresses.
+- [x] Enable only after trusted-network confirmation and backend health probe.
+- [x] Disable by returning to loopback; retain paired devices.
+- [x] Show pending phone requests with approve/deny actions.
+- [x] Generate/expire QR and PIN pairing windows.
+- [x] List paired devices with paired/last-seen timestamps and revoke action.
+- [x] Poll only while the card is visible or a pairing window is active.
+- [x] Cover loading, empty, failure, recovery, and refresh/re-entry states.
 - [ ] Keep Windows desktop builds green; do not claim Windows remote-host support until it has its own acceptance matrix.
 
 ### Task 2.3: Package-level LAN acceptance
@@ -246,6 +246,15 @@ real user database.
 - [ ] Verify the macOS firewall prompt/help text if it appears.
 
 **Gate 2:** packaged Mac app can control remote exposure and pairing without a browser or menu-bar utility.
+
+**Gate 2 partial evidence (2026-07-31):** the Mac settings control plane is covered
+by 6 passing Vitest tests, 2 passing Playwright journeys, `cargo check`, and a
+successful packaged `.app`/DMG build. Using the packaged sidecar with an isolated
+HOME and port 39123 proved `127.0.0.1 -> 0.0.0.0 -> 127.0.0.1`, stable
+`server_id`, LAN allow/deny, remote 401/403 route boundaries, and public pairing
+request creation without accessing the real database. The installed app currently
+owns port 8765, so the same transition has not yet been clicked through from the
+packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
 
 ## Phase 3 — Single-writer, idempotent, reconnectable turns
 

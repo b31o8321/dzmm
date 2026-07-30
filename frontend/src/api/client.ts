@@ -52,6 +52,10 @@ export interface HealthInfo {
   status: string
   version: string
   ok: boolean
+  server_id?: string
+  api_version?: number
+  remote_access?: boolean
+  capabilities?: string[]
 }
 
 export async function fetchHealth(timeoutMs = 2000): Promise<HealthInfo | null> {

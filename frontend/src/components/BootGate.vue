@@ -11,14 +11,13 @@ interface SystemStatus {
 }
 
 type Phase =
-  | 'choose_mode'      // tauri: show welcome dialog
   | 'backend'          // waiting for /health
   | 'ollama_starting'  // ollama not yet up
   | 'ollama_missing'   // ollama install required
   | 'ready'
 
 const appStore = useAppStore()
-const phase = ref<Phase>(appStore.isTauri ? 'choose_mode' : 'backend')
+const phase = ref<Phase>('backend')
 const elapsed = ref(0)
 const platform = ref('')
 const errorDetail = ref('')
@@ -193,65 +192,38 @@ async function bootAfterBackendStarted() {
   }
 }
 
-async function chooseLocal() {
-  if (appStore.isTauri) {
-    logIt('frontend', 'info', '用户选择仅本机模式，调用 start_backend(lanMode=false)')
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('start_backend', { lanMode: false })
-      logIt('frontend', 'info', 'start_backend 命令成功返回')
-    } catch (e: any) {
-      const msg = `start_backend failed: ${e.message ?? e}`
-      logIt('frontend', 'error', msg)
-      errorDetail.value = msg
-      return
-    }
-  }
-  appStore.lanMode = false
-  appStore.lanUrl = null
-  await bootAfterBackendStarted()
-}
-
-async function chooseLan() {
-  if (appStore.isTauri) {
-    logIt('frontend', 'info', '用户选择 LAN 模式，调用 start_backend(lanMode=true)')
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('start_backend', { lanMode: true })
-      const url = await invoke<string>('get_lan_url')
-      appStore.lanUrl = url
-      logIt('frontend', 'info', `LAN URL: ${url}`)
-    } catch (e: any) {
-      const msg = `start_backend failed: ${e.message ?? e}`
-      logIt('frontend', 'error', msg)
-      errorDetail.value = msg
-      return
-    }
-  }
-  appStore.lanMode = true
-  await bootAfterBackendStarted()
-}
-
 async function retry() {
   errorDetail.value = ''
   logIt('frontend', 'info', '用户点击重试')
   if (appStore.isTauri) {
-    phase.value = 'choose_mode'
-  } else {
-    phase.value = 'backend'
-    elapsed.value = 0
-    await bootAfterBackendStarted()
+    try {
+      await appStore.startLocalBackend()
+    } catch (e: any) {
+      errorDetail.value = `start_backend failed: ${e?.message ?? e}`
+      return
+    }
   }
+  phase.value = 'backend'
+  elapsed.value = 0
+  await bootAfterBackendStarted()
 }
 
 onMounted(async () => {
   logIt('frontend', 'info', `BootGate 挂载，模式=${appStore.isTauri ? 'tauri' : 'browser'}`)
   await attachTauriBackendLog()
-  if (!appStore.isTauri) {
-    // Browser dev mode — backend is already running externally.
-    await bootAfterBackendStarted()
+  if (appStore.isTauri) {
+    logIt('frontend', 'info', '桌面端自动以仅本机模式启动后端')
+    try {
+      await appStore.startLocalBackend()
+      logIt('frontend', 'info', '仅本机后端进程已启动')
+    } catch (e: any) {
+      const msg = `start_backend failed: ${e?.message ?? e}`
+      logIt('frontend', 'error', msg)
+      errorDetail.value = msg
+      return
+    }
   }
-  // Tauri mode — wait for user to click a button in the welcome dialog.
+  await bootAfterBackendStarted()
 })
 
 onUnmounted(() => {
@@ -262,54 +234,6 @@ onUnmounted(() => {
 <template>
   <slot v-if="phase === 'ready'" />
 
-  <div v-else-if="phase === 'choose_mode'"
-       class="h-full flex items-center justify-center bg-slate-50 px-6">
-    <div class="max-w-xl w-full space-y-6">
-      <div class="text-center space-y-2">
-        <div class="text-3xl font-bold text-slate-800">欢迎使用 dzmm</div>
-        <div class="text-sm text-slate-500">启动前选一个模式</div>
-      </div>
-
-      <div class="grid grid-cols-1 gap-3">
-        <button
-          type="button"
-          class="text-left bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200 rounded-lg p-5 transition shadow-sm"
-          @click="chooseLocal"
-        >
-          <div class="font-bold text-lg text-slate-800 mb-1">仅本机使用</div>
-          <div class="text-sm text-slate-500">
-            后端只监听本机 127.0.0.1，最安全。
-          </div>
-        </button>
-
-        <button
-          type="button"
-          class="text-left bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 rounded-lg p-5 transition shadow-sm"
-          @click="chooseLan"
-        >
-          <div class="font-bold text-lg text-amber-900 mb-1">
-            启用手机访问 <span class="text-xs font-normal text-amber-700 ml-1">(同 WiFi)</span>
-          </div>
-          <div class="text-sm text-amber-800">
-            后端监听 0.0.0.0，启动后会显示手机要访问的地址。
-            <strong>仅在你信任当前网络时使用</strong>（家里 WiFi OK，咖啡店 WiFi 别开）。
-          </div>
-        </button>
-      </div>
-
-      <div v-if="errorDetail"
-           class="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded">
-        {{ errorDetail }}
-      </div>
-
-      <div class="text-center">
-        <el-button size="small" link @click="logDialogOpen = true">
-          📋 启动日志（{{ bootLog.length }} 条）
-        </el-button>
-      </div>
-    </div>
-  </div>
-
   <div v-else-if="phase === 'backend'"
        class="h-full flex items-center justify-center bg-slate-50">
     <div class="text-center space-y-3 max-w-sm">
@@ -317,10 +241,16 @@ onUnmounted(() => {
       <div class="text-sm text-slate-500">
         首次启动需要解压依赖，通常 5–25 秒（已等待 {{ elapsed }}s）
       </div>
+      <div v-if="errorDetail" class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        {{ errorDetail }}
+      </div>
       <el-progress :percentage="Math.min(elapsed * 5, 95)" :show-text="false" />
       <div class="pt-2">
         <el-button size="small" @click="logDialogOpen = true">
           📋 查看启动日志（{{ bootLog.length }} 条）
+        </el-button>
+        <el-button v-if="errorDetail" size="small" type="primary" @click="retry">
+          重试
         </el-button>
       </div>
     </div>
