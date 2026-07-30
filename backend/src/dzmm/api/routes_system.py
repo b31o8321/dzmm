@@ -26,7 +26,7 @@ import subprocess  # subprocess.Popen() — 启动子进程
 import sys         # sys.platform — 当前操作系统标识（'darwin'=macOS, 'win32'=Windows, 'linux'=Linux）
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 # __version__ — 从包的 __init__.py 里导入当前版本号，如 "0.9.0"
 from dzmm import __version__
@@ -44,15 +44,24 @@ health_router = APIRouter(tags=["system"])
 OLLAMA_URL = "http://localhost:11434/api/tags"
 
 
+async def get_remote_health_dep() -> dict:
+    return {
+        "server_id": "",
+        "api_version": 0,
+        "remote_access": False,
+        "capabilities": [],
+    }
+
+
 # GET /health
 # 最简单的健康检查接口，返回 {"ok": True, "status": "ok", "version": "x.y.z"}
 # 前端启动时轮询这个接口，直到后端启动完成
 @health_router.get("/health")
-async def health() -> dict:
+async def health(remote: dict = Depends(get_remote_health_dep)) -> dict:
     """Liveness probe + version surface. The frontend reads `version` to detect
     backend/frontend skew after a desktop upgrade."""
     # __version__ 让前端能检测版本是否匹配，防止前端和后端版本不一致导致的奇怪问题
-    return {"ok": True, "status": "ok", "version": __version__}
+    return {"ok": True, "status": "ok", "version": __version__, **remote}
 
 
 # 内部函数：尝试访问 Ollama API，判断 Ollama 是否正在运行

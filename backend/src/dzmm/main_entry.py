@@ -26,6 +26,12 @@ def main():
     # 默认只监听本机回环地址（127.0.0.1），外部设备无法直接访问，保证桌面应用的安全性
     # 如需局域网访问，可设置 DZMM_HOST=0.0.0.0
     host = os.environ.get('DZMM_HOST', '127.0.0.1')
+    # Explicitly expose the trust boundary to FastAPI. Keep compatibility with
+    # older Tauri callers that only set DZMM_HOST when LAN mode is selected.
+    os.environ.setdefault(
+        'DZMM_REMOTE_ACCESS',
+        '1' if host in {'0.0.0.0', '::'} else '0',
+    )
 
     # 内部异步函数：先构建 FastAPI 应用，再启动 uvicorn 服务器
     # 之所以单独定义 async def run()，是因为 build_default_app() 是异步函数（它要做数据库 I/O），

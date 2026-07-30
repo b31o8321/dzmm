@@ -82,10 +82,10 @@ Names may be adjusted to match code discovered during implementation, but respon
 - Create: `backend/src/dzmm/remote/auth.py`
 - Create: `backend/tests/test_remote_auth.py`
 
-- [ ] Define `REMOTE_API_VERSION = 1` and capability names.
-- [ ] Encode route classes as an explicit allowlist: public pairing, paired gameplay, loopback-only, denied.
-- [ ] Test every registered route against its expected class; fail when a new route is accidentally remotely exposed.
-- [ ] Test that socket peer identity—not `X-Forwarded-For`—controls loopback classification.
+- [x] Define `REMOTE_API_VERSION = 1` and capability names.
+- [x] Encode route classes as an explicit allowlist: public pairing, paired gameplay, loopback-only, denied.
+- [x] Test every registered route against its expected class; fail when a new route is accidentally remotely exposed.
+- [x] Test that socket peer identity—not `X-Forwarded-For`—controls loopback classification.
 
 **Verify:**
 
@@ -102,11 +102,15 @@ cd backend
 - Modify: `backend/tests/conftest.py`
 - Create: `backend/tests/remote_helpers.py`
 
-- [ ] Add a temporary SQLite fixture with remote identity/device rows.
-- [ ] Add helpers for loopback, unpaired LAN, paired LAN, revoked token, and malformed token requests.
-- [ ] Ensure secrets and tokens are redacted from captured logs and assertion output.
+- [x] Add a temporary SQLite fixture with remote identity/device rows.
+- [x] Add helpers for loopback, unpaired LAN, paired LAN, revoked token, and malformed token requests.
+- [x] Ensure secrets and tokens are redacted from captured logs and assertion output.
 
 **Gate 0:** contract tests demonstrate the intended boundary before any LAN listener is considered safe.
+
+**Gate 0 evidence (2026-07-31):** the explicit route-policy matrix, socket-peer tests,
+temporary SQLite fixtures, token hashing, and loopback/LAN request helpers pass in the
+focused remote suite. New routes default to local-only.
 
 ## Phase 1 — Remote identity, authorization, pairing, and discovery
 
@@ -119,12 +123,12 @@ cd backend
 - Create: `backend/src/dzmm/remote/pairing.py`
 - Create: `backend/tests/test_remote_pairing.py`
 
-- [ ] Add a singleton remote server state with stable UUIDv4 `server_id`.
-- [ ] Add paired-device rows: `device_id`, name, token hash, paired/last-seen/revoked timestamps.
-- [ ] Add pending pair requests and durable metadata only where restart behavior requires it; keep PIN and QR claim secrets in memory.
-- [ ] Generate at least 256-bit device tokens and persist only SHA-256 hashes.
-- [ ] Re-pairing one `device_id` rotates the token atomically.
-- [ ] Add backwards-compatible, idempotent startup migration tests.
+- [x] Add a singleton remote server state with stable UUIDv4 `server_id`.
+- [x] Add paired-device rows: `device_id`, name, token hash, paired/last-seen/revoked timestamps.
+- [x] Add pending pair requests and durable metadata only where restart behavior requires it; keep PIN and QR claim secrets in memory.
+- [x] Generate at least 256-bit device tokens and persist only SHA-256 hashes.
+- [x] Re-pairing one `device_id` rotates the token atomically.
+- [x] Add backwards-compatible, idempotent startup migration tests.
 
 **Verify:** new DB, upgraded DB, repeated startup, token rotation, and no plaintext-token persistence.
 
@@ -136,12 +140,12 @@ cd backend
 - Create/modify: `backend/src/dzmm/remote/auth.py`
 - Modify: `backend/tests/test_remote_auth.py`
 
-- [ ] Add middleware/dependency that classifies loopback, public pairing, paired gameplay, and forbidden remote requests.
-- [ ] Compare token hashes in constant time and reject revoked devices.
-- [ ] Update last-seen without blocking every request on a DB write; coalesce persistence.
-- [ ] Replace wildcard CORS with Tauri plus local Vite origins.
-- [ ] Return stable JSON error codes for 401/403/409 responses.
-- [ ] Prove that model, wizard, debug, asset mutation, TTS admin, update, and remote-admin routes are inaccessible from LAN.
+- [x] Add middleware/dependency that classifies loopback, public pairing, paired gameplay, and forbidden remote requests.
+- [x] Compare token hashes in constant time and reject revoked devices.
+- [x] Update last-seen without blocking every request on a DB write; coalesce persistence.
+- [x] Replace wildcard CORS with Tauri plus local Vite origins.
+- [x] Return stable JSON error codes for 401/403/409 responses.
+- [x] Prove that model, wizard, debug, asset mutation, TTS admin, update, and remote-admin routes are inaccessible from LAN.
 
 ### Task 1.3: Implement pairing APIs
 
@@ -152,13 +156,13 @@ cd backend
 - Modify: `backend/src/dzmm/main.py`
 - Modify: `backend/tests/test_remote_pairing.py`
 
-- [ ] Implement 60-second phone requests and request-specific long polling.
-- [ ] Implement loopback-only list/approve/deny endpoints.
-- [ ] Implement five-minute, one-time QR claims; never embed admin/device tokens.
-- [ ] Implement five-minute PIN windows, five-failure cooldown, and one-success close.
-- [ ] Cap global pending requests and per-IP request frequency.
-- [ ] Implement device list/revoke and ensure revocation affects the next request.
-- [ ] Ensure all timers and poll waiters clean up on expiry/shutdown.
+- [x] Implement 60-second phone requests and request-specific long polling.
+- [x] Implement loopback-only list/approve/deny endpoints.
+- [x] Implement five-minute, one-time QR claims; never embed admin/device tokens.
+- [x] Implement five-minute PIN windows, five-failure cooldown, and one-success close.
+- [x] Cap global pending requests and per-IP request frequency.
+- [x] Implement device list/revoke and ensure revocation affects the next request.
+- [x] Ensure all timers and poll waiters clean up on expiry/shutdown.
 
 ### Task 1.4: Add discovery identity and mDNS
 
@@ -171,10 +175,10 @@ cd backend
 - Modify: `backend/pyproject.toml`
 - Create: `backend/tests/test_remote_discovery.py`
 
-- [ ] Extend `/health` with `server_id`, `api_version`, `remote_access`, and capabilities.
-- [ ] Advertise `_dzmm._tcp.local` only when remote mode is enabled.
-- [ ] Stop advertisement reliably on shutdown and tolerate mDNS failure without crashing gameplay.
-- [ ] Avoid logging tokens, PINs, or claim values.
+- [x] Extend `/health` with `server_id`, `api_version`, `remote_access`, and capabilities.
+- [x] Advertise `_dzmm._tcp.local` only when remote mode is enabled.
+- [x] Stop advertisement reliably on shutdown and tolerate mDNS failure without crashing gameplay.
+- [x] Avoid logging tokens, PINs, or claim values.
 
 **Gate 1 verification:**
 
@@ -189,6 +193,12 @@ cd backend
 ```
 
 Do not proceed to Android gameplay until the remote authorization matrix is green.
+
+**Gate 1 evidence (2026-07-31):** `36 passed` in the focused remote suite;
+`906 passed, 1 skipped` in the complete backend suite; full Ruff passed. A local
+mDNS smoke registered `_dzmm._tcp.local` on both detected LAN IPv4 addresses and
+unregistered cleanly. Tests use temporary SQLite databases and did not touch the
+real user database.
 
 ## Phase 2 — Mac app remote-access control plane
 

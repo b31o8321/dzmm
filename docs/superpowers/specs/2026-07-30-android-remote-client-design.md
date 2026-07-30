@@ -210,7 +210,7 @@ CORS must no longer use wildcard origins. It permits the known Tauri origin and 
 ```text
 GET    /health
 POST   /remote/pair/requests
-GET    /remote/pair/requests/{request_id}?secret=...
+GET    /remote/pair/requests/{request_id}  (secret in `X-DZMM-Pair-Secret`)
 POST   /remote/pair/pin
 POST   /remote/pair/qr-claim
 ```
