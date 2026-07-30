@@ -337,14 +337,16 @@ class TurnRunManager:
         assistant_message_id: int | None = None
         error_code: str | None = None
         error_message: str | None = None
+        terminal_event: tuple[str, str] | None = None
         try:
             async for event in producer_factory():
                 name = str(event.get("event", "message"))
                 raw_data = event.get("data", "")
                 data = raw_data if isinstance(raw_data, str) else json.dumps(raw_data)
-                await hub.publish(name, data)
                 if name not in {"done", "error"}:
+                    await hub.publish(name, data)
                     continue
+                terminal_event = (name, data)
                 try:
                     payload = json.loads(data)
                 except (TypeError, json.JSONDecodeError):
@@ -375,14 +377,12 @@ class TurnRunManager:
                 error_code="run_interrupted",
                 error_message="The backend stopped before this turn completed",
             )
-            await hub.publish(
+            terminal_event = (
                 "error",
-                json.dumps(
-                    {
-                        "code": "run_interrupted",
-                        "message": "The backend stopped before this turn completed",
-                    }
-                ),
+                json.dumps({
+                    "code": "run_interrupted",
+                    "message": "The backend stopped before this turn completed",
+                }),
             )
             raise
         except Exception as exc:  # noqa: BLE001
@@ -392,14 +392,16 @@ class TurnRunManager:
                 error_code="model_error",
                 error_message=str(exc),
             )
-            await hub.publish(
+            terminal_event = (
                 "error",
                 json.dumps({"code": "model_error", "message": str(exc)}),
             )
         finally:
-            await hub.close()
             self._leases.pop(run_id, None)
             await lease.release()
+            if terminal_event is not None:
+                await hub.publish(*terminal_event)
+            await hub.close()
 
     async def subscribe(
         self, run_id: str, last_event_id: int

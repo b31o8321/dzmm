@@ -307,6 +307,53 @@ async def test_repeated_active_create_is_idempotent_and_other_request_is_busy(tu
 
 
 @pytest.mark.asyncio
+async def test_terminal_event_is_visible_only_after_session_lease_release(turn_run_db):
+    session_maker, session_id = turn_run_db
+
+    class BlockingReleaseCoordinator(SessionTurnCoordinator):
+        def __init__(self):
+            super().__init__()
+            self.release_started = asyncio.Event()
+            self.allow_release = asyncio.Event()
+
+        async def release(self, session_id: int, run_id: str) -> None:
+            self.release_started.set()
+            await self.allow_release.wait()
+            await super().release(session_id, run_id)
+
+    coordinator = BlockingReleaseCoordinator()
+    manager = TurnRunManager(session_maker, coordinator)
+
+    async def producer():
+        yield {"event": "done", "data": '{"assistant_msg_id":1}'}
+
+    first, _ = await manager.create_or_get(
+        session_id=session_id,
+        request_id="first-request",
+        action="第一回合",
+        producer_factory=producer,
+    )
+    stream = await manager.subscribe(first["run_id"], 0)
+    terminal = asyncio.create_task(anext(stream))
+    await coordinator.release_started.wait()
+
+    assert terminal.done() is False
+    coordinator.allow_release.set()
+    event = await terminal
+    assert event["event"] == "done"
+    assert await coordinator.get_active(session_id) is None
+
+    second, created = await manager.create_or_get(
+        session_id=session_id,
+        request_id="second-request",
+        action="第二回合",
+        producer_factory=producer,
+    )
+    assert created is True
+    await manager.wait(second["run_id"])
+
+
+@pytest.mark.asyncio
 async def test_turn_run_api_commits_only_one_message_pair_for_repeated_submit(
     turn_run_db,
     monkeypatch,

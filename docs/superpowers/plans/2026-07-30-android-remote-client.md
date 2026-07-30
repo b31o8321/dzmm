@@ -504,7 +504,7 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 
 **Gate 6:** fresh-pair-to-three-turn journey passes on a packaged Mac app and physical Android device.
 
-Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/release APK builds, 33 backend remote-auth/turn-run tests, 9 Vue tests, and the Vue production build pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
+Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/release APK and release AAB builds, 923 backend tests plus Ruff, 9 Vue tests, the Vue production build, and the local Playwright SSE recovery journey pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
 
 ## Phase 7 — Resilience, security review, and release
 
@@ -524,7 +524,9 @@ Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/rele
 - [ ] Verify PIN/QR/request expiration and rate limits under concurrent attempts.
 - [x] Verify public/non-private manual hosts are rejected by default.
 - [x] Document trusted-LAN HTTP limitations in Mac and Android UI/help.
-- [ ] Review dependency licenses and known vulnerabilities.
+- [x] Review dependency licenses and known vulnerabilities.
+
+Security evidence (2026-07-31): every hosted Pub dependency contains a license file and an OSV batch query for the resolved Pub dependency graph returned no known vulnerabilities.
 
 ### Task 7.3: Performance and soak testing
 
@@ -542,9 +544,11 @@ Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/rele
 
 - [x] CI runs `flutter analyze`, unit/widget tests, and release APK/AAB build.
 - [x] Keep signing secrets out of the repository and document local/internal signing setup.
-- [ ] Upload an installable internal artifact with checksum.
+- [x] Upload an installable internal artifact with checksum.
 - [ ] Keep desktop release workflow green after backend/Tauri changes.
 - [ ] Decide Play distribution only after internal RC acceptance; it is not required for the first local install.
+
+CI evidence (2026-07-31): [Android run 30573547536](https://github.com/b31o8321/dzmm/actions/runs/30573547536) passed analyze, 43 tests, debug APK, unsigned release APK/AAB, checksums, and artifact upload.
 
 ### Task 7.5: Final maturity review
 
