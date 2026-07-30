@@ -36,5 +36,10 @@ Then build with `flutter build apk --release` or
 the repository. Without all four values, Gradle may produce an unsigned release
 artifact for build verification, but it is not an installable release.
 
+The Android CI workflow uploads `dzmm-internal-debug.apk` as the installable
+internal test artifact. Verify `SHA256SUMS` after download, then install it with
+`adb install -r dzmm-internal-debug.apk`. Files named `unsigned-release` are
+compile/release-mode evidence only and must not be distributed as an RC.
+
 The Android application ID is `com.dzmm.mobile`. Flutter stable 3.44 currently
 sets the minimum supported Android SDK to 24.

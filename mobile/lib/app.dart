@@ -8,6 +8,7 @@ import 'api/sse_client.dart';
 import 'connection/connection_controller.dart';
 import 'connection/lan_scanner.dart';
 import 'connection/paired_server.dart';
+import 'connection/reconnect_service.dart';
 import 'features/game/game_page.dart';
 import 'features/game/turn_run_client.dart';
 import 'features/pairing/connection_onboarding_page.dart';
@@ -52,15 +53,41 @@ class DzmmApp extends StatelessWidget {
   }
 }
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   var _selectedIndex = 0;
+  ReconnectService? _reconnectService;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final service = ReconnectService(
+        store: ref.read(connectionStoreProvider),
+        connect: connectionControllerConnector(
+          ref.read(connectionControllerProvider.notifier),
+        ),
+      );
+      _reconnectService = service;
+      service.start();
+      unawaited(service.reconnectNow());
+    });
+  }
+
+  @override
+  void dispose() {
+    final service = _reconnectService;
+    _reconnectService = null;
+    if (service != null) unawaited(service.dispose());
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -504,7 +504,7 @@ Automated evidence (2026-07-31): fake-server, parser, controller, and widget cov
 
 **Gate 6:** fresh-pair-to-three-turn journey passes on a packaged Mac app and physical Android device.
 
-Automated evidence (2026-07-31): `flutter analyze`, 42 Flutter tests, debug/release APK builds, 33 backend remote-auth/turn-run tests, 9 Vue tests, and the Vue production build pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
+Automated evidence (2026-07-31): `flutter analyze`, 43 Flutter tests, debug/release APK builds, 33 backend remote-auth/turn-run tests, 9 Vue tests, and the Vue production build pass. Packaged-Mac, physical-device, and real-model acceptance remains open.
 
 ## Phase 7 — Resilience, security review, and release
 
@@ -519,11 +519,11 @@ Automated evidence (2026-07-31): `flutter analyze`, 42 Flutter tests, debug/rele
 
 ### Task 7.2: Security review
 
-- [ ] Route-policy test covers every FastAPI route.
+- [x] Route-policy test covers every FastAPI route.
 - [ ] Inspect DB, logs, Android preferences, crash output, QR payload, and URLs for secret leakage.
 - [ ] Verify PIN/QR/request expiration and rate limits under concurrent attempts.
-- [ ] Verify public/non-private manual hosts are rejected by default.
-- [ ] Document trusted-LAN HTTP limitations in Mac and Android UI/help.
+- [x] Verify public/non-private manual hosts are rejected by default.
+- [x] Document trusted-LAN HTTP limitations in Mac and Android UI/help.
 - [ ] Review dependency licenses and known vulnerabilities.
 
 ### Task 7.3: Performance and soak testing
@@ -540,8 +540,8 @@ Automated evidence (2026-07-31): `flutter analyze`, 42 Flutter tests, debug/rele
 - Create: `.github/workflows/android.yml`
 - Modify: release documentation and `CHANGELOG.md` only when the feature is accepted
 
-- [ ] CI runs `flutter analyze`, unit/widget tests, and release APK/AAB build.
-- [ ] Keep signing secrets out of the repository and document local/internal signing setup.
+- [x] CI runs `flutter analyze`, unit/widget tests, and release APK/AAB build.
+- [x] Keep signing secrets out of the repository and document local/internal signing setup.
 - [ ] Upload an installable internal artifact with checksum.
 - [ ] Keep desktop release workflow green after backend/Tauri changes.
 - [ ] Decide Play distribution only after internal RC acceptance; it is not required for the first local install.

@@ -19,7 +19,7 @@ class ReconnectState {
 typedef ReconnectScanner =
     Stream<DiscoveredServer> Function(List<PairedServer> servers);
 typedef ReconnectConnector =
-    Future<void> Function(PairedServer server, Uri host, String deviceToken);
+    Future<bool> Function(PairedServer server, Uri host, String deviceToken);
 
 class ReconnectService {
   ReconnectService({
@@ -83,7 +83,12 @@ class ReconnectService {
         if (server == null) continue;
         final pairing = await _connectionStore.loadPairing(server.serverId);
         if (pairing == null) continue;
-        await _connector(server, found.endpoint.uri, pairing.deviceToken);
+        final connected = await _connector(
+          server,
+          found.endpoint.uri,
+          pairing.deviceToken,
+        );
+        if (!connected) continue;
         _emit(
           ReconnectState(
             status: ReconnectStatus.connected,

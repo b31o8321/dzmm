@@ -56,6 +56,7 @@ void main() {
           expect(matched.serverId, server.serverId);
           expect(token, 'device-token');
           connections.add(host);
+          return true;
         },
       );
       service.start();
@@ -71,4 +72,58 @@ void main() {
       await changes.close();
     },
   );
+
+  test('continues scanning when a matching endpoint cannot connect', () async {
+    const server = PairedServer(
+      serverId: 'server-1',
+      name: '书房 Mac',
+      port: 8765,
+      recentHosts: ['192.168.1.7'],
+    );
+    final store = ConnectionStore(
+      preferences: MemoryPreferences(),
+      secrets: MemorySecrets(),
+    );
+    await store.savePairing(server, 'device-token');
+    final endpoints = [
+      const HostEndpoint(
+        host: '192.168.1.7',
+        port: 8765,
+        source: DiscoverySource.recent,
+      ),
+      const HostEndpoint(
+        host: '192.168.1.22',
+        port: 8765,
+        source: DiscoverySource.mdns,
+      ),
+    ];
+    final attempted = <String>[];
+    final service = ReconnectService(
+      store: store,
+      scan: (_) => Stream.fromIterable(
+        endpoints.map(
+          (endpoint) => DiscoveredServer(
+            health: HealthInfo(
+              version: '0.16.0',
+              apiVersion: 1,
+              serverId: server.serverId,
+              remoteAccess: true,
+              capabilities: const {'session_hydration'},
+            ),
+            endpoint: endpoint,
+            name: server.name,
+          ),
+        ),
+      ),
+      connect: (_, host, _) async {
+        attempted.add(host.host);
+        return host.host == '192.168.1.22';
+      },
+    );
+
+    await service.reconnectNow();
+
+    expect(attempted, ['192.168.1.7', '192.168.1.22']);
+    await service.dispose();
+  });
 }

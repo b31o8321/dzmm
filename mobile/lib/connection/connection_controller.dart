@@ -71,7 +71,7 @@ class ConnectionController extends StateNotifier<DzmmConnectionState> {
     state = DzmmConnectionState(status: ConnectionStatus.pairing, host: host);
   }
 
-  Future<void> connect({
+  Future<bool> connect({
     required PairedServer server,
     required Uri host,
     required String deviceToken,
@@ -89,7 +89,7 @@ class ConnectionController extends StateNotifier<DzmmConnectionState> {
       final health = await client.health(cancellationToken: cancellation);
       _validateIdentity(server, health);
       await client.getJson('/sessions', cancellationToken: cancellation);
-      if (cancellation.isCancelled) return;
+      if (cancellation.isCancelled) return false;
       await _connectionStore.updateRecentHost(server.serverId, host.host);
       final refreshed = (await _connectionStore.loadServers())
           .where((item) => item.serverId == server.serverId)
@@ -99,8 +99,9 @@ class ConnectionController extends StateNotifier<DzmmConnectionState> {
         server: refreshed ?? server,
         host: host,
       );
+      return true;
     } on ApiError catch (error) {
-      if (error.code == 'cancelled') return;
+      if (error.code == 'cancelled') return false;
       if (error.isAuthenticationFailure) {
         await _connectionStore.markRevoked(server.serverId);
         state = DzmmConnectionState(
@@ -124,6 +125,7 @@ class ConnectionController extends StateNotifier<DzmmConnectionState> {
           errorCode: error.code,
         );
       }
+      return false;
     } finally {
       client.close();
       if (identical(_activeCancellation, cancellation)) {
