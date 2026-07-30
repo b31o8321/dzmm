@@ -243,7 +243,7 @@ cannot reveal event-loop blocking during FastAPI startup.
 - [x] List paired devices with paired/last-seen timestamps and revoke action.
 - [x] Poll only while the card is visible or a pairing window is active.
 - [x] Cover loading, empty, failure, recovery, and refresh/re-entry states.
-- [ ] Keep Windows desktop builds green; do not claim Windows remote-host support until it has its own acceptance matrix.
+- [x] Keep Windows desktop builds green; do not claim Windows remote-host support until it has its own acceptance matrix.
 
 ### Task 2.3: Package-level LAN acceptance
 
@@ -268,7 +268,9 @@ The latest branch build produced a 111 MB DMG with SHA-256
 `hdiutil verify` passes and the packaged sidecar again passed isolated local
 and LAN smoke checks. The rebuilt packaged sidecar is also discoverable through
 macOS `dns-sd`, including its dynamic port, `server_id`, version, API version,
-and pairing flag. LAN readiness took about 23 seconds. The app is not a
+and pairing flag. Five isolated cold launches reached healthy LAN state with
+mDNS active in 1.817–2.046 seconds (median 1.933 seconds), superseding the
+pre-fix 23-second timeout observation. The app is not a
 distribution RC: its complete ad-hoc signature seals resources and passes
 strict `codesign`, but Gatekeeper rejects it because it has no Developer ID
 or notarization. The reproducible internal-build command is
@@ -556,6 +558,11 @@ Security evidence (2026-07-31): every hosted Pub dependency contains a license f
 
 Automated resilience evidence (2026-07-31): the Android game list lazily builds a 500-message save, lifecycle resume rechecks the active run, the backend completes a 100-run disconnect/replay soak with exactly 100 persisted run records, and bounded replay/expired-pairing cleanup tests pass. Target-device timings and physical network injection remain open.
 
+Packaged-host performance evidence (2026-07-31): five isolated fresh-database
+LAN launches reached `/health` with mDNS registered in 1.817, 1.913, 1.933,
+1.958, and 2.046 seconds. Phone scan-first-result, full-sweep, render, and SSE
+chunk timings remain open.
+
 ### Task 7.4: CI and Android release path
 
 **Files:**
@@ -566,14 +573,14 @@ Automated resilience evidence (2026-07-31): the Android game list lazily builds 
 - [x] CI runs `flutter analyze`, unit/widget tests, and release APK/AAB build.
 - [x] Keep signing secrets out of the repository and document local/internal signing setup.
 - [x] Upload an installable internal artifact with checksum.
-- [ ] Keep desktop release workflow green after backend/Tauri changes.
+- [x] Keep desktop release workflow green after backend/Tauri changes.
 - [ ] Decide Play distribution only after internal RC acceptance; it is not required for the first local install.
 
 CI evidence (2026-07-31): [Android run 30575604848](https://github.com/b31o8321/dzmm/actions/runs/30575604848) passed analyze, 44 tests, debug APK, unsigned release APK/AAB, checksums, and artifact upload. The artifact was downloaded locally; ZIP integrity and all three included SHA-256 entries pass. The debug APK has one Android Debug v2 signer; the release APK and AAB are confirmed unsigned. A local RSA-3072 `dzmm Internal RC` identity then produced a signed release APK/AAB pair with matching certificate SHA-256 and passing artifact checksums; the ignored mode-600 keystore must be preserved for compatible upgrades. [E2E run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869) passes both Playwright journeys.
 
 ### Task 7.5: Final maturity review
 
-- [ ] Score all eight dimensions from the spec with links to evidence.
+- [x] Score all eight dimensions from the spec with links to evidence.
 - [ ] Require total ≥85 and every P0 dimension ≥80.
 - [ ] Close all P0 defects or explicitly stop release.
 - [ ] Produce the final Mac build, Android artifact, acceptance report, and known-limitations list.
@@ -611,11 +618,11 @@ Each commit must keep its relevant test set green. Do not combine security found
 ## Definition of done
 
 - [ ] Spec P0 requirements implemented with no unapproved scope expansion.
-- [ ] Backend full pytest and Ruff pass.
-- [ ] Vue Vitest, production build, and Playwright pass.
+- [x] Backend full pytest and Ruff pass.
+- [x] Vue Vitest, production build, and Playwright pass.
 - [ ] Flutter analyze, unit/widget/integration tests, and release build pass.
 - [ ] Packaged Mac + physical Android acceptance matrix passes.
 - [ ] Remote security route matrix passes with no plaintext-token evidence.
-- [ ] 100-turn disconnect soak shows zero duplicate committed turns.
+- [x] 100-turn disconnect soak shows zero duplicate committed turns.
 - [ ] Maturity score is at least 85 with no P0 dimension below 80.
 - [ ] Release artifacts, checksums, limitations, and installation steps are recorded.

@@ -29,9 +29,9 @@ required Android 30-turn journey.
 | Reliability and recovery | 15% | 78 | 11.70 | Idempotent runs, event-gap E2E, terminal-lease ordering, 100-run disconnect soak, and app-resume check pass; real Wi-Fi/Mac restart/revoke injection is open |
 | UX clarity and accessibility | 10% | 75 | 7.50 | Loading, empty, revoked, incompatible, retry, streaming, state, and jump-to-latest widgets pass; physical touch, screen-reader, rotation, and visual review are open |
 | Mac host control | 10% | 80 | 8.00 | Default-local host controls, enable/disable, approval, QR/PIN, device revoke, Vue tests, and packaged-sidecar smoke pass; the packaged Tauri UI transition is open |
-| Performance | 5% | 65 | 3.25 | 500-message history is lazy and replay buffers are bounded; packaged LAN startup took about 23 seconds, while target-phone discovery/render/chunk timing is unmeasured |
-| Test and release readiness | 10% | 83 | 8.30 | Backend, Vue, Flutter, latest E2E/Android CI, downloaded checksummed artifacts, sealed ad-hoc Mac bundle with working mDNS, and signed internal Android RC exist; Developer ID/notarized Mac and physical installation/acceptance are open |
-| **Total** | **100%** |  | **77.30** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
+| Performance | 5% | 72 | 3.60 | 500-message history is lazy, replay buffers are bounded, and five isolated packaged-LAN cold starts completed in 1.817–2.046 seconds; target-phone discovery/render/chunk timing is unmeasured |
+| Test and release readiness | 10% | 84 | 8.40 | Backend, Vue, Flutter, current-head E2E/Android and macOS/Windows release CI, downloaded checksummed artifacts, sealed ad-hoc Mac bundle with working mDNS, and signed internal Android RC exist; Developer ID/notarized Mac and physical installation/acceptance are open |
+| **Total** | **100%** |  | **77.75** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
 
 The score is intentionally evidence-limited. Automated tests cannot award the
 missing physical-network, target-device, installation, or real-play points.
@@ -66,11 +66,15 @@ missing physical-network, target-device, installation, or real-play points.
   and `hdiutil verify` passes. Its complete ad-hoc signature seals 1,856
   resources and passes strict `codesign` verification, while Gatekeeper
   correctly rejects the non-Developer-ID build. The packaged sidecar starts
-  against an isolated database in loopback mode and in LAN mode; LAN
-  readiness took about 23 seconds. A packaged-LAN regression initially exposed
+  against an isolated database in loopback mode and in LAN mode. A
+  packaged-LAN regression initially exposed
   synchronous zeroconf registration failing inside the async startup loop; the
   repaired package is now discoverable as `_dzmm._tcp` and advertises the
   expected port, server identity, API version, app version, and pairing flag.
+- Five fresh isolated packaged-LAN launches after the discovery repair reached
+  healthy state with mDNS active in 1.817, 1.913, 1.933, 1.958, and 2.046
+  seconds (median 1.933 seconds). This supersedes the pre-fix 23-second startup
+  observation, which included the synchronous zeroconf timeout.
 - Transport soak: 100 runs each disconnect after the first event, resume from
   the cursor, and retry the same request ID; exactly 100 completed records and
   100 producer calls remain.
