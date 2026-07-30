@@ -30,11 +30,11 @@ required Android 30-turn journey.
 | UX clarity and accessibility | 10% | 75 | 7.50 | Loading, empty, revoked, incompatible, retry, streaming, state, and jump-to-latest widgets pass; physical touch, screen-reader, rotation, and visual review are open |
 | Mac host control | 10% | 80 | 8.00 | Default-local host controls, enable/disable, approval, QR/PIN, device revoke, Vue tests, and packaged-sidecar smoke pass; the packaged Tauri UI transition is open |
 | Performance | 5% | 65 | 3.25 | 500-message history is lazy and replay buffers are bounded; packaged LAN startup took about 23 seconds, while target-phone discovery/render/chunk timing is unmeasured |
-| Test and release readiness | 10% | 78 | 7.80 | Backend, Vue, Flutter, latest E2E/Android CI, downloaded checksummed artifacts, and sealed ad-hoc Mac bundle evidence exist; Developer ID/notarized Mac and signed Android RC plus physical acceptance are open |
-| **Total** | **100%** |  | **76.50** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
+| Test and release readiness | 10% | 82 | 8.20 | Backend, Vue, Flutter, latest E2E/Android CI, downloaded checksummed artifacts, sealed ad-hoc Mac bundle, and signed internal Android RC exist; Developer ID/notarized Mac and physical installation/acceptance are open |
+| **Total** | **100%** |  | **76.90** | **Below 85; Core, Connection, and Reliability P0 evidence is below 80** |
 
 The score is intentionally evidence-limited. Automated tests cannot award the
-missing physical-network, target-device, signed-RC, or real-play points.
+missing physical-network, target-device, installation, or real-play points.
 
 ## Verified evidence
 
@@ -53,6 +53,12 @@ missing physical-network, target-device, signed-RC, or real-play points.
   unsigned release APK, and unsigned AAB all match the included
   `SHA256SUMS`. The debug APK verifies with one Android Debug v2 signer;
   the release APK and AAB are confirmed unsigned.
+- A local internal release APK and AAB were signed with the same RSA-3072
+  `dzmm Internal RC` identity. The APK verifies with Android v2 signing, the
+  AAB exposes the same certificate SHA-256
+  `5b42eb1773b4b6b7b8b336c047dc14dab5be5b97c62ec2b820c1327dd4e4eea3`,
+  and both match their RC `SHA256SUMS`. The ignored keystore and properties
+  are mode 600 and must be preserved for upgrade compatibility.
 - A fresh branch build produced `dzmm.app` and
   `dzmm_0.16.0_aarch64.dmg`; the DMG checksum is
   `febb68a7a516c47b3e09db899195e755952ac7ff1604a0eb995698ef21fc43c5`
@@ -88,7 +94,7 @@ missing physical-network, target-device, signed-RC, or real-play points.
 ## Required path to 85
 
 1. Complete the packaged Tauri UI transition, Developer-ID sign/notarize the
-   Mac bundle, and produce a signed internal Android RC; record installation
+   Mac bundle, and install the signed internal Android RC; record installation
    results.
 2. Run approval, QR, PIN, deny, expiry, replay, revoke, disable, and app-restart
    journeys on a physical Android device.
@@ -112,8 +118,9 @@ missing physical-network, target-device, signed-RC, or real-play points.
 - The current Mac test bundle is not distribution-ready: its complete ad-hoc
   signature passes strict `codesign`, but it has no Developer ID or
   notarization, so Gatekeeper assessment fails.
-- Release APK/AAB builds are unsigned until an ignored internal keystore is
-  supplied; the CI debug APK is for internal installation only.
+- CI release APK/AAB builds remain unsigned by design. A locally signed
+  internal RC exists; its ignored keystore must stay private and be preserved
+  for compatible upgrades.
 - Flutter reports a future Built-in Kotlin migration warning for
   `mobile_scanner` and `nsd_android`; current Flutter 3.44 builds pass.
 - Play distribution is intentionally undecided until internal RC acceptance.

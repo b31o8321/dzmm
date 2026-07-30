@@ -559,7 +559,7 @@ Automated resilience evidence (2026-07-31): the Android game list lazily builds 
 - [ ] Keep desktop release workflow green after backend/Tauri changes.
 - [ ] Decide Play distribution only after internal RC acceptance; it is not required for the first local install.
 
-CI evidence (2026-07-31): [Android run 30575604848](https://github.com/b31o8321/dzmm/actions/runs/30575604848) passed analyze, 44 tests, debug APK, unsigned release APK/AAB, checksums, and artifact upload. The artifact was downloaded locally; ZIP integrity and all three included SHA-256 entries pass. The debug APK has one Android Debug v2 signer; the release APK and AAB are confirmed unsigned. [E2E run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869) passes both Playwright journeys.
+CI evidence (2026-07-31): [Android run 30575604848](https://github.com/b31o8321/dzmm/actions/runs/30575604848) passed analyze, 44 tests, debug APK, unsigned release APK/AAB, checksums, and artifact upload. The artifact was downloaded locally; ZIP integrity and all three included SHA-256 entries pass. The debug APK has one Android Debug v2 signer; the release APK and AAB are confirmed unsigned. A local RSA-3072 `dzmm Internal RC` identity then produced a signed release APK/AAB pair with matching certificate SHA-256 and passing artifact checksums; the ignored mode-600 keystore must be preserved for compatible upgrades. [E2E run 30575604869](https://github.com/b31o8321/dzmm/actions/runs/30575604869) passes both Playwright journeys.
 
 ### Task 7.5: Final maturity review
 

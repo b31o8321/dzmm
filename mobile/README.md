@@ -22,7 +22,17 @@ only on a trusted network; it does not make dzmm safe to expose to the internet.
 ## Internal release signing
 
 Release builds never fall back to the debug key. To sign an internal build,
-create the ignored `android/key.properties` file:
+generate an ignored local test identity:
+
+```bash
+./create_internal_signing.sh
+```
+
+The script refuses to overwrite an existing identity and does not print its
+generated password. Preserve the resulting keystore if installed internal
+builds must accept upgrades signed by the same identity.
+
+Alternatively, create the ignored `android/key.properties` file manually:
 
 ```properties
 storeFile=/absolute/path/to/dzmm-upload.jks
