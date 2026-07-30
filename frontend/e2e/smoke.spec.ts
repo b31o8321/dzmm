@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { waitForBackend } from './test-server'
+import { waitForBackend, waitForTurnRun } from './test-server'
 
 test.beforeAll(async () => {
   await waitForBackend()
@@ -70,14 +70,64 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
   await page.getByRole('button', { name: /^开始跑团$/ }).click()
   await expect(page).toHaveURL(/\/play\/\d+/, { timeout: 15_000 })
 
-  // 8. Send an action.
+  // 8. A fresh session automatically starts its opening turn. Wait for that
+  // turn to finish so the response below belongs to the explicit player action.
+  const narratives = page.getByText('你站在虚拟的街道上，霓虹光闪烁。')
+  const sendButton = page.getByRole('button', { name: /^发送$/ })
+  await expect(narratives).toHaveCount(1, { timeout: 30_000 })
+  await expect(sendButton).toBeEnabled()
+
+  // 9. Send an explicit player action.
   await page.getByPlaceholder(/输入你的行动/).fill('环顾四周')
-  await page.getByRole('button', { name: /^发送$/ }).click()
+  const createdRun = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+      && /\/sessions\/\d+\/turn-runs$/.test(response.url()),
+  )
+  await sendButton.click()
+  const runResponse = await createdRun
+  const run = await runResponse.json() as { run_id: string }
+  const sessionId = Number(page.url().match(/\/play\/(\d+)/)?.[1])
 
-  // 9. The stub backend streams "霓虹光闪烁" — verify it lands in the log.
-  await expect(page.locator('text=霓虹')).toBeVisible({ timeout: 30_000 })
+  // 10. The stub backend streams "霓虹光闪烁" — verify it lands in the log.
+  await expect(narratives).toHaveCount(2, { timeout: 30_000 })
 
-  // 10. Status panel side: token counter must update from the SSE final chunk.
+  // 11. Status panel side: token counter must update from the SSE final chunk.
   const tokenStrip = page.locator('text=/tokens:\\s*\\d+/')
   await expect(tokenStrip).toBeVisible()
+
+  const status = await waitForTurnRun(sessionId, run.run_id)
+  expect(status.status).toBe('completed')
+  expect(status.assistant_message_id).toBeTruthy()
+  await expect(sendButton).toBeEnabled()
+
+  // 12. Refresh/re-entry hydrates the committed turns instead of resubmitting.
+  await page.reload()
+  await expect(narratives).toHaveCount(2, { timeout: 30_000 })
+
+  // 13. Force one replay gap after the detached producer completes. The Vue
+  // client must recover from persisted messages/state without duplicating it.
+  let injectGap = true
+  await page.route('**/sessions/*/turn-runs/*/events', async (route) => {
+    if (!injectGap) {
+      await route.continue()
+      return
+    }
+    injectGap = false
+    const match = route.request().url().match(
+      /\/sessions\/(\d+)\/turn-runs\/([^/]+)\/events/,
+    )
+    if (!match) {
+      await route.continue()
+      return
+    }
+    await waitForTurnRun(Number(match[1]), decodeURIComponent(match[2]))
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'event_gap', message: 'test replay gap' }),
+    })
+  })
+  await page.getByPlaceholder(/输入你的行动/).fill('再次观察')
+  await page.getByRole('button', { name: /^发送$/ }).click()
+  await expect(narratives).toHaveCount(3, { timeout: 30_000 })
 })

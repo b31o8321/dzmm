@@ -19,6 +19,7 @@ from dzmm.api import (
     routes_characters,  # 角色管理
     routes_factions,    # 派系管理
     routes_models,      # AI 模型配置
+    routes_remote,      # Android 局域网配对与本机管理
     routes_screenplay,  # 单个剧本的操作（生成、查看等）
     routes_screenplays, # 剧本列表
     routes_sessions,    # 游戏会话（跑团局）管理
@@ -29,6 +30,11 @@ from dzmm.api import (
 )
 # 数据库底层工具：async_session 创建会话工厂，get_engine 创建数据库连接，init_db 建表
 from dzmm.db.base import async_session, get_engine, init_db
+from dzmm.remote.auth import RemoteAccessMiddleware
+from dzmm.remote.discovery import RemoteDiscovery
+from dzmm.remote.pairing import PairingManager
+from dzmm.remote.turn_runs import TurnRunManager, mark_stale_turn_runs_interrupted
+from dzmm.service.session_turn_coordinator import SessionTurnCoordinator
 
 
 # ─────────────────────────────────────────────
@@ -36,26 +42,57 @@ from dzmm.db.base import async_session, get_engine, init_db
 # 参数 session_maker：外部传入的数据库会话工厂（可以是生产库也可以是测试用内存库）
 # 返回值：配置好的 FastAPI 实例
 # ─────────────────────────────────────────────
-def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
+def create_app(
+    session_maker: async_sessionmaker[AsyncSession],
+    *,
+    remote_access_enabled: bool | None = None,
+    start_remote_discovery: bool = True,
+) -> FastAPI:
     # 延迟导入，避免模块循环依赖（logging_config 间接依赖 config，config 不依赖 main）
     from dzmm.logging_config import setup_logging
     setup_logging()  # 初始化日志系统：把所有日志同时写入文件和终端，且只初始化一次
 
     app = FastAPI(title="dzmm")  # 创建 FastAPI 实例，title 会显示在自动生成的 /docs 页面
+    if remote_access_enabled is None:
+        configured = os.environ.get("DZMM_REMOTE_ACCESS")
+        if configured is not None:
+            remote_access_enabled = configured == "1"
+        else:
+            remote_access_enabled = os.environ.get("DZMM_HOST") in {"0.0.0.0", "::"}
+
+    pairing_manager = PairingManager(session_maker)
+    turn_coordinator = SessionTurnCoordinator()
+    turn_run_manager = TurnRunManager(session_maker, turn_coordinator)
+    app.state.pairing_manager = pairing_manager
+    app.state.turn_coordinator = turn_coordinator
+    app.state.turn_run_manager = turn_run_manager
+    app.state.turn_run_session_maker = session_maker
+    app.state.remote_access_enabled = remote_access_enabled
 
     # ── 跨域中间件（CORS）──────────────────────────────────────────────────
     # 问题背景：浏览器的同源策略会阻止网页向「与自身来源不同的域名/端口」发送请求。
     # 本应用是本地桌面应用：前端（Vite 开发服务器跑在 localhost:5173，Tauri webview 是 tauri://）
     # 和后端（uvicorn 跑在 localhost:8765）来源不同，所以需要允许跨域。
-    # allow_origins=["*"] 表示接受任意来源的请求（本地应用不需要精细控制）。
+    # 只允许 Tauri webview 和本地 Vite 开发源。Android 是原生 HTTP 客户端，
+    # 不依赖 CORS；不能用通配符把本机管理界面暴露给局域网网页。
     # allow_credentials=False：不允许跨域携带 cookie（本应用不用 cookie 鉴权，避免安全问题）。
     # 注：Vite 的 proxy 虽然也能解决跨域，但它会缓冲 SSE 响应，导致流式输出失效，所以直接开 CORS。
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],      # 允许所有来源
+        allow_origins=[
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+        ],
+        allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=False,  # 不允许携带 cookie
         allow_methods=["*"],      # 允许所有 HTTP 方法（GET/POST/PUT/DELETE 等）
         allow_headers=["*"],      # 允许所有请求头
+    )
+    app.add_middleware(
+        RemoteAccessMiddleware,
+        session_maker=session_maker,
+        remote_access_enabled=remote_access_enabled,
     )
 
     # ── 请求日志中间件：方便排查前端报错 ────────────────────────────────────
@@ -109,6 +146,16 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
     def get_session_maker_dep() -> async_sessionmaker[AsyncSession]:
         return session_maker
 
+    async def get_remote_health_dep() -> dict:
+        from dzmm import REMOTE_API_VERSION, REMOTE_CAPABILITIES
+
+        return {
+            "server_id": await pairing_manager.server_id(),
+            "api_version": REMOTE_API_VERSION,
+            "remote_access": remote_access_enabled,
+            "capabilities": list(REMOTE_CAPABILITIES),
+        }
+
     # ── 批量注册「需要数据库」的路由模块 ────────────────────────────────────
     # app.dependency_overrides 是 FastAPI 的「依赖替换」字典：
     # key = 路由模块里声明的「占位依赖函数」，value = 实际要调用的函数。
@@ -140,6 +187,18 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
     # System routes don't need DB session.
     app.include_router(routes_system.router)        # /system/info 等系统信息接口
     app.include_router(routes_system.health_router) # /health 健康检查接口（供 Tauri/运维监控调用）
+    app.dependency_overrides[routes_system.get_remote_health_dep] = get_remote_health_dep
+
+    app.dependency_overrides[routes_remote.get_pairing_manager_dep] = lambda: pairing_manager
+    app.include_router(routes_remote.router)
+    app.router.add_event_handler("shutdown", pairing_manager.shutdown)
+    app.router.add_event_handler("shutdown", turn_run_manager.shutdown)
+    app.router.add_event_handler("shutdown", turn_coordinator.shutdown)
+
+    async def _interrupt_stale_turn_runs() -> None:
+        await mark_stale_turn_runs_interrupted(session_maker)
+
+    app.router.add_event_handler("startup", _interrupt_stale_turn_runs)
 
     # TTS proxy route.
     app.include_router(routes_tts.router)  # /tts/... 文字转语音代理接口，转发给第三方 TTS 服务
@@ -164,6 +223,23 @@ def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
 
     # 让 routes_sessions 里需要 session_maker 的依赖也能拿到正确的工厂实例
     app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
+
+    if remote_access_enabled and start_remote_discovery:
+        from dzmm import REMOTE_API_VERSION, __version__
+
+        discovery = RemoteDiscovery()
+        app.state.remote_discovery = discovery
+
+        async def _start_remote_discovery() -> None:
+            await discovery.start(
+                server_id=await pairing_manager.server_id(),
+                version=__version__,
+                api_version=REMOTE_API_VERSION,
+                port=int(os.environ.get("DZMM_PORT", "8765")),
+            )
+
+        app.router.add_event_handler("startup", _start_remote_discovery)
+        app.router.add_event_handler("shutdown", discovery.stop)
 
     # ── 可选：托管前端静态文件 ──────────────────────────────────────────────
     # If DZMM_FRONTEND_DIST points at a directory of built frontend files,

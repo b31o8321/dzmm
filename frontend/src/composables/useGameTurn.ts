@@ -45,7 +45,7 @@ export function detectSceneMood(narrative: string): SceneMood {
 }
 
 import { ElMessage } from 'element-plus'
-import { streamTurn } from '@/composables/useTurnStream'
+import { streamTurn, TurnStreamError } from '@/composables/useTurnStream'
 import { sessionsApi, type MessageEvent } from '@/api/sessions'
 import { useAudio } from '@/composables/useAudio'
 
@@ -117,6 +117,7 @@ export interface UseGameTurnHooks {
   onLocationEnter?: (locationName: string) => void  // 玩家进入新地点时触发
   onBgmChange?: (mood: string) => void              // GM 切换背景音乐情绪时触发
   onChapterAdvance?: () => void                      // 章节推进时触发
+  onRecoveryRequired?: () => Promise<void> | void    // event gap 后重读权威状态
 }
 
 
@@ -165,8 +166,10 @@ export function useGameTurn(
     hooks.onScroll?.()   // ?. 是"可选链"：hooks.onScroll 为 undefined 时不报错
 
     try {
+      const requestId = globalThis.crypto?.randomUUID?.()
+        ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
       // streamTurn 使用 fetch + EventSource 接收 SSE 流，每个事件触发对应回调
-      await streamTurn(sessionId, userAction, {
+      await streamTurn(sessionId, requestId, userAction, {
 
         // ── 叙事流处理 ──────────────────────────────────
         onNarrative: (text) => {
@@ -378,6 +381,11 @@ export function useGameTurn(
         },
       })
     } catch (e: any) {
+      if (e instanceof TurnStreamError && e.code === 'event_gap') {
+        await recoverTurnFromHistory(turn)
+        await hooks.onRecoveryRequired?.()
+        return
+      }
       ElMessage.error(e.message ?? '请求失败')
       turn.narrative += `\n\n[出错：${e.message ?? '未知错误'}]`
     } finally {
@@ -385,6 +393,22 @@ export function useGameTurn(
       sending.value = false
       currentTurn.value = null
     }
+  }
+
+  async function recoverTurnFromHistory(turn: Turn) {
+    const messages = await sessionsApi.messages(sessionId)
+    const assistant = [...messages]
+      .reverse()
+      .find((message) => message.role === 'assistant')
+    if (!assistant) return
+    turn.narrative = cleanNarrative(assistant.content)
+    turn.choices = extractChoices(assistant.content)
+    turn.events = assistant.events ?? []
+    turn.diagnostics = assistant.diagnostics ?? []
+    turn.rawContent = assistant.content
+    turn.msgId = assistant.id
+    turn.turn = assistant.turn
+    turnCount.value = Math.max(turnCount.value, assistant.turn)
   }
 
   async function refreshTokens() {

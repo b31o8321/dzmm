@@ -145,6 +145,71 @@ class ModelConfig(Base):
     is_default: Mapped[bool] = mapped_column(default=False)  # 是否为全局默认模型
 
 
+# ── 局域网远程访问 ──────────────────────────────────────
+class RemoteServerState(Base):
+    """Persistent identity of this dzmm host.
+
+    A singleton row survives IP changes and remote-mode restarts. Android
+    clients use server_id, never the current IP, as the host identity.
+    """
+
+    __tablename__ = "remote_server_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    server_id: Mapped[str] = mapped_column(String(36), unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+
+class PairedDevice(Base):
+    """A paired Android device. Only the token hash is persisted."""
+
+    __tablename__ = "paired_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    paired_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class TurnRun(Base):
+    """Idempotent, reconnectable execution record for one player action."""
+
+    __tablename__ = "turn_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("sessions.id"), index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(120))
+    action: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="running", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assistant_message_id: Mapped[int | None] = mapped_column(
+        ForeignKey("messages.id"), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "request_id", name="uq_turn_run_session_request"
+        ),
+    )
+
+
 # ── 游戏会话 ──────────────────────────────────────────────
 # 一局游戏（一个存档）。
 # 关联：世界（背景设定）、角色（PC）、剧本大纲（可选）、两个 LLM（GM + 摘要器）。

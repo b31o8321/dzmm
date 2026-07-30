@@ -1,0 +1,71 @@
+name: Android client
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --reporter expanded
+
+      - name: Build installable internal APK
+        run: flutter build apk --debug
+
+      - name: Verify release builds
+        run: |
+          flutter build apk --release
+          flutter build appbundle --release
+
+      - name: Generate checksums
+        run: |
+          mkdir -p build/android-artifacts
+          cp build/app/outputs/flutter-apk/app-debug.apk build/android-artifacts/dzmm-internal-debug.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build/android-artifacts/dzmm-unsigned-release.apk
+          cp build/app/outputs/bundle/release/app-release.aab build/android-artifacts/dzmm-unsigned-release.aab
+          cd build/android-artifacts
+          sha256sum *.apk *.aab > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dzmm-android-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: mobile/build/android-artifacts/

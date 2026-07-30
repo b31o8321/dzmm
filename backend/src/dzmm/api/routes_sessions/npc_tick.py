@@ -29,9 +29,11 @@ Called by the frontend after receiving a `npc_initiative` event. Accepts
 {npc_name} and streams a full GM turn where the NPC proactively contacts PC.
 """
 import json
+import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse  # SSE 响应封装库
 
@@ -42,6 +44,7 @@ from dzmm.api.routes_sessions._common import (
 from dzmm.db.models import ModelConfig, Session as GameSession
 from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
 from dzmm.service.game import run_turn
+from dzmm.service.session_turn_coordinator import SessionBusyError
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -64,11 +67,29 @@ class NpcTickRequest(BaseModel):
 async def npc_tick(
     session_id: int,
     body: NpcTickRequest,
+    request: Request,
     session_maker=Depends(get_session_maker_dep),
     # 用 session_maker 而不是 get_session_dep，原因同 turn.py：
     # 流式响应需要自己管理数据库会话的生命周期
 ):
     """Stream a NPC-initiated GM turn (no player input required)."""
+
+    coordinator = request.app.state.turn_coordinator
+    try:
+        lease = await coordinator.acquire(
+            session_id,
+            f"legacy-{uuid.uuid4()}",
+            "npc_tick",
+        )
+    except SessionBusyError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": "session_busy",
+                "message": "This session already has an active turn",
+                "active_run": exc.active.to_dict(),
+            },
+        )
 
     # _event_stream 是异步生成器，逐条产出 SSE 事件
     async def _event_stream() -> AsyncIterator[dict]:
@@ -141,5 +162,12 @@ async def npc_tick(
             # done 事件：通知前端 NPC Tick 完成
             yield {"event": "done", "data": json.dumps({"ok": True})}
 
+    async def _guarded_event_stream() -> AsyncIterator[dict]:
+        try:
+            async for event in _event_stream():
+                yield event
+        finally:
+            await lease.release()
+
     # 把异步生成器包装成 SSE HTTP 响应返回
-    return EventSourceResponse(_event_stream())
+    return EventSourceResponse(_guarded_event_stream())

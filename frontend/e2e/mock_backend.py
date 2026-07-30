@@ -1,6 +1,6 @@
 """Stub backend for Playwright E2E tests.
 
-Real FastAPI + SQLite + SSE pipeline, but the GM model is replaced with a
+Real FastAPI + SQLite + detached turn-run/SSE pipeline, but the GM model is replaced with a
 ``StubModelClient`` that emits a deterministic narrative + state_change
 stream. This lets us exercise the full SSE / CRLF / CORS path end-to-end
 without depending on a live LLM.

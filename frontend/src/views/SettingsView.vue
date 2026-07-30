@@ -4,6 +4,7 @@ import { ElButton, ElCard, ElMessage, ElTag, ElDivider } from 'element-plus'
 import { useUpdater, type UpdateInfo } from '@/composables/useUpdater'
 import { useAppStore } from '@/stores/app'
 import { fetchHealth } from '@/api/client'
+import RemoteAccessCard from '@/components/RemoteAccessCard.vue'
 import TtsSettingsCard from '@/components/TtsSettingsCard.vue'
 
 const { checkForUpdates, downloadAndInstall } = useUpdater()
@@ -65,6 +66,8 @@ function replayOnboarding() {
     <header class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-slate-800">⚙️ 设置</h1>
     </header>
+
+    <RemoteAccessCard />
 
     <!-- 版本 + 更新 -->
     <el-card>

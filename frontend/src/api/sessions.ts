@@ -19,6 +19,17 @@ export interface MessageRow {
   parts_json?: string | null
 }
 
+export interface TurnRunRecord {
+  run_id: string
+  session_id: number
+  request_id: string
+  action: string
+  status: 'running' | 'completed' | 'failed' | 'interrupted'
+  error_code: string | null
+  error_message: string | null
+  assistant_message_id: number | null
+}
+
 export interface WorldTime {
   day: number
   period: string
@@ -200,6 +211,15 @@ export const sessionsApi = {
     api.delete(`/sessions/${id}/last_turn`).then(() => undefined),
   warmup: (id: number) =>
     api.post(`/sessions/${id}/warmup`).then(() => undefined),
+  createTurnRun: (id: number, requestId: string, action: string) =>
+    api.post<TurnRunRecord>(`/sessions/${id}/turn-runs`, {
+      request_id: requestId,
+      action,
+    }).then((response) => response.data),
+  turnRun: (sessionId: number, runId: string) =>
+    api.get<TurnRunRecord>(
+      `/sessions/${sessionId}/turn-runs/${encodeURIComponent(runId)}`,
+    ).then((response) => response.data),
   timeline: (id: number) =>
     api.get<TimelineItem[]>(`/sessions/${id}/timeline`).then((r) => r.data),
   eras: (id: number) =>

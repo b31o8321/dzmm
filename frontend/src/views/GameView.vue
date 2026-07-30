@@ -267,6 +267,7 @@ const {
   onChapterAdvance: () => {
     if (screenplay.value) applyChapterBgm(screenplay.value.current_chapter)
   },
+  onRecoveryRequired: () => rehydrateAuthoritativeState(),
 })
 
 const npcDialogOpen = ref(false)
@@ -400,6 +401,31 @@ async function refreshV15State() {
     if (st.combat_order) combatOrder.value = st.combat_order
     if (st.recent_resolutions) recentResolutions.value = st.recent_resolutions
   } catch { /* ignore */ }
+}
+
+async function rehydrateAuthoritativeState() {
+  const state = await sessionsApi.state(sessionId)
+  Object.keys(stats).forEach((key) => delete stats[key])
+  Object.assign(stats, state.stats)
+  inventory.value = state.inventory
+  npcs.value = state.npcs.map((npc) => ({ ...npc }))
+  threads.value = state.threads
+  pcMood.value = state.pc_mood ? { ...state.pc_mood } : {}
+  if (state.world_time) worldTime.value = { ...state.world_time }
+  topologyWarnings.value = state.topology_warnings ?? []
+  if (state.attributes) attributes.value = state.attributes
+  if (state.vitals) vitals.value = state.vitals
+  if (state.skills) skills.value = state.skills
+  if (state.inventory_v2) inventoryV2.value = state.inventory_v2
+  if (state.equipment) equipment.value = state.equipment
+  if (state.combat_order) combatOrder.value = state.combat_order
+  if (state.recent_resolutions) recentResolutions.value = state.recent_resolutions
+  await Promise.all([
+    refreshNpcs(),
+    refreshGoals(),
+    refreshLocations(),
+    refreshCharacter(),
+  ])
 }
 
 async function applyLocationAssets(locationName: string) {

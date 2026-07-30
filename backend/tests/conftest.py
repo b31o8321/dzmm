@@ -23,3 +23,19 @@ async def client(tmp_path):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
     await engine.dispose()
+
+
+@pytest.fixture
+async def remote_app(tmp_path):
+    """Fresh remote-enabled app backed only by a temporary SQLite database."""
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/remote.db"
+    engine = get_engine(db_url)
+    await init_db(engine)
+    session_maker = async_session(engine)
+    app = create_app(
+        session_maker,
+        remote_access_enabled=True,
+        start_remote_discovery=False,
+    )
+    yield app, session_maker, engine
+    await engine.dispose()
