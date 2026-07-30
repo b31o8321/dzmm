@@ -97,7 +97,6 @@ async def test_state_v2_skills_and_inventory_v2_present(http):
 
 async def test_state_v2_combat_order_and_resolutions(http, app):
     """GET /state must include combat_order and recent_resolutions from Session JSON columns."""
-    from sqlalchemy import select
     from dzmm.db.models import Session as GameSession
 
     sid = await _make_session(http)

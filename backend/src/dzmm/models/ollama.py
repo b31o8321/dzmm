@@ -64,6 +64,9 @@ class OllamaClient(ModelClient):
                     except json.JSONDecodeError:
                         continue
 
+                    if obj.get("error"):
+                        raise RuntimeError(f"Ollama protocol error: {obj['error']}")
+
                     delta = (obj.get("message") or {}).get("content", "")
                     done = obj.get("done", False)
 

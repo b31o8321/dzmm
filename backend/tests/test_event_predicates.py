@@ -16,15 +16,15 @@ from dzmm.db.models import (
     Session as GameSession,
     SessionEventState,
     SessionFactionState,
-    SessionLocationState,
     SessionNpcState,
     World,
     WorldEvent,
     WorldFaction,
     WorldFramework,
-    WorldLocation,
     WorldNPCTemplate,
 )
+from dzmm.engine.predicates import evaluate, parse_predicate
+from dzmm.service.event_evaluator import check_and_trigger_events
 
 
 # ── DB fixture ────────────────────────────────────────────────────────────────
@@ -124,9 +124,6 @@ async def _make_framework_and_event(
 # ─────────────────────────────────────────────────────────────────────────────
 # Part A: predicate unit tests
 # ─────────────────────────────────────────────────────────────────────────────
-
-from dzmm.engine.predicates import evaluate, parse_predicate
-
 
 # A1. LocationReached: PC at location → True
 async def test_location_reached_true(db):
@@ -344,9 +341,6 @@ async def test_malformed_predicate_returns_false(db, caplog):
 # ─────────────────────────────────────────────────────────────────────────────
 # Part B: EventEvaluator (check_and_trigger_events)
 # ─────────────────────────────────────────────────────────────────────────────
-
-from dzmm.service.event_evaluator import check_and_trigger_events
-
 
 # B1. pending event whose predicate is True → status becomes "triggered"
 async def test_check_triggers_pending_event(db):

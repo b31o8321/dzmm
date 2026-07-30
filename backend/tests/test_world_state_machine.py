@@ -156,8 +156,8 @@ async def test_event_trigger_no_regression_from_completed(db: AsyncSession):
 
 # ── Task 3: event_complete open-world ─────────────────────────────────────────
 
-async def test_event_complete_open_world_advances_status(db: AsyncSession):
-    """<event_complete event_id=N/> sets SessionEventState.status='completed'."""
+async def test_event_complete_open_world_rejects_pending_event(db: AsyncSession):
+    """An event must be triggered in the story before it can be completed."""
     fw_id, ev_id = await _make_framework_and_event(db)
     sid = await _make_world_session(db, framework_id=fw_id)
     await db.commit()
@@ -167,9 +167,7 @@ async def test_event_complete_open_world_advances_status(db: AsyncSession):
     await db.commit()
 
     row = await db.get(SessionEventState, (sid, ev_id))
-    assert row is not None
-    assert row.status == "completed"
-    assert row.triggered_turn == 7
+    assert row is None
 
 
 async def test_event_complete_open_world_idempotent(db: AsyncSession):
@@ -179,6 +177,9 @@ async def test_event_complete_open_world_idempotent(db: AsyncSession):
     await db.commit()
 
     tag = TagComplete(name="event_complete", attrs={"event_id": str(ev_id)})
+    trigger = TagComplete(name="event_trigger", attrs={"event_id": str(ev_id)})
+    await apply_tags(db, sid, current_turn=3, tags=[trigger])
+    await db.commit()
     await apply_tags(db, sid, current_turn=4, tags=[tag])
     await db.commit()
     await apply_tags(db, sid, current_turn=9, tags=[tag])
@@ -245,7 +246,9 @@ async def test_phase_advance_when_required_count_met(db: AsyncSession):
     # Complete ev1 → phase 1 required_count=1 met → phase 1 completed
     # Phase 2 prerequisite (phase 1) is now met and it has its own key event (ev2) not yet done
     # → next active phase = 2
+    trigger = TagComplete(name="event_trigger", attrs={"event_id": str(ev1.id)})
     tag = TagComplete(name="event_complete", attrs={"event_id": str(ev1.id)})
+    await apply_tags(db, sid, current_turn=4, tags=[trigger])
     await apply_tags(db, sid, current_turn=5, tags=[tag])
     await db.commit()
 
@@ -301,18 +304,22 @@ async def test_phase_advance_respects_prerequisites(db: AsyncSession):
     await db.commit()
 
     # Complete ev2 (phase 2 key event) but phase 1 prerequisite is NOT completed
+    trigger = TagComplete(name="event_trigger", attrs={"event_id": str(ev2.id)})
     tag = TagComplete(name="event_complete", attrs={"event_id": str(ev2.id)})
+    await apply_tags(db, sid, current_turn=2, tags=[trigger])
     await apply_tags(db, sid, current_turn=3, tags=[tag])
     await db.commit()
 
     state = await db.get(SessionCampaignState, sid)
     # Phase 1 has no prerequisites and no key events completed → NOT completed
-    # Phase 2 key event done but prerequisite phase 1 not completed → not available
+    # Phase 2 key event cannot complete before phase 1, so it remains triggered.
     # Phase 3 prerequisites not met either
     # The only phase with no unmet prerequisites is phase 1 (which isn't completed)
     # → current_phase_id should be 1 (the only unlocked phase)
     assert state is not None
     assert state.current_phase_id == 1
+    ev_state = await db.get(SessionEventState, (sid, ev2.id))
+    assert ev_state.status == "triggered"
 
 
 async def test_phase_advance_no_campaign_is_noop(db: AsyncSession):
@@ -327,8 +334,9 @@ async def test_phase_advance_no_campaign_is_noop(db: AsyncSession):
     sid = await _make_world_session(db, framework_id=fw.id)
     await db.commit()
 
+    trigger = TagComplete(name="event_trigger", attrs={"event_id": str(ev.id)})
     tag = TagComplete(name="event_complete", attrs={"event_id": str(ev.id)})
-    await apply_tags(db, sid, current_turn=1, tags=[tag])
+    await apply_tags(db, sid, current_turn=1, tags=[trigger, tag])
     await db.commit()
 
     # Row in SessionEventState should still be created
@@ -342,8 +350,8 @@ async def test_phase_advance_no_campaign_is_noop(db: AsyncSession):
 
 # ── Task 6: backward compat — screenplay mode ─────────────────────────────────
 
-async def test_event_complete_with_chapter_attr_still_screenplay_mode(db: AsyncSession):
-    """<event_complete chapter=1 event=2/> must NOT create SessionEventState rows."""
+async def test_framework_session_rejects_screenplay_event_complete(db: AsyncSession):
+    """Framework and chapter-screenplay control modes are mutually exclusive."""
     fw_id, ev_id = await _make_framework_and_event(db)
     sid = await _make_world_session(db, framework_id=fw_id)
 
@@ -366,11 +374,10 @@ async def test_event_complete_with_chapter_attr_still_screenplay_mode(db: AsyncS
     await apply_tags(db, sid, current_turn=5, tags=[tag])
     await db.commit()
 
-    # Screenplay path should have written completed_events_json
+    # Framework mode ignores chapter-screenplay progress even if a stale row exists.
     await db.refresh(sp)
     completed = json.loads(sp.completed_events_json)
-    assert len(completed) == 1
-    assert completed[0]["chapter"] == 1
+    assert completed == []
 
     # Open-world table must remain empty
     result = await db.execute(

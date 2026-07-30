@@ -9,7 +9,6 @@ Non-framework sessions should be unchanged.
 """
 
 import json
-import pytest
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (

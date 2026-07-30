@@ -49,6 +49,11 @@ _XP_MAIN = 50      # 主线事件奖励 50 XP
 _XP_OPTIONAL = 20  # 支线事件奖励 20 XP
 
 
+async def _is_framework_session(session: AsyncSession, session_id: int) -> bool:
+    sess = await session.get(GameSession, session_id)
+    return sess is not None and sess.framework_id is not None
+
+
 async def _get_active_screenplay(
     session: AsyncSession, session_id: int
 ) -> Screenplay | None:
@@ -77,7 +82,7 @@ async def _apply_chapter_advance(
     session_id: int,
     attrs: dict[str, str],
     current_turn: int,
-) -> None:
+) -> bool:
     # -------------------------------------------------------
     # 处理 <chapter_advance/> 标签
     #
@@ -88,9 +93,11 @@ async def _apply_chapter_advance(
     # -------------------------------------------------------
     """<chapter_advance/> → bump current_chapter by 1, clamped to total chapters
     (last chapter is a no-op so we don't go past the planned outline)."""
+    if await _is_framework_session(session, session_id):
+        return False
     sp = await _get_active_screenplay(session, session_id)
     if sp is None:
-        return  # 没有活跃剧本，静默跳过（老存档兼容）
+        return False  # 没有活跃剧本，静默跳过（老存档兼容）
 
     try:
         chapters = json.loads(sp.chapters_json or "[]")  # 章节大纲列表
@@ -102,6 +109,8 @@ async def _apply_chapter_advance(
     # 只在还有下一章时才推进（避免越过最后一章）
     if sp.current_chapter < len(chapters):
         sp.current_chapter += 1
+        return True
+    return False
 
 
 async def _apply_event_complete(
@@ -109,7 +118,7 @@ async def _apply_event_complete(
     session_id: int,
     attrs: dict[str, str],
     current_turn: int,
-) -> None:
+) -> bool:
     # -------------------------------------------------------
     # 处理 <event_complete chapter=N event=M type=main|optional/> 标签
     #
@@ -139,18 +148,22 @@ async def _apply_event_complete(
     """
     # 开放世界路径：attrs 含 event_id 而不含 chapter/event → 委托给开放世界处理函数
     if "event_id" in attrs and "chapter" not in attrs:
-        await _apply_event_complete_open_world(session, session_id, attrs, current_turn)
-        return
+        return await _apply_event_complete_open_world(
+            session, session_id, attrs, current_turn
+        )
+
+    if await _is_framework_session(session, session_id):
+        return False
 
     sp = await _get_active_screenplay(session, session_id)
     if sp is None:
-        return
+        return False
 
     try:
         chapter = int(attrs.get("chapter", ""))    # 章节号（从 1 开始）
         event_idx = int(attrs.get("event", ""))    # 事件编号（章节内从 1 开始）
     except (TypeError, ValueError):
-        return  # attrs missing or non-numeric — silently skip
+        return False  # attrs missing or non-numeric — silently skip
 
     type_ = (attrs.get("type") or "main").strip().lower()
     if type_ not in ("main", "optional"):
@@ -202,6 +215,8 @@ async def _apply_event_complete(
             sess = await session.get(GameSession, session_id)
             if sess is not None:
                 sess.doom_score = max(0, sess.doom_score - 10)  # 不能低于 0
+        return True
+    return False
 
 
 async def _apply_plot_turn(
@@ -209,7 +224,7 @@ async def _apply_plot_turn(
     session_id: int,
     attrs: dict[str, str],
     current_turn: int,
-) -> None:
+) -> bool:
     # -------------------------------------------------------
     # 处理 <plot_turn impact=major|minor description="..."/> 标签
     #
@@ -235,13 +250,15 @@ async def _apply_plot_turn(
     *before* snapshot so the chain has provenance. minor is observational and
     intentionally a no-op here (we may pipe it into messages.events_json later).
     """
+    if await _is_framework_session(session, session_id):
+        return False
     impact = (attrs.get("impact") or "minor").strip().lower()
     if impact != "major":
-        return  # minor 转折是观察性记录，此处不做处理
+        return True  # minor 转折是观察性记录，允许作为回合事件保留
 
     sp = await _get_active_screenplay(session, session_id)
     if sp is None:
-        return
+        return False
 
     # 截取描述文字（最多 500 字，防止无限长度）
     description = str(attrs.get("description", ""))[:500]
@@ -257,6 +274,7 @@ async def _apply_plot_turn(
         diff_summary="(pending outliner rewrite)",   # 差异摘要，等待 outliner 异步填写
     )
     session.add(rev)
+    return True
 
 
 async def _apply_ending(
@@ -264,7 +282,7 @@ async def _apply_ending(
     session_id: int,
     attrs: dict[str, str],
     current_turn: int,
-) -> None:
+) -> bool:
     # -------------------------------------------------------
     # 处理 <ending/> 标签
     #
@@ -276,11 +294,14 @@ async def _apply_ending(
     # -------------------------------------------------------
     """<ending/> → mark active screenplay status="concluded" + concluded_at=now.
     Player can later launch a fresh chapter from the same session if desired."""
+    if await _is_framework_session(session, session_id):
+        return False
     sp = await _get_active_screenplay(session, session_id)
     if sp is None:
-        return
+        return False
     sp.status = "concluded"                                        # 标记为"已结局"
     sp.concluded_at = datetime.now(UTC).replace(tzinfo=None)       # 记录结局时间（不带时区，存 UTC）
+    return True
 
 
 # ============================================================
@@ -318,12 +339,36 @@ async def _resolve_world_event(
     return sess.framework_id, True
 
 
+async def _parse_world_event_id(
+    session: AsyncSession,
+    session_id: int,
+    value: object,
+) -> int | None:
+    """Resolve a numeric id or one exact, unambiguous framework event name."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        pass
+
+    name = str(value or "").strip()
+    sess = await session.get(GameSession, session_id)
+    if not name or sess is None or sess.framework_id is None:
+        return None
+    matches = (await session.execute(
+        select(WorldEvent.id).where(
+            WorldEvent.framework_id == sess.framework_id,
+            WorldEvent.name == name,
+        )
+    )).scalars().all()
+    return matches[0] if len(matches) == 1 else None
+
+
 async def _apply_event_trigger(
     session: AsyncSession,
     session_id: int,
     attrs: dict[str, str],
     current_turn: int,
-) -> None:
+) -> bool:
     # -------------------------------------------------------
     # 处理 <event_trigger event_id="N"/> 标签（开放世界模式）
     #
@@ -331,14 +376,15 @@ async def _apply_event_trigger(
     # 将对应的 SessionEventState 行从 pending → triggered（幂等）。
     # -------------------------------------------------------
     """Upsert SessionEventState to status='triggered'. Idempotent."""
-    try:
-        event_id = int(attrs.get("event_id", ""))
-    except (TypeError, ValueError):
-        return
+    event_id = await _parse_world_event_id(
+        session, session_id, attrs.get("event_id", "")
+    )
+    if event_id is None:
+        return False
 
     framework_id, ok = await _resolve_world_event(session, session_id, event_id)
     if not ok:
-        return
+        return False
 
     row = await session.get(SessionEventState, (session_id, event_id))
     if row is None:
@@ -350,11 +396,14 @@ async def _apply_event_trigger(
             triggered_turn=current_turn,
         )
         session.add(row)
+        return True
     elif row.status == "pending":
         # pending → triggered
         row.status = "triggered"
         row.triggered_turn = current_turn
+        return True
     # 若已经是 triggered 或 completed → 幂等，不做任何变更
+    return False
 
 
 async def _apply_phase_advance(
@@ -448,36 +497,63 @@ async def _apply_event_complete_open_world(
     session_id: int,
     attrs: dict[str, str],
     current_turn: int,
-) -> None:
+) -> bool:
     # -------------------------------------------------------
     # 处理开放世界模式下的 <event_complete event_id="N"/> 标签
     #
     # 将 SessionEventState 推进到 completed，然后触发 Campaign 阶段推进。
     # -------------------------------------------------------
     """Upsert SessionEventState to status='completed', then advance Campaign phase."""
-    try:
-        event_id = int(attrs.get("event_id", ""))
-    except (TypeError, ValueError):
-        return
+    event_id = await _parse_world_event_id(
+        session, session_id, attrs.get("event_id", "")
+    )
+    if event_id is None:
+        return False
 
     framework_id, ok = await _resolve_world_event(session, session_id, event_id)
     if not ok:
-        return
+        return False
 
     row = await session.get(SessionEventState, (session_id, event_id))
-    if row is None:
-        row = SessionEventState(
-            session_id=session_id,
-            event_id=event_id,
-            status="completed",
-            triggered_turn=current_turn,
+    if row is None or row.status == "pending":
+        return False  # 必须由已发生的叙事先触发，不能从 pending 直接完成
+    if row.status == "completed":
+        await _apply_phase_advance(session, session_id, event_id, current_turn)
+        return False
+
+    campaign = (await session.execute(
+        select(Campaign).where(Campaign.framework_id == framework_id)
+    )).scalars().first()
+    if campaign is not None:
+        try:
+            phases = json.loads(campaign.phases_json or "[]")
+        except (TypeError, ValueError):
+            phases = []
+        key_event_phase = next(
+            (ph for ph in phases if event_id in (ph.get("key_event_ids") or [])),
+            None,
         )
-        session.add(row)
-    else:
-        if row.status != "completed":
-            if row.triggered_turn == 0:
-                row.triggered_turn = current_turn
-            row.status = "completed"
-        # 已经是 completed → 幂等，不做变更（但仍然执行 phase advance 以防漏推）
+        if key_event_phase is not None:
+            camp_state = await session.get(SessionCampaignState, session_id)
+            if camp_state is None:
+                unlocked_ids = [
+                    ph.get("phase_id") for ph in phases
+                    if not ph.get("prerequisite_phase_ids")
+                    and isinstance(ph.get("phase_id"), int)
+                ]
+                active_phase_id = min(unlocked_ids, default=None)
+                camp_state = SessionCampaignState(
+                    session_id=session_id,
+                    current_phase_id=active_phase_id,
+                    triggered_key_events_json="[]",
+                )
+                session.add(camp_state)
+            else:
+                active_phase_id = camp_state.current_phase_id
+            if active_phase_id != key_event_phase.get("phase_id"):
+                return False
+
+    row.status = "completed"
 
     await _apply_phase_advance(session, session_id, event_id, current_turn)
+    return True

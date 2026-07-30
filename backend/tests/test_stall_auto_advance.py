@@ -11,7 +11,6 @@ When turns_since_progress is 3-7 the existing warning behaviour should remain.
 
 import json
 import pytest
-from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
@@ -186,7 +185,7 @@ async def test_no_active_screenplay_no_op(db):
 async def test_auto_advance_emits_system_note_in_key_facts(db):
     """Check exact rendered text contains '系统自动推进' when auto-firing."""
     SM, sid, *_ = db
-    sp_id = await _seed_screenplay(SM, sid, _chapters_json(["联系线人", "获取证据"]))
+    await _seed_screenplay(SM, sid, _chapters_json(["联系线人", "获取证据"]))
 
     current_turn = 8
     async with SM() as s:

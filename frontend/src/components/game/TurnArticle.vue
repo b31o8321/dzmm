@@ -99,6 +99,16 @@ const nonDiceEvents = computed(() => props.turn.events?.filter(ev => ev.type !==
       </button>
     </div>
     <div class="relative bg-white rounded shadow-sm p-4">
+      <el-alert
+        v-if="turn.diagnostics?.length"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="本回合部分结构化内容未应用"
+        class="mb-3"
+      >
+        {{ turn.diagnostics.join('；') }}
+      </el-alert>
       <!-- Loading state: waiting for first LLM token -->
       <template v-if="isLast && isLastTurnLoading">
         <div class="space-y-3">

@@ -244,7 +244,25 @@ class StreamingTagParser:
                             typo_found_name = found
                             break  # 找到第一个就够了
 
-                if exact_idx == -1 and typo_idx == -1:
+                # A different known close tag means the model mismatched the
+                # closing name (for example <pc_action>...</narrative>). Treat
+                # it as an implicit close so later tags remain independently
+                # parseable instead of being swallowed into the current body.
+                mismatch_idx = -1
+                mismatch_close = ""
+                mismatch_name = ""
+                if self._state in ("IN_STREAMING", "IN_BUFFERED"):
+                    for cm in _CLOSE_TAG_RE.finditer(self._buf):
+                        found = cm.group(1).lower()
+                        if found == self._current_tag or _is_typo_close(self._current_tag or "", found):
+                            continue
+                        if found in KNOWN_TAGS:
+                            mismatch_idx = cm.start()
+                            mismatch_close = cm.group(0)
+                            mismatch_name = found
+                            break
+
+                if exact_idx == -1 and typo_idx == -1 and mismatch_idx == -1:
                     # 还没找到闭合标签：需要等待更多输入
                     # 但可以把"安全"的前缀部分推送出去（避免缓冲区无限增长）
                     # hold = 保留尾部的长度（确保跨块的闭标签不被切断）
@@ -264,15 +282,21 @@ class StreamingTagParser:
 
                 # 如果精确闭合标签和 typo 闭合标签都找到了，选位置更靠前的那个
                 # （更靠前意味着更早结束当前标签，避免把不该包含的内容吃进来）
-                use_typo = (
-                    typo_idx != -1
-                    and (exact_idx == -1 or typo_idx < exact_idx)
-                )
+                candidates = [
+                    (idx, kind) for idx, kind in (
+                        (exact_idx, "exact"),
+                        (typo_idx, "typo"),
+                        (mismatch_idx, "mismatch"),
+                    ) if idx != -1
+                ]
+                idx, close_kind = min(candidates, key=lambda item: item[0])
+                use_typo = close_kind == "typo"
+                use_mismatch = close_kind == "mismatch"
                 if use_typo:
-                    idx = typo_idx
                     close_len = len(typo_close)
+                elif use_mismatch:
+                    close_len = len(mismatch_close)
                 else:
-                    idx = exact_idx
                     close_len = len(exact_close)
 
                 inner = self._buf[:idx]  # 闭合标签之前的内容就是标签的 body
@@ -297,6 +321,14 @@ class StreamingTagParser:
                             f"matched as </{self._current_tag}>"
                         ),
                         raw=typo_close,
+                    ))
+                elif use_mismatch:
+                    events.append(ParseError(
+                        message=(
+                            f"mismatched close tag: </{mismatch_name}> "
+                            f"closed <{self._current_tag}>"
+                        ),
+                        raw=mismatch_close,
                     ))
 
                 # 消费掉闭合标签，重置状态机到 OUTSIDE

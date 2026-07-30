@@ -12,7 +12,7 @@ Tests:
 
 import json
 import random
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,7 +131,6 @@ async def test_dice_request_rolls_and_records(db):
     # Patch roll() to use a seeded RNG for determinism
     seeded_rng = random.Random(42)
     with patch("dzmm.service.state_apply.mechanics.roll") as mock_roll:
-        from dzmm.engine.dice import DiceResult
         # Simulate roll("2d6+3") with the seeded rng
         from dzmm.engine.dice import roll as real_roll
         real_result = real_roll("2d6+3", rng=seeded_rng)

@@ -1,10 +1,12 @@
+import json
+
 import pytest
-from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
     Character, CharState, ModelConfig, NPC, Session as GameSession, World,
 )
+from dzmm.service.npc_initiative import find_initiative_npc
 
 
 @pytest.fixture
@@ -40,10 +42,6 @@ async def test_npc_has_last_initiative_turn(db):
     assert npc.last_initiative_turn == 0
 
 
-import json as _json
-from dzmm.service.npc_initiative import find_initiative_npc
-
-
 async def test_find_returns_none_when_no_npcs(db):
     s, sid = db
     result = await find_initiative_npc(s, sid, current_turn=5)
@@ -62,7 +60,7 @@ async def test_find_returns_none_when_spoke_recently(db):
     s.add(MessageRow(
         session_id=sid, role="assistant", turn=5,
         content="<say>x</say>",
-        events_json=_json.dumps([
+        events_json=json.dumps([
             {"type": "say", "payload": {"speaker": "A"}, "content": "嘿"},
         ]),
     ))
@@ -138,7 +136,7 @@ async def test_initiative_uses_last_spoke_not_last_seen(db):
     s.add(MessageRow(
         session_id=sid, role="assistant", turn=5,
         content="<narrative>阿伟站在墙边。</narrative>",
-        events_json=_json.dumps([
+        events_json=json.dumps([
             {"type": "narrative", "payload": {}, "content": "阿伟站在墙边。"},
         ]),
     ))

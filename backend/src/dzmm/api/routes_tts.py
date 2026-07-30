@@ -38,6 +38,8 @@
 
 # backend/src/dzmm/api/routes_tts.py
 """TTS routes: proxy (existing), edge-tts builtin, kokoro-onnx local, cosyvoice sidecar."""
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response   # Response — 返回原始字节内容（音频数据）
 from pydantic import BaseModel, Field    # BaseModel — Pydantic 数据校验基类；Field — 字段配置
@@ -264,8 +266,6 @@ async def kokoro_synth(body: KokoroSynthRequest):
 # 它依赖 PyTorch 等重量级包，如果直接集成到 FastAPI 进程里会大幅增加启动时间和内存。
 # 所以把它作为"侧车"——独立的子进程，监听本机某个端口，
 # FastAPI 通过 HTTP 向它转发请求。
-
-import asyncio
 
 # 全局状态变量：追踪安装任务的进度
 # asyncio.Task 是异步任务对象；None 表示当前没有安装任务在运行

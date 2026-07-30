@@ -30,6 +30,7 @@ const state = reactive({
   model_config_id: 0,   // 0 = use preferred default; user can pick a specific one in step 0
   world_brief_md: '',
   world_name: '',
+  start_location_name: '',
   locations: [] as FwLocationInput[],
   factions: [] as FwFactionInput[],
   npc_templates: [] as FwNpcTemplateInput[],
@@ -158,6 +159,7 @@ async function resetWizard() {
   state.genre = '悬疑探案'
   state.world_brief_md = ''
   state.world_name = ''
+  state.start_location_name = ''
   state.locations = []
   state.factions = []
   state.npc_templates = []
@@ -218,6 +220,7 @@ function blankNpc(): FwNpcTemplateInput {
 function blankEvent(): FwEventInput {
   return {
     name: '', summary_md: '', scope_type: 'global',
+    completion_criteria_md: '',
     scope_location_name: null, scope_faction_name: null,
     importance: 3, is_repeatable: false, cooldown_turns: 0,
     trigger_conditions: [],
@@ -271,7 +274,11 @@ function saveDialog() {
     ElMessage.success('已新增')
   } else {
     const idx = editDialog.index
-    if (editDialog.kind === 'location') state.locations.splice(idx, 1, { ...d })
+    if (editDialog.kind === 'location') {
+      const oldName = state.locations[idx]?.name
+      state.locations.splice(idx, 1, { ...d })
+      if (state.start_location_name === oldName) state.start_location_name = d.name
+    }
     else if (editDialog.kind === 'faction') state.factions.splice(idx, 1, { ...d, rival_faction_names: [...d.rival_faction_names], ally_faction_names: [...d.ally_faction_names] })
     else if (editDialog.kind === 'npc') state.npc_templates.splice(idx, 1, { ...d })
     else state.events.splice(idx, 1, { ...d })
@@ -286,7 +293,13 @@ async function deleteItem(kind: DialogKind, index: number) {
       confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
     })
   } catch { return }
-  if (kind === 'location') state.locations.splice(index, 1)
+  if (kind === 'location') {
+    const removedName = state.locations[index]?.name
+    state.locations.splice(index, 1)
+    if (state.start_location_name === removedName) {
+      state.start_location_name = state.locations[0]?.name ?? ''
+    }
+  }
   else if (kind === 'faction') state.factions.splice(index, 1)
   else if (kind === 'npc') state.npc_templates.splice(index, 1)
   else state.events.splice(index, 1)
@@ -331,6 +344,7 @@ async function generate(stepNum: number) {
         genre: state.genre,
         world_brief_md: brief,
       })
+      state.start_location_name = state.locations[0]?.name ?? ''
     } else if (stepNum === 3) {
       state.factions = await frameworkApi.generateFactions({
         model_config_id: modelConfigId.value,
@@ -385,6 +399,10 @@ async function generate(stepNum: number) {
 
 async function finalize() {
   if (!modelConfigId.value) return
+  if (!state.locations.length) {
+    ElMessage.error('至少需要一个地点才能创建开放世界存档')
+    return
+  }
   loading.value = true
   try {
     let phase = 'framework'
@@ -395,6 +413,7 @@ async function finalize() {
         genre: state.genre,
         style: '',
         description_md: state.world_brief_md,
+        start_location_name: state.start_location_name || state.locations[0]?.name || '',
         locations: state.locations,
         factions: state.factions,
         npc_templates: state.npc_templates,
@@ -512,6 +531,16 @@ const STEP_LABELS = [
           <el-button :loading="loading" @click="generate(2)">生成地点网络</el-button>
         </div>
         <div v-else>
+          <el-alert
+            title="选择玩家的开局地点"
+            type="info"
+            :closable="false"
+            style="margin-bottom: 12px"
+          >
+            <el-select v-model="state.start_location_name" style="width: 100%" placeholder="选择开局地点">
+              <el-option v-for="loc in state.locations" :key="loc.name" :label="loc.name" :value="loc.name" />
+            </el-select>
+          </el-alert>
           <div class="card-grid">
             <div v-for="(loc, i) in state.locations" :key="i" class="fw-card">
               <div class="fw-card-header">
@@ -609,6 +638,9 @@ const STEP_LABELS = [
                 </span>
               </div>
               <p class="fw-card-desc">{{ ev.summary_md }}</p>
+              <p v-if="ev.completion_criteria_md" class="item-desc">
+                完成判据：{{ ev.completion_criteria_md }}
+              </p>
               <div class="fw-card-meta">
                 <span>{{ ev.scope_type === 'global' ? '全局' : ev.scope_type === 'faction' ? '势力' : '地点' }}</span>
                 <span v-if="ev.is_repeatable">可重复</span>
@@ -660,6 +692,7 @@ const STEP_LABELS = [
       <h3>确认创建</h3>
       <p><strong>世界：</strong>{{ state.world_name }}（{{ state.genre }}）</p>
       <p><strong>地点：</strong>{{ state.locations.length }} 个</p>
+      <p><strong>开局地点：</strong>{{ state.start_location_name || state.locations[0]?.name || '未设置' }}</p>
       <p><strong>势力：</strong>{{ state.factions.length }} 个</p>
       <p><strong>NPC 模板：</strong>{{ state.npc_templates.length }} 个</p>
       <p><strong>事件库：</strong>{{ state.events.length }} 个事件</p>
@@ -810,6 +843,14 @@ const STEP_LABELS = [
         </el-form-item>
         <el-form-item label="摘要">
           <el-input v-model="editDialog.draft.summary_md" type="textarea" :rows="3" placeholder="事件描述" />
+        </el-form-item>
+        <el-form-item label="完成判据">
+          <el-input
+            v-model="editDialog.draft.completion_criteria_md"
+            type="textarea"
+            :rows="2"
+            placeholder="取得什么可验证结果或证据，才算完成当前事件"
+          />
         </el-form-item>
         <el-form-item label="范围类型">
           <el-select v-model="editDialog.draft.scope_type" style="width:100%">

@@ -38,7 +38,7 @@ SUMMARIZE_TRIGGER_TURNS = 10
 # （实际的"最近消息窗口"逻辑在 service/messages._load_recent_messages 里，
 #   这里只是记录设计意图，方便维护者同步调整两处参数）
 SUMMARIZE_KEEP_RECENT = 6
-SUMMARY_MAX_TOKENS = 1500       # 摘要最多生成多少 token（增大以容纳关键事实区块）
+SUMMARY_MAX_TOKENS = 1000       # 足够容纳 600-800 字摘要和事实清单，限制长局维护长尾
 COMPRESSION_TRIGGER_CHARS = 4000  # 摘要超过这个字符数才再次压缩
 COMPRESSED_TARGET_TOKENS = 800   # 压缩后的目标 token 数
 

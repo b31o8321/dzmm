@@ -1,5 +1,4 @@
 """Tests for world_brief prompt polish (Goals A, B, C)."""
-import pytest
 
 from dzmm.prompts.wizard_world_brief import (
     _GENRE_CONFLICT_HINTS,

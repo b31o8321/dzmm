@@ -46,7 +46,7 @@ async def _pc_current_location(s: AsyncSession, session_id: int) -> str:
     cur = (await s.execute(
         select(Location).where(
             Location.session_id == session_id,
-            Location.is_current == True,  # noqa: E712（SQLAlchemy 需要 == True，不能用 is True）
+            Location.is_current,
         )
     )).scalar_one_or_none()
     return cur.name if cur is not None else ""

@@ -264,8 +264,8 @@ async def install(progress: Callable[[str], None] | None = None) -> None:
             re.I,
         )
         # 过滤后的有效依赖行
-        filtered = [l for l in req_file.read_text().splitlines()
-                    if l.strip() and not l.strip().startswith('#') and not skip_re.match(l)]
+        filtered = [line for line in req_file.read_text().splitlines()
+                    if line.strip() and not line.strip().startswith('#') and not skip_re.match(line)]
         # 把过滤后的依赖写入临时文件
         filtered_req = APP_DIR / "_cosy_req_filtered.txt"
         filtered_req.write_text('\n'.join(filtered))

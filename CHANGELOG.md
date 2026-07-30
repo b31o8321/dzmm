@@ -2,6 +2,19 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v0.16.0] - 2026-07-30
+
+**成熟度与运行态一致性**
+
+- 开放世界向导资产、Director、Scene 与持久化状态使用同一事实源；framework 模式不再受 screenplay 平行控制
+- Director 使用显式事件 ID，并由数据库确定性注入事件事实、状态与可验证完成判据
+- 拒绝占位地点、非法事件推进、越界属性和模型伪造事实；背包新旧存储保持同步
+- 模型协议切换前执行健康检查，识别 HTTP 200 错误体，失败时保留原模型，并支持 429 重试
+- 失败回合可重试，撤回同步恢复状态与 Agent 历史，diagnostics 随 JSON/Markdown 导出
+- Agent 长历史保留完整角色消息对，摘要 token 预算降至 1000，提升 30-50 回合稳定性
+- 使用 LM Studio `google/gemma-3-12b` 16K 完成 50 回合真实验收：Director 100%，标签应用 99.17%
+- 新增 [v0.16.0 成熟度评估](docs/MATURITY_V0.16.0.md)，八项成熟度均达到 85/100
+
 ## [v0.15.0] - 2026-05-17
 
 **机械引擎重构：Python-first，LLM 只描述**

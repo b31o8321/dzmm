@@ -20,6 +20,7 @@
 #   但 Python 的 async generator 语法更接近同步代码，不需要响应式编程知识。
 # ============================================================
 
+import asyncio
 import json       # 用于解析/序列化 JSON 字符串（NPC 设定、历史消息、事件 payload 等都用 JSON 存储）
 import logging     # Python 标准日志库，用 log.info / log.warning 记录运行时信息
 import random      # 生成随机数：预掷 d20 骰子、厄运值触发概率
@@ -54,15 +55,18 @@ from dzmm.db.models import (
     Session as GameSession,  # 游戏会话（一次游玩记录）：turn_count、world_id 等
     StorySummary, # 故事摘要：summarizer 把早期历史压缩成文字摘要存在这里
     World,        # 世界设定表：世界观文档（Markdown）、风格、规则模式
+    WorldFaction,
     WorldLocation, # 开放世界预定义地点（含 connections_json travel_turns）
+    WorldNPCTemplate,
 )
+from dzmm.engine.schema import parse_items
 # ModelClient 是我们自己封装的 LLM 客户端接口，屏蔽了 OpenAI/Ollama/Claude 的差异
 # Message 是 LLM 消息格式（role + content）；GenerationParams 是生成参数（温度/最大 token）
 from dzmm.models.client import GenerationParams, Message, ModelClient, TokenUsage
 # ParseEvent 是解析器产出的事件基类；NarrativeDelta 是流式文本片段；
 # TagComplete 是一个完整的 XML 标签（如 <state_change hp="-5"/>）；
 # UsageSummary 是 token 用量统计
-from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete, UsageSummary
+from dzmm.parsing.events import NarrativeDelta, ParseError, ParseEvent, TagComplete, UsageSummary
 # StreamingTagParser：一个流式 XML 解析器，边接收 LLM token 边解析标签
 # LLM 输出是字符串流，不能等全部输出再解析——所以需要流式解析器
 from dzmm.parsing.stream_parser import StreamingTagParser
@@ -244,7 +248,7 @@ def _serialize_event_for_history(ev: ParseEvent) -> str:
 #   但 GM 在第 7 回合的 <pc_action> 里写"我叫林峰"）。
 # 解决：在持久化前用正则修复，使持久化的消息和后续渲染都使用正确名字。
 # 注意：修复只影响数据库存储，流式输出已经发出给前端的内容无法撤回。
-from dzmm.service.name_repair import (
+from dzmm.service.name_repair import (  # noqa: E402, F401
     _NAME_PATTERNS,    # 正则模式列表：匹配各种错误的 PC 自我介绍写法
     _SAY_BLOCK_RE,     # 匹配 <say> 标签内容的正则（用于避免修改 NPC 台词）
     _repair_pc_name,   # 主修复函数：接收文本+正确名字，返回修复后的文本和修复次数
@@ -394,6 +398,11 @@ async def _auto_generate_screenplay(
 # \b 是单词边界，防止误匹配（如 <narrative_extra> 不算 <narrative>）
 _XML_TAG_RE = re.compile(r"<(narrative|say|pc_action|state_change|location_enter)\b")
 
+
+def _should_auto_generate_screenplay(sess: GameSession) -> bool:
+    """Only linear sessions own a chapter screenplay controller."""
+    return sess.turn_count == 0 and sess.framework_id is None
+
 # _check_xml_drift：检测 LLM 是否"忘记"了 XML 格式，并返回格式提醒字符串
 #
 # 为什么会发生格式漂移？
@@ -508,7 +517,7 @@ async def run_turn(
     # ── ② 第一回合：自动生成剧本大纲 ──────────────────────────────────────────
     # sess.turn_count == 0 意味着这是第一回合（还没有任何消息历史）
     # 用 LLM 生成一个 3-5 章的剧本骨架，后续 GM 在每回合都会看到"当前章节进度"
-    if sess.turn_count == 0:
+    if _should_auto_generate_screenplay(sess):
         existing_sp = (await session.execute(
             select(Screenplay).where(
                 Screenplay.session_id == session_id,
@@ -554,7 +563,7 @@ async def run_turn(
                 doom_note += "\n\n🔴 **坏结局触发**：本回合必须演出一个不可逆的恶化事件并 emit `<ending type=\"bad\">`。"
         else:
             # doom == 100：必然触发末日结局（100% 概率，不用 random）
-            doom_note = f"## ⚠️ 压力值（仅GM可见）\n当前厄运值：100/100。\n\n🔴 **坏结局触发**：本回合必须演出末日事件并 emit `<ending type=\"bad\">`。"
+            doom_note = "## ⚠️ 压力值（仅GM可见）\n当前厄运值：100/100。\n\n🔴 **坏结局触发**：本回合必须演出末日事件并 emit `<ending type=\"bad\">`。"
         # 把厄运提示追加到 key_facts 末尾（GM Prompt 里 key_facts 放在最靠近生成指令的位置）
         key_facts = key_facts + "\n\n" + doom_note
 
@@ -651,6 +660,7 @@ async def run_turn(
         # 收集所有事件的容器
         all_events: list[ParseEvent] = []      # 所有事件（用于拼装 full_output）
         completed_tags: list[TagComplete] = [] # 完整的结构化标签（用于 apply_tags）
+        parse_errors: list[str] = []
         narrative_parts: list[str] = []        # 纯叙事文本片段（用于 PC 名字修复）
         v10_usage = UsageSummary()             # Token 用量汇总（多个 Agent 的总和）
 
@@ -675,6 +685,7 @@ async def run_turn(
             live_state_text=live_state_text,
             key_facts=key_facts,
             recent_messages=recent,
+            scene_params=params,
         ):
             if isinstance(ev, UsageSummary):
                 v10_usage = ev    # 保存 token 用量，不向前端推送
@@ -682,6 +693,8 @@ async def run_turn(
             all_events.append(ev)
             if isinstance(ev, TagComplete):
                 completed_tags.append(ev)     # 收集完整标签（后面 apply_tags 用）
+            if isinstance(ev, ParseError):
+                parse_errors.append(ev.message)
             if isinstance(ev, NarrativeDelta):
                 narrative_parts.append(ev.text)  # 收集叙事文本（后面名字修复用）
             yield ev  # 把事件转发给调用方（API 路由 → SSE → 前端），实现"打字机效果"
@@ -697,28 +710,47 @@ async def run_turn(
             session_id=session_id, role="user",
             content=user_action, turn=next_turn,  # 保存玩家的输入
         ))
-        # 把本回合所有 TagComplete 事件序列化成 JSON 存入 events_json
-        # 前端用这个字段渲染"事件芯片"（如 "HP -5" / "进入客栈" 等 UI 元素）
-        events_payload = [
-            {
-                "type": tag.name,         # 标签类型（如 state_change、location_enter）
-                "payload": dict(tag.attrs or {}),  # 标签属性（如 hp="-5"）
-                "content": tag.content or "",      # 标签内容（如文字描述）
-            }
-            for tag in completed_tags  # 列表推导式：对每个 tag 生成一个字典
-        ]
-        session.add(MessageRow(
+        assistant_message = MessageRow(
             session_id=session_id, role="assistant",
             content=full_output, turn=next_turn,
-            events_json=json.dumps(events_payload, ensure_ascii=False),  # ensure_ascii=False 保留中文
+            events_json="[]",
+            diagnostics_json=json.dumps(parse_errors, ensure_ascii=False),
             snapshot_json=snapshot_str,  # 回合开始时的状态快照（用于撤回）
             tokens_in=v10_usage.tokens_in,
             tokens_out=v10_usage.tokens_out,
-        ))
+        )
+        session.add(assistant_message)
         # v0.15.2 — forward usage summary to external consumers
         # (eval / playtest scripts). API SSE layer filters this out.
         yield UsageSummary(tokens_in=v10_usage.tokens_in, tokens_out=v10_usage.tokens_out)
-        await apply_tags(session, session_id, next_turn, completed_tags)
+        accepted_tags = await apply_tags(
+            session, session_id, next_turn, completed_tags
+        )
+        accepted_tag_ids = {id(tag) for tag in accepted_tags}
+        rejected_tag_names = [
+            tag.name for tag in completed_tags if id(tag) not in accepted_tag_ids
+        ]
+        parse_errors.extend(
+            f"状态标签被拒绝：<{name}>" for name in rejected_tag_names
+        )
+        assistant_message.diagnostics_json = json.dumps(parse_errors, ensure_ascii=False)
+        assistant_message.events_json = json.dumps([
+            {
+                "type": tag.name,
+                "payload": dict(tag.attrs or {}),
+                "content": tag.content or "",
+            }
+            for tag in accepted_tags
+        ], ensure_ascii=False)
+        log_event(
+            session_id,
+            "turn_structure_quality",
+            turn=next_turn,
+            proposed_tags=len(completed_tags),
+            accepted_tags=len(accepted_tags),
+            rejected_tags=len(rejected_tag_names),
+            parse_errors=len(parse_errors) - len(rejected_tag_names),
+        )
         # v0.10.5 — soft validation: warn if a brand-new NPC appeared
         # outside their primary_location with no encounter_setup. Soft
         # only — never aborts the SSE stream.
@@ -822,6 +854,7 @@ async def run_turn(
     parser = StreamingTagParser()      # 流式 XML 解析器（有状态的，需要保持实例）
     full_output_parts: list[str] = []  # 原始输出所有 token 片段（最后拼成 full_output）
     completed_tags: list[TagComplete] = []  # 本回合所有完整的 XML 标签
+    parse_errors: list[str] = []            # 持久化供刷新/导出后的故障诊断
     narrative_parts: list[str] = []    # 叙事文本片段（用于 PC 名字修复和润色）
     usage = TokenUsage()               # token 用量（从最后一个 chunk 获取）
     narrative_emitted = False          # 标记是否有叙事文本（用于 fallback 判断）
@@ -837,6 +870,8 @@ async def run_turn(
             for ev in parser.feed(chunk.delta):
                 if isinstance(ev, TagComplete):
                     completed_tags.append(ev)    # 收集完整标签
+                if isinstance(ev, ParseError):
+                    parse_errors.append(ev.message)
                 if isinstance(ev, NarrativeDelta):
                     narrative_emitted = True
                     narrative_parts.append(ev.text)
@@ -849,6 +884,8 @@ async def run_turn(
     for ev in parser.finish():
         if isinstance(ev, TagComplete):
             completed_tags.append(ev)
+        if isinstance(ev, ParseError):
+            parse_errors.append(ev.message)
         if isinstance(ev, NarrativeDelta):
             narrative_emitted = True
             narrative_parts.append(ev.text)
@@ -935,25 +972,17 @@ async def run_turn(
         session_id=session_id, role="user", content=user_action, turn=next_turn,
     ))
 
-    # 把本回合所有结构化标签事件序列化成 JSON（前端用于渲染事件芯片 UI）
-    events_payload = [
-        {
-            "type": tag.name,           # 标签类型
-            "payload": dict(tag.attrs or {}),  # 标签属性
-            "content": tag.content or "",      # 标签文本内容
-        }
-        for tag in completed_tags
-    ]
-
     # 保存 GM 的输出（role="assistant"）
     # prompt_json 只在 debug_mode 时有内容（避免日常存储占用大量空间）
-    session.add(MessageRow(
+    assistant_message = MessageRow(
         session_id=session_id, role="assistant", content=full_output, turn=next_turn,
         tokens_in=usage.input_tokens, tokens_out=usage.output_tokens,
-        events_json=json.dumps(events_payload, ensure_ascii=False),
+        events_json="[]",
+        diagnostics_json=json.dumps(parse_errors, ensure_ascii=False),
         prompt_json=_debug_prompt_json,
         snapshot_json=snapshot_str,  # 本回合开始前的状态快照（用于撤回）
-    ))
+    )
+    session.add(assistant_message)
 
     # v0.15.2 — yield UsageSummary so external consumers (eval / playtest
     # scripts) can capture per-turn token costs without re-reading the DB.
@@ -967,11 +996,36 @@ async def run_turn(
     #   <location_enter name="客栈"/> → 更新 Location.is_current
     #   <plot_event type="discovery"/> → 创建 PlotThread 记录
     #   … 等约 20 种标签各有自己的处理逻辑
-    await apply_tags(
+    accepted_tags = await apply_tags(
         session,
         session_id,
         next_turn,
         completed_tags,
+    )
+    accepted_tag_ids = {id(tag) for tag in accepted_tags}
+    rejected_tag_names = [
+        tag.name for tag in completed_tags if id(tag) not in accepted_tag_ids
+    ]
+    parse_errors.extend(
+        f"状态标签被拒绝：<{name}>" for name in rejected_tag_names
+    )
+    assistant_message.diagnostics_json = json.dumps(parse_errors, ensure_ascii=False)
+    assistant_message.events_json = json.dumps([
+        {
+            "type": tag.name,
+            "payload": dict(tag.attrs or {}),
+            "content": tag.content or "",
+        }
+        for tag in accepted_tags
+    ], ensure_ascii=False)
+    log_event(
+        session_id,
+        "turn_structure_quality",
+        turn=next_turn,
+        proposed_tags=len(completed_tags),
+        accepted_tags=len(accepted_tags),
+        rejected_tags=len(rejected_tag_names),
+        parse_errors=len(parse_errors) - len(rejected_tag_names),
     )
 
     # v0.15 — auto-trigger framework events whose structured predicates
@@ -1165,7 +1219,7 @@ async def _load_recent_messages(
 # _format_npc_dossier：完整的 NPC 档案（姓名/性格/好感度/记忆/当前情绪等）
 # _format_npc_short：简短的 NPC 单行摘要（用于"其他 NPC"列表，节省 token）
 # _npc_revealed：判断 NPC 信息是否应该显示给 GM（隐藏 NPC 可能还没被揭示）
-from dzmm.service.npc_dossier import (
+from dzmm.service.npc_dossier import (  # noqa: E402, F401
     _format_npc_dossier,
     _format_npc_short,
     _npc_revealed,
@@ -1410,6 +1464,41 @@ async def _build_key_facts(
         if wt_str:
             parts.append(f"\n## 当前时间\n{wt_str}")
 
+    if sess is not None and sess.framework_id:
+        framework_locations = (await session.execute(
+            select(WorldLocation).where(
+                WorldLocation.framework_id == sess.framework_id
+            ).order_by(WorldLocation.id)
+        )).scalars().all()
+        framework_factions = (await session.execute(
+            select(WorldFaction).where(
+                WorldFaction.framework_id == sess.framework_id
+            ).order_by(WorldFaction.id)
+        )).scalars().all()
+        framework_npcs = (await session.execute(
+            select(WorldNPCTemplate).where(
+                WorldNPCTemplate.framework_id == sess.framework_id
+            ).order_by(WorldNPCTemplate.id)
+        )).scalars().all()
+        location_names = {loc.id: loc.name for loc in framework_locations}
+        framework_lines = [
+            "## 开放世界框架（唯一事实源，仅 GM 可见）",
+            "地点：" + "、".join(loc.name for loc in framework_locations),
+        ]
+        if framework_factions:
+            framework_lines.append(
+                "势力：" + "、".join(faction.name for faction in framework_factions)
+            )
+        if framework_npcs:
+            framework_lines.append("NPC 模板（只能按这些设定引入，不得虚构共同前情）：")
+            for npc in framework_npcs:
+                home = location_names.get(npc.home_location_id, "未指定")
+                desc = " ".join((npc.description_md or "").split())[:100]
+                framework_lines.append(
+                    f"- {npc.name}｜{npc.role}｜常驻：{home}｜{desc}"
+                )
+        parts.append("\n".join(framework_lines))
+
     # 注入 Pinned NPC 完整档案（含好感度/情绪/记忆/当前位置等）
     if pinned_npcs:
         parts.append("📌 重点 NPC（始终在场或玩家关注）：")
@@ -1485,12 +1574,26 @@ async def _build_key_facts(
         # 实测 bug：GM 可能叙事了 17 回合但从未 emit <location_enter>
         # 导致前端侧边栏"当前场所"一直空白，场景节奏压力也无法触发
         # 解决：检测到没有地点时，强制要求 GM 本回合必须 emit location_enter
+        location_instruction = (
+            "从世界观中选择一个真实地点，使用 location_enter 标签登记；"
+            "name 和 description 必须填写真实内容，禁止复制说明文字或占位符。"
+        )
+        if sess is not None and sess.framework_id:
+            framework_locations = (await session.execute(
+                select(WorldLocation.name).where(
+                    WorldLocation.framework_id == sess.framework_id
+                ).order_by(WorldLocation.id)
+            )).scalars().all()
+            if framework_locations:
+                location_instruction = (
+                    "必须从以下框架地点中选择并原样填写 name："
+                    + "、".join(framework_locations)
+                    + "。禁止创建新地点或复制说明文字。"
+                )
         parts.append(
             "\n## ⚠️ 场所登记缺失（强制）\n"
-            "本会话尚未登记任何地点，前端「当前场所」一直空白。**本回合 narrative "
-            "开头必须 emit `<location_enter name=\"具体地点名\" description=\"一句话\"/>`** "
-            "（如 「教堂地下室」 / 「九龙城寨夜市」）。已经在该地点的话也算"
-            "首次登记，必须 emit。"
+            "本会话尚未登记任何地点，前端「当前场所」一直空白。"
+            + location_instruction
         )
     if current_loc is not None:
         loc_lines = [f"\n## 当前场地：{current_loc.name}"]
@@ -1624,7 +1727,8 @@ async def _build_key_facts(
             parts.append(
                 "\n## 周边拓扑（已确认，禁止违背）\n" + "\n".join(topo_lines)
                 + "\n（PC 离开此处只能去**与此处直接相连**的地点；"
-                "进入新地点必须先 emit `<location_edge>` 把空间关系锁住。）"
+                "预设边已经登记，抵达时只需 emit 使用准确预设名称的 `<location_enter>`；"
+                "不要为房间/角落创造 `地点名-子区域`。）"
             )
 
     # 地点拓扑越界警告：上回合的 _apply_location_enter 检测到"从 A 跳到 B 但没 emit edge"
@@ -2071,8 +2175,10 @@ async def _build_key_facts(
             and k not in ("hp", "max_hp", "sanity", "max_sanity")
         ]
         level = character.level or 1  # or 1：level 为 None 时默认 1 级
-        inventory: list = []
-        if state_row and state_row.inventory_json:
+        inventory = [
+            item.name for item in parse_items(character.inventory_json or "[]")
+        ]
+        if not inventory and state_row and state_row.inventory_json:
             try:
                 inv_raw = json.loads(state_row.inventory_json)
                 if isinstance(inv_raw, list):
@@ -2226,7 +2332,6 @@ async def _build_key_facts(
                     attacker_label = f"{atk_kind.upper()}{atk_id}"
                     target_label = f"{tgt_kind.upper()}{tgt_id}"
                     if hit:
-                        dmg_formula = res.get("damage_formula") or "?"
                         dmg_rolls = res.get("damage_rolls") or []
                         dmg_mod = res.get("damage_mod", 0)
                         dmg_rolls_str = "+".join(str(r) for r in dmg_rolls)
@@ -2248,7 +2353,7 @@ async def _build_key_facts(
                         f"{entry.get('name', '?')}({entry.get('initiative_total', '?')})"
                         for entry in order
                     ]
-                    res_lines.append(f"- 先攻顺序：" + " → ".join(order_strs))
+                    res_lines.append("- 先攻顺序：" + " → ".join(order_strs))
                 else:
                     res_lines.append(f"- [{kind}] {res}")
 

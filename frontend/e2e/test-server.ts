@@ -7,8 +7,11 @@
  * stub backend directly (e.g. seed data inspection or health checks).
  */
 
-export const BACKEND_URL = 'http://127.0.0.1:8765'
-export const FRONTEND_URL = 'http://127.0.0.1:5173'
+const backendPort = process.env.DZMM_E2E_BACKEND_PORT ?? '28765'
+const frontendPort = process.env.DZMM_E2E_FRONTEND_PORT ?? '25173'
+
+export const BACKEND_URL = `http://127.0.0.1:${backendPort}`
+export const FRONTEND_URL = `http://127.0.0.1:${frontendPort}`
 
 /**
  * Polls the backend `/health` endpoint until it responds OK or `timeoutMs`

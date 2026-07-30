@@ -160,7 +160,10 @@ class ModelClient(ABC):
                 [Message(role="user", content="Reply with the single word: ok")],
                 GenerationParams(max_tokens=10, temperature=0.0),  # 确定性输出，期望得到 "ok"
             )
-            return True, text.strip()  # 连接成功
+            text = text.strip()
+            if not text:
+                return False, "model returned an empty or incompatible response"
+            return True, text  # 连接成功
         except Exception as e:  # noqa: BLE001  ← 忽略"捕获宽泛异常"的 lint 警告
             # 任何异常（网络错误/超时/认证失败）都视为健康检查失败
             # type(e).__name__ 取异常类名，如 "ConnectionError"

@@ -2,9 +2,8 @@
 import json
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from dzmm.db.base import Base, init_db, get_engine, async_session
+from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.main import create_app
 
 
@@ -192,8 +191,6 @@ async def _seed_minimal(sm) -> dict:
 
 async def test_legacy_session_returns_empty(client):
     """A session with framework_id=None should return all-empty arrays."""
-    import asyncio
-    from dzmm.db.base import async_session as _as, get_engine
     # We need to seed using the same engine used by the client fixture.
     # Use a fresh in-process seed via the API-seeded client is not possible;
     # instead we hit a non-existent endpoint with a real seed via direct DB.
@@ -205,10 +202,9 @@ async def test_legacy_session_returns_empty(client):
 
 async def test_legacy_session_db():
     """Session with framework_id=None → all empty."""
-    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
     from dzmm.db.base import init_db, get_engine, async_session
     from dzmm.main import create_app
-    import tempfile, os
+    import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
         db_url = f"sqlite+aiosqlite:///{tmp}/t.db"
@@ -252,7 +248,7 @@ async def test_framework_session_locations_and_factions():
 
     # Locations
     assert len(data["locations"]) == 2
-    loc1 = next(l for l in data["locations"] if l["id"] == ids["loc1_id"])
+    loc1 = next(location for location in data["locations"] if location["id"] == ids["loc1_id"])
     assert loc1["name"] == "暗影港"
     assert isinstance(loc1["connections"], list)
     assert len(loc1["connections"]) == 1

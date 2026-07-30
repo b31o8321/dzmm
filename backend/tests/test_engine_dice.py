@@ -6,8 +6,6 @@ import statistics
 import pytest
 
 from dzmm.engine.dice import (
-    CheckResult,
-    DiceResult,
     get_modifier,
     roll,
     skill_check,

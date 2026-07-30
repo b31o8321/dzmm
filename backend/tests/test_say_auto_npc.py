@@ -5,7 +5,6 @@ automatically create a minimal NPC row so that the dossier loader can inject
 it on the next turn.
 """
 import pytest
-from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import select
 
@@ -151,9 +150,6 @@ async def test_say_with_whitespace_speaker_trimmed_and_skipped_if_empty(db):
 async def test_say_handler_continues_when_npc_create_fails(db):
     """If NPC insertion raises, the handler logs a warning and does not propagate the error."""
     SM, sid = db
-
-    # Patch session.add to raise on NPC instances
-    original_add = None
 
     async with SM() as s:
         # Monkey-patch session.add to raise when given an NPC

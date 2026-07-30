@@ -4,7 +4,7 @@ An AI-driven TRPG (tabletop role-playing game) text adventure that runs entirely
 
 > **中文说明** → [README.zh.md](README.zh.md)
 
-> **Status:** Active · current release **v0.15.0** (Python-first mechanical engine: dice / skills / items / combat / event predicates all resolved by Python; LLM only narrates). See [CHANGELOG](CHANGELOG.md) for the full history.
+> **Status:** Active · current development version **v0.16.0** (maturity and runtime-consistency release). See [CHANGELOG](CHANGELOG.md) for the full history.
 >
 > All backend Python files carry detailed Chinese comments aimed at readers who know Python syntax but not FastAPI / SQLAlchemy / system architecture. See [docs/learning/](docs/learning/) for guided reading paths.
 
@@ -75,6 +75,8 @@ The GM prompt uses structured XML-like tags. Models that produce heavy reasoning
 
 | Model | Size | Notes |
 |---|---|---|
+| `google/gemma-3-12b` (LM Studio, 16K) | ~8 GB quantized | **Recommended for v0.16 local play** — stable structure and tag application in a real 50-turn run |
+| `magnum-v4-22b` (LM Studio, 16K) | Quantization-dependent | Style-focused alternative; ~343s first turn on the tested desktop, so not the interactive default |
 | `qwen2.5:7b` | 4.7 GB | **Best balance** for local — solid tag compliance |
 | `qwen2.5:14b` | 9 GB | Better narrative depth; needs ≥16 GB RAM |
 | `llama3.1:8b` | 4.7 GB | Good alternative |
@@ -82,6 +84,8 @@ The GM prompt uses structured XML-like tags. Models that produce heavy reasoning
 | `claude-haiku-4` (cloud) | — | Excellent compliance, similar cost |
 
 Cloud models use the `openai_compat` config type — works with OpenAI, Anthropic (via proxy), DeepSeek, Doubao, Tongyi, 零一万物, or anything with an OpenAI-shaped API.
+
+For LM Studio, select the `lm_studio` (or `openai_compat`) config type and use a Base URL such as `http://<host>:1234/v1`. Changing only the model name while leaving the type as `ollama` sends requests to the incompatible `/api/chat` endpoint. See the [v0.16.0 maturity assessment](docs/MATURITY_V0.16.0.md) for measured results and limitations.
 
 ---
 

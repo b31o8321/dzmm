@@ -40,7 +40,7 @@ from dzmm.service.agents.streams import (
 log = logging.getLogger(__name__)
 
 STREAM_KIND_NPC = "npc"   # AgentStream 的种类标识，ref 是 NPC 名字
-NPC_HISTORY_MAX = 15      # NPC 历史最多保留 15 条消息
+NPC_HISTORY_MAX = 8       # 1 条长期摘要 + 最近约 3-4 次互动
 
 # NPC actor 的 LLM 参数：温度 0.75（比 Director 更有创意，让 NPC 更生动）
 # max_tokens=300（NPC 一次不需要说太多，避免生成冗长台词）
@@ -79,7 +79,7 @@ async def run_npc_actor(
     Persists this turn into the NPC's stream regardless — even noop is signal."""
     # 获取这个 NPC 的专属历史流（kind="npc", ref=NPC名字）
     stream = await get_or_create_stream(s, session_id, STREAM_KIND_NPC, npc.name)
-    # 加载历史消息（最多 15 条，按「摘要在前、近期在后」策略）
+    # 加载历史消息（最多 8 条，按「摘要在前、近期在后」策略）
     history = await load_history(s, stream.id, max_messages=NPC_HISTORY_MAX)
 
     # 构建发给 LLM 的消息列表（prompt 模板由 npc_actor_template.py 定义）
@@ -108,19 +108,13 @@ async def run_npc_actor(
     # ── 构建存档快照 ──────────────────────────────────────────
     # 把本回合的输入信息浓缩成结构化文本，存入历史流。
     # 下次调用时，NPC 能通过历史流「回忆」上次发生了什么。
-    snapshot_parts = [
-        f"# directive\n{plot_directive[:200]}",  # Director 的指令（截短节省空间）
-    ]
-    if scene_context:
-        snapshot_parts.append(f"# scene_context\n{scene_context[:200]}")
-    if recent_dialogue:
-        snapshot_parts.append(f"# recent\n{recent_dialogue[:300]}")
-    if relationship_summary:
-        snapshot_parts.append(f"# relationship\n{relationship_summary[:300]}")
+    snapshot_parts = []
     if cue_intent:
-        snapshot_parts.append(f"# cue\n{cue_intent[:200]}")
-    snapshot_parts.append(f"# scene\n{scene_narrative[:400]}")  # 场景叙事
-    snapshot_parts.append(f"# user\n{user_action}")
+        snapshot_parts.append(f"# cue\n{cue_intent[:120]}")
+    # 关系、地点、近期对话和 Director 指令在下一次调用时都会从实时状态重建；
+    # 历史只保留本 NPC 当时真正看到的场景与玩家行动，避免过期快照重复膨胀。
+    snapshot_parts.append(f"# scene\n{scene_narrative[:240]}")
+    snapshot_parts.append(f"# user\n{user_action[:200]}")
     turn_input = "\n\n".join(snapshot_parts)
 
     tok_in = usage.input_tokens if usage else 0

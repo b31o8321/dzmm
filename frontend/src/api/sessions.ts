@@ -15,6 +15,7 @@ export interface MessageRow {
   tokens_in: number
   tokens_out: number
   events?: MessageEvent[]
+  diagnostics?: string[]
   parts_json?: string | null
 }
 

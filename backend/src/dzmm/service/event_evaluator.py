@@ -19,7 +19,13 @@ from typing import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import SessionEventState, WorldEvent
+from dzmm.db.models import (
+    Campaign,
+    Session as GameSession,
+    SessionCampaignState,
+    SessionEventState,
+    WorldEvent,
+)
 from dzmm.engine.predicates import evaluate, parse_predicate
 
 logger = logging.getLogger(__name__)
@@ -40,6 +46,30 @@ async def check_and_trigger_events(
 
     Returns list of event_ids that were newly triggered this call.
     """
+    # Campaign events may only auto-trigger in the active phase. Events that
+    # are not part of a campaign remain globally eligible.
+    campaign_event_phases: dict[int, set[int]] = {}
+    active_phase_id: int | None = None
+    sess = await s.get(GameSession, session_id)
+    if sess is not None and sess.framework_id is not None:
+        campaign = (await s.execute(
+            select(Campaign).where(Campaign.framework_id == sess.framework_id)
+        )).scalars().first()
+        campaign_state = await s.get(SessionCampaignState, session_id)
+        active_phase_id = campaign_state.current_phase_id if campaign_state else None
+        if campaign is not None:
+            try:
+                phases = json.loads(campaign.phases_json or "[]")
+            except (TypeError, ValueError):
+                phases = []
+            for phase in phases if isinstance(phases, list) else []:
+                phase_id = phase.get("phase_id")
+                if not isinstance(phase_id, int):
+                    continue
+                for event_id in phase.get("key_event_ids") or []:
+                    if isinstance(event_id, int):
+                        campaign_event_phases.setdefault(event_id, set()).add(phase_id)
+
     # Load all pending event states for this session
     result = await s.execute(
         select(SessionEventState).where(
@@ -52,6 +82,10 @@ async def check_and_trigger_events(
     newly_triggered: list[int] = []
 
     for ev_state in pending_states:
+        event_phases = campaign_event_phases.get(ev_state.event_id)
+        if event_phases is not None and active_phase_id not in event_phases:
+            continue
+
         # Load the world event
         event = await s.get(WorldEvent, ev_state.event_id)
         if event is None:

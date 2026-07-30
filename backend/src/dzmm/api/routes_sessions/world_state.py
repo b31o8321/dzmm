@@ -59,7 +59,7 @@ async def get_world_state(session_id: int, s: AsyncSession = Depends(get_session
         loc_state_rows = (await s.execute(
             select(SessionLocationState).where(
                 SessionLocationState.session_id == session_id,
-                SessionLocationState.location_id.in_([l.id for l in loc_rows]),
+                SessionLocationState.location_id.in_([loc.id for loc in loc_rows]),
             )
         )).scalars().all()
         loc_states = {r.location_id: r for r in loc_state_rows}
@@ -176,8 +176,14 @@ async def get_world_state(session_id: int, s: AsyncSession = Depends(get_session
         })
 
     # ── PC location ────────────────────────────────────────────────────────
-    # GameSession has no pc_location_id field; return None.
-    pc_location_id = None
+    try:
+        settings = json.loads(sess.settings_json or "{}")
+        raw_pc_location_id = settings.get("pc_location_id")
+        pc_location_id = int(raw_pc_location_id) if raw_pc_location_id is not None else None
+    except (TypeError, ValueError):
+        pc_location_id = None
+    if pc_location_id not in {loc.id for loc in loc_rows}:
+        pc_location_id = None
 
     # ── Campaign ───────────────────────────────────────────────────────────
     campaign_row = (await s.execute(

@@ -75,7 +75,7 @@ async def test_apply_location_edge_creates_locations_if_missing(app):
         await s.commit()
         locs = (await s.execute(select(Location))).scalars().all()
         edges = (await s.execute(select(LocationEdge))).scalars().all()
-    assert {l.name for l in locs} == {"修道院", "实验室"}
+    assert {location.name for location in locs} == {"修道院", "实验室"}
     assert len(edges) == 1
     assert edges[0].relation == "contains"
     assert edges[0].introduced_turn == 2
@@ -145,7 +145,7 @@ async def test_location_enter_warns_when_no_known_path(app):
         )
         await s.commit()
         locs = (await s.execute(select(Location))).scalars().all()
-    by_name = {l.name: l for l in locs}
+    by_name = {location.name: location for location in locs}
     assert by_name["天台"].is_current is True
     assert by_name["实验室"].is_current is False
     assert warning is not None

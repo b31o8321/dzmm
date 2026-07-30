@@ -8,6 +8,9 @@ import axios from 'axios'
 // This requires the backend to bind 0.0.0.0 when LAN access is desired
 // (DZMM_HOST=0.0.0.0). Default 127.0.0.1 still works for local-only modes.
 function deriveBaseURL(): string {
+  const configured = import.meta.env.VITE_API_BASE?.trim()
+  if (configured) return configured.replace(/\/+$/, '')
+
   const host =
     (typeof window !== 'undefined' && window.location.hostname) || '127.0.0.1'
   // Tauri's custom-scheme webview reports special hostnames; treat them as local.

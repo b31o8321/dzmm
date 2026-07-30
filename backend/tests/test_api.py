@@ -88,6 +88,15 @@ async def test_create_model_config_without_key(http):
     assert r.json()["api_key_ref"] is None
 
 
+async def test_create_model_config_rejects_lm_studio_as_ollama(http):
+    r = await http.post("/model_configs", json={
+        "name": "LM Studio 错配", "type": "ollama",
+        "base_url": "http://localhost:1234/v1", "model_name": "local-model",
+    })
+    assert r.status_code == 422
+    assert "/api/chat" in r.text
+
+
 # ========== Task 15: sessions + turn SSE ==========
 
 class StubGM(ModelClient):
@@ -155,6 +164,57 @@ async def test_turn_streams_sse(http, monkeypatch):
 
     r = await http.get(f"/sessions/{sid}")
     assert r.json()["turn_count"] == 1
+
+
+async def test_turn_stream_failure_rolls_back_messages_and_state(http, app, monkeypatch):
+    """A provider failure after partial output must leave the save unchanged."""
+    from sqlalchemy import select
+
+    from dzmm.db.models import CharState, Message as MessageRow, Session as GameSession
+
+    sid = await _make_session(http)
+    async with app.state.session_maker() as s:
+        sess = await s.get(GameSession, sid)
+        sess.turn_count = 1
+        sess.settings_json = '{"use_v10": false}'
+        await s.commit()
+
+    class FailingGM(StubGM):
+        async def stream(self, messages, params):
+            yield StreamChunk(
+                delta=(
+                    "<narrative>这段内容只能暂时显示。</narrative>"
+                    '<state_change>{"sanity":-5}</state_change>'
+                )
+            )
+            raise RuntimeError("simulated provider disconnect")
+
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.build_client",
+        lambda cfg: FailingGM(""),
+    )
+
+    async with http.stream(
+        "POST", f"/sessions/{sid}/turn", json={"action": "继续调查"}
+    ) as response:
+        body = "".join([chunk async for chunk in response.aiter_text()])
+
+    assert response.status_code == 200
+    assert "event: error" in body
+    assert "simulated provider disconnect" in body
+
+    async with app.state.session_maker() as s:
+        sess = await s.get(GameSession, sid)
+        messages = (await s.execute(
+            select(MessageRow).where(MessageRow.session_id == sid)
+        )).scalars().all()
+        char_state = (await s.execute(
+            select(CharState).where(CharState.session_id == sid)
+        )).scalar_one()
+
+    assert sess.turn_count == 1
+    assert messages == []
+    assert '"sanity":15' in char_state.stats_json
 
 
 async def test_update_world(http):
@@ -278,7 +338,7 @@ async def test_update_character(http):
 
 
 async def test_delete_character_blocked_by_session(http):
-    sid = await _make_session(http)
+    await _make_session(http)
     chars = (await http.get("/characters")).json()
     cid = chars[0]["id"]
     r = await http.delete(f"/characters/{cid}")
@@ -354,8 +414,7 @@ async def test_delete_last_turn_handles_orphan_user_message(http, monkeypatch):
     "delete latest 2 by id" logic would then chew through turn N-1's
     assistant message — corrupting the prior turn instead of the failed
     one. The new turn-number-based delete must wipe just the orphan."""
-    from sqlalchemy import select
-    from dzmm.db.models import Message as MessageRow, Session as GameSession
+    from dzmm.db.models import Message as MessageRow
 
     sid = await _make_session(http)
     monkeypatch.setattr(
@@ -404,7 +463,8 @@ async def test_threads_endpoint_separates_active_and_resolved(http, monkeypatch)
     )
     async with http.stream("POST", f"/sessions/{sid}/turn",
                            json={"action": "调查"}) as r:
-        async for _ in r.aiter_text(): pass
+        async for _ in r.aiter_text():
+            pass
 
     r = await http.get(f"/sessions/{sid}/threads")
     assert r.status_code == 200
@@ -956,6 +1016,10 @@ async def test_export_json_full_structure(http, app):
         s.add(MessageRow(
             session_id=sid, role="assistant", content="GM 回复", turn=1,
             events_json='[{"type":"dice","payload":{"check":"察觉"}}]',
+            diagnostics_json=(
+                '[{"kind":"rejected_tag","tag":"location_enter",'
+                '"reason":"unknown framework location"}]'
+            ),
         ))
         s.add(NPC(session_id=sid, name="阿雪", description="商人",
                   favor=2, last_seen_turn=1))
@@ -988,6 +1052,11 @@ async def test_export_json_full_structure(http, app):
     assert assistant_msg["events"] == [
         {"type": "dice", "payload": {"check": "察觉"}}
     ]
+    assert assistant_msg["diagnostics"] == [{
+        "kind": "rejected_tag",
+        "tag": "location_enter",
+        "reason": "unknown framework location",
+    }]
     assert len(body["npcs"]) == 1
     assert len(body["npc_relations"]) == 1
     assert len(body["plot_threads"]) == 1
@@ -1399,7 +1468,7 @@ async def test_delete_session_does_not_remove_world_or_character(http):
 # ============================================================================
 
 
-async def test_patch_session_gm_model(http):
+async def test_patch_session_gm_model(http, monkeypatch):
     """PATCH /sessions/{id}/gm_model updates gm_model_config_id."""
     sid = await _make_session(http)
     # Create a new model config to switch to.
@@ -1410,12 +1479,43 @@ async def test_patch_session_gm_model(http):
     assert r.status_code == 200
     new_mcid = r.json()["id"]
 
+    class HealthyClient:
+        async def health_check(self):
+            return True, "ok"
+
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.base.build_client", lambda cfg: HealthyClient()
+    )
+
     r = await http.patch(
         f"/sessions/{sid}/gm_model",
         json={"gm_model_config_id": new_mcid},
     )
     assert r.status_code == 200
     assert r.json()["gm_model_config_id"] == new_mcid
+
+
+async def test_patch_session_gm_model_keeps_old_model_when_check_fails(http, monkeypatch):
+    sid = await _make_session(http)
+    before = (await http.get(f"/sessions/{sid}")).json()["gm_model_config_id"]
+    r = await http.post("/model_configs", json={
+        "name": "offline", "type": "ollama",
+        "base_url": "http://localhost:11434", "model_name": "offline",
+    })
+    new_mcid = r.json()["id"]
+
+    class UnhealthyClient:
+        async def health_check(self):
+            return False, "Unexpected endpoint POST /api/chat"
+
+    monkeypatch.setattr(
+        "dzmm.api.routes_sessions.base.build_client", lambda cfg: UnhealthyClient()
+    )
+    r = await http.patch(
+        f"/sessions/{sid}/gm_model", json={"gm_model_config_id": new_mcid}
+    )
+    assert r.status_code == 422
+    assert (await http.get(f"/sessions/{sid}")).json()["gm_model_config_id"] == before
 
 
 async def test_patch_session_gm_model_invalid(http):

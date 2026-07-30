@@ -29,7 +29,13 @@ v0.10 T12: 跨地点跳跃时如果没有 LocationEdge 记录两个地点之间�
 import json
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from dzmm.db.models import Location, LocationEdge
+from dzmm.db.models import Location, LocationEdge, Session as GameSession, WorldLocation
+
+
+_PLACEHOLDER_LOCATION_NAMES = {
+    "具体地点名", "地点名", "新地点", "目标地点", "a", "b", "...", "…",
+}
+_PLACEHOLDER_DESCRIPTIONS = {"一句话", "一句话描述", "描述", "...", "…"}
 
 
 async def _check_topology(
@@ -129,6 +135,28 @@ async def _apply_location_enter(
 
     # 优先用 XML 属性里的 description，其次用标签 body 内容
     description = (attrs.get("description") or content or "").strip()
+    if name.casefold() in {value.casefold() for value in _PLACEHOLDER_LOCATION_NAMES}:
+        return f"⚠️ 地点登记被拒绝：name「{name}」是说明占位符，必须填写真实地点。"
+    if description.casefold() in {value.casefold() for value in _PLACEHOLDER_DESCRIPTIONS}:
+        return f"⚠️ 地点登记被拒绝：description「{description}」是说明占位符。"
+
+    sess = await session.get(GameSession, session_id)
+    framework_location: WorldLocation | None = None
+    if sess is not None and sess.framework_id is not None:
+        framework_location = (await session.execute(
+            select(WorldLocation).where(
+                WorldLocation.framework_id == sess.framework_id,
+                WorldLocation.name == name,
+            )
+        )).scalar_one_or_none()
+        if framework_location is None:
+            return (
+                f"⚠️ 地点登记被拒绝：「{name}」不属于当前开放世界框架。"
+                "请使用框架中已有的准确地点名。"
+            )
+        name = framework_location.name
+        if not description:
+            description = framework_location.description_md
 
     # 解析道具列表：items="手术刀,断裂的注射器" → [{"name": "手术刀", "description": ""}, ...]
     # Parse items= attr (comma-separated names, no descriptions)
@@ -147,11 +175,11 @@ async def _apply_location_enter(
     existing = (await session.execute(
         select(Location).where(Location.session_id == session_id)
     )).scalars().all()
-    current = next((l for l in existing if l.is_current), None)  # 找到当前地点
+    current = next((loc for loc in existing if loc.is_current), None)  # 找到当前地点
 
     # 做大小写不敏感的名字匹配，防止 GM 前后大小写不一致
     target_lookup_name = name
-    match = next((l for l in existing if l.name.lower() == name.lower()), None)
+    match = next((loc for loc in existing if loc.name.lower() == name.lower()), None)
     if match is not None:
         target_lookup_name = match.name  # 用数据库里的标准名称做拓扑检查
 
@@ -192,5 +220,13 @@ async def _apply_location_enter(
             is_current=True,
             items_json=json.dumps(new_items, ensure_ascii=False) if new_items else "[]",
         ))
+
+    if sess is not None and framework_location is not None:
+        try:
+            settings = json.loads(sess.settings_json or "{}")
+        except (TypeError, ValueError):
+            settings = {}
+        settings["pc_location_id"] = framework_location.id
+        sess.settings_json = json.dumps(settings, ensure_ascii=False)
 
     return warning  # 返回拓扑警告（可能为 None）

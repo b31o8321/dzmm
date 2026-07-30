@@ -5,7 +5,6 @@ shorter interval logic and non-regression for screenplay-only sessions.
 """
 from types import SimpleNamespace
 
-import pytest
 
 from dzmm.service.agents.triggers import (
     DIRECTOR_INTERVAL_TURNS,

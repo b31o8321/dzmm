@@ -21,7 +21,8 @@ os.environ["HOME"] = _TMP_HOME
 # you're poking at the temp dir during a failure investigation.
 os.environ["DZMM_DB_PATH"] = os.path.join(_TMP_HOME, ".dzmm", "test.db")
 os.environ["DZMM_HOST"] = "127.0.0.1"
-os.environ["DZMM_PORT"] = "8765"
+_E2E_PORT = int(os.environ.get("DZMM_E2E_BACKEND_PORT", "28765"))
+os.environ["DZMM_PORT"] = str(_E2E_PORT)
 
 # Make backend/src importable when invoked directly via `python e2e/mock_backend.py`.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -128,7 +129,7 @@ async def main() -> None:
     config = uvicorn.Config(
         app,
         host="127.0.0.1",
-        port=8765,
+        port=_E2E_PORT,
         log_level="warning",
     )
     server = uvicorn.Server(config)

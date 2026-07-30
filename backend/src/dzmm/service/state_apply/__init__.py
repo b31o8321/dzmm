@@ -38,5 +38,5 @@ from dzmm.service.state_apply import _impl as _impl  # noqa: F401
 # 不必关心内部是哪个子模块实现的。
 # （经 grep 确认，整个后端和测试代码里，外部只消费 apply_tags 这一个符号）
 from dzmm.service.state_apply._impl import (  # noqa: E402
-    apply_tags,
+    apply_tags as apply_tags,
 )

@@ -241,6 +241,7 @@ class Message(Base):
 
     events_json: Mapped[str] = mapped_column(Text, default="[]")  # 本回合解析出的结构化事件列表
     parts_json: Mapped[str] = mapped_column(Text, default="[]")   # 前端对话气泡的分段渲染数据
+    diagnostics_json: Mapped[str] = mapped_column(Text, default="[]")  # 解析/协议等回合级诊断
     prompt_json: Mapped[str] = mapped_column(Text, default="")    # debug: 发送给 LLM 的完整 prompt（仅 debug_mode 时填充）
     # v0.10.5: turn-effect rollback. Snapshot of mutable state at turn START
     # serialized as JSON, used by delete_last_turn to revert all effects
@@ -707,6 +708,8 @@ class WorldLocation(Base):
     )
     # 地点的初始状态：normal（正常）| damaged（受损）| destroyed（摧毁）
     initial_state: Mapped[str] = mapped_column(String(20), default="normal")
+    # 向导显式选择的玩家开局地点；旧框架无标记时运行时回退到首个地点。
+    is_start: Mapped[bool] = mapped_column(default=False)
 
 
 class WorldFaction(Base):
@@ -772,6 +775,8 @@ class WorldEvent(Base):
     importance: Mapped[int] = mapped_column(default=2)
     # 触发条件列表（AND 逻辑），JSON 格式详见规格文档 Section 1
     trigger_conditions_json: Mapped[str] = mapped_column(Text, default="[]")
+    # 事件自己的可验证完成边界；为空的旧事件继续由 Director 语义判断。
+    completion_criteria_md: Mapped[str] = mapped_column(Text, default="")
     is_repeatable: Mapped[bool] = mapped_column(default=False)  # 是否可重复触发
     cooldown_turns: Mapped[int] = mapped_column(default=0)      # 重复触发的冷却回合数
 

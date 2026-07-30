@@ -3,7 +3,6 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from dzmm.service.state_apply.world_time import _apply_time_advance, format_world_time_cn
 

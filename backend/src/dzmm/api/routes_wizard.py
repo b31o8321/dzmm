@@ -43,8 +43,6 @@ import json
 import logging
 from collections.abc import AsyncIterator
 
-log = logging.getLogger(__name__)
-
 # FastAPI 核心组件：
 #   APIRouter  — 把路由分组，最终挂载到主 app
 #   Depends    — 依赖注入，FastAPI 会自动调用括号内的函数并把结果传给参数
@@ -73,6 +71,16 @@ from dzmm.service.wizard import (
     generate_world_brief,
     stream_world_brief,
 )
+from dzmm.service.wizard_framework import (
+    finalize_framework,
+    generate_campaign,
+    generate_events,
+    generate_factions,
+    generate_locations,
+    generate_npc_templates,
+)
+
+log = logging.getLogger(__name__)
 
 # 创建路由组：所有路径都以 /wizard 开头，在 API 文档中归类到 "wizard" 标签
 router = APIRouter(prefix="/wizard", tags=["wizard"])
@@ -233,16 +241,6 @@ async def world_brief_stream(payload: dict, s: AsyncSession = Depends(get_sessio
 # ──────────────────────────────────────────────
 # 与旧版向导不同，新版"框架向导"生成的是可复用的"世界框架"（WorldFramework），
 # 包含地点网络、派系、NPC 模板、事件库、主线战役等，供多个剧本共用。
-from dzmm.service.wizard_framework import (
-    generate_locations,
-    generate_factions,
-    generate_npc_templates,
-    generate_events,
-    generate_campaign,
-    finalize_framework,
-)
-
-
 # POST /wizard/fw/character
 # 框架向导第 6 步：根据世界简介和角色原型，生成玩家角色（PC）
 # 与 /wizard/character 功能相同，命名上与其他 /wizard/fw/* 步骤保持一致。
@@ -335,5 +333,8 @@ async def fw_campaign(payload: dict, s: AsyncSession = Depends(get_session_dep))
 async def fw_finalize(payload: dict, s: AsyncSession = Depends(get_session_dep)):
     """Step 8: Commit WorldFramework to DB. Returns {framework_id}."""
     # finalize_framework 会把地点/派系/NPC模板/事件库/战役全部写入数据库
-    framework_id = await finalize_framework(s, payload)
+    try:
+        framework_id = await finalize_framework(s, payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return {"framework_id": framework_id}

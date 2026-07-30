@@ -133,6 +133,10 @@ async def load_history(
     n_summary = len(summaries)
     # 剩余配额给最近的原始消息
     keep = max(0, max_messages - n_summary)
+    # Agent 原始历史按 user/assistant 成对写入。有摘要时剩余额度常为奇数，
+    # 从尾部截取奇数条会以 assistant 开头，严格的聊天模板会拒绝该序列。
+    if summaries and keep % 2:
+        keep -= 1
 
     recents = []
     if keep > 0:
@@ -238,9 +242,17 @@ async def compress_if_needed(
     # 计算要压缩的消息数量（保留最近 keep_recent 条不压缩）
     cut = len(rows) - keep_recent
     to_compress = rows[:cut]  # 要压缩的旧消息
+    prior_summaries = (await s.execute(
+        select(AgentMessage)
+        .where(
+            AgentMessage.stream_id == stream_id,
+            AgentMessage.is_summary == True,  # noqa: E712
+        )
+        .order_by(AgentMessage.id.asc())
+    )).scalars().all()
     # 把要压缩的消息拼成对话文本
     transcript = "\n".join(
-        f"[{r.role}] {r.content}" for r in to_compress
+        f"[{r.role}] {r.content}" for r in [*prior_summaries, *to_compress]
     )
 
     # 构建压缩 prompt，让 LLM 生成摘要
@@ -273,9 +285,11 @@ async def compress_if_needed(
         content=summary_text,
         is_summary=True,  # 标记为摘要，load_history 会把它放在消息列表最前面
     ))
-    # 删除被压缩的原始消息（用 ID 列表精确匹配，不影响其他消息）
+    # 旧摘要也并入新摘要，确保每条流始终至多一个长期摘要，避免百回合后
+    # load_history 虽限制近期消息却仍把所有历史摘要带回 prompt。
+    delete_ids = [r.id for r in prior_summaries] + [r.id for r in to_compress]
     await s.execute(
         delete(AgentMessage).where(
-            AgentMessage.id.in_([r.id for r in to_compress])
+            AgentMessage.id.in_(delete_ids)
         )
     )

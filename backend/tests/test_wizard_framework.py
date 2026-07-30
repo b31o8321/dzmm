@@ -3,9 +3,13 @@
 TDD: tests written before implementation for each task.
 """
 import json
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from dzmm.models.client import TokenUsage
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from dzmm.db import models as _models  # noqa: F401
+from dzmm.db.base import Base
+from dzmm.models.client import StreamChunk, TokenUsage
 
 
 class _FakeClient:
@@ -14,7 +18,6 @@ class _FakeClient:
     async def complete(self, messages, params):
         return self._response, TokenUsage()
     async def stream(self, messages, params):
-        from dzmm.models.client import StreamChunk
         yield StreamChunk(delta=self._response, finish_reason="stop")
 
 
@@ -60,6 +63,7 @@ NPC_TEMPLATES_JSON = json.dumps([
 
 EVENTS_JSON = json.dumps([
     {"name": "港口谋杀案", "summary_md": "港口发现神秘尸体。",
+     "completion_criteria_md": "确认死者身份并取得可核验证据。",
      "scope_type": "location", "scope_location_name": "暗影港", "importance": 3,
      "trigger_conditions": [{"type": "location", "location_name": "暗影港"}],
      "is_repeatable": False, "cooldown_turns": 0},
@@ -120,11 +124,6 @@ async def test_generate_campaign_returns_dict():
     assert len(result["phases"]) == 1
 
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from dzmm.db.base import Base
-from dzmm.db import models as _models  # noqa: F401
-
-
 @pytest.fixture
 async def fresh_db():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -138,13 +137,14 @@ async def fresh_db():
 
 async def test_finalize_framework_creates_records(fresh_db):
     from dzmm.service.wizard_framework import finalize_framework
-    from dzmm.db.models import WorldFramework, WorldLocation, WorldFaction, WorldNPCTemplate, WorldEvent
+    from dzmm.db.models import WorldEvent, WorldFramework, WorldLocation, WorldNPCTemplate
 
     payload = {
         "name": "测试世界",
         "genre": "悬疑",
         "style": "noir",
         "description_md": "城市背景。",
+        "start_location_name": "港口",
         "locations": [
             {"name": "港口", "description_md": "港口区。", "location_type": "city",
              "connections": [], "initial_state": "normal"},
@@ -162,6 +162,7 @@ async def test_finalize_framework_creates_records(fresh_db):
         ],
         "events": [
             {"name": "谋杀案", "summary_md": "尸体。", "scope_type": "location",
+             "completion_criteria_md": "确认死者身份。",
              "scope_location_name": "港口", "importance": 3,
              "trigger_conditions": [], "is_repeatable": False, "cooldown_turns": 0},
         ],
@@ -178,9 +179,37 @@ async def test_finalize_framework_creates_records(fresh_db):
     )).scalars().all()
     assert len(locs) == 1
     assert locs[0].name == "港口"
+    assert locs[0].is_start is True
 
     npcs = (await fresh_db.execute(
         __import__("sqlalchemy").select(WorldNPCTemplate).where(WorldNPCTemplate.framework_id == framework_id)
     )).scalars().all()
     assert len(npcs) == 1
     assert npcs[0].home_location_id == locs[0].id
+
+    events = (await fresh_db.execute(
+        __import__("sqlalchemy").select(WorldEvent).where(
+            WorldEvent.framework_id == framework_id,
+        )
+    )).scalars().all()
+    assert events[0].completion_criteria_md == "确认死者身份。"
+
+
+async def test_finalize_framework_rejects_unknown_start_before_writing(fresh_db):
+    from sqlalchemy import func, select
+
+    from dzmm.db.models import WorldFramework
+    from dzmm.service.wizard_framework import finalize_framework
+
+    with pytest.raises(ValueError, match="start location not found"):
+        await finalize_framework(fresh_db, {
+            "name": "无效世界",
+            "start_location_name": "不存在",
+            "locations": [{
+                "name": "港口", "description_md": "", "location_type": "city",
+                "connections": [], "initial_state": "normal",
+            }],
+        })
+
+    count = (await fresh_db.execute(select(func.count(WorldFramework.id)))).scalar_one()
+    assert count == 0

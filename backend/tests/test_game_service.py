@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
-    Character, CharState, HiddenEvent, Message as MessageRow, ModelConfig, NPC,
+    Character, CharState, HiddenEvent, Location, Message as MessageRow, ModelConfig, NPC,
     NpcRelation, Screenplay, Session as GameSession, World,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
@@ -399,8 +399,7 @@ async def test_key_facts_skips_resolved_hidden_events(seeded):
 
 
 async def test_message_events_json_persisted(seeded):
-    """Every non-narrative tag emitted in a turn lands in Message.events_json
-    so the frontend can render inline event chips."""
+    """Applied non-narrative tags land in events_json; rejected tags do not."""
     engine, SessionMaker, sid = seeded
     output = (
         "<narrative>你受伤了。</narrative>"
@@ -423,9 +422,9 @@ async def test_message_events_json_persisted(seeded):
         events = json.loads(msg.events_json)
 
     assert isinstance(events, list)
-    assert len(events) == 3
+    assert len(events) == 2
     types = [e["type"] for e in events]
-    assert "state_change" in types
+    assert "state_change" not in types
     assert "npc_update" in types
     assert "dice" in types
 
@@ -451,6 +450,56 @@ async def test_message_events_json_empty_when_only_narrative(seeded):
             .order_by(MessageRow.id.desc())
         )).scalars().first()
         assert json.loads(msg.events_json) == []
+
+
+async def test_rejected_placeholder_location_is_not_persisted_as_event(seeded):
+    """Rejected state tags must not survive refresh as if they were applied."""
+    _, SessionMaker, sid = seeded
+    client = FakeClient(
+        "<narrative>你仍停留在原地。</narrative>"
+        '<location_enter name="具体地点名" description="一句话"/>'
+    )
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "观察四周", client):
+            pass
+        await s.commit()
+
+    async with SessionMaker() as s:
+        msg = (await s.execute(
+            select(MessageRow)
+            .where(MessageRow.session_id == sid, MessageRow.role == "assistant")
+            .order_by(MessageRow.id.desc())
+        )).scalars().first()
+        locations = (await s.execute(
+            select(Location).where(Location.session_id == sid)
+        )).scalars().all()
+
+    assert json.loads(msg.events_json) == []
+    assert locations == []
+
+
+async def test_malformed_xml_is_persisted_as_turn_diagnostic(seeded):
+    _, SessionMaker, sid = seeded
+    client = FakeClient(
+        "<narrative>你观察房间。</narrative>"
+        "<pc_action>继续搜索</narrative>"
+        "<choices>离开</choices>"
+    )
+    async with SessionMaker() as s:
+        async for _ in run_turn(s, sid, "搜索", client):
+            pass
+        await s.commit()
+
+    async with SessionMaker() as s:
+        msg = (await s.execute(
+            select(MessageRow)
+            .where(MessageRow.session_id == sid, MessageRow.role == "assistant")
+            .order_by(MessageRow.id.desc())
+        )).scalars().first()
+
+    diagnostics = json.loads(msg.diagnostics_json)
+    assert diagnostics
+    assert any("pc_action" in item for item in diagnostics)
 
 
 async def test_key_facts_includes_pc_hooks_section(seeded):
@@ -1064,7 +1113,7 @@ async def test_key_facts_warns_on_stuck_d20(seeded):
             }]
             s.add(MessageRow(
                 session_id=sid, role="assistant",
-                content=f"<dice skill=\"洞察\" target=\"12\">d20=9，失败</dice>",
+                content="<dice skill=\"洞察\" target=\"12\">d20=9，失败</dice>",
                 turn=t,
                 events_json=json.dumps(events, ensure_ascii=False),
             ))
@@ -1233,7 +1282,10 @@ async def test_run_turn_v10_path_emits_director_scene_npc_streams(tmp_path):
 
     class _Multi(ModelClient):
         name = "x"
+        scene_max_tokens: list[int] = []
+
         async def stream(self, msgs, params):
+            self.scene_max_tokens.append(params.max_tokens)
             yield StreamChunk(delta="<narrative>下雨。</narrative>",
                               finish_reason="stop")
         async def complete(self, msgs, params):
@@ -1268,11 +1320,20 @@ async def test_run_turn_v10_path_emits_director_scene_npc_streams(tmp_path):
         await s.commit()
         sid = sess.id
 
+    client = _Multi()
     async with SessionMaker() as s:
         events = []
-        async for ev in run_turn(s, sid, "冲", _Multi()):
+        async for ev in run_turn(
+            s,
+            sid,
+            "冲",
+            client,
+            params=GenerationParams(max_tokens=321),
+        ):
             events.append(ev)
         await s.commit()
+
+    assert client.scene_max_tokens[-1] == 321
 
     async with SessionMaker() as s:
         streams = (await s.execute(

@@ -101,6 +101,10 @@ def parse_items(json_str: str) -> list[Item]:
         items: list[Item] = []
         for raw in data:
             try:
+                if isinstance(raw, str):
+                    raw = {"name": raw, "qty": 1, "item_type": "quest"}
+                elif isinstance(raw, dict) and "item_type" not in raw:
+                    raw = {**raw, "item_type": "quest"}
                 items.append(Item.model_validate(raw))
             except Exception:
                 logger.warning("parse_items: skipping invalid item %r", raw)

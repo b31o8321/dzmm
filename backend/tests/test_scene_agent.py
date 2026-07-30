@@ -1,6 +1,6 @@
 import pytest
 
-from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
+from dzmm.models.client import GenerationParams, ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, TagComplete
 from dzmm.prompts.scene_v2_template import build_scene_messages
 from dzmm.service.agents.scene import run_scene

@@ -96,7 +96,6 @@ async def test_faction_create_then_change(http, app):
 
 async def test_faction_create_idempotent(app):
     """Same name twice should not create a duplicate."""
-    from dzmm.db.base import init_db, get_engine, async_session as mk_async_session
     from dzmm.db.models import Faction
     from sqlalchemy import select
 

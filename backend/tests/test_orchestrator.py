@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from sqlalchemy import select
 
@@ -5,7 +7,65 @@ from dzmm.db.base import async_session, get_engine, init_db
 from dzmm.db.models import AgentStream, NPC
 from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
 from dzmm.parsing.events import NarrativeDelta, TagComplete
-from dzmm.service.agents.orchestrator import run_turn_v10
+from dzmm.service.agents.orchestrator import (
+    _filter_framework_choices,
+    _requested_framework_destination,
+    _reusable_plot_directive,
+    run_turn_v10,
+)
+
+
+def test_reusable_plot_directive_drops_one_shot_event_tags():
+    output = (
+        '<event_trigger event_id="缺页档案"/>\n'
+        '<plot_directive>本回合主推：缺页档案</plot_directive>'
+    )
+
+    assert _reusable_plot_directive(output) == (
+        '<plot_directive>本回合主推：缺页档案</plot_directive>'
+    )
+
+
+def test_requested_framework_destination_requires_explicit_one_turn_route():
+    from types import SimpleNamespace
+
+    dock = SimpleNamespace(
+        id=1,
+        name="码头",
+        connections_json=json.dumps([
+            {"target_id": 2, "travel_turns": 1},
+            {"target_id": 3, "travel_turns": 2},
+        ]),
+    )
+    market = SimpleNamespace(id=2, name="市场")
+    tower = SimpleNamespace(id=3, name="灯塔")
+
+    assert _requested_framework_destination("我前往市场", dock, [dock, market, tower]) is market
+    assert _requested_framework_destination("我不去市场", dock, [dock, market, tower]) is None
+    assert _requested_framework_destination("我前往灯塔", dock, [dock, market, tower]) is None
+
+
+def test_framework_choices_drop_unreachable_known_location():
+    from types import SimpleNamespace
+
+    dock = SimpleNamespace(
+        id=1,
+        name="码头",
+        connections_json=json.dumps([{"target_id": 2, "travel_turns": 1}]),
+    )
+    market = SimpleNamespace(id=2, name="市场")
+    tower = SimpleNamespace(id=3, name="灯塔")
+    content = (
+        "- 【高风险】直接前往灯塔\n"
+        "- 【中等风险】前往市场调查\n"
+        "- 【低风险】留在码头观察"
+    )
+
+    filtered = _filter_framework_choices(content, dock, [dock, market, tower])
+
+    assert "灯塔" not in filtered
+    assert "市场" in filtered
+    assert "留在码头" in filtered
 
 
 @pytest.fixture
@@ -296,13 +356,19 @@ async def test_run_turn_v10_fans_out_only_cued_npcs(session_maker):
                            gm_model_config_id=1, summarizer_model_config_id=1)
         s.add(sess)
         await s.flush()
-        # 2 pinned NPCs — both currently look "active" by old heuristic.
+        # Four known NPCs: three are cued, one remains pinned-only.
         s.add(NPC(session_id=sess.id, name="丽莎", pinned=True,
                   archetype="x", description="x", purpose="x", state="x",
                   gender="female"))
         s.add(NPC(session_id=sess.id, name="王五", pinned=True,
                   archetype="x", description="x", purpose="x", state="x",
                   gender="male"))
+        s.add(NPC(session_id=sess.id, name="赵六", pinned=False,
+                  archetype="x", description="x", purpose="x", state="x",
+                  gender="male"))
+        s.add(NPC(session_id=sess.id, name="钱七", pinned=False,
+                  archetype="x", description="x", purpose="x", state="x",
+                  gender="female"))
         await s.commit()
         sid = sess.id
 
@@ -315,6 +381,8 @@ async def test_run_turn_v10_fans_out_only_cued_npcs(session_maker):
             text = (
                 "<narrative>巷子潮湿，丽莎贴着墙。</narrative>"
                 '<npc_cue speaker="丽莎" intent="紧张地警告 PC 危险将至"/>'
+                '<npc_cue speaker="赵六" intent="观察 PC 的反应"/>'
+                '<npc_cue speaker="钱七" intent="回答 PC 的直接询问"/>'
             )
             yield StreamChunk(delta=text, finish_reason="stop")
         async def complete(self, msgs, params):
@@ -335,7 +403,7 @@ async def test_run_turn_v10_fans_out_only_cued_npcs(session_maker):
     async with session_maker() as s:
         events = []
         async for ev in run_turn_v10(
-            s, session_id=sid, user_action="冲",
+            s, session_id=sid, user_action="我询问钱七",
             scene_client=spy, director_client=spy, npc_client=spy,
             world_md="x", character_md="x",
             live_state_text="{}", key_facts="",
@@ -344,11 +412,149 @@ async def test_run_turn_v10_fans_out_only_cued_npcs(session_maker):
             events.append(ev)
         await s.commit()
 
-    # 王五 was pinned but NOT cued → should NOT have been called
-    assert "丽莎" in call_args
-    assert "王五" not in call_args, (
-        f"王五 不应该被 fan-out（Scene 没 cue 他），但 call_args={call_args}"
+    # Pinned-only 王五 is excluded; three cues are capped to two actors and
+    # the NPC directly named by the player keeps highest priority.
+    assert len(call_args) == 2
+    assert "钱七" in call_args
+    assert "王五" not in call_args
+    assert set(call_args) <= {"丽莎", "赵六", "钱七"}
+
+
+@pytest.mark.asyncio
+async def test_framework_cue_materializes_template_and_drops_screenplay_tags(session_maker):
+    """A framework NPC becomes runtime-visible only when Scene actually cues it."""
+    import json
+    from dzmm.db.models import (
+        Character,
+        ModelConfig,
+        Session as GameSession,
+        SessionNpcState,
+        World,
+        WorldFramework,
+        WorldLocation,
+        WorldNPCTemplate,
     )
+
+    class _FrameworkClient(ModelClient):
+        name = "framework"
+
+        async def stream(self, msgs, params):
+            yield StreamChunk(
+                delta=(
+                    "<narrative>艾琳娜从教堂侧门出现。</narrative>"
+                    '<npc_cue speaker="艾琳娜" intent="询问 PC 来意"/>'
+                    '<location_enter name="教堂-地下室" description="模型虚构的子地点"/>'
+                    '<state_change>{"location":"教堂","inventory":["钥匙"],'
+                    '"location_items":[{"name":"旧信","action":"add"}]}</state_change>'
+                    "<chapter_advance/><ending/>"
+                ),
+                finish_reason="stop",
+            )
+
+        async def complete(self, msgs, params):
+            joined = "\n".join(m.content for m in msgs)
+            if "剧情导演" in joined:
+                return "<plot_directive>自由探索</plot_directive>", TokenUsage()
+            if "扮演 TRPG 中的 NPC" in joined:
+                return '<say speaker="艾琳娜">「你是谁？」</say>', TokenUsage()
+            return "", TokenUsage()
+
+    async with session_maker() as s:
+        world = World(name="W", content_md="x")
+        char = Character(world_id=1, name="PC", profile_md="x", base_stats_json="{}")
+        cfg = ModelConfig(name="m", type="ollama", base_url="x", model_name="y")
+        fw = WorldFramework(name="FW", genre="悬疑")
+        s.add_all([world, char, cfg, fw])
+        await s.flush()
+        location = WorldLocation(framework_id=fw.id, name="教堂")
+        s.add(location)
+        await s.flush()
+        template = WorldNPCTemplate(
+            framework_id=fw.id,
+            name="艾琳娜",
+            role="修女",
+            description_md="谨慎的年轻修女",
+            motivation="调查教会",
+            home_location_id=location.id,
+        )
+        s.add(template)
+        await s.flush()
+        sess = GameSession(
+            name="run",
+            world_id=world.id,
+            character_id=char.id,
+            framework_id=fw.id,
+            gm_model_config_id=cfg.id,
+            summarizer_model_config_id=cfg.id,
+            settings_json=json.dumps({"pc_location_id": location.id}),
+        )
+        s.add(sess)
+        await s.flush()
+        s.add(SessionNpcState(
+            session_id=sess.id,
+            npc_template_id=template.id,
+            current_location_id=location.id,
+            is_revealed=False,
+        ))
+        await s.commit()
+        sid = sess.id
+        template_id = template.id
+
+    client = _FrameworkClient()
+    events = []
+    async with session_maker() as s:
+        async for event in run_turn_v10(
+            s,
+            session_id=sid,
+            user_action="观察侧门",
+            scene_client=client,
+            director_client=client,
+            npc_client=client,
+            world_md="x",
+            character_md="x",
+            live_state_text="{}",
+            key_facts="",
+            recent_messages=[],
+        ):
+            events.append(event)
+        await s.commit()
+
+    assert not any(
+        isinstance(event, TagComplete)
+        and event.name in {
+            "chapter_advance", "ending", "plot_turn", "event_trigger", "event_complete",
+        }
+        for event in events
+    )
+    assert not any(
+        isinstance(event, TagComplete) and event.name == "location_enter"
+        for event in events
+    )
+    normalized_state = next(
+        event for event in events
+        if isinstance(event, TagComplete) and event.name == "state_change"
+    )
+    assert json.loads(normalized_state.content) == {"inventory_add": ["钥匙"]}
+    assert any(
+        isinstance(event, TagComplete)
+        and event.name == "location_item"
+        and event.attrs.get("name") == "旧信"
+        for event in events
+    )
+    assert any(
+        isinstance(event, TagComplete)
+        and event.name == "say"
+        and event.attrs.get("speaker") == "艾琳娜"
+        for event in events
+    )
+    async with session_maker() as s:
+        npc = (await s.execute(
+            select(NPC).where(NPC.session_id == sid, NPC.name == "艾琳娜")
+        )).scalar_one()
+        state = await s.get(SessionNpcState, (sid, template_id))
+        assert npc.description == "谨慎的年轻修女"
+        assert npc.current_location == "教堂"
+        assert state.is_revealed is True
 
 
 @pytest.mark.asyncio

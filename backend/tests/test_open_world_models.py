@@ -126,8 +126,7 @@ async def test_world_event_and_campaign(db_session: AsyncSession):
 async def test_session_state_tables(db_session: AsyncSession):
     from dzmm.db.models import (
         WorldFramework, WorldLocation, WorldFaction, WorldNPCTemplate,
-        WorldEvent, Campaign,
-        SessionLocationState, SessionNpcState, SessionEventState,
+        WorldEvent, SessionLocationState, SessionNpcState, SessionEventState,
         SessionFactionState, SessionCampaignState,
     )
     # Create minimal parent objects

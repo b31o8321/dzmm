@@ -53,7 +53,6 @@ async def synthesize(req: SpeechRequest) -> Response:
     voice = req.voice if req.voice in VALID_VOICES else "中文女"
     try:
         import soundfile as sf
-        import numpy as np
         buf = io.BytesIO()
         for result in _cosyvoice.inference_sft(req.input, voice, stream=False):
             audio = result["tts_speech"]

@@ -66,6 +66,7 @@ async def get_messages(session_id: int, s: AsyncSession = Depends(get_session_de
             "tokens_in": m.tokens_in,   # 本条消息消耗的输入 token 数（用于计费统计）
             "tokens_out": m.tokens_out, # 本条消息产生的输出 token 数
             "events": _parse_events_json(m.events_json),
+            "diagnostics": _parse_events_json(m.diagnostics_json),
             # events_json：该回合解析到的结构化事件（state_change/dice 等），以 JSON 存储
             # _parse_events_json 安全地解析它，失败返回 []
         }
@@ -93,6 +94,7 @@ async def get_message_debug(
         "content": msg.content,
         "tokens_in": msg.tokens_in,
         "tokens_out": msg.tokens_out,
+        "diagnostics": _parse_events_json(msg.diagnostics_json),
     }
 
 

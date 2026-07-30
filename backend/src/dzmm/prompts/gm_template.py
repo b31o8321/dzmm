@@ -25,6 +25,7 @@ import re
 from typing import Any
 
 from dzmm.models.client import Message
+from dzmm.prompts.gm_few_shot import FEW_SHOT_EXAMPLE as _FEW_SHOT_EXAMPLE
 
 # ── 规则强度描述 ──────────────────────────────────────────
 # 字典：键=规则模式名，值=注入到 System Prompt 的说明文字
@@ -60,10 +61,6 @@ _STYLE_HINTS = {
     "comedy": "幽默风格，对白俏皮，但仍尊重剧情逻辑。",
     "horror": "恐怖风格，缓慢推进，依赖暗示而非直白血腥。",
 }
-
-# 导入 few-shot 示例（见 gm_few_shot.py 的注释）
-from dzmm.prompts.gm_few_shot import FEW_SHOT_EXAMPLE as _FEW_SHOT_EXAMPLE
-
 
 # ── 按需注入的标签文档块 ──────────────────────────────────
 # 【设计思路】

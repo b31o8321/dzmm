@@ -28,14 +28,12 @@ import random
 import re
 from dataclasses import dataclass
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import Character, CharState, NPC
-from dzmm.db.models import Session as GameSession
 from dzmm.engine.character import apply_vital_delta, load_character_inventory, load_character_stats
 from dzmm.engine.dice import DiceResult, get_modifier, roll
-from dzmm.engine.schema import Item, ItemEffect, StatBlock, parse_items
+from dzmm.engine.schema import Item, ItemEffect, StatBlock
 
 log = logging.getLogger(__name__)
 
@@ -319,7 +317,6 @@ async def resolve_attack(
             s, attacker_id
         )
         weapon = _get_equipped_weapon(attacker_inventory, weapon_name)
-        armor_effects_attacker: list[ItemEffect] = []  # not needed for attacker
     else:
         npc_attacker = await s.get(NPC, attacker_id)
         if npc_attacker is None:

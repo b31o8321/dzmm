@@ -38,6 +38,7 @@ _SYSTEM = """你是开放世界 TRPG 的事件设计师，负责设计事件库�
   {
     "name": "事件名",
     "summary_md": "2-3句描述",
+    "completion_criteria_md": "1句可验证的完成判据，说明取得什么结果或证据才算解决本事件",
     "scope_type": "location|faction|global",
     "scope_location_name": "地点名（scope_type=location时填）",
     "scope_faction_name": "势力名（scope_type=faction时填）",
@@ -75,6 +76,7 @@ OR 组合（任一子条件满足即触发）：
 - state 支持：dead / alive / contacted
 
 要求：15-25个事件；importance 分布：1-2=次要(40%), 3=普通(40%), 4-5=重要(20%)；
+completion_criteria_md 必须针对当前原子事件，给出玩家可验证的结果，不得写成“解决整条主线”；
 trigger_conditions 不可为 null，无条件事件用 {{"type": "all", "children": []}}；单条件直接用对应 type，不要包成 all/any。
 """
 

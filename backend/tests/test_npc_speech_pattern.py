@@ -10,8 +10,6 @@ from dzmm.db.models import (
     ModelConfig,
     Session as GameSession,
     World,
-    WorldFramework,
-    WorldNPCTemplate,
 )
 from dzmm.service.npc_dossier import _format_npc_dossier
 from dzmm.prompts.npc_actor_template import build_npc_actor_messages

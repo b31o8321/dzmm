@@ -473,7 +473,7 @@ class TestApplyAttack:
             "target_kind": "npc",
             "target_id": str(npc.id),
         }
-        result = await _apply_attack(db, sess.id, attrs, current_turn=5)
+        await _apply_attack(db, sess.id, attrs, current_turn=5)
         await db.flush()
 
         # Reload session and check pending_resolutions_json

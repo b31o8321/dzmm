@@ -39,8 +39,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession  # 异步数据库会话
 
 from dzmm.models.client import GenerationParams, ModelClient
@@ -50,12 +50,13 @@ from dzmm.service.agents.streams import (
     get_or_create_stream,
     load_history,
 )
+from dzmm.service.activity_log import log_event
 from dzmm.service.world_graph import bfs_distance, build_graph  # 地图距离计算
 
 log = logging.getLogger(__name__)
 
 STREAM_KIND_DIRECTOR = "gm_director"   # AgentStream 的种类标识
-DIRECTOR_HISTORY_MAX = 20              # 最多保留 20 条 Director 历史消息
+DIRECTOR_HISTORY_MAX = 8               # 1 条长期摘要 + 最近约 3-4 次决策
 _PARAMS = GenerationParams(temperature=0.4, max_tokens=500)  # LLM 生成参数
 
 # 谣言冷却期：同一事件最少间隔多少回合才能再次作为谣言传递
@@ -73,9 +74,130 @@ _FALLBACK_DIRECTIVE = (
     "</plot_directive>"
 )
 
+
+def _grounded_fallback_directive(candidate_events: list[dict]) -> str:
+    """Build a deterministic Scene directive from the highest-ranked event."""
+    if not candidate_events:
+        return _FALLBACK_DIRECTIVE
+    event = candidate_events[0]
+    completion = str(event.get("completion_criteria_md", "")).strip()[:500]
+    completion_line = f"- 完成判据：{completion}\n" if completion else ""
+    return (
+        "<plot_directive>\n"
+        f"- 本回合主推：{event.get('name', '自由探索')}\n"
+        "- NPC 重点：（无）\n"
+        "- 传闻投递：无\n"
+        "- 节奏：悬疑\n"
+        "- 禁止：不要无视玩家本回合输入\n"
+        f"- 事件事实（唯一依据）：{str(event.get('summary_md', ''))[:500]}\n"
+        f"- 事件状态：{event.get('status', 'pending')}\n"
+        f"{completion_line}"
+        "</plot_directive>"
+    )
+
 # 距离衰减因子表：距离 → 权重乘数
 # 超过 2 的距离不在这里，因为 score_event 遇到 distance >= 3 直接返回 0.0
 _DIST_FACTORS = {0: 1.0, 1: 0.8, 2: 0.5}
+
+_DIRECTIVE_RE = re.compile(r"<plot_directive>.*?</plot_directive>", re.DOTALL)
+_FENCED_DIRECTIVE_BLOCK_RE = re.compile(
+    r"^[ \t]*```plot_directive[ \t]*\r?\n(?P<body>.*?)^[ \t]*```[ \t]*$",
+    re.MULTILINE | re.DOTALL,
+)
+_FENCED_DIRECTIVE_OPEN_RE = re.compile(
+    r"^[ \t]*```plot_directive[ \t]*$", re.MULTILINE,
+)
+_EVENT_TAG_RE = re.compile(r"<(?:event_trigger|event_complete)\b[^<>]*/>")
+_EVENT_DECL_RE = re.compile(r"<(event_trigger|event_complete)\b([^<>]*)/>")
+_EVENT_ID_ATTR_RE = re.compile(r"\bevent_id=[\"']([^\"']+)[\"']")
+_DIRECTIVE_FACT_LINE_RE = re.compile(
+    r"^[ \t]*-[ \t]*事件事实（唯一依据）[：:].*$", re.MULTILINE,
+)
+_DIRECTIVE_STATUS_LINE_RE = re.compile(
+    r"^[ \t]*-[ \t]*事件状态[：:].*$", re.MULTILINE,
+)
+_DIRECTIVE_COMPLETION_LINE_RE = re.compile(
+    r"^[ \t]*-[ \t]*完成判据[：:].*$", re.MULTILINE,
+)
+
+
+def sanitize_open_world_director_output(text: str) -> str:
+    """Keep only event declarations and one bounded plot_directive block."""
+    def _normalize_fenced_block(match: re.Match[str]) -> str:
+        body = match.group("body").strip()
+        if "<plot_directive" in body or "</plot_directive>" in body:
+            return match.group(0)
+        return f"<plot_directive>\n{body}\n</plot_directive>"
+
+    normalized = _FENCED_DIRECTIVE_BLOCK_RE.sub(
+        _normalize_fenced_block, text or "",
+    )
+    normalized = _FENCED_DIRECTIVE_OPEN_RE.sub("<plot_directive>", normalized)
+    directives = _DIRECTIVE_RE.findall(normalized)
+    if len(directives) != 1:
+        return _FALLBACK_DIRECTIVE
+    directive = directives[0].strip()
+    if len(directive) > 800:
+        return _FALLBACK_DIRECTIVE
+    event_tags = _EVENT_TAG_RE.findall(normalized)
+    return "\n".join([*event_tags, directive])
+
+
+def filter_event_declarations(text: str, candidate_events: list[dict]) -> str:
+    """Keep only lifecycle transitions valid for the current event state."""
+    statuses: dict[str, str] = {}
+    for event in candidate_events:
+        status = str(event.get("status", "pending"))
+        statuses[str(event.get("id", ""))] = status
+        statuses[str(event.get("name", ""))] = status
+
+    seen: set[tuple[str, str]] = set()
+
+    def _filter(match: re.Match[str]) -> str:
+        tag_name = match.group(1)
+        attr_match = _EVENT_ID_ATTR_RE.search(match.group(2))
+        if attr_match is None:
+            return ""
+        event_ref = attr_match.group(1).strip()
+        expected = "pending" if tag_name == "event_trigger" else "triggered"
+        key = (tag_name, event_ref)
+        if statuses.get(event_ref) != expected or key in seen:
+            return ""
+        seen.add(key)
+        return match.group(0)
+
+    filtered = _EVENT_DECL_RE.sub(_filter, text or "")
+    return "\n".join(line for line in filtered.splitlines() if line.strip())
+
+
+def enrich_plot_directive(text: str, candidate_events: list[dict]) -> str:
+    """Attach the selected wizard event facts so Scene cannot invent a parallel event."""
+    directive_match = _DIRECTIVE_RE.search(text or "")
+    if directive_match is None:
+        return text
+    directive = directive_match.group(0)
+    selected = next(
+        (event for event in candidate_events if str(event.get("name", "")) in directive),
+        None,
+    )
+    if selected is None:
+        return text
+    fact = str(selected.get("summary_md", "")).strip()[:500]
+    if not fact:
+        return text
+    canonical = _DIRECTIVE_FACT_LINE_RE.sub("", directive)
+    canonical = _DIRECTIVE_STATUS_LINE_RE.sub("", canonical)
+    canonical = _DIRECTIVE_COMPLETION_LINE_RE.sub("", canonical)
+    completion = str(selected.get("completion_criteria_md", "")).strip()[:500]
+    completion_line = f"- 完成判据：{completion}\n" if completion else ""
+    enriched = canonical.replace(
+        "</plot_directive>",
+        f"- 事件事实（唯一依据）：{fact}\n"
+        f"- 事件状态：{selected.get('status', 'pending')}\n"
+        f"{completion_line}"
+        "</plot_directive>",
+    )
+    return (text or "").replace(directive, enriched, 1)
 
 
 # ────────────────────────────────────────────────────────────
@@ -212,6 +334,8 @@ async def run_open_world_director(
     pc_location_id: int,        # 玩家当前所在地点的 ID（用于计算距离）
     character_name: str,        # 玩家角色名字
     character_md: str,          # 玩家角色的 Markdown 描述
+    current_action: str,
+    recent_scene_facts: str,
 ) -> tuple[str, int, int]:
     # 整个函数的工作流：
     #   1. 加载世界地图（WorldLocation），构建图结构
@@ -259,16 +383,17 @@ async def run_open_world_director(
         _select(WorldEvent).where(WorldEvent.framework_id == framework_id)
     )).scalars().all()
 
-    # ── 步骤 3：过滤已完成/已触发的事件 ──────────────────────
+    # ── 步骤 3：过滤已完成的事件 ─────────────────────────────
     # SessionEventState 记录了这个存档里每个事件的状态
-    # 已触发或完成的事件不再需要 Director 推进
+    # triggered 事件仍需 Director 推进到完成；只有 completed 才移出候选。
     ev_states_rows = (await s.execute(
         _select(SessionEventState).where(SessionEventState.session_id == session_id)
     )).scalars().all()
-    done_event_ids = {
+    completed_event_ids = {
         es.event_id for es in ev_states_rows
-        if es.status in ("triggered", "completed")
+        if es.status == "completed"
     }
+    event_statuses = {es.event_id: es.status for es in ev_states_rows}
     # 已经以谣言形式传递过的事件 ID 集合
     rumor_event_ids = {
         es.event_id for es in ev_states_rows if es.rumor_delivered
@@ -319,11 +444,41 @@ async def run_open_world_director(
         if row.SessionFactionState.tension > 0  # 只关心有紧张度的派系
     ]
 
+    # Campaign 的关键事件只能在其所属活动阶段进入 Director 候选集。
+    camp_state = await s.get(SessionCampaignState, session_id)
+    camp_row = (await s.execute(
+        _select(Campaign).where(Campaign.framework_id == framework_id)
+    )).scalars().first()
+    phases: list[dict] = []
+    if camp_row is not None:
+        try:
+            phases = json.loads(camp_row.phases_json or "[]")
+        except (TypeError, ValueError):
+            phases = []
+    active_phase_id = camp_state.current_phase_id if camp_state else None
+    if active_phase_id is None:
+        active_phase_id = min(
+            (
+                ph.get("phase_id") for ph in phases
+                if not ph.get("prerequisite_phase_ids")
+                and isinstance(ph.get("phase_id"), int)
+            ),
+            default=None,
+        )
+    active_phase = next(
+        (ph for ph in phases if ph.get("phase_id") == active_phase_id), None,
+    )
+    active_key_event_ids = set((active_phase or {}).get("key_event_ids") or [])
+    all_key_event_ids = {
+        event_id for ph in phases for event_id in (ph.get("key_event_ids") or [])
+    }
+    locked_key_event_ids = all_key_event_ids - active_key_event_ids
+
     # ── 步骤 6：对每个事件评分，分类为候选事件或谣言 ──────────
     candidate_events = []  # 近处可直接推进的事件
     rumor_events = []      # 远处适合作为谣言传递的事件
     for ev in events:
-        if ev.id in done_event_ids:
+        if ev.id in completed_event_ids or ev.id in locked_key_event_ids:
             continue  # 跳过已完成的事件
 
         # 计算事件发生地点到玩家当前位置的距离（BFS 跳数）
@@ -349,6 +504,8 @@ async def run_open_world_director(
             candidate_events.append({
                 "id": ev.id, "name": ev.name, "score": sc,
                 "importance": ev.importance, "summary_md": ev.summary_md,
+                "completion_criteria_md": ev.completion_criteria_md,
+                "status": event_statuses.get(ev.id, "pending"),
             })
         elif is_rumor_eligible(
             {"importance": ev.importance},
@@ -376,27 +533,24 @@ async def run_open_world_director(
     # Campaign 是一系列有顺序的大事件（如「主线任务链」）
     # SessionCampaignState 记录当前进度到哪个阶段了
     campaign_phase_str: str | None = None
-    camp_state = await s.get(SessionCampaignState, session_id)
-    if camp_state and camp_state.current_phase_id:
-        camp_row = (await s.execute(
-            _select(Campaign).where(Campaign.framework_id == framework_id)
-        )).scalars().first()
-        if camp_row:
-            phases = json.loads(camp_row.phases_json or "[]")
-            # 找到当前阶段的配置（按 phase_id 匹配）
-            phase = next((p for p in phases if p["phase_id"] == camp_state.current_phase_id), None)
-            if phase:
-                triggered = json.loads(camp_state.triggered_key_events_json or "[]")
-                # 格式：「阶段名（已触发关键事件数/总数）」
-                campaign_phase_str = (
-                    f"{phase['name']}（{len(triggered)}/{phase['required_count']} 关键事件）"
-                )
+    if active_phase:
+        triggered = json.loads(camp_state.triggered_key_events_json or "[]") if camp_state else []
+        triggered_in_phase = active_key_event_ids & set(triggered)
+        campaign_phase_str = (
+            f"{active_phase['name']}（{len(triggered_in_phase)}/"
+            f"{active_phase['required_count']} 关键事件）"
+        )
 
     # ── 步骤 9：构建快照并调用 LLM ───────────────────────────
     # 把所有信息打包成字典，传给 prompt 模板函数
     snapshot = {
-        "current_location": next((l["name"] for l in loc_dicts if l["id"] == pc_location_id), "未知"),
-        "pc_summary": f"{character_name}",
+        "current_location": next(
+            (loc["name"] for loc in loc_dicts if loc["id"] == pc_location_id),
+            "未知",
+        ),
+        "pc_summary": f"{character_name}：{character_md[:300]}",
+        "current_action": current_action[:500],
+        "recent_scene_facts": recent_scene_facts[:1500],
         "companions": [n["name"] for n in npc_state_dicts if n["is_companion"]],
         "candidate_events": candidate_events,   # 近处可推进的事件（按分数排序）
         "rumor_events": rumor_events[:3],       # 最多 3 条谣言事件
@@ -416,11 +570,37 @@ async def run_open_world_director(
         output, usage = await client.complete(msgs, _PARAMS)
     except Exception as exc:  # noqa: BLE001
         log.warning("open-world director: LLM call failed: %s", exc)
-        return _FALLBACK_DIRECTIVE, 0, 0  # 出错时返回安全兜底指令
+        log_event(
+            session_id, "director_structure_quality", turn=current_turn,
+            structured=False, reason="llm_error",
+        )
+        return _grounded_fallback_directive(candidate_events), 0, 0
 
-    text = (output or "").strip()
-    if not text:
-        return _FALLBACK_DIRECTIVE, 0, 0  # LLM 返回空内容，走兜底
+    raw_text = (output or "").strip()
+    if not raw_text:
+        log_event(
+            session_id, "director_structure_quality", turn=current_turn,
+            structured=False, reason="empty_output",
+        )
+        return _grounded_fallback_directive(candidate_events), 0, 0
+    sanitized = sanitize_open_world_director_output(raw_text)
+    used_fallback = sanitized == _FALLBACK_DIRECTIVE and raw_text != _FALLBACK_DIRECTIVE
+    if used_fallback:
+        sanitized = _grounded_fallback_directive(candidate_events)
+    text = enrich_plot_directive(
+        filter_event_declarations(
+            sanitized, candidate_events,
+        ),
+        candidate_events,
+    )
+    log_event(
+        session_id,
+        "director_structure_quality",
+        turn=current_turn,
+        structured=not used_fallback,
+        reason="invalid_structure" if used_fallback else "ok",
+        raw_excerpt=raw_text[:1000] if used_fallback else "",
+    )
 
     # 统计 token 用量
     tok_in = usage.input_tokens if usage else 0
@@ -428,7 +608,14 @@ async def run_open_world_director(
 
     # 把本回合的输入快照 + LLM 输出存入 AgentStream，
     # 这样下次 load_history 能读到，Director 保持记忆连贯
-    snapshot_str = _json_snapshot(snapshot)
+    # 历史只保存下一次无法从实时状态重建的最小决策上下文。候选事件、近期
+    # 对话、派系张力等每次都会重新查询，重复存整份 snapshot 会让长局 prompt
+    # 随回合数膨胀且把过期状态重新喂给模型。
+    snapshot_str = _json_snapshot({
+        "turn": current_turn,
+        "current_location": snapshot["current_location"],
+        "current_action": snapshot["current_action"],
+    })
     await append_message(s, stream.id, current_turn, "user", snapshot_str, tokens_in=tok_in)
     await append_message(s, stream.id, current_turn, "assistant", text, tokens_out=tok_out)
     stream.last_run_turn = current_turn  # 更新 Director 上次运行的回合号

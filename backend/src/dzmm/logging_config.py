@@ -14,7 +14,6 @@ stdlib root logger and uvicorn's access/error loggers to:
 
 import logging          # Python 标准库：提供统一的日志接口（getLogger、Handler、Formatter 等）
 import logging.handlers  # 标准库扩展：提供 RotatingFileHandler（按文件大小轮转的日志 handler）
-from pathlib import Path
 
 from dzmm.config import APP_DIR  # 用户数据目录（~/.dzmm），日志文件放在这里
 

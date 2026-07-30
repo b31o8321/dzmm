@@ -110,6 +110,7 @@ export interface FwNpcTemplateInput {
 export interface FwEventInput {
   name: string
   summary_md: string
+  completion_criteria_md: string
   scope_type: 'location' | 'faction' | 'global'
   scope_location_name?: string | null
   scope_faction_name?: string | null
@@ -138,6 +139,7 @@ export interface FwFinalizePayload {
   genre: string
   style: string
   description_md: string
+  start_location_name: string
   locations: FwLocationInput[]
   factions: FwFactionInput[]
   npc_templates: FwNpcTemplateInput[]

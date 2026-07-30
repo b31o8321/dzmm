@@ -36,7 +36,6 @@ from sqlalchemy.ext.asyncio import AsyncSession  # 异步数据库会话，不�
 
 from dzmm.db.models import (
     AgentMessage,
-    AgentStream,
     Character,
     CharState,
     HiddenEvent,
@@ -48,29 +47,104 @@ from dzmm.db.models import (
     SessionFactionState,
     SessionNpcState,
     WorldFaction,
+    WorldLocation,
     WorldNPCTemplate,
 )
 from dzmm.models.client import GenerationParams, Message, ModelClient
 from dzmm.parsing.events import NarrativeDelta, ParseEvent, TagComplete, UsageSummary
+from dzmm.parsing.repair import parse_loose_json
 from dzmm.service.agents.director import (
     STREAM_KIND_DIRECTOR,
     run_director,
 )
-from dzmm.service.agents.director_open_world import run_open_world_director
+from dzmm.service.agents.director_open_world import (
+    run_open_world_director,
+    sanitize_open_world_director_output,
+)
 from dzmm.service.agents.npc_actor import run_npc_actor
 from dzmm.service.agents.scene import run_scene
 from dzmm.service.agents.streams import append_message, get_or_create_stream
+from dzmm.service.agents.triggers import should_run_director  # 判断本回合是否触发 Director
 
 STREAM_KIND_SCENE = "scene"
-from dzmm.service.agents.triggers import should_run_director  # 判断本回合是否触发 Director
 
 log = logging.getLogger(__name__)
 
-# 同一回合最多并行运行几个 NPC actor（防止 token 爆炸）
-NPC_MAX_PARALLEL = 4
+# 同一回合最多聚焦两个 NPC actor。Scene 仍可描写群像，但本地单模型
+# 不应因为三到四个短 NPC 回复而把一个回合延长数分钟。
+NPC_MAX_PARALLEL = 2
 
 # 用于剥离 XML 标签的正则，如 <say speaker="X">...</say> → 纯文字
 _TAG_STRIP_RE = re.compile(r"<[^>]+>")
+_PLOT_DIRECTIVE_RE = re.compile(r"<plot_directive>.*?</plot_directive>", re.DOTALL)
+
+
+def _reusable_plot_directive(director_output: str) -> str:
+    """Drop one-shot Director event declarations before Scene/NPC reuse."""
+    match = _PLOT_DIRECTIVE_RE.search(director_output or "")
+    return match.group(0) if match else director_output
+
+
+def _requested_framework_destination(
+    user_action: str,
+    current_location: WorldLocation | None,
+    framework_locations: list[WorldLocation],
+) -> WorldLocation | None:
+    """Resolve one explicit, directly reachable one-turn travel request."""
+    if current_location is None:
+        return None
+    try:
+        connections = _json.loads(current_location.connections_json or "[]")
+    except (TypeError, ValueError):
+        return None
+    one_turn_ids: set[int] = set()
+    for connection in connections if isinstance(connections, list) else []:
+        if not isinstance(connection, dict):
+            continue
+        try:
+            travel_turns = int(connection.get("travel_turns", 1) or 1)
+        except (TypeError, ValueError):
+            continue
+        target_id = connection.get("target_id")
+        if isinstance(target_id, int) and travel_turns <= 1:
+            one_turn_ids.add(target_id)
+    matches = []
+    for location in framework_locations:
+        if location.id not in one_turn_ids:
+            continue
+        pattern = rf"(?<!不)(?:前往|去往|去|进入|返回|赶往|抵达)\s*{re.escape(location.name)}"
+        if re.search(pattern, user_action):
+            matches.append(location)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _filter_framework_choices(
+    content: str,
+    current_location: WorldLocation | None,
+    framework_locations: list[WorldLocation],
+) -> str:
+    """Remove choices that require an unreachable framework location."""
+    if current_location is None or not content.strip():
+        return content
+    try:
+        connections = _json.loads(current_location.connections_json or "[]")
+    except (TypeError, ValueError):
+        return content
+    reachable_ids = {
+        connection.get("target_id")
+        for connection in connections if isinstance(connection, dict)
+    }
+    unreachable_names = {
+        location.name for location in framework_locations
+        if location.id != current_location.id and location.id not in reachable_ids
+    }
+    lines = content.splitlines()
+    kept = [
+        line for line in lines
+        if not any(name in line for name in unreachable_names)
+    ]
+    substantive = [line for line in kept if line.strip().lstrip().startswith(("-", "•"))]
+    return "\n".join(kept) if len(substantive) >= 2 else content
 
 
 # ────────────────────────────────────────────────────────────
@@ -494,6 +568,9 @@ async def _build_director_trigger_state(
     proactive_npc_pending = False
 
     if is_framework_mode:
+        # Chapter screenplay tags are not valid control signals in framework mode.
+        chapter_advanced = False
+        plot_turn_major = False
         # 复用上方已解析的 events 列表，扫描开放世界事件类型
         if last_msg:
             try:
@@ -609,7 +686,7 @@ async def _last_director_directive(s: AsyncSession, stream_id: int) -> str:
             "<plot_directive>\n- 本回合主推：自然推进\n- NPC 重点：（无）\n"
             "- 节奏：常态\n- 禁止：（无）\n</plot_directive>"
         )
-    return row.content
+    return sanitize_open_world_director_output(row.content)
 
 
 # ────────────────────────────────────────────────────────────
@@ -837,6 +914,8 @@ async def run_turn_v10(
                 pc_location_id=_get_pc_location_id(sess),
                 character_name=(char.name if char else "PC"),
                 character_md=(getattr(char, "profile_md", "") or ""),
+                current_action=user_action,
+                recent_scene_facts=_format_recent_dialogue(recent_messages),
             )
         else:
             snapshot = await _build_director_snapshot(s, session_id, current_turn)
@@ -887,6 +966,11 @@ async def run_turn_v10(
         # 本回合不运行 Director，复用上次的 directive
         directive = await _last_director_directive(s, director_stream.id)
 
+    # event_trigger/event_complete 是 Director 当回合的一次性状态声明，已经在
+    # 上面的 fire 分支 yield。Scene 与 NPC 只接收可复用的剧情指令，避免模型在
+    # 后续回合照抄旧标签并制造重复状态变更。
+    directive = _reusable_plot_directive(directive)
+
     # 从 Character 表读取 PC 名字，防止叙事里 PC 名字漂移
     pc_name = "PC"
     if char and char.name:
@@ -899,6 +983,32 @@ async def run_turn_v10(
     # 格式：{NPC名字: 意图字符串}，保持 Scene 叙事里的出现顺序
     cued_npcs: dict[str, str] = {}
     scene_tok_in = scene_tok_out = 0
+    framework_location_names: set[str] = set()
+    framework_locations_by_name: dict[str, WorldLocation] = {}
+    current_framework_location_name = ""
+    current_framework_location: WorldLocation | None = None
+    requested_destination: WorldLocation | None = None
+    if sess.framework_id:
+        framework_locations = (await s.execute(
+            select(WorldLocation).where(WorldLocation.framework_id == sess.framework_id)
+        )).scalars().all()
+        framework_location_names = {location.name for location in framework_locations}
+        framework_locations_by_name = {location.name: location for location in framework_locations}
+        current_location_id = _get_pc_location_id(sess)
+        current_framework_location = next(
+            (
+                location for location in framework_locations
+                if location.id == current_location_id
+            ),
+            None,
+        )
+        current_framework_location_name = (
+            current_framework_location.name if current_framework_location else ""
+        )
+        requested_destination = _requested_framework_destination(
+            user_action, current_framework_location, framework_locations,
+        )
+    location_enter_emitted = False
     # 遍历 Scene agent 的输出流（异步生成器）
     async for ev in run_scene(
         client=scene_client,
@@ -922,6 +1032,92 @@ async def run_turn_v10(
             narrative_buf.append(ev.text)
             scene_raw_parts.append(ev.text)
         elif isinstance(ev, TagComplete):
+            if sess.framework_id and ev.name in {
+                "chapter_advance", "ending", "plot_turn", "event_trigger", "event_complete",
+                "location_edge",
+            }:
+                log.warning(
+                    "framework scene: dropped Director/screenplay tag %s at turn %d",
+                    ev.name, current_turn,
+                )
+                continue
+            if sess.framework_id and ev.name == "location_enter":
+                target_name = (ev.attrs or {}).get("name", "").strip()
+                if (
+                    target_name not in framework_location_names
+                    or target_name == current_framework_location_name
+                ):
+                    log.warning(
+                        "framework scene: dropped invalid/no-op location_enter %r at turn %d",
+                        target_name, current_turn,
+                    )
+                    continue
+                location_enter_emitted = True
+                current_framework_location_name = target_name
+            if sess.framework_id and ev.name == "state_change" and ev.content:
+                state_payload = parse_loose_json(ev.content)
+                if isinstance(state_payload, dict):
+                    legacy_inventory = state_payload.pop("inventory", None)
+                    if isinstance(legacy_inventory, list):
+                        existing_add = state_payload.get("inventory_add")
+                        state_payload["inventory_add"] = [
+                            *(
+                                existing_add if isinstance(existing_add, list) else []
+                            ),
+                            *legacy_inventory,
+                        ]
+
+                    legacy_location_items = state_payload.pop("location_items", None)
+                    if isinstance(legacy_location_items, list):
+                        for item in legacy_location_items:
+                            if not isinstance(item, dict) or not str(item.get("name", "")).strip():
+                                continue
+                            item_event = TagComplete(
+                                name="location_item",
+                                attrs={
+                                    "name": str(item["name"]).strip(),
+                                    "description": str(item.get("description", "")).strip(),
+                                    "action": str(item.get("action", "add")).strip() or "add",
+                                },
+                            )
+                            attr_str = " ".join(
+                                f'{key}="{value}"' for key, value in item_event.attrs.items()
+                            )
+                            scene_raw_parts.append(f"<location_item {attr_str}></location_item>")
+                            yield item_event
+
+                if isinstance(state_payload, dict) and "location" in state_payload:
+                    target_name = str(state_payload.pop("location") or "").strip()
+                    target = framework_locations_by_name.get(target_name)
+                    if target is not None and target_name != current_framework_location_name:
+                        location_event = TagComplete(
+                            name="location_enter",
+                            attrs={"name": target.name, "description": target.description_md},
+                        )
+                        attr_str = " ".join(
+                            f'{key}="{value}"' for key, value in location_event.attrs.items()
+                        )
+                        scene_raw_parts.append(f"<location_enter {attr_str}></location_enter>")
+                        yield location_event
+                        location_enter_emitted = True
+                        current_framework_location_name = target.name
+                    if not state_payload:
+                        continue
+                if isinstance(state_payload, dict):
+                    if not state_payload:
+                        continue
+                    ev = TagComplete(
+                        name="state_change", attrs=dict(ev.attrs or {}),
+                        content=_json.dumps(state_payload, ensure_ascii=False),
+                    )
+            if sess.framework_id and ev.name == "choices":
+                ev = TagComplete(
+                    name="choices",
+                    attrs=dict(ev.attrs or {}),
+                    content=_filter_framework_choices(
+                        ev.content, current_framework_location, framework_locations,
+                    ),
+                )
             if ev.name == "npc_cue":
                 # <npc_cue speaker="艾莲娜" intent="紧张询问"> 标签
                 # 记录 Scene 认为本回合应该发言的 NPC 及其意图
@@ -937,6 +1133,20 @@ async def run_turn_v10(
             else:
                 scene_raw_parts.append(f"{tag_open}</{ev.name}>")
         yield ev  # 把每个事件实时推给前端（SSE 流式响应的关键）
+
+    if sess.framework_id and requested_destination is not None and not location_enter_emitted:
+        location_event = TagComplete(
+            name="location_enter",
+            attrs={
+                "name": requested_destination.name,
+                "description": requested_destination.description_md,
+            },
+        )
+        attr_str = " ".join(
+            f'{key}="{value}"' for key, value in location_event.attrs.items()
+        )
+        scene_raw_parts.append(f"<location_enter {attr_str}></location_enter>")
+        yield location_event
 
     scene_narrative = "".join(narrative_buf)  # Scene 完整叙事文本
 
@@ -965,6 +1175,55 @@ async def run_turn_v10(
             )
         )).scalars().all()
         rows_by_name = {n.name: n for n in rows}
+        if sess.framework_id:
+            missing_names = [name for name in cue_names if name not in rows_by_name]
+            if missing_names:
+                template_rows = (await s.execute(
+                    select(WorldNPCTemplate).where(
+                        WorldNPCTemplate.framework_id == sess.framework_id,
+                        WorldNPCTemplate.name.in_(missing_names),
+                    )
+                )).scalars().all()
+                location_ids = {
+                    template.home_location_id for template in template_rows
+                    if template.home_location_id is not None
+                }
+                location_rows = (await s.execute(
+                    select(WorldLocation).where(WorldLocation.id.in_(location_ids))
+                )).scalars().all() if location_ids else []
+                location_names = {loc.id: loc.name for loc in location_rows}
+                try:
+                    pc_location_id = int(
+                        _json.loads(sess.settings_json or "{}").get("pc_location_id", 0)
+                    )
+                except (TypeError, ValueError):
+                    pc_location_id = 0
+                if pc_location_id and pc_location_id not in location_names:
+                    pc_location = await s.get(WorldLocation, pc_location_id)
+                    if pc_location is not None:
+                        location_names[pc_location.id] = pc_location.name
+                for template in template_rows:
+                    npc = NPC(
+                        session_id=session_id,
+                        name=template.name,
+                        gender=template.gender,
+                        archetype=template.role,
+                        description=template.description_md,
+                        purpose=template.motivation,
+                        current_location=location_names.get(
+                            pc_location_id, location_names.get(template.home_location_id, "")
+                        ),
+                        last_seen_turn=current_turn,
+                        revealed_json='{"name": true}',
+                    )
+                    s.add(npc)
+                    state = await s.get(SessionNpcState, (session_id, template.id))
+                    if state is not None:
+                        state.is_revealed = True
+                        if pc_location_id:
+                            state.current_location_id = pc_location_id
+                    await s.flush()
+                    rows_by_name[npc.name] = npc
         # 按 cue 出现顺序排列（保持 Scene 叙事的顺序感）
         # 如果 NPC 名字在数据库里不存在，跳过（避免崩溃）
         for name in cue_names:
@@ -978,7 +1237,7 @@ async def run_turn_v10(
         )
     if on_stage:
         # 对 NPC 排序，决定推给前端的顺序（最相关的先推）
-        ordered = _sort_npcs_for_turn(on_stage, user_action)
+        ordered = _sort_npcs_for_turn(on_stage, user_action)[:NPC_MAX_PARALLEL]
         recent_dialogue = _format_recent_dialogue(recent_messages)
         scene_context = await _format_scene_context(s, session_id, on_stage)
 

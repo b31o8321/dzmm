@@ -347,6 +347,23 @@ def test_pc_action_tag():
     assert "沈三川" in pa[0].content
 
 
+def test_mismatched_close_does_not_swallow_following_mechanics_tags():
+    p = StreamingTagParser()
+    out = collect(p, [
+        '<pc_action>诺亚悄悄跟上去。</narrative>'
+        '<dice_request formula="1d20" purpose="潜行"/>'
+        '<choices>- 继续\n- 返回</choices>'
+    ])
+    tags = [e for e in out if isinstance(e, TagComplete)]
+    assert [(e.name, e.content) for e in tags] == [
+        ("pc_action", "诺亚悄悄跟上去。"),
+        ("dice_request", ""),
+        ("choices", "- 继续\n- 返回"),
+    ]
+    errors = [e for e in out if isinstance(e, ParseError)]
+    assert any("mismatched close tag" in e.message for e in errors)
+
+
 def test_scene_shift_tag():
     p = StreamingTagParser()
     out = collect(p, ['<scene_shift to="后院">天色已晚</scene_shift>'])

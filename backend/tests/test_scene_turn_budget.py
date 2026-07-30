@@ -1,13 +1,10 @@
-import json
 import pytest
-from sqlalchemy import select
 
 from dzmm.db.base import init_db, get_engine, async_session
 from dzmm.db.models import (
     Character, CharState, ModelConfig, Session as GameSession, World, Location,
 )
-from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
-from dzmm.parsing.events import NarrativeDelta, TagComplete
+from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
 from dzmm.service.game import run_turn, SCENE_SOFT_PRESSURE_TURNS, SCENE_HARD_EXIT_TURNS, _build_key_facts
 
 

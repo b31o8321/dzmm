@@ -7,7 +7,6 @@ correctly surfaces a TokenUsage on the final StreamChunk.
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
 from dzmm.models.client import GenerationParams, Message, TokenUsage
 from dzmm.models.ollama import OllamaClient

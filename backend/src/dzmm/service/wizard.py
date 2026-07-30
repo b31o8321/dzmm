@@ -23,10 +23,7 @@
 import json
 import logging
 import re
-from typing import TypeVar, Callable, Awaitable
-_T = TypeVar("_T")
-
-log = logging.getLogger(__name__)
+from typing import Awaitable, Callable, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +38,9 @@ from dzmm.models.client import GenerationParams, Message, ModelClient
 
 from dzmm.prompts.wizard_character import build_character_messages
 from dzmm.prompts.wizard_world_brief import build_world_brief_messages
+
+_T = TypeVar("_T")
+log = logging.getLogger(__name__)
 
 # 正则：匹配并剥除 LLM 可能输出的 ```json ... ``` 围栏
 _FENCE_RE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
@@ -644,5 +644,4 @@ async def stream_world_brief(genre: str, theme: str, client: ModelClient) -> _St
         yield "error", {"message": f"基础设定 JSON 解析失败：{e}"}
         return
     yield "result", result  # 推送最终解析结果
-
 

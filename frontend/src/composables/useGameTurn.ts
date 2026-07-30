@@ -56,6 +56,7 @@ export interface Turn {
   narrative: string    // GM 生成的叙事文本（流式累积）
   choices: string[]    // GM 给出的行动选项列表
   events: MessageEvent[] // 本回合的结构化事件（dice/state_change 等）
+  diagnostics: string[]  // XML/协议等不影响叙事保存的回合级诊断
   turn: number         // 回合序号
   rawContent?: string  // 原始内容（含 XML 标签，用于重建对话气泡）
   msgId?: number       // debug: 对应数据库 Message.id（assistant 行），用于 debug 查看 prompt
@@ -149,6 +150,7 @@ export function useGameTurn(
       narrative: '',
       choices: [],
       events: [],
+      diagnostics: [],
       turn: turnCount.value + 1,
     })
     currentTurn.value = turn
@@ -321,6 +323,7 @@ export function useGameTurn(
         },
 
         onError: (msg) => {
+          turn.diagnostics.push(msg)
           // "Unclosed tag" 是正常情况（LLM 有时忘记写闭合标签，后端已容错处理）
           // 只打 debug 日志，不弹错误提示，避免干扰玩家
           if (/unclosed/i.test(msg)) {

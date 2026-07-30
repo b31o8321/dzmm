@@ -176,9 +176,16 @@ class OpenAICompatClient(ModelClient):
                 resp.raise_for_status()  # 其他错误（401/500 等）也抛出
 
                 # 逐行读取 SSE 流
+                saw_sse_data = False
+                non_sse_lines: list[str] = []
                 async for line in resp.aiter_lines():
-                    if not line or not line.startswith("data: "):
-                        continue  # 跳过空行和非 data 行（SSE 协议有 comment 行等）
+                    if not line:
+                        continue
+                    if not line.startswith("data: "):
+                        if not line.startswith(":"):
+                            non_sse_lines.append(line)
+                        continue  # SSE comment 行允许存在，其余留作协议错误诊断
+                    saw_sse_data = True
                     data = line[6:]  # 去掉 "data: " 前缀
                     if data == "[DONE]":
                         break  # OpenAI SSE 流的结束标志
@@ -186,6 +193,12 @@ class OpenAICompatClient(ModelClient):
                         obj = json.loads(data)   # 解析 JSON
                     except json.JSONDecodeError:
                         continue  # 忽略解析失败的行（不完整的 JSON 等）
+
+                    if obj.get("error"):
+                        error = obj["error"]
+                        if isinstance(error, dict):
+                            error = error.get("message") or json.dumps(error, ensure_ascii=False)
+                        raise RuntimeError(f"OpenAI-compatible protocol error: {error}")
 
                     # 从 choices 数组里提取文字增量（delta）
                     choices = obj.get("choices") or []
@@ -209,6 +222,15 @@ class OpenAICompatClient(ModelClient):
                     # 只有有实质内容的 chunk 才产出（避免产出全空的 chunk）
                     if delta or finish or usage:
                         yield StreamChunk(delta=delta, finish_reason=finish, usage=usage)
+
+                if not saw_sse_data:
+                    detail = "\n".join(non_sse_lines).strip()
+                    if len(detail) > 500:
+                        detail = detail[:500] + "…"
+                    raise RuntimeError(
+                        "OpenAI-compatible endpoint returned HTTP 200 but no SSE data"
+                        + (f": {detail}" if detail else "")
+                    )
 
     async def stream(
         self,

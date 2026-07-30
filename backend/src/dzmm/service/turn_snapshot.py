@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.models import (
     CharState,      # 角色状态（HP、道具栏等）
+    Character,
     Faction,        # 派系（与玩家的声望关系）
     HiddenEvent,    # 隐藏事件（条件满足时触发）
     Location,       # 地点
@@ -37,6 +38,11 @@ from dzmm.db.models import (
     PCGoal,         # PC 目标
     PlotThread,     # 剧情线索
     Screenplay,     # 剧本大纲
+    SessionCampaignState,
+    SessionEventState,
+    SessionFactionState,
+    SessionLocationState,
+    SessionNpcState,
     Session as GameSession,  # 游戏存档
 )
 
@@ -53,6 +59,7 @@ async def take_snapshot(s: AsyncSession, session_id: int) -> dict[str, Any]:
 
     # 读取游戏存档行（包含 doom_score、回合数等全局状态）
     sess = await s.get(GameSession, session_id)
+    char = await s.get(Character, sess.character_id) if sess else None
     # 读取角色状态（HP、背包等）
     cs = (await s.execute(
         select(CharState).where(CharState.session_id == session_id)
@@ -86,6 +93,19 @@ async def take_snapshot(s: AsyncSession, session_id: int) -> dict[str, Any]:
     goals = (await s.execute(
         select(PCGoal).where(PCGoal.session_id == session_id)
     )).scalars().all()
+    framework_locations = (await s.execute(
+        select(SessionLocationState).where(SessionLocationState.session_id == session_id)
+    )).scalars().all()
+    framework_npcs = (await s.execute(
+        select(SessionNpcState).where(SessionNpcState.session_id == session_id)
+    )).scalars().all()
+    framework_events = (await s.execute(
+        select(SessionEventState).where(SessionEventState.session_id == session_id)
+    )).scalars().all()
+    framework_factions = (await s.execute(
+        select(SessionFactionState).where(SessionFactionState.session_id == session_id)
+    )).scalars().all()
+    framework_campaign = await s.get(SessionCampaignState, session_id)
 
     # 把所有数据打包成一个大字典，保存需要回滚的字段值和当前存在的行 ID
     return {
@@ -98,11 +118,34 @@ async def take_snapshot(s: AsyncSession, session_id: int) -> dict[str, Any]:
             "pc_mood_json": (sess.pc_mood_json if sess else "") or "",
             "recall_pending_json": (sess.recall_pending_json if sess else "") or "",
             "topology_warning_json": (sess.topology_warning_json if sess else "") or "",
+            "settings_json": (sess.settings_json if sess else "") or "{}",
+            "pending_resolutions_json": (
+                sess.pending_resolutions_json if sess else ""
+            ) or "[]",
+            "combat_order_json": (sess.combat_order_json if sess else "") or "[]",
+            "mechanic_warnings_json": (
+                sess.mechanic_warnings_json if sess else ""
+            ) or "[]",
         },
+        "character": {
+            "xp": char.xp,
+            "level": char.level,
+            "strength": char.strength,
+            "dexterity": char.dexterity,
+            "constitution": char.constitution,
+            "intelligence": char.intelligence,
+            "wisdom": char.wisdom,
+            "charisma": char.charisma,
+            "skills_json": char.skills_json or "{}",
+            "inventory_json": char.inventory_json or "[]",
+            "equipment_json": char.equipment_json or "{}",
+            "level_up_pending_json": char.level_up_pending_json or "",
+        } if char else None,
         # 角色状态（HP、背包）
         "char_state": {
             "stats_json": cs.stats_json or "" if cs else "",
             "inventory_json": cs.inventory_json or "" if cs else "",
+            "stamina": cs.stamina,
         } if cs else None,
         # 剧本大纲（章节进度、已完成事件）
         "screenplay": {
@@ -157,6 +200,46 @@ async def take_snapshot(s: AsyncSession, session_id: int) -> dict[str, Any]:
             {"id": g.id, "status": g.status} for g in goals
         ],
         "pc_goal_ids": sorted(g.id for g in goals),
+        "framework_location_states": [
+            {"location_id": row.location_id, "status": row.status, "notes": row.notes}
+            for row in framework_locations
+        ],
+        "framework_npc_states": [
+            {
+                "npc_template_id": row.npc_template_id,
+                "current_location_id": row.current_location_id,
+                "favor": row.favor,
+                "is_companion": row.is_companion,
+                "is_revealed": row.is_revealed,
+                "is_alive": row.is_alive,
+                "last_contact_turn": row.last_contact_turn,
+            }
+            for row in framework_npcs
+        ],
+        "framework_event_states": [
+            {
+                "event_id": row.event_id,
+                "status": row.status,
+                "triggered_turn": row.triggered_turn,
+                "summary_override": row.summary_override,
+                "rumor_delivered": row.rumor_delivered,
+                "rumor_delivered_turn": row.rumor_delivered_turn,
+            }
+            for row in framework_events
+        ],
+        "framework_faction_states": [
+            {
+                "faction_id": row.faction_id,
+                "tension": row.tension,
+                "pc_reputation": row.pc_reputation,
+                "is_active": row.is_active,
+            }
+            for row in framework_factions
+        ],
+        "framework_campaign_state": {
+            "current_phase_id": framework_campaign.current_phase_id,
+            "triggered_key_events_json": framework_campaign.triggered_key_events_json or "[]",
+        } if framework_campaign else None,
     }
 
 
@@ -183,6 +266,20 @@ async def restore_snapshot(
         sess.pc_mood_json = ss.get("pc_mood_json", sess.pc_mood_json)
         sess.recall_pending_json = ss.get("recall_pending_json", sess.recall_pending_json)
         sess.topology_warning_json = ss.get("topology_warning_json", sess.topology_warning_json)
+        sess.settings_json = ss.get("settings_json", sess.settings_json)
+        sess.pending_resolutions_json = ss.get(
+            "pending_resolutions_json", sess.pending_resolutions_json
+        )
+        sess.combat_order_json = ss.get("combat_order_json", sess.combat_order_json)
+        sess.mechanic_warnings_json = ss.get(
+            "mechanic_warnings_json", sess.mechanic_warnings_json
+        )
+
+    if snap.get("character") and sess is not None:
+        char = await s.get(Character, sess.character_id)
+        if char is not None:
+            for field, value in snap["character"].items():
+                setattr(char, field, value)
 
     # ── 还原角色状态（HP、背包）────────────────────────────────────────────
     if snap.get("char_state"):
@@ -192,6 +289,7 @@ async def restore_snapshot(
         if cs is not None:
             cs.stats_json = snap["char_state"].get("stats_json", cs.stats_json)
             cs.inventory_json = snap["char_state"].get("inventory_json", cs.inventory_json)
+            cs.stamina = snap["char_state"].get("stamina", cs.stamina)
 
     # ── 还原剧本进度 ──────────────────────────────────────────────────────
     if snap.get("screenplay"):
@@ -232,7 +330,7 @@ async def restore_snapshot(
         await s.execute(delete(NPC).where(NPC.id.in_(new_npc_ids)))
 
     # ── 还原地点 + 删除本回合新建的地点 ──────────────────────────────────
-    snap_locs_by_id = {l["id"]: l for l in snap.get("locations", [])}
+    snap_locs_by_id = {location["id"]: location for location in snap.get("locations", [])}
     snap_loc_ids = set(snap.get("location_ids", []))
     current_locs = (await s.execute(
         select(Location).where(Location.session_id == session_id)
@@ -312,6 +410,63 @@ async def restore_snapshot(
     new_goal_ids = [g.id for g in current_goals if g.id not in snap_goal_ids]
     if new_goal_ids:
         await s.execute(delete(PCGoal).where(PCGoal.id.in_(new_goal_ids)))
+
+    framework_state_specs = (
+        (
+            SessionLocationState,
+            "location_id",
+            "framework_location_states",
+            ("status", "notes"),
+        ),
+        (
+            SessionNpcState,
+            "npc_template_id",
+            "framework_npc_states",
+            (
+                "current_location_id", "favor", "is_companion", "is_revealed",
+                "is_alive", "last_contact_turn",
+            ),
+        ),
+        (
+            SessionEventState,
+            "event_id",
+            "framework_event_states",
+            (
+                "status", "triggered_turn", "summary_override", "rumor_delivered",
+                "rumor_delivered_turn",
+            ),
+        ),
+        (
+            SessionFactionState,
+            "faction_id",
+            "framework_faction_states",
+            ("tension", "pc_reputation", "is_active"),
+        ),
+    )
+    for model, key_field, snap_key, mutable_fields in framework_state_specs:
+        snapshot_rows = {row[key_field]: row for row in snap.get(snap_key, [])}
+        current_rows = (await s.execute(
+            select(model).where(model.session_id == session_id)
+        )).scalars().all()
+        for row in current_rows:
+            key = getattr(row, key_field)
+            if key not in snapshot_rows:
+                await s.delete(row)
+                continue
+            values = snapshot_rows[key]
+            for field in mutable_fields:
+                setattr(row, field, values[field])
+
+    campaign_snapshot = snap.get("framework_campaign_state")
+    campaign_state = await s.get(SessionCampaignState, session_id)
+    if campaign_snapshot is None:
+        if campaign_state is not None:
+            await s.delete(campaign_state)
+    elif campaign_state is not None:
+        campaign_state.current_phase_id = campaign_snapshot["current_phase_id"]
+        campaign_state.triggered_key_events_json = campaign_snapshot[
+            "triggered_key_events_json"
+        ]
 
 
 def serialize_snapshot(snap: dict[str, Any]) -> str:

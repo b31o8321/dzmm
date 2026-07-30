@@ -34,11 +34,9 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse  # SSE 响应封装库
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.api.routes_sessions._common import (
     build_client,
-    get_session_dep,
     get_session_maker_dep,
 )
 from dzmm.db.models import ModelConfig, Session as GameSession

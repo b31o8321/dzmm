@@ -25,8 +25,6 @@ Director 读的是「附近可用事件 + 主线进度」，而非章节列表�
 # ============================================================
 from __future__ import annotations
 
-import json
-
 from dzmm.models.client import Message
 
 # Director 的系统角色设定：明确它做什么、不做什么
@@ -53,14 +51,26 @@ score 越高 = 越应该本回合推动。
 
 **不要把两个标签放在同一回合**（除非事件在一回合内从触发到结束）。
 已触发/已完成的事件不重复 emit 同一标签。
+候选事件会明确标出状态：`pending` 只能 emit `event_trigger`；`triggered`
+绝不能再次 emit `event_trigger`，只有最近真实回合已给出明确解决结果时才 emit
+`event_complete`，否则不 emit 状态标签。
+
+完成判断针对当前这个原子事件，而不是整条主线：若事件摘要中的局部事实、
+问题或冲突已被最近真实回合明确验证/解决，并留下可继续追查的结果或线索，
+就应 complete；不要仅因更大的谜团尚未解决而让同一事件永久停在 triggered。
+若最近真实回合仍只有尝试、猜测或失败结果，则不要 complete。
 
 # 你产出（严格按顺序）
 
 ## 步骤一：事件状态声明（可选）
+状态声明与“本回合主推哪个事件”彼此独立。必须先逐个审核候选列表中所有
+`triggered` 事件：对照最近真实回合和该事件的完成判据；已经满足就 emit
+`event_complete`，即使玩家已离开原地点、或步骤二准备主推另一个事件也不能漏掉。
+
 若上回合叙事/PC 行动已让某个候选事件"发生了"（触发），emit：
 <event_trigger event_id="N"/>
 
-若某个已触发的事件在本回合已彻底完成/解决，emit：
+若某个已触发的事件在最近真实回合已满足完成判据，emit：
 <event_complete event_id="N"/>
 
 不确定则不 emit。
@@ -88,7 +98,7 @@ def build_open_world_director_messages(
       current_location: str
       pc_summary: str
       companions: list[str]  — companion NPC names
-      candidate_events: list[{name, score, importance, summary_md}]
+      candidate_events: list[{id, name, score, importance, summary_md}]
       rumor_events: list[{name, importance, summary_md}]
       proactive_npc: str | None  — NPC name that wants to contact PC
       campaign_phase: str | None
@@ -100,7 +110,12 @@ def build_open_world_director_messages(
     lines = [
         f"当前地点：{snapshot.get('current_location', '未知')}",
         f"PC 概要：{snapshot.get('pc_summary', '')}",
+        f"玩家本回合行动：{snapshot.get('current_action', '')}",
     ]
+
+    recent_scene_facts = snapshot.get("recent_scene_facts")
+    if recent_scene_facts:
+        lines.append(f"最近真实回合：\n{recent_scene_facts}")
 
     # 旅伴列表：如果有，拼成"旅伴：A, B"格式
     companions = snapshot.get("companions") or []
@@ -112,9 +127,17 @@ def build_open_world_director_messages(
     if events:
         lines.append("\n候选事件（按优先级排序）：")
         for ev in events:
+            completion = ev.get("completion_criteria_md") or "（未显式设置）"
             lines.append(
-                f"  - [{ev['importance']}★] {ev['name']}（score={ev['score']:.1f}）：{ev['summary_md']}"
+                f"  - [id={ev['id']}/{ev['importance']}★/"
+                f"{ev.get('status', 'pending')}] "
+                f"{ev['name']}（score={ev['score']:.1f}）：{ev['summary_md']}；"
+                f"完成判据：{completion}"
             )
+        lines.append(
+            "状态规则：pending 事件只可 trigger；triggered 事件禁止再次 trigger，"
+            "若最近真实回合已得到明确解决结果则 complete，否则不输出事件标签。"
+        )
     else:
         lines.append("\n候选事件：无（自由探索回合）")  # 没有候选事件时提示"自由探索"
 

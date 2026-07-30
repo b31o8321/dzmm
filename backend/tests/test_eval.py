@@ -1,7 +1,13 @@
 """Tests for Phase C autonomous evaluation agents."""
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from dzmm.models.client import GenerationParams, ModelClient, StreamChunk, TokenUsage
+from dzmm.eval.judge_agent import EvalScore, judge_session
+from dzmm.eval.player_agent import generate_player_action
+from dzmm.eval.report import generate_report
+from dzmm.eval.runner import EvalConfig, run_eval
+from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
 from dzmm.prompts.player_template import build_player_messages
 from dzmm.prompts.judge_template import build_judge_messages
 
@@ -41,10 +47,6 @@ def test_build_judge_messages_includes_history():
     assert msgs[0].role == "user"
     assert "维多利亚" in msgs[0].content
     assert "plot_speed" in msgs[0].content
-
-
-from dzmm.eval.player_agent import generate_player_action
-from dzmm.eval.judge_agent import EvalScore, judge_session
 
 
 def _fake_message(role: str, content: str, turn: int = 1):
@@ -140,11 +142,6 @@ async def test_eval_score_overall_property():
     assert abs(score.overall - expected) < 0.01
 
 
-from dzmm.eval.runner import EvalConfig, run_eval
-import json as _json
-from unittest.mock import MagicMock, patch
-
-
 @pytest.mark.asyncio
 async def test_run_eval_runs_correct_number_of_turns():
     """run_eval should call run_turn() once per turn and return one score per judge_every turns."""
@@ -188,7 +185,7 @@ async def test_run_eval_runs_correct_number_of_turns():
     def fake_session_maker():
         return _FakeSession()
 
-    valid_score_json = _json.dumps({
+    valid_score_json = json.dumps({
         "plot_speed": 7, "rule_violations": 0,
         "rp_immersion": 8, "dice_accuracy": 9, "reasoning": "good",
     })
@@ -209,9 +206,6 @@ async def test_run_eval_runs_correct_number_of_turns():
     assert len(turn_calls) == 10
     assert len(scores) == 2  # judge runs at turn 5 and turn 10
     assert all(isinstance(s, EvalScore) for s in scores)
-
-
-from dzmm.eval.report import generate_report
 
 
 def test_generate_report_contains_both_config_names():

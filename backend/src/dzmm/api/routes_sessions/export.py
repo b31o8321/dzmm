@@ -163,6 +163,7 @@ def _build_export_payload(
                 "tokens_in": m.tokens_in,
                 "tokens_out": m.tokens_out,
                 "events": _parse_events_json(m.events_json),  # 解析为列表
+                "diagnostics": _parse_events_json(m.diagnostics_json),
                 "created_at": m.created_at.isoformat() if m.created_at else None,
             }
             for m in messages

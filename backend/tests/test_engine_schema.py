@@ -99,6 +99,15 @@ def test_parse_items_normal():
     assert items[0].qty == 2
 
 
+def test_parse_items_accepts_legacy_string_and_untyped_object():
+    items = parse_items('["记录本", {"name": "手电筒", "qty": 1}]')
+
+    assert [(item.name, item.item_type) for item in items] == [
+        ("记录本", "quest"),
+        ("手电筒", "quest"),
+    ]
+
+
 def test_parse_items_empty_array():
     assert parse_items("[]") == []
 

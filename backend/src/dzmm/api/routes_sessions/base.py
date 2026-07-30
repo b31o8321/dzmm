@@ -30,12 +30,25 @@ from dzmm.api.routes_sessions._common import (
 )
 from dzmm.api.schemas import SessionIn, SessionOut
 from dzmm.db.models import (
+    Campaign,
     CharState,
+    Location,
+    LocationEdge,
     ModelConfig,
     NPC,
     Screenplay,
+    SessionCampaignState,
+    SessionEventState,
+    SessionFactionState,
+    SessionNpcState,
     Session as GameSession,  # 重命名：避免与 Python 内置的 session 概念混淆
+    WorldEvent,
+    WorldFaction,
+    WorldFramework,
+    WorldLocation,
+    WorldNPCTemplate,
 )
+from dzmm.models.factory import build_client
 
 # APIRouter：模块化路由注册器
 # prefix="/sessions" 表示本模块所有路由都以 /sessions 开头
@@ -59,6 +72,103 @@ class PatchSettingsRequest(BaseModel):
     debug_mode: bool | None = None         # 调试模式（前端显示额外信息）
     content_level: str | None = None       # 内容分级: safe | mature | unrestricted
     use_v10: bool | None = None            # 是否使用 v0.10 多 Agent 框架
+
+
+async def _initialize_framework_runtime(
+    s: AsyncSession, sess: GameSession, framework_id: int,
+) -> None:
+    """Create deterministic per-session state for an open-world framework."""
+    locations = (await s.execute(
+        select(WorldLocation).where(WorldLocation.framework_id == framework_id)
+        .order_by(WorldLocation.id)
+    )).scalars().all()
+    factions = (await s.execute(
+        select(WorldFaction).where(WorldFaction.framework_id == framework_id)
+    )).scalars().all()
+    npcs = (await s.execute(
+        select(WorldNPCTemplate).where(WorldNPCTemplate.framework_id == framework_id)
+    )).scalars().all()
+    events = (await s.execute(
+        select(WorldEvent).where(WorldEvent.framework_id == framework_id)
+    )).scalars().all()
+
+    for faction in factions:
+        s.add(SessionFactionState(session_id=sess.id, faction_id=faction.id))
+    for npc in npcs:
+        s.add(SessionNpcState(
+            session_id=sess.id,
+            npc_template_id=npc.id,
+            current_location_id=npc.home_location_id,
+            is_revealed=False,
+        ))
+    for event in events:
+        s.add(SessionEventState(
+            session_id=sess.id, event_id=event.id, status="pending",
+        ))
+
+    campaign = (await s.execute(
+        select(Campaign).where(Campaign.framework_id == framework_id)
+    )).scalars().first()
+    if campaign is not None:
+        try:
+            phases = json.loads(campaign.phases_json or "[]")
+        except (TypeError, ValueError):
+            phases = []
+        unlocked = [
+            ph for ph in phases
+            if isinstance(ph, dict) and not ph.get("prerequisite_phase_ids")
+        ]
+        first_phase_id = min(
+            (ph.get("phase_id") for ph in unlocked if isinstance(ph.get("phase_id"), int)),
+            default=None,
+        )
+        s.add(SessionCampaignState(
+            session_id=sess.id,
+            current_phase_id=first_phase_id,
+            triggered_key_events_json="[]",
+        ))
+
+    if locations:
+        # 新框架由向导显式标记；旧框架没有标记时保留首地点回退。
+        start = next((loc for loc in locations if loc.is_start), locations[0])
+        settings = json.loads(sess.settings_json or "{}")
+        settings["pc_location_id"] = start.id
+        sess.settings_json = json.dumps(settings, ensure_ascii=False)
+        runtime_locations: dict[int, Location] = {}
+        for location in locations:
+            runtime = Location(
+                session_id=sess.id,
+                name=location.name,
+                description=location.description_md,
+                first_visited_turn=0 if location.id == start.id else -1,
+                last_visited_turn=0 if location.id == start.id else -1,
+                is_current=location.id == start.id,
+                items_json="[]",
+            )
+            s.add(runtime)
+            runtime_locations[location.id] = runtime
+        await s.flush()
+
+        # 向导地图是开放世界的事实源，运行时直接镜像全部预设边；不再要求
+        # Scene 在每次首次旅行时重新发明同一条 location_edge。
+        for location in locations:
+            try:
+                connections = json.loads(location.connections_json or "[]")
+            except (TypeError, ValueError):
+                connections = []
+            for connection in connections if isinstance(connections, list) else []:
+                target_id = connection.get("target_id") if isinstance(connection, dict) else None
+                if target_id not in runtime_locations:
+                    continue
+                direction = str(connection.get("direction") or "").strip()
+                s.add(LocationEdge(
+                    session_id=sess.id,
+                    from_loc_id=runtime_locations[location.id].id,
+                    to_loc_id=runtime_locations[target_id].id,
+                    relation="connects",
+                    description=direction,
+                    introduced_turn=0,
+                ))
 
 
 # ── PATCH /sessions/{session_id}/settings ────────────────────────────
@@ -121,6 +231,9 @@ async def patch_session_gm_model(
     cfg = await s.get(ModelConfig, body.gm_model_config_id)
     if cfg is None:
         raise HTTPException(404, "model config not found")
+    ok, info = await build_client(cfg).health_check()
+    if not ok:
+        raise HTTPException(422, f"模型连通性检查失败，未切换：{info}")
     sess.gm_model_config_id = body.gm_model_config_id
     await s.commit()
     return {"id": sess.id, "gm_model_config_id": sess.gm_model_config_id}
@@ -265,6 +378,12 @@ async def create_session(body: SessionIn, s: AsyncSession = Depends(get_session_
         if _ch is not None and _ch.base_stats_json:
             _initial_stats = _ch.base_stats_json
     s.add(CharState(session_id=sess.id, stats_json=_initial_stats))
+
+    if body.framework_id is not None:
+        framework = await s.get(WorldFramework, body.framework_id)
+        if framework is None:
+            raise HTTPException(404, "framework not found")
+        await _initialize_framework_runtime(s, sess, body.framework_id)
 
     # Tier-1 复用现有剧本：把剧本绑回新存档，并重置进度字段，让 GM/前端的
     # get_active_screenplay 能在新会话里找到它，且从第 1 章开始重玩。

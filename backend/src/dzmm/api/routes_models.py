@@ -14,6 +14,7 @@
 # ============================================================
 
 import uuid  # 用于生成唯一的 API 密钥引用 ID
+from urllib.parse import urlsplit
 
 # FastAPI 核心组件
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,6 +30,28 @@ from dzmm.secrets import delete_api_key, store_api_key  # API 密钥的安全存
 
 # 创建路由组：所有路由的 URL 都以 /model_configs 开头
 router = APIRouter(prefix="/model_configs", tags=["models"])
+
+_SUPPORTED_MODEL_TYPES = {"ollama", "lm_studio", "openai_compat"}
+
+
+def _validate_model_config(body: ModelConfigIn) -> None:
+    """Reject provider/endpoint combinations that select the wrong protocol."""
+    if body.type not in _SUPPORTED_MODEL_TYPES:
+        raise HTTPException(422, f"不支持的模型类型：{body.type}")
+    if not body.name.strip() or not body.model_name.strip():
+        raise HTTPException(422, "配置名称和模型名称不能为空")
+    parsed = urlsplit(body.base_url.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(422, "Base URL 必须是完整的 http(s) 地址")
+    path = parsed.path.rstrip("/").lower()
+    if body.type == "ollama" and (path.endswith("/v1") or parsed.port == 1234):
+        raise HTTPException(
+            422,
+            "该地址看起来是 LM Studio/OpenAI-compatible 服务；"
+            "请选择 lm_studio 类型，避免错误调用 Ollama 的 /api/chat。",
+        )
+    if body.type == "lm_studio" and not path.endswith("/v1"):
+        raise HTTPException(422, "LM Studio 的 Base URL 应以 /v1 结尾")
 
 
 # 依赖注入占位函数（真正实现由 main.py 注入）
@@ -55,6 +78,7 @@ def _to_out(m: ModelConfig) -> ModelConfigOut:
 
 @router.post("", response_model=ModelConfigOut)
 async def create_model_config(body: ModelConfigIn, s: AsyncSession = Depends(get_session_dep)):
+    _validate_model_config(body)
     api_key_ref = None
     if body.api_key:
         # API 密钥不能明文存入数据库，改用「引用 ID」方案：
@@ -174,6 +198,7 @@ async def update_model_config(
     cfg_id: int, body: ModelConfigIn,
     s: AsyncSession = Depends(get_session_dep),
 ):
+    _validate_model_config(body)
     m = await s.get(ModelConfig, cfg_id)
     if m is None:
         raise HTTPException(404, "config not found")

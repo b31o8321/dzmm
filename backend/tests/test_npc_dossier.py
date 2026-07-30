@@ -11,9 +11,7 @@ kept "hinting" at things the player already knew.
 Fix: extract the overlay logic into `_effective_reveals` and have both call
 sites use it.
 """
-import json
 
-import pytest
 
 from dzmm.db.models import NPC
 from dzmm.service.npc_dossier import (

@@ -5,7 +5,6 @@ real embedding service which we don't run in CI.
 import asyncio
 from pathlib import Path
 
-import pytest
 
 from dzmm.service.npc_memory import (
     init_npc_memory,

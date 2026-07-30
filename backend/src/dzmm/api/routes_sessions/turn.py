@@ -18,7 +18,6 @@
 
 """Turn endpoints: POST /turn (SSE), DELETE /last_turn, POST /warmup."""
 
-import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -237,12 +236,34 @@ async def take_turn(
                             "data": json.dumps({"text": payload}, ensure_ascii=False)}
                 return None  # 缓冲区为空，无需推送
 
+            # 把生成异常转成一个内部哨兵值，保证流式响应能返回 error 事件，
+            # 同时显式回滚本回合的全部数据库变更。
+            async def _turn_events():
+                try:
+                    async for event in run_turn(
+                        s,
+                        session_id,
+                        body.action,
+                        client,
+                        ollama_base_url=cfg.base_url if cfg else None,
+                        session_maker=session_maker,
+                    ):
+                        yield event
+                except Exception as exc:  # noqa: BLE001
+                    log.exception("turn stream failed for session %s", session_id)
+                    yield exc
+
             # run_turn 是异步生成器（async generator），用 async for 消费
             # 它边调用 LLM 边产出 ParseEvent 事件
-            # 传入 session_maker 是因为 run_turn 内部可能需要独立的数据库会话
-            async for ev in run_turn(s, session_id, body.action, client,
-                                     ollama_base_url=cfg.base_url if cfg else None,
-                                     session_maker=session_maker):
+            async for ev in _turn_events():
+                if isinstance(ev, Exception):
+                    narrative_buf.clear()
+                    await s.rollback()
+                    yield {
+                        "event": "error",
+                        "data": json.dumps({"message": str(ev)}, ensure_ascii=False),
+                    }
+                    return
                 if isinstance(ev, NarrativeDelta):
                     # NarrativeDelta：LLM 输出的叙事文字片段
                     narrative_buf.append(ev.text)
@@ -323,6 +344,10 @@ async def take_turn(
                     select(AgentStream).where(AgentStream.session_id == session_id)
                 )).scalars().all()
                 for st in stream_rows:
+                    if st.kind == "scene":
+                        # Scene 流仅用于 debug-chain 展示，推理读取的是 messages
+                        # 表；调用模型压缩它既增加尾延迟，也会损失旧调试记录。
+                        continue
                     # Director 保留更多历史（30 条触发，保留 10 条），NPC 少一些（25/8）
                     threshold = 30 if st.kind == "gm_director" else 25
                     keep = 10 if st.kind == "gm_director" else 8

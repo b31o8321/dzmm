@@ -30,8 +30,6 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession  # 异步数据库会话，不阻塞事件循环
 
-log = logging.getLogger(__name__)
-
 # 从各子模块导入标签处理函数
 from dzmm.db.models import NPC
 from dzmm.parsing.events import TagComplete  # 一个已完整解析的 XML 标签（含 name/attrs/content）
@@ -69,6 +67,8 @@ from dzmm.service.state_apply.mechanics import (  # v0.15 Batch 2+3: Python-engi
     _apply_item_use,
     _apply_skill_request,
 )
+
+log = logging.getLogger(__name__)
 
 # Re-export for callers that imported these names from `_impl` directly
 # (e.g. via the `from _impl import *` wildcard in __init__.py).
@@ -169,7 +169,7 @@ async def apply_tags(
     session_id: int,        # 当前游戏局的 ID
     current_turn: int,      # 当前回合编号
     tags: list[TagComplete], # 本回合 GM 输出中解析到的所有 XML 标签
-) -> None:
+) -> list[TagComplete]:
     # -------------------------------------------------------
     # 核心公共入口：把本回合所有标签应用到数据库
     #
@@ -183,14 +183,18 @@ async def apply_tags(
     #   3. 累积地点拓扑警告（如果 GM 跳跃地点时缺少 location_edge）
     #   4. 根据叙事内容自动更新 NPC 出场时间（_bump_appearances_from_narrative）
     # -------------------------------------------------------
-    """Mutate CharState and NPC rows based on parsed tags. Caller commits."""
+    """Mutate state and return only tags accepted by authoritative handlers."""
     _enforce_dice_outcome(tags)  # 先纠正骰子结果，后续所有处理都用纠正后的值
     topology_warnings: list[str] = []  # 收集本回合的地点拓扑警告
+    accepted_tags: list[TagComplete] = []
     for tag in tags:
+        accepted = True
         # 根据标签名路由到对应处理函数
         if tag.name == "state_change":
             # 通用状态变更，content 是 JSON patch 字符串
-            await _apply_state_change(session, session_id, tag.content, current_turn)
+            accepted = await _apply_state_change(
+                session, session_id, tag.content, current_turn,
+            )
         elif tag.name == "npc_update":
             # NPC 信息更新（创建或修改），attrs 含 name/favor_delta/state 等
             await _apply_npc_update(
@@ -223,19 +227,29 @@ async def apply_tags(
             )
         elif tag.name == "chapter_advance":
             # 推进到剧本的下一章节
-            await _apply_chapter_advance(session, session_id, tag.attrs, current_turn)
+            accepted = await _apply_chapter_advance(
+                session, session_id, tag.attrs, current_turn
+            )
         elif tag.name == "event_complete":
             # 标记某个剧情事件已完成；线性剧本路径自动奖励 XP，开放世界路径推进 Campaign 阶段
-            await _apply_event_complete(session, session_id, tag.attrs, current_turn)
+            accepted = await _apply_event_complete(
+                session, session_id, tag.attrs, current_turn
+            )
         elif tag.name == "event_trigger":
             # 开放世界：Director 声明某候选事件已在叙事中发生（pending/triggered → triggered）
-            await _apply_event_trigger(session, session_id, tag.attrs, current_turn)
+            accepted = await _apply_event_trigger(
+                session, session_id, tag.attrs, current_turn
+            )
         elif tag.name == "plot_turn":
             # 剧情重大转折，可能触发大纲自动重写
-            await _apply_plot_turn(session, session_id, tag.attrs, current_turn)
+            accepted = await _apply_plot_turn(
+                session, session_id, tag.attrs, current_turn
+            )
         elif tag.name == "ending":
             # 故事结局，将剧本标记为 "concluded"
-            await _apply_ending(session, session_id, tag.attrs, current_turn)
+            accepted = await _apply_ending(
+                session, session_id, tag.attrs, current_turn
+            )
         elif tag.name == "doom":
             # 末日时钟增减，attrs 含 delta="±N"
             await _apply_doom(session, session_id, tag.attrs)
@@ -243,6 +257,9 @@ async def apply_tags(
             # 进入新地点；如果缺少空间关系边，会返回警告字符串
             w = await _apply_location_enter(
                 session, session_id, current_turn, tag.attrs, tag.content
+            )
+            accepted = bool((tag.attrs or {}).get("name")) and not (
+                w and "地点登记被拒绝" in w
             )
             if w:
                 topology_warnings.append(w)  # 收集警告，稍后写入数据库
@@ -287,6 +304,8 @@ async def apply_tags(
             # uses extract_d20_value for stuck-dice detection (both safe to keep).
             # Record a warning so _build_key_facts can surface it to the GM.
             await _record_legacy_dice_warning(session, session_id, current_turn)
+        if accepted:
+            accepted_tags.append(tag)
 
     # -------------------------------------------------------
     # 拓扑警告写回数据库
@@ -333,6 +352,7 @@ async def apply_tags(
     # 0 and the panel keeps showing 未登场 even when they're actively in
     # the scene.
     await _bump_appearances_from_narrative(session, session_id, current_turn, tags)
+    return accepted_tags
 
 
 async def _bump_appearances_from_narrative(

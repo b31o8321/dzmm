@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -9,6 +10,7 @@ import { readFileSync } from 'node:fs'
 const pkg = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'),
 ) as { version: string }
+const backendURL = process.env.VITE_API_BASE ?? 'http://127.0.0.1:8765'
 
 export default defineConfig({
   plugins: [vue()],
@@ -22,7 +24,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8765',
+        target: backendURL,
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
       },
@@ -43,5 +45,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 })

@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +23,6 @@ from dzmm.db.models import (
     Character,
     Session as GameSession,
     SessionFactionState,
-    SessionLocationState,
     SessionNpcState,
 )
 

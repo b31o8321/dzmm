@@ -117,7 +117,7 @@ async def test_export_writes_records_above_threshold(tmp_path):
     assert count == 2
     lines = out.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    turns_written = {json.loads(l)["turn"] for l in lines}
+    turns_written = {json.loads(line)["turn"] for line in lines}
     assert turns_written == {1, 3}
 
 

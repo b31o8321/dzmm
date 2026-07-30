@@ -79,3 +79,28 @@ async def test_stream_sets_num_ctx(client):
     # v0.9.1: bumped 8192 → 32768 (ollama runner ignores Modelfile defaults
     # when an API request specifies num_ctx, so we MUST send a large value).
     assert captured["body"]["options"]["num_ctx"] == 32768
+
+
+@respx.mock
+async def test_http_200_protocol_error_is_not_treated_as_success(client):
+    respx.post("http://localhost:11434/api/chat").mock(
+        return_value=httpx.Response(200, json={
+            "error": "Unexpected endpoint or method. (POST /api/chat) Returning 200 anyway",
+        })
+    )
+
+    with pytest.raises(RuntimeError, match="Unexpected endpoint"):
+        async for _ in client.stream(
+            [Message(role="user", content="hi")], GenerationParams(),
+        ):
+            pass
+
+
+@respx.mock
+async def test_health_check_rejects_http_200_protocol_error(client):
+    respx.post("http://localhost:11434/api/chat").mock(
+        return_value=httpx.Response(200, json={"error": "Unexpected endpoint"})
+    )
+    ok, info = await client.health_check()
+    assert ok is False
+    assert "Unexpected endpoint" in info

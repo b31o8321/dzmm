@@ -17,7 +17,8 @@ from datetime import datetime, UTC
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dzmm.db.models import CharState, Session as GameSession
+from dzmm.db.models import Character, CharState, Session as GameSession
+from dzmm.engine.schema import Item, parse_items
 from dzmm.parsing.repair import parse_loose_json
 
 log = logging.getLogger(__name__)
@@ -62,10 +63,10 @@ async def _record_mechanic_warning(
 
 async def _apply_state_change(
     session: AsyncSession, session_id: int, raw: str, current_turn: int = 0
-) -> None:
+) -> bool:
     payload = parse_loose_json(raw)
     if not payload:
-        return
+        return False
 
     cs = (
         await session.execute(
@@ -78,14 +79,75 @@ async def _apply_state_change(
 
     stats = json.loads(cs.stats_json or "{}")
     inventory = json.loads(cs.inventory_json or "[]")
+    sess = await session.get(GameSession, session_id)
+    character = (
+        await session.get(Character, sess.character_id)
+        if sess is not None
+        else None
+    )
+    canonical_inventory = (
+        parse_items(character.inventory_json or "[]")
+        if character is not None
+        else []
+    )
+    canonical_inventory_changed = False
+    applied = False
 
     for key, val in payload.items():
         if key == "inventory_add" and isinstance(val, list):
             inventory.extend(str(x) for x in val)
+            for raw_item in val:
+                try:
+                    if isinstance(raw_item, dict):
+                        item_data = {**raw_item}
+                        item_data.setdefault("item_type", "quest")
+                        item = Item.model_validate(item_data)
+                    else:
+                        item = Item(
+                            name=str(raw_item), qty=1, item_type="quest",
+                        )
+                except Exception:
+                    continue
+                existing = next(
+                    (
+                        current for current in canonical_inventory
+                        if current.name == item.name
+                        and current.item_type == item.item_type
+                    ),
+                    None,
+                )
+                if existing is None:
+                    canonical_inventory.append(item)
+                else:
+                    existing.qty += item.qty
+                canonical_inventory_changed = True
+            applied = True
         elif key == "inventory_remove" and isinstance(val, list):
             for item in val:
                 if item in inventory:
                     inventory.remove(item)
+                item_name = (
+                    str(item.get("name", ""))
+                    if isinstance(item, dict)
+                    else str(item)
+                )
+                idx = next(
+                    (
+                        i for i, current in enumerate(canonical_inventory)
+                        if current.name == item_name
+                    ),
+                    None,
+                )
+                if idx is not None:
+                    current = canonical_inventory[idx]
+                    if current.qty <= 1:
+                        canonical_inventory.pop(idx)
+                    else:
+                        canonical_inventory[idx] = current.model_copy(
+                            update={"qty": current.qty - 1},
+                        )
+                    canonical_inventory_changed = True
+            applied = True
         elif isinstance(val, (int, float)):
             delta = val
 
@@ -122,7 +184,14 @@ async def _apply_state_change(
             if key in _VITAL_STATS and new_val < 0:
                 new_val = 0
             stats[key] = new_val
+            applied = True
 
     cs.stats_json = json.dumps(stats, ensure_ascii=False)
     cs.inventory_json = json.dumps(inventory, ensure_ascii=False)
+    if character is not None and canonical_inventory_changed:
+        character.inventory_json = json.dumps(
+            [item.model_dump() for item in canonical_inventory],
+            ensure_ascii=False,
+        )
     cs.updated_at = datetime.now(UTC).replace(tzinfo=None)
+    return applied

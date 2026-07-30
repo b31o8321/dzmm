@@ -8,12 +8,13 @@ from collections.abc import AsyncIterator
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from dzmm.db.base import async_session, get_engine, init_db
-from dzmm.db.models import Character, ModelConfig, Session as GameSession, World, CharState
+from dzmm.db.models import Character, ModelConfig
+from dzmm.engine.genre_templates import apply_genre_template
 from dzmm.engine.schema import Item, parse_items, parse_skills
 from dzmm.models.client import GenerationParams, Message, ModelClient, StreamChunk, TokenUsage
+from dzmm.service.wizard import finalize_wizard, generate_character
 
 
 # ── Stubs ─────────────────────────────────────────────────────────────────────
@@ -54,9 +55,6 @@ async def db(tmp_path):
 # ─────────────────────────────────────────────────────────────────────────────
 # Part A: apply_genre_template unit tests
 # ─────────────────────────────────────────────────────────────────────────────
-
-from dzmm.engine.genre_templates import apply_genre_template
-
 
 # G1. apply_genre_template("悬疑探案") gives high INT
 def test_mystery_genre_high_intelligence():
@@ -156,9 +154,6 @@ def test_skills_parse_roundtrip():
 # Part B: generate_character returns structured stats
 # ─────────────────────────────────────────────────────────────────────────────
 
-from dzmm.service.wizard import generate_character
-
-
 # G11. generate_character returns stat_block, skills, inventory fields
 async def test_generate_character_returns_structured_stats():
     client = StubLLM(_CHAR_OUTPUT)
@@ -192,7 +187,6 @@ async def test_generate_character_no_genre_uses_defaults():
 # G13. _fw_character_impl routes genre into generate_character (service-level test)
 async def test_fw_character_impl_passes_genre(db):
     """Verify the route helper _fw_character_impl passes genre to generate_character."""
-    from dzmm.engine.genre_templates import apply_genre_template
 
     # Directly test that generate_character with genre="英雄成长" returns hero stats
     client_stub = StubLLM(_CHAR_OUTPUT)
@@ -208,9 +202,6 @@ async def test_fw_character_impl_passes_genre(db):
 # ─────────────────────────────────────────────────────────────────────────────
 # Part D: finalize_wizard persists structured stats
 # ─────────────────────────────────────────────────────────────────────────────
-
-from dzmm.service.wizard import finalize_wizard
-
 
 # G14. finalize_wizard persists structured stats on Character row
 async def test_finalize_wizard_persists_stats(db):
@@ -244,7 +235,7 @@ async def test_finalize_wizard_persists_stats(db):
         "genre": genre,
     }
 
-    result = await finalize_wizard(db, bundle)
+    await finalize_wizard(db, bundle)
     await db.commit()
 
     # Fetch the newly created Character

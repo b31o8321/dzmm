@@ -1,5 +1,10 @@
 import { defineConfig } from '@playwright/test'
 
+const backendPort = process.env.DZMM_E2E_BACKEND_PORT ?? '28765'
+const frontendPort = process.env.DZMM_E2E_FRONTEND_PORT ?? '25173'
+const backendURL = `http://127.0.0.1:${backendPort}`
+const frontendURL = `http://127.0.0.1:${frontendPort}`
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
@@ -9,18 +14,19 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: frontendURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   webServer: [
     {
       command: 'python e2e/mock_backend.py',
-      url: 'http://127.0.0.1:8765/health',
-      reuseExistingServer: !process.env.CI,
+      url: `${backendURL}/health`,
+      reuseExistingServer: false,
       timeout: 60_000,
       env: {
         PYTHONPATH: '../backend/src',
+        DZMM_E2E_BACKEND_PORT: backendPort,
       },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -28,10 +34,13 @@ export default defineConfig({
     {
       // Explicit --host 127.0.0.1 so CI Ubuntu (where `localhost` may resolve
       // to IPv6 ::1 only) binds an IPv4 socket Playwright can reach.
-      command: 'npx vite --host 127.0.0.1 --port 5173',
-      url: 'http://127.0.0.1:5173',
-      reuseExistingServer: !process.env.CI,
+      command: `npx vite --host 127.0.0.1 --port ${frontendPort} --strictPort`,
+      url: frontendURL,
+      reuseExistingServer: false,
       timeout: 60_000,
+      env: {
+        VITE_API_BASE: backendURL,
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     },

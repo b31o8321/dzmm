@@ -8,6 +8,7 @@ from dzmm.db.models import (
     Character, CharState, HiddenEvent, ModelConfig, NPC, NpcRelation, PCGoal, PlotThread, Screenplay, ScreenplayRevision, Session as GameSession, World,
 )
 from dzmm.parsing.events import TagComplete
+from dzmm.engine.schema import parse_items
 from dzmm.service.state_apply import apply_tags
 
 
@@ -64,6 +65,9 @@ async def test_inventory_add_and_remove(session_with_state):
         select(CharState).where(CharState.session_id == sid)
     )).scalar_one()
     assert json.loads(cs.inventory_json) == ["钥匙", "小刀"]
+    sess = await s.get(GameSession, sid)
+    char = await s.get(Character, sess.character_id)
+    assert [item.name for item in parse_items(char.inventory_json)] == ["钥匙", "小刀"]
 
     tag2 = TagComplete(name="state_change",
                        content='{"inventory_remove": ["钥匙"]}')
@@ -74,6 +78,8 @@ async def test_inventory_add_and_remove(session_with_state):
         select(CharState).where(CharState.session_id == sid)
     )).scalar_one()
     assert json.loads(cs.inventory_json) == ["小刀"]
+    await s.refresh(char)
+    assert [item.name for item in parse_items(char.inventory_json)] == ["小刀"]
 
 
 async def test_existing_npc_marked_appeared_when_named_in_narrative(
@@ -177,12 +183,13 @@ async def test_npc_update_creates_and_updates(session_with_state):
 async def test_apply_tags_skips_malformed_json(session_with_state):
     s, sid = session_with_state
     tag = TagComplete(name="state_change", content="not-json-at-all")
-    await apply_tags(s, sid, current_turn=1, tags=[tag])
+    accepted = await apply_tags(s, sid, current_turn=1, tags=[tag])
     await s.commit()
     cs = (await s.execute(
         select(CharState).where(CharState.session_id == sid)
     )).scalar_one()
     assert json.loads(cs.stats_json) == {"hp": 20, "sanity": 15}
+    assert accepted == []
 
 
 async def test_ignores_non_state_tags(session_with_state):
@@ -1486,7 +1493,6 @@ async def test_npc_update_clears_location(db_session, session_id):
 async def test_location_item_add(db_session, session_id):
     """<location_item action="add"> adds item to current location."""
     import json
-    from sqlalchemy import select
     from dzmm.db.models import Location
     from dzmm.service.state_apply.location_item import _apply_location_item
     loc = Location(session_id=session_id, name="书房", description="",

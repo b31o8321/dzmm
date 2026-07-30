@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from dzmm.db.base import async_session, get_engine, init_db
-from dzmm.db.models import AgentMessage, AgentStream
+from dzmm.db.models import AgentMessage
 from dzmm.main import create_app
 from dzmm.models.client import Message
 from dzmm.service.agents.streams import (
@@ -90,6 +90,28 @@ async def test_load_history_keeps_summary_at_head(app):
 
 
 @pytest.mark.asyncio
+async def test_load_history_does_not_split_pair_after_summary(app):
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        st = await get_or_create_stream(s, 1, "gm_director", "")
+        await s.flush()
+        await append_message(
+            s, st.id, turn=0, role="system", content="长期摘要", is_summary=True,
+        )
+        for turn in range(1, 6):
+            await append_message(s, st.id, turn, "user", f"u{turn}")
+            await append_message(s, st.id, turn, "assistant", f"a{turn}")
+        await s.commit()
+        msgs = await load_history(s, st.id, max_messages=8)
+
+    assert [m.role for m in msgs] == [
+        "system", "user", "assistant", "user", "assistant", "user", "assistant",
+    ]
+    assert msgs[1].content == "u3"
+    assert msgs[-1].content == "a5"
+
+
+@pytest.mark.asyncio
 async def test_rollback_to_turn_drops_later_messages(app):
     """delete_last_turn 回滚：把 turn > N 的所有 agent_messages 删掉。"""
     SessionMaker = app.state.session_maker
@@ -150,7 +172,7 @@ async def test_compress_if_needed_folds_old_into_summary(app):
 
 @pytest.mark.asyncio
 async def test_compress_no_op_when_under_threshold(app):
-    from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
+    from dzmm.models.client import ModelClient, StreamChunk
     from dzmm.service.agents.streams import compress_if_needed
 
     class _NeverCalled(ModelClient):
@@ -169,3 +191,44 @@ async def test_compress_no_op_when_under_threshold(app):
         await s.commit()
         await compress_if_needed(s, st.id, _NeverCalled(), threshold=20, keep_recent=4)
         await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_recompression_replaces_prior_summary(app):
+    from dzmm.models.client import ModelClient, StreamChunk, TokenUsage
+    from dzmm.service.agents.streams import compress_if_needed
+
+    prompts: list[str] = []
+
+    class _StubSummarizer(ModelClient):
+        name = "stub"
+
+        async def stream(self, msgs, params):
+            yield StreamChunk(delta="", finish_reason="stop")
+
+        async def complete(self, msgs, params):
+            prompts.append(msgs[-1].content)
+            return f"第 {len(prompts)} 次摘要", TokenUsage()
+
+    SessionMaker = app.state.session_maker
+    async with SessionMaker() as s:
+        st = await get_or_create_stream(s, 1, "npc", "丽莎")
+        await s.flush()
+        for i in range(6):
+            await append_message(s, st.id, turn=i, role="user", content=f"u{i}")
+        await compress_if_needed(s, st.id, _StubSummarizer(), threshold=4, keep_recent=2)
+        await s.commit()
+        for i in range(6, 11):
+            await append_message(s, st.id, turn=i, role="user", content=f"u{i}")
+        await compress_if_needed(s, st.id, _StubSummarizer(), threshold=4, keep_recent=2)
+        await s.commit()
+        summaries = (await s.execute(
+            select(AgentMessage).where(
+                AgentMessage.stream_id == st.id,
+                AgentMessage.is_summary == True,  # noqa: E712
+            )
+        )).scalars().all()
+
+    assert len(summaries) == 1
+    assert summaries[0].content == "第 2 次摘要"
+    assert "第 1 次摘要" in prompts[1]

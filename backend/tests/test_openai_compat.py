@@ -67,6 +67,34 @@ async def test_stream_handles_malformed_lines(client):
 
 
 @respx.mock
+async def test_stream_rejects_http_200_json_protocol_error(client):
+    respx.post("https://api.example.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={
+            "error": "Unexpected endpoint or method POST /api/chat",
+        })
+    )
+
+    with pytest.raises(RuntimeError, match="HTTP 200 but no SSE data"):
+        async for _ in client.stream(
+            [Message(role="user", content="hi")], GenerationParams(),
+        ):
+            pass
+
+
+@respx.mock
+async def test_stream_rejects_error_inside_sse(client):
+    respx.post("https://api.example.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, text=sse({"error": {"message": "model not loaded"}}))
+    )
+
+    with pytest.raises(RuntimeError, match="model not loaded"):
+        async for _ in client.stream(
+            [Message(role="user", content="hi")], GenerationParams(),
+        ):
+            pass
+
+
+@respx.mock
 async def test_stream_raises_on_4xx(client):
     respx.post("https://api.example.com/v1/chat/completions").mock(
         return_value=httpx.Response(401, json={"error": "unauthorized"})

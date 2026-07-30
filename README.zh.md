@@ -74,6 +74,8 @@ GM prompt 使用结构化类 XML 标签。产生大量推理 token（`<think>` �
 
 | 模型 | 大小 | 说明 |
 |---|---|---|
+| `google/gemma-3-12b`（LM Studio，16K） | 约 8 GB（量化版） | **v0.16 本地推荐** — 50 回合实测结构化和标签应用率稳定 |
+| `magnum-v4-22b`（LM Studio，16K） | 依量化版本而定 | 文风候选；本机首回合约 343 秒，不推荐作为默认交互模型 |
 | `qwen2.5:7b` | 4.7 GB | 本地**最佳平衡** — 标签格式遵守好 |
 | `qwen2.5:14b` | 9 GB | 叙事深度更好；需要 ≥16 GB RAM |
 | `llama3.1:8b` | 4.7 GB | 不错的备选 |
@@ -81,6 +83,8 @@ GM prompt 使用结构化类 XML 标签。产生大量推理 token（`<think>` �
 | `claude-haiku-4`（云端） | — | 格式遵守极佳，成本相近 |
 
 云端模型使用 `openai_compat` 配置类型 — 适用于 OpenAI、Anthropic（via proxy）、DeepSeek、豆包、通义、零一万物，或任何 OpenAI 格式的 API。
+
+LM Studio 必须选择 `lm_studio`（或 `openai_compat`）配置类型，并把 Base URL 设为 `http://<主机>:1234/v1`。不要只改模型名而保留 `ollama` 类型，否则应用会调用 LM Studio 不支持的 `/api/chat`。成熟度实测与限制见 [v0.16.0 成熟度评估](docs/MATURITY_V0.16.0.md)。
 
 ---
 

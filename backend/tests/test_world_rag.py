@@ -1,7 +1,6 @@
-import pytest
 from langchain_core.embeddings import Embeddings
 
-from dzmm.service.world_rag import index_world, is_indexed
+from dzmm.service.world_rag import get_world_md, index_world, is_indexed, retrieve_world_context
 
 
 class _FakeEmbedder(Embeddings):
@@ -64,9 +63,6 @@ def test_index_world_is_idempotent(tmp_path, monkeypatch):
 
 def test_is_indexed_false_when_no_dir(tmp_path):
     assert not is_indexed(99, app_dir=tmp_path)
-
-
-from dzmm.service.world_rag import retrieve_world_context, get_world_md
 
 
 def test_retrieve_returns_relevant_chunk(tmp_path, monkeypatch):

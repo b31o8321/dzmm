@@ -31,7 +31,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -157,7 +156,7 @@ async def generate_factions(
     # 生成派系列表
     # 只传地点名字给 Prompt（不传完整描述），避免 Prompt 过长
     # 每个派系包含：name/description_md/rival_faction_names/ally_faction_names/tension_rules
-    location_names = [l["name"] for l in locations]
+    location_names = [location["name"] for location in locations]
     msgs = build_factions_messages(genre, world_brief_md, location_names)
     raw, _ = await client.complete(msgs, _PARAMS)
     return json.loads(_extract_json(raw))
@@ -170,7 +169,7 @@ async def generate_npc_templates(
     # 生成 NPC 模板列表
     # NPC 模板是世界里可以重复出现的角色原型，如"铁匠 老张"
     # 每个模板有 home_location_name（常驻地点名）和 faction_name（所属派系名）
-    location_names = [l["name"] for l in locations]
+    location_names = [location["name"] for location in locations]
     faction_names = [f["name"] for f in factions]
     msgs = build_npc_templates_messages(genre, world_brief_md, location_names, faction_names)
     raw, _ = await client.complete(msgs, _PARAMS)
@@ -186,7 +185,7 @@ async def generate_events(
     # - PC 到达某个地点（type="location", location_name="黑石城"）
     # - PC 遇见某个 NPC（type="npc_met", npc_name="老铁匠"）
     # - 对某派系的声望达到阈值（type="faction_rep", faction_name="..."）
-    location_names = [l["name"] for l in locations]
+    location_names = [location["name"] for location in locations]
     faction_names = [f["name"] for f in factions]
     npc_names = [n["name"] for n in npc_templates]
     msgs = build_events_messages(genre, world_brief_md, location_names, faction_names, npc_names)
@@ -218,6 +217,18 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
     #     第一次 INSERT 地点（此时不知道其他地点的 ID）
     #     flush 获得 ID 后，第二次遍历解析 connections_json
 
+    location_payloads = payload.get("locations", [])
+    if not isinstance(location_payloads, list) or not location_payloads:
+        raise ValueError("at least one location is required")
+    location_names = [str(loc.get("name", "")).strip() for loc in location_payloads]
+    if any(not name for name in location_names):
+        raise ValueError("location name cannot be empty")
+    if len(set(location_names)) != len(location_names):
+        raise ValueError("location names must be unique")
+    requested_start = (payload.get("start_location_name") or location_names[0]).strip()
+    if requested_start not in set(location_names):
+        raise ValueError(f"start location not found: {requested_start}")
+
     # ── 创建 WorldFramework 主行 ────────────────────────────────────────
     fw = WorldFramework(
         name=payload["name"],
@@ -232,7 +243,7 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
     # 地点之间相互连接，需要所有地点都有 ID 后才能解析 target_id
     loc_name_to_id: dict[str, int] = {}  # 名字 → ID 映射
     loc_rows: list[WorldLocation] = []
-    for loc_data in payload.get("locations", []):
+    for loc_data in location_payloads:
         loc = WorldLocation(
             framework_id=fw.id,
             name=loc_data["name"],
@@ -245,13 +256,16 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
         loc_rows.append(loc)
     await s.flush()  # flush 后所有地点都有 ID
 
+    for loc in loc_rows:
+        loc.is_start = loc.name == requested_start
+
     # 建立名字 → ID 映射（用于解析其他实体的引用）
-    for loc, loc_data in zip(loc_rows, payload.get("locations", [])):
+    for loc, loc_data in zip(loc_rows, location_payloads):
         loc_name_to_id[loc.name] = loc.id
 
     # ── 地点（第二遍：填入连接关系 connections_json）──────────────────────
     # connections 格式：[{"target_id": 3, "direction": "north", "distance": 1, "travel_turns": 2}]
-    for loc, loc_data in zip(loc_rows, payload.get("locations", [])):
+    for loc, loc_data in zip(loc_rows, location_payloads):
         resolved = []
         for conn in loc_data.get("connections", []):
             # 把 target_name（地点名字）解析为 target_id（数据库 ID）
@@ -359,6 +373,7 @@ async def finalize_framework(s: AsyncSession, payload: dict) -> int:
             scope_ref=scope_ref,
             importance=e_data.get("importance", 2),          # 1=次要 2=重要 3=关键
             trigger_conditions_json=json.dumps(resolved_pred, ensure_ascii=False),
+            completion_criteria_md=e_data.get("completion_criteria_md", ""),
             is_repeatable=e_data.get("is_repeatable", False),  # 是否可重复触发
             cooldown_turns=e_data.get("cooldown_turns", 0),    # 重复触发冷却回合数
         )

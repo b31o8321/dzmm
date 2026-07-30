@@ -441,15 +441,19 @@ async function applyBgmByMood(mood: string) {
 
 const modelSwitchOpen = ref(false)
 const switchModelId = ref<number | null>(null)
+const switchingModel = ref(false)
 
 async function applyModelSwitch() {
   if (!switchModelId.value) return
+  switchingModel.value = true
   try {
     await sessionsApi.updateGmModel(sessionId, switchModelId.value)
     ElMessage.success('模型已切换，下一回合生效')
     modelSwitchOpen.value = false
   } catch (e: any) {
     ElMessage.error(e?.message ?? '切换失败')
+  } finally {
+    switchingModel.value = false
   }
 }
 
@@ -526,9 +530,12 @@ async function regenerate() {
   const last = turns.value[turns.value.length - 1]
   const oldAction = last.action
   try {
-    await sessionsApi.deleteLastTurn(sessionId)
+    const stored = await sessionsApi.messages(sessionId)
+    if (stored.some((message) => message.turn === last.turn)) {
+      await sessionsApi.deleteLastTurn(sessionId)
+    }
   } catch (e: any) {
-    ElMessage.error(e.message ?? '删除失败')
+    ElMessage.error(e.message ?? '检查待重试回合失败')
     return
   }
   turns.value.pop()
@@ -542,9 +549,12 @@ async function editPrev() {
   const last = turns.value[turns.value.length - 1]
   const oldAction = last.action
   try {
-    await sessionsApi.deleteLastTurn(sessionId)
+    const stored = await sessionsApi.messages(sessionId)
+    if (stored.some((message) => message.turn === last.turn)) {
+      await sessionsApi.deleteLastTurn(sessionId)
+    }
   } catch (e: any) {
-    ElMessage.error(e.message ?? '删除失败')
+    ElMessage.error(e.message ?? '检查上一回合失败')
     return
   }
   turns.value.pop()
@@ -576,7 +586,9 @@ async function triggerInitiative() {
   if (initiativeTimer) { clearTimeout(initiativeTimer); initiativeTimer = null }
   if (!npcName) return
 
-  const newTurn = reactive<Turn>({ action: `【${npcName}主动】`, narrative: '', choices: [], events: [], turn: 0 })
+  const newTurn = reactive<Turn>({
+    action: `【${npcName}主动】`, narrative: '', choices: [], events: [], diagnostics: [], turn: 0,
+  })
   turns.value.push(newTurn)
   sending.value = true
 
@@ -789,6 +801,7 @@ onMounted(async () => {
           narrative: extractNarrative(m.content),
           choices: extractChoices(m.content),
           events: m.events ?? [],
+          diagnostics: m.diagnostics ?? [],
           turn: m.turn,
           rawContent: m.content,
           msgId: m.id,
@@ -1289,13 +1302,13 @@ onUnmounted(() => {
         <el-option
           v-for="m in modelsStore.items"
           :key="m.id"
-          :label="`${m.name} (${m.model_name})`"
+          :label="`${m.name} · ${m.type} (${m.model_name})`"
           :value="m.id"
         />
       </el-select>
       <template #footer>
         <el-button @click="modelSwitchOpen = false">取消</el-button>
-        <el-button type="primary" @click="applyModelSwitch">确认切换</el-button>
+        <el-button type="primary" :loading="switchingModel" @click="applyModelSwitch">测试并切换</el-button>
       </template>
     </el-dialog>
 

@@ -6,7 +6,16 @@ T3 — NPC proactive contact
 T4 — director prompt messages structure
 """
 import json
-import pytest
+
+from dzmm.prompts.director_open_world_template import build_open_world_director_messages
+from dzmm.service.agents.director_open_world import (
+    check_npc_proactive_contact,
+    enrich_plot_directive,
+    filter_event_declarations,
+    is_rumor_eligible,
+    sanitize_open_world_director_output,
+    score_event,
+)
 from dzmm.service.world_graph import build_graph, bfs_distance
 
 
@@ -49,9 +58,6 @@ def test_bfs_distance_unreachable():
 
 
 # ── T2: event scoring + rumor eligibility ─────────────────────────────────────
-
-from dzmm.service.agents.director_open_world import score_event, is_rumor_eligible
-
 
 def _event(importance: int, scope_ref: str = "1") -> dict:
     return {"id": 1, "importance": importance, "scope_ref": scope_ref,
@@ -117,9 +123,6 @@ def test_rumor_not_eligible_low_importance():
 
 # ── T3: NPC proactive contact ─────────────────────────────────────────────────
 
-from dzmm.service.agents.director_open_world import check_npc_proactive_contact
-
-
 def _npc_state_dict(npc_id: int, favor: int, loc_id: int | None,
                     last_contact: int, threshold: int = 70, cooldown: int = 10) -> dict:
     return {
@@ -167,10 +170,6 @@ def test_npc_contact_dead_skipped():
 
 # ── T4: prompt messages structure ─────────────────────────────────────────────
 
-import json as _json
-from dzmm.prompts.director_open_world_template import build_open_world_director_messages
-
-
 def test_open_world_director_messages_structure():
     msgs = build_open_world_director_messages(
         history=[],
@@ -179,7 +178,10 @@ def test_open_world_director_messages_structure():
             "pc_summary": "林峰，侦探",
             "companions": [],
             "candidate_events": [
-                {"name": "谋杀案", "score": 2.4, "importance": 3, "summary_md": "港口尸体"},
+                {
+                    "id": 7, "name": "谋杀案", "score": 2.4,
+                    "importance": 3, "summary_md": "港口尸体",
+                },
             ],
             "rumor_events": [],
             "proactive_npc": None,
@@ -191,3 +193,125 @@ def test_open_world_director_messages_structure():
     assert msgs[-1].role == "user"
     assert "暗影港" in msgs[-1].content
     assert "谋杀案" in msgs[-1].content
+    assert "id=7" in msgs[-1].content
+
+
+def test_director_output_discards_parallel_story_prose():
+    raw = (
+        "艾琳娜拿出电脑，继续安装摄像机。\n"
+        '<event_trigger event_id="7"/>\n'
+        "<plot_directive>\n- 本回合主推：教会异动\n- 禁止：替玩家行动\n</plot_directive>"
+    )
+    clean = sanitize_open_world_director_output(raw)
+    assert "艾琳娜拿出电脑" not in clean
+    assert '<event_trigger event_id="7"/>' in clean
+    assert "教会异动" in clean
+
+
+def test_director_output_without_exact_directive_uses_safe_fallback():
+    clean = sanitize_open_world_director_output("导演自行续写了一整段剧情")
+    assert clean.startswith("<plot_directive>")
+    assert "不要无视玩家本回合输入" in clean
+
+
+def test_director_output_accepts_markdown_fenced_directive_opening():
+    raw = (
+        "## 步骤一：事件状态声明\n\n"
+        '`<event_trigger event_id="1"/>`\n\n'
+        "## 步骤二：剧情指令\n\n"
+        "```plot_directive\n"
+        "- 本回合主推：缺页档案\n"
+        "- 节奏：悬疑\n"
+        "</plot_directive>\n"
+        "```"
+    )
+
+    clean = sanitize_open_world_director_output(raw)
+
+    assert '<event_trigger event_id="1"/>' in clean
+    assert "<plot_directive>" in clean
+    assert "本回合主推：缺页档案" in clean
+    assert "## 步骤" not in clean
+    assert "```" not in clean
+
+
+def test_director_output_accepts_standard_markdown_fenced_directive():
+    raw = (
+        "## 步骤一：事件状态声明\n\n"
+        '`<event_trigger event_id="1"/>`\n\n'
+        "## 步骤二：剧情指令\n\n"
+        "```plot_directive\n"
+        "- 本回合主推：缺页档案\n"
+        "- 节奏：揭露\n"
+        "```"
+    )
+
+    clean = sanitize_open_world_director_output(raw)
+
+    assert '<event_trigger event_id="1"/>' in clean
+    assert "<plot_directive>" in clean
+    assert "本回合主推：缺页档案" in clean
+    assert "</plot_directive>" in clean
+    assert "```" not in clean
+
+
+def test_event_declarations_follow_current_lifecycle_state():
+    text = (
+        '<event_trigger event_id="缺页档案"/>\n'
+        '<event_complete event_id="缺页档案"/>\n'
+        '<event_complete event_id="封锁线后的铜票"/>\n'
+        '<event_trigger event_id="未知事件"/>\n'
+        '<plot_directive>继续调查</plot_directive>'
+    )
+
+    filtered = filter_event_declarations(text, [
+        {"id": 1, "name": "缺页档案", "status": "triggered"},
+        {"id": 2, "name": "封锁线后的铜票", "status": "pending"},
+    ])
+
+    assert '<event_complete event_id="缺页档案"/>' in filtered
+    assert '<event_trigger event_id="缺页档案"/>' not in filtered
+    assert "封锁线后的铜票" not in filtered
+    assert "未知事件" not in filtered
+    assert "<plot_directive>继续调查</plot_directive>" in filtered
+
+
+def test_selected_event_fact_is_injected_for_scene_grounding():
+    enriched = enrich_plot_directive(
+        "<plot_directive>\n- 本回合主推：缺页档案\n</plot_directive>",
+        [{
+            "id": 1,
+            "name": "缺页档案",
+            "status": "triggered",
+            "summary_md": "档案被人为撕去关键页，韩策知道最后接触者。",
+            "completion_criteria_md": "取得最后接触者的可核验证词。",
+        }],
+    )
+
+    assert "事件事实（唯一依据）" in enriched
+    assert "韩策知道最后接触者" in enriched
+    assert "事件状态：triggered" in enriched
+    assert "完成判据：取得最后接触者的可核验证词" in enriched
+
+
+def test_model_supplied_event_fact_cannot_override_framework_fact():
+    enriched = enrich_plot_directive(
+        "<plot_directive>\n"
+        "- 本回合主推：缺页档案\n"
+        "- 事件事实（唯一依据）：沈砚已经确认幕后人物。\n"
+        "- 事件状态：completed\n"
+        "</plot_directive>",
+        [{
+            "id": 1,
+            "name": "缺页档案",
+            "status": "triggered",
+            "summary_md": "旧海关站的失踪档案被人为撕去关键页。",
+            "completion_criteria_md": "取得可核验的档案编号。",
+        }],
+    )
+
+    assert "沈砚已经确认幕后人物" not in enriched
+    assert "事件状态：completed" not in enriched
+    assert "旧海关站的失踪档案被人为撕去关键页" in enriched
+    assert "事件状态：triggered" in enriched
+    assert "完成判据：取得可核验的档案编号" in enriched

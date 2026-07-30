@@ -384,6 +384,31 @@ _V054_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
 }
 
 
+# v0.55 — framework wizard-selected open-world start location.
+_V055_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "world_locations": [
+        ("is_start", "is_start BOOLEAN NOT NULL DEFAULT 0"),
+    ],
+}
+
+
+# v0.56 — persistent turn diagnostics, separate from applied game events.
+_V056_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "messages": [
+        ("diagnostics_json", "diagnostics_json TEXT NOT NULL DEFAULT '[]'"),
+    ],
+}
+
+_V057_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "world_events": [
+        (
+            "completion_criteria_md",
+            "completion_criteria_md TEXT NOT NULL DEFAULT ''",
+        ),
+    ],
+}
+
+
 # ── 特殊迁移：将 screenplays.session_id 改为 nullable ────
 # SQLite 不支持 ALTER COLUMN，所以只能用"复制→删旧→改名"三步走。
 # 这个函数是幂等的：如果 session_id 已经 nullable 或者表不存在，直接返回。
@@ -550,6 +575,12 @@ async def init_db(engine: AsyncEngine) -> None:
         for table, cols in _V053_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         for table, cols in _V054_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V055_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V056_MIGRATIONS.items():
+            await conn.run_sync(_add_missing_columns_sync, table, cols)
+        for table, cols in _V057_MIGRATIONS.items():
             await conn.run_sync(_add_missing_columns_sync, table, cols)
         # 最后做数据回填：给旧角色补上默认属性值
         await conn.run_sync(_backfill_legacy_base_stats_sync)
