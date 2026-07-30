@@ -178,6 +178,38 @@ class PairedDevice(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class TurnRun(Base):
+    """Idempotent, reconnectable execution record for one player action."""
+
+    __tablename__ = "turn_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("sessions.id"), index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(120))
+    action: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="running", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assistant_message_id: Mapped[int | None] = mapped_column(
+        ForeignKey("messages.id"), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "request_id", name="uq_turn_run_session_request"
+        ),
+    )
+
+
 # ── 游戏会话 ──────────────────────────────────────────────
 # 一局游戏（一个存档）。
 # 关联：世界（背景设定）、角色（PC）、剧本大纲（可选）、两个 LLM（GM + 摘要器）。

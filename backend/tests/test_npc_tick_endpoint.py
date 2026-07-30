@@ -80,3 +80,28 @@ async def test_npc_tick_404_for_missing_session(app_with_session):
     # We just verify the endpoint doesn't hang and no narrative leaks for wrong session.
     assert resp.status_code in (200, 404, 500)
     assert "小菱走来了" not in resp.text
+
+
+async def test_legacy_turn_and_npc_tick_share_session_coordinator(app_with_session):
+    app, sid = app_with_session
+    lease = await app.state.turn_coordinator.acquire(sid, "run-active", "turn_run")
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            turn = await client.post(
+                f"/sessions/{sid}/turn",
+                json={"action": "同时行动"},
+            )
+            npc = await client.post(
+                f"/sessions/{sid}/npc_tick",
+                json={"npc_name": "小菱"},
+            )
+    finally:
+        await lease.release()
+
+    for response in (turn, npc):
+        assert response.status_code == 409
+        assert response.json()["code"] == "session_busy"
+        assert response.json()["active_run"]["run_id"] == "run-active"

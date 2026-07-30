@@ -10,7 +10,11 @@ describe('api modules', () => {
     expect(worldsApi).toMatchObject({ list: expect.any(Function), create: expect.any(Function) })
     expect(charactersApi).toMatchObject({ list: expect.any(Function) })
     expect(modelsApi).toMatchObject({ test: expect.any(Function) })
-    expect(sessionsApi).toMatchObject({ create: expect.any(Function) })
+    expect(sessionsApi).toMatchObject({
+      create: expect.any(Function),
+      createTurnRun: expect.any(Function),
+      turnRun: expect.any(Function),
+    })
     expect(remoteApi).toMatchObject({
       status: expect.any(Function),
       openPin: expect.any(Function),

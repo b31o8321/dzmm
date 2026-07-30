@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { waitForBackend } from './test-server'
+import { waitForBackend, waitForTurnRun } from './test-server'
 
 test.beforeAll(async () => {
   await waitForBackend()
@@ -72,7 +72,14 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
 
   // 8. Send an action.
   await page.getByPlaceholder(/输入你的行动/).fill('环顾四周')
+  const createdRun = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+      && /\/sessions\/\d+\/turn-runs$/.test(response.url()),
+  )
   await page.getByRole('button', { name: /^发送$/ }).click()
+  const runResponse = await createdRun
+  const run = await runResponse.json() as { run_id: string }
+  const sessionId = Number(page.url().match(/\/play\/(\d+)/)?.[1])
 
   // 9. The stub backend streams "霓虹光闪烁" — verify it lands in the log.
   await expect(page.locator('text=霓虹')).toBeVisible({ timeout: 30_000 })
@@ -80,4 +87,40 @@ test('SSE 跑团端到端：从首页发送动作 → narrative 显示', async (
   // 10. Status panel side: token counter must update from the SSE final chunk.
   const tokenStrip = page.locator('text=/tokens:\\s*\\d+/')
   await expect(tokenStrip).toBeVisible()
+
+  const status = await waitForTurnRun(sessionId, run.run_id)
+  expect(status.status).toBe('completed')
+  expect(status.assistant_message_id).toBeTruthy()
+
+  // 11. Refresh/re-entry hydrates the committed turn instead of resubmitting it.
+  await page.reload()
+  const narratives = page.getByText('你站在虚拟的街道上，霓虹光闪烁。')
+  await expect(narratives).toHaveCount(2, { timeout: 30_000 })
+
+  // 12. Force one replay gap after the detached producer completes. The Vue
+  // client must recover from persisted messages/state without duplicating it.
+  let injectGap = true
+  await page.route('**/sessions/*/turn-runs/*/events', async (route) => {
+    if (!injectGap) {
+      await route.continue()
+      return
+    }
+    injectGap = false
+    const match = route.request().url().match(
+      /\/sessions\/(\d+)\/turn-runs\/([^/]+)\/events/,
+    )
+    if (!match) {
+      await route.continue()
+      return
+    }
+    await waitForTurnRun(Number(match[1]), decodeURIComponent(match[2]))
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'event_gap', message: 'test replay gap' }),
+    })
+  })
+  await page.getByPlaceholder(/输入你的行动/).fill('再次观察')
+  await page.getByRole('button', { name: /^发送$/ }).click()
+  await expect(narratives).toHaveCount(3, { timeout: 30_000 })
 })

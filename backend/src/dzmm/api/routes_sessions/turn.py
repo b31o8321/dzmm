@@ -20,9 +20,11 @@
 
 import json
 import logging
+import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse   # SSE 响应封装库
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +43,7 @@ from dzmm.parsing.events import NarrativeDelta, ParseError, TagComplete
 from dzmm.service.game import run_turn
 from dzmm.service.screenplay import schedule_pending_rewrites
 from dzmm.service.summarizer import maybe_summarize
+from dzmm.service.session_turn_coordinator import SessionBusyError
 from sqlalchemy import delete, func, select
 
 # APIRouter 是模块化路由注册器，类似 Spring 里的 @RequestMapping 前缀设置
@@ -164,11 +167,181 @@ async def delete_last_turn(
     await s.commit()
 
 
+async def stream_turn_events(
+    session_maker,
+    session_id: int,
+    action: str,
+) -> AsyncIterator[dict]:
+    """Run one game turn and expose the transport-neutral event stream."""
+    async with session_maker() as session:
+        game_session = await session.get(GameSession, session_id)
+        if game_session is None:
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {"code": "session_not_found", "message": "session not found"}
+                ),
+            }
+            return
+
+        config = await session.get(ModelConfig, game_session.gm_model_config_id)
+        if config is None:
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {"code": "model_error", "message": "model config not found"}
+                ),
+            }
+            return
+        client = build_client(config)
+
+        import time as _time
+
+        narrative_buffer: list[str] = []
+        last_flush = _time.monotonic()
+
+        def flush_narrative() -> dict | None:
+            if not narrative_buffer:
+                return None
+            payload = "".join(narrative_buffer)
+            narrative_buffer.clear()
+            return {
+                "event": "narrative",
+                "data": json.dumps({"text": payload}, ensure_ascii=False),
+            }
+
+        async def parsed_events():
+            try:
+                async for event in run_turn(
+                    session,
+                    session_id,
+                    action,
+                    client,
+                    ollama_base_url=config.base_url,
+                    session_maker=session_maker,
+                ):
+                    yield event
+            except Exception as exc:  # noqa: BLE001
+                log.exception("turn stream failed for session %s", session_id)
+                yield exc
+
+        async for event in parsed_events():
+            if isinstance(event, Exception):
+                narrative_buffer.clear()
+                await session.rollback()
+                yield {
+                    "event": "error",
+                    "data": json.dumps(
+                        {"code": "model_error", "message": str(event)},
+                        ensure_ascii=False,
+                    ),
+                }
+                return
+            if isinstance(event, NarrativeDelta):
+                narrative_buffer.append(event.text)
+                now = _time.monotonic()
+                if (
+                    sum(len(part) for part in narrative_buffer) >= 20
+                    or now - last_flush >= 0.05
+                ):
+                    output = flush_narrative()
+                    if output:
+                        yield output
+                    last_flush = now
+            elif isinstance(event, TagComplete):
+                output = flush_narrative()
+                if output:
+                    yield output
+                last_flush = _time.monotonic()
+                yield {
+                    "event": "tag",
+                    "data": json.dumps(
+                        {
+                            "name": event.name,
+                            "attrs": event.attrs,
+                            "content": event.content,
+                        },
+                        ensure_ascii=False,
+                    ),
+                }
+            elif isinstance(event, ParseError):
+                output = flush_narrative()
+                if output:
+                    yield output
+                yield {
+                    "event": "parse_error",
+                    "data": json.dumps(
+                        {"message": event.message}, ensure_ascii=False
+                    ),
+                }
+
+        output = flush_narrative()
+        if output:
+            yield output
+        await session.commit()
+
+    await schedule_pending_rewrites(session_maker, session_id)
+
+    async with session_maker() as session:
+        game_session = await session.get(GameSession, session_id)
+        summary_config = await session.get(
+            ModelConfig, game_session.summarizer_model_config_id
+        )
+        summary_client = build_client(summary_config)
+        try:
+            if await maybe_summarize(session, session_id, summary_client):
+                await session.commit()
+        except Exception as exc:  # noqa: BLE001
+            yield {
+                "event": "summarize_error",
+                "data": json.dumps({"message": str(exc)}, ensure_ascii=False),
+            }
+
+        try:
+            from dzmm.db.models import AgentStream
+            from dzmm.service.agents.streams import compress_if_needed
+
+            streams = (
+                await session.execute(
+                    select(AgentStream).where(AgentStream.session_id == session_id)
+                )
+            ).scalars().all()
+            for stream in streams:
+                if stream.kind == "scene":
+                    continue
+                threshold = 30 if stream.kind == "gm_director" else 25
+                keep = 10 if stream.kind == "gm_director" else 8
+                await compress_if_needed(
+                    session, stream.id, summary_client, threshold, keep
+                )
+            await session.commit()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("agent_stream compress failed: %s", exc)
+
+    async with session_maker() as session:
+        assistant_message_id = (
+            await session.execute(
+                select(MessageRow.id)
+                .where(
+                    MessageRow.session_id == session_id,
+                    MessageRow.role == "assistant",
+                )
+                .order_by(MessageRow.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+    yield {
+        "event": "done",
+        "data": json.dumps({"assistant_msg_id": assistant_message_id}),
+    }
+
+
 # ── POST /sessions/{session_id}/turn ─────────────────────
 @router.post("/{session_id}/turn")
 async def take_turn(
     session_id: int,
     body: TurnRequest,              # 请求体：包含玩家的行动描述文本
+    request: Request,
     session_maker = Depends(get_session_maker_dep),
     # 【为什么用 session_maker 而不是 get_session_dep？】
     # get_session_dep 注入一个已打开的 AsyncSession，请求结束时自动关闭。
@@ -200,177 +373,31 @@ async def take_turn(
     # SSE 是单向的（服务器 → 客户端），但更简单，HTTP/1.1 就支持，
     # 对于"AI 回复"这种单向场景已经足够。
 
-    # event_stream 是一个 async generator（异步生成器函数）
-    # 用 yield 逐条产出 SSE 事件，FastAPI 会把它封装成 HTTP 流式响应
-    async def event_stream() -> AsyncIterator[dict]:
-        # ── 第一个 DB 会话：处理回合，流式输出 ─────────
-        # async with session_maker() as s: 每次进入 with 块创建新会话，退出时关闭
-        async with session_maker() as s:
-            sess = await s.get(GameSession, session_id)
-            if sess is None:
-                # yield 一个错误事件后 return，终止生成器
-                yield {"event": "error",
-                       "data": json.dumps({"message": "session not found"})}
-                return
+    coordinator = request.app.state.turn_coordinator
+    try:
+        lease = await coordinator.acquire(
+            session_id,
+            f"legacy-{uuid.uuid4()}",
+            "turn",
+        )
+    except SessionBusyError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": "session_busy",
+                "message": "This session already has an active turn",
+                "active_run": exc.active.to_dict(),
+            },
+        )
 
-            cfg = await s.get(ModelConfig, sess.gm_model_config_id)
-            client = build_client(cfg)  # 根据配置构造对应的 LLM 客户端
-
-            # ── 叙事合并缓冲 ──────────────────────────────
-            # 问题：LLM 每次 yield 可能只有 1-2 个字符，导致 SSE 发包频率极高，
-            # 浏览器端解析开销大，网络层也有每个 SSE 帧有固定头部开销。
-            # 解决：每累积 20 个字符或每 50ms 批量推送一次，减少推送频率。
-            import time as _time
-            narrative_buf: list[str] = []  # 文本片段缓冲区
-            last_flush = _time.monotonic()  # 上次推送的时间戳（单调时钟，不受系统时间影响）
-            FLUSH_CHARS = 20           # 积累超过 20 字符就推送
-            FLUSH_INTERVAL = 0.05      # 或者超过 50ms 就推送
-
-            def _flush_narrative():
-                """把缓冲区的叙事文本合并成一个 SSE 事件并清空缓冲区。"""
-                if narrative_buf:
-                    payload = "".join(narrative_buf)  # 把列表里的片段拼成字符串
-                    narrative_buf.clear()              # 清空缓冲区
-                    # ensure_ascii=False: 让 json.dumps 保留中文字符（不转义为 \uXXXX）
-                    return {"event": "narrative",
-                            "data": json.dumps({"text": payload}, ensure_ascii=False)}
-                return None  # 缓冲区为空，无需推送
-
-            # 把生成异常转成一个内部哨兵值，保证流式响应能返回 error 事件，
-            # 同时显式回滚本回合的全部数据库变更。
-            async def _turn_events():
-                try:
-                    async for event in run_turn(
-                        s,
-                        session_id,
-                        body.action,
-                        client,
-                        ollama_base_url=cfg.base_url if cfg else None,
-                        session_maker=session_maker,
-                    ):
-                        yield event
-                except Exception as exc:  # noqa: BLE001
-                    log.exception("turn stream failed for session %s", session_id)
-                    yield exc
-
-            # run_turn 是异步生成器（async generator），用 async for 消费
-            # 它边调用 LLM 边产出 ParseEvent 事件
-            async for ev in _turn_events():
-                if isinstance(ev, Exception):
-                    narrative_buf.clear()
-                    await s.rollback()
-                    yield {
-                        "event": "error",
-                        "data": json.dumps({"message": str(ev)}, ensure_ascii=False),
-                    }
-                    return
-                if isinstance(ev, NarrativeDelta):
-                    # NarrativeDelta：LLM 输出的叙事文字片段
-                    narrative_buf.append(ev.text)
-                    now = _time.monotonic()
-                    total = sum(len(x) for x in narrative_buf)
-                    # 满足"字数阈值"或"时间阈值"之一就推送
-                    if total >= FLUSH_CHARS or (now - last_flush) >= FLUSH_INTERVAL:
-                        out = _flush_narrative()
-                        if out:
-                            yield out   # ← yield 给 SSE 流（推送给前端）
-                        last_flush = now
-
-                elif isinstance(ev, TagComplete):
-                    # TagComplete：一个完整的 XML 标签（结构化事件）
-                    # 先把缓冲区里的叙事文本推出去，保证叙事文字先于标签事件到达前端
-                    out = _flush_narrative()
-                    if out:
-                        yield out
-                    last_flush = _time.monotonic()
-                    # 推送结构化标签事件（前端据此更新状态面板、处理掷骰等）
-                    yield {"event": "tag",
-                           "data": json.dumps(
-                               {"name": ev.name, "attrs": ev.attrs, "content": ev.content},
-                               ensure_ascii=False
-                           )}
-
-                elif isinstance(ev, ParseError):
-                    # ParseError：XML 解析出错（通常是 LLM 输出了不完整的标签）
-                    out = _flush_narrative()
-                    if out:
-                        yield out
-                    yield {"event": "parse_error",
-                           "data": json.dumps({"message": ev.message}, ensure_ascii=False)}
-
-            # LLM 流结束：推出缓冲区剩余的叙事文字
-            out = _flush_narrative()
-            if out:
-                yield out
-
-            # 把本回合的所有数据库变更持久化（消息行、状态更新等）
-            await s.commit()
-
-        # ── 后台触发：本回合 GM 留下的 plot_turn 重写（fire-and-forget） ──
-        # 当 GM 输出了 <plot_turn impact="major"> 标签时，意味着剧情发生重大转折，
-        # 需要重写剧本章节大纲。这个重写是耗时操作（需要再调一次 LLM），
-        # 所以主提交后扫描待处理的 revision，启动后台任务异步完成，不阻塞 SSE 流。
-        # schedule_pending_rewrites 封装了扫描和 create_task 逻辑，便于独立单测。
-        await schedule_pending_rewrites(session_maker, session_id)
-
-        # ── 第二个 DB 会话：运行摘要器 ───────────────────
-        # 用新会话而非上面那个，因为 commit 后数据已持久化，
-        # 摘要器需要读取最新状态（含刚保存的消息）。
-        # 【为什么摘要要在 SSE 流结束前运行？】
-        # maybe_summarize 如果触发压缩，会删除旧消息、生成摘要，
-        # 这些操作需要在本回合数据提交后才能看到最新数据。
-        async with session_maker() as s:
-            sess = await s.get(GameSession, session_id)
-            sum_cfg = await s.get(ModelConfig, sess.summarizer_model_config_id)
-            sum_client = build_client(sum_cfg)
-            try:
-                # maybe_summarize：检查是否需要压缩旧消息；如需要则调用 LLM 生成摘要
-                ran = await maybe_summarize(s, session_id, sum_client)
-                if ran:
-                    await s.commit()
-            except Exception as e:  # noqa: BLE001
-                # 摘要失败不影响游戏，把错误推给前端（前端可选择显示或忽略）
-                yield {"event": "summarize_error",
-                       "data": json.dumps({"message": str(e)}, ensure_ascii=False)}
-
-            # v0.10: agent stream history compression. Walk all streams for
-            # this session; if any has > threshold messages, fold the oldest
-            # into a single summary row.
-            # 压缩 Agent（Director/NPC）的流历史，防止历史无限增长
-            try:
-                from dzmm.db.models import AgentStream
-                from dzmm.service.agents.streams import compress_if_needed
-                stream_rows = (await s.execute(
-                    select(AgentStream).where(AgentStream.session_id == session_id)
-                )).scalars().all()
-                for st in stream_rows:
-                    if st.kind == "scene":
-                        # Scene 流仅用于 debug-chain 展示，推理读取的是 messages
-                        # 表；调用模型压缩它既增加尾延迟，也会损失旧调试记录。
-                        continue
-                    # Director 保留更多历史（30 条触发，保留 10 条），NPC 少一些（25/8）
-                    threshold = 30 if st.kind == "gm_director" else 25
-                    keep = 10 if st.kind == "gm_director" else 8
-                    await compress_if_needed(s, st.id, sum_client, threshold, keep)
-                await s.commit()
-            except Exception as e:  # noqa: BLE001
-                log.warning("agent_stream compress failed: %s", e)
-
-        # 查询刚保存的最后一条 assistant 消息的 id，通知前端
-        async with session_maker() as _s2:
-            _last_id = (
-                await _s2.execute(
-                    select(MessageRow.id)
-                    .where(
-                        MessageRow.session_id == session_id,
-                        MessageRow.role == "assistant",
-                    )
-                    .order_by(MessageRow.id.desc())
-                    .limit(1)  # 只取最新的一条
-                )
-            ).scalar_one_or_none()
-        # done 事件：通知前端本回合完全结束，携带 assistant 消息 id（用于前端关联）
-        yield {"event": "done", "data": json.dumps({"assistant_msg_id": _last_id})}
+    async def guarded_event_stream() -> AsyncIterator[dict]:
+        try:
+            async for event in stream_turn_events(
+                session_maker, session_id, body.action
+            ):
+                yield event
+        finally:
+            await lease.release()
 
     # EventSourceResponse 把 async generator 包装成符合 SSE 协议的 HTTP 响应
     # 【SSE 协议格式】每个事件格式为：
@@ -378,4 +405,4 @@ async def take_turn(
     #   data: JSON 字符串\n
     #   \n（空行表示事件结束）
     # sse_starlette 库自动处理这个格式，我们只需要 yield dict 即可
-    return EventSourceResponse(event_stream())
+    return EventSourceResponse(guarded_event_stream())

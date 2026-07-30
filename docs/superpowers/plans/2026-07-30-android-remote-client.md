@@ -267,11 +267,11 @@ packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
 - Modify: `backend/src/dzmm/api/routes_sessions/npc_tick.py`
 - Create: `backend/tests/test_session_turn_coordinator.py`
 
-- [ ] Enforce one active mutating turn per session in this backend process.
-- [ ] Make `/turn`, `/npc_tick`, and new turn runs share the coordinator.
-- [ ] Return active-run metadata for `session_busy` rather than waiting indefinitely.
-- [ ] Release locks on success, model error, cancellation, and shutdown.
-- [ ] Prove different sessions may still generate concurrently.
+- [x] Enforce one active mutating turn per session in this backend process.
+- [x] Make `/turn`, `/npc_tick`, and new turn runs share the coordinator.
+- [x] Return active-run metadata for `session_busy` rather than waiting indefinitely.
+- [x] Release locks on success, model error, cancellation, and shutdown.
+- [x] Prove different sessions may still generate concurrently.
 
 ### Task 3.2: Persist idempotent run metadata
 
@@ -282,10 +282,10 @@ packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
 - Create: `backend/src/dzmm/remote/turn_runs.py`
 - Create: `backend/tests/test_turn_runs.py`
 
-- [ ] Add `TurnRun` with unique `(session_id, request_id)`, action, status, timestamps, error code, and assistant message ID.
-- [ ] Mark stale running records interrupted at backend startup.
-- [ ] Repeated create with the same request ID returns the existing run.
-- [ ] Never create a second user/assistant message pair for one request ID.
+- [x] Add `TurnRun` with unique `(session_id, request_id)`, action, status, timestamps, error code, and assistant message ID.
+- [x] Mark stale running records interrupted at backend startup.
+- [x] Repeated create with the same request ID returns the existing run.
+- [x] Never create a second user/assistant message pair for one request ID.
 
 ### Task 3.3: Add detached producer and replayable SSE
 
@@ -295,13 +295,13 @@ packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
 - Modify: `backend/src/dzmm/remote/turn_runs.py`
 - Modify: `backend/tests/test_turn_runs.py`
 
-- [ ] Add `POST /turn-runs`, `GET /turn-runs/{id}`, and `GET /events`.
-- [ ] Run the existing `run_turn()` in a supervised background task.
-- [ ] Assign monotonically increasing SSE IDs and retain a bounded replay buffer.
-- [ ] Support `Last-Event-ID`, multiple reconnects, and explicit event-gap responses.
-- [ ] Continue generation after an SSE consumer disconnects.
-- [ ] Persist normal messages/state only through the existing game service transaction rules.
-- [ ] Test model error, client disconnect, gap, backend restart, repeated submit, and simultaneous Mac/Android submit.
+- [x] Add `POST /turn-runs`, `GET /turn-runs/{id}`, and `GET /events`.
+- [x] Run the existing `run_turn()` in a supervised background task.
+- [x] Assign monotonically increasing SSE IDs and retain a bounded replay buffer.
+- [x] Support `Last-Event-ID`, multiple reconnects, and explicit event-gap responses.
+- [x] Continue generation after an SSE consumer disconnects.
+- [x] Persist normal messages/state only through the existing game service transaction rules.
+- [x] Test model error, client disconnect, gap, backend restart, repeated submit, and simultaneous Mac/Android submit.
 
 ### Task 3.4: Migrate Vue to the shared transport when stable
 
@@ -313,10 +313,10 @@ packaged Tauri UI; Gate 2 remains open until that acceptance can run safely.
 - Modify: `frontend/e2e/mock_backend.py`
 - Modify: `frontend/e2e/smoke.spec.ts`
 
-- [ ] Generate one `request_id` per user send and retain it across transport retry.
-- [ ] Create then consume a run; recover via message/state hydration on an event gap.
-- [ ] Preserve all current narrative/tag/error/done behavior.
-- [ ] Verify refresh/re-entry and failure recovery in Playwright.
+- [x] Generate one `request_id` per user send and retain it across transport retry.
+- [x] Create then consume a run; recover via message/state hydration on an event gap.
+- [x] Preserve all current narrative/tag/error/done behavior.
+- [x] Verify refresh/re-entry and failure recovery in Playwright.
 
 **Gate 3 verification:**
 
@@ -332,6 +332,17 @@ npx playwright test
 ```
 
 Run a disconnect test proving one user message and one assistant message are committed.
+
+**Gate 3 evidence (2026-07-31):** the shared coordinator, persistent `TurnRun`,
+detached producer, bounded replay hub, stable error payloads, and Vue migration are
+covered by coordinator/turn-run tests for success, provider failure, cancellation,
+shutdown-before-first-schedule, restart interruption, duplicate request IDs,
+simultaneous writers, consumer disconnect, multiple reconnects, and replay gaps.
+The full backend suite reports `922 passed, 1 skipped`; Ruff, 9 Vitest tests,
+the production frontend build, and `cargo check` pass. Playwright completes a
+real turn-run, verifies persisted completion and refresh/re-entry, then injects
+`event_gap` after a detached run and verifies one recovered committed turn with
+no duplicate action.
 
 ## Phase 4 — Flutter foundation and connection lifecycle
 

@@ -48,6 +48,7 @@ from dzmm.api.routes_sessions.spinoff import router as _spinoff_router
 from dzmm.api.routes_sessions.threads import router as _threads_router
 from dzmm.api.routes_sessions.suggest import router as _suggest_router
 from dzmm.api.routes_sessions.turn import router as _turn_router
+from dzmm.api.routes_sessions.turn_runs import router as _turn_runs_router
 from dzmm.api.routes_sessions.npc_tick import router as _npc_tick_router
 from dzmm.api.routes_sessions.debug_chain import router as _debug_chain_router
 from dzmm.api.routes_sessions.world_state import router as _world_state_router
@@ -62,6 +63,7 @@ for _sub in (
     _base_router,
     _messages_router,
     _turn_router,
+    _turn_runs_router,
     _threads_router,
     _npcs_router,
     _goals_router,

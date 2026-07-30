@@ -33,6 +33,8 @@ from dzmm.db.base import async_session, get_engine, init_db
 from dzmm.remote.auth import RemoteAccessMiddleware
 from dzmm.remote.discovery import RemoteDiscovery
 from dzmm.remote.pairing import PairingManager
+from dzmm.remote.turn_runs import TurnRunManager, mark_stale_turn_runs_interrupted
+from dzmm.service.session_turn_coordinator import SessionTurnCoordinator
 
 
 # ─────────────────────────────────────────────
@@ -59,7 +61,12 @@ def create_app(
             remote_access_enabled = os.environ.get("DZMM_HOST") in {"0.0.0.0", "::"}
 
     pairing_manager = PairingManager(session_maker)
+    turn_coordinator = SessionTurnCoordinator()
+    turn_run_manager = TurnRunManager(session_maker, turn_coordinator)
     app.state.pairing_manager = pairing_manager
+    app.state.turn_coordinator = turn_coordinator
+    app.state.turn_run_manager = turn_run_manager
+    app.state.turn_run_session_maker = session_maker
     app.state.remote_access_enabled = remote_access_enabled
 
     # ── 跨域中间件（CORS）──────────────────────────────────────────────────
@@ -185,6 +192,13 @@ def create_app(
     app.dependency_overrides[routes_remote.get_pairing_manager_dep] = lambda: pairing_manager
     app.include_router(routes_remote.router)
     app.router.add_event_handler("shutdown", pairing_manager.shutdown)
+    app.router.add_event_handler("shutdown", turn_run_manager.shutdown)
+    app.router.add_event_handler("shutdown", turn_coordinator.shutdown)
+
+    async def _interrupt_stale_turn_runs() -> None:
+        await mark_stale_turn_runs_interrupted(session_maker)
+
+    app.router.add_event_handler("startup", _interrupt_stale_turn_runs)
 
     # TTS proxy route.
     app.include_router(routes_tts.router)  # /tts/... 文字转语音代理接口，转发给第三方 TTS 服务

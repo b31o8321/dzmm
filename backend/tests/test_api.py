@@ -202,6 +202,7 @@ async def test_turn_stream_failure_rolls_back_messages_and_state(http, app, monk
     assert response.status_code == 200
     assert "event: error" in body
     assert "simulated provider disconnect" in body
+    assert await app.state.turn_coordinator.get_active(sid) is None
 
     async with app.state.session_maker() as s:
         sess = await s.get(GameSession, sid)

@@ -33,3 +33,23 @@ export async function waitForBackend(timeoutMs = 30_000): Promise<void> {
   }
   throw new Error(`backend not ready after ${timeoutMs}ms: ${String(lastErr)}`)
 }
+
+export async function waitForTurnRun(
+  sessionId: number,
+  runId: string,
+  timeoutMs = 30_000,
+): Promise<Record<string, unknown>> {
+  const deadline = Date.now() + timeoutMs
+  let latest: Record<string, unknown> = {}
+  while (Date.now() < deadline) {
+    const response = await fetch(
+      `${BACKEND_URL}/sessions/${sessionId}/turn-runs/${encodeURIComponent(runId)}`,
+    )
+    if (response.ok) {
+      latest = await response.json() as Record<string, unknown>
+      if (latest.status !== 'running') return latest
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(`turn run ${runId} did not finish: ${JSON.stringify(latest)}`)
+}
