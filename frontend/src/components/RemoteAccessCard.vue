@@ -182,6 +182,7 @@ async function createQr() {
       api_version: 1,
       hosts: appStore.lanAddresses,
       claim: window.claim,
+      expires_at: window.expires_at,
     })
     qrDataUrl.value = await QRCode.toDataURL(payload, {
       width: 224,

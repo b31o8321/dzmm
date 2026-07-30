@@ -357,11 +357,11 @@ no duplicate action.
 - Create: `mobile/android/...`
 - Create: `mobile/test/...`
 
-- [ ] Use Flutter stable and Riverpod.
-- [ ] Add HTTP, secure storage, shared preferences, UUID, connectivity, mDNS, permission, QR scanner, Markdown, and package-info dependencies only when used.
-- [ ] Define dev and release configuration without hardcoded production hosts or tokens.
-- [ ] Add a basic theme and navigation shell; do not build gameplay placeholders beyond testable navigation.
-- [ ] Confirm application ID, minimum SDK, network security policy, and release signing boundary.
+- [x] Use Flutter stable and Riverpod.
+- [x] Add HTTP, secure storage, shared preferences, UUID, connectivity, mDNS, permission, QR scanner, Markdown, and package-info dependencies only when used.
+- [x] Define dev and release configuration without hardcoded production hosts or tokens.
+- [x] Add a basic theme and navigation shell; do not build gameplay placeholders beyond testable navigation.
+- [x] Confirm application ID, minimum SDK, network security policy, and release signing boundary.
 
 ### Task 4.2: Implement server metadata and secure credentials
 
@@ -371,10 +371,10 @@ no duplicate action.
 - Create: `mobile/lib/connection/connection_store.dart`
 - Create tests under `mobile/test/connection/`
 
-- [ ] Persist non-secret server ID/name/recent hosts in preferences.
-- [ ] Persist device tokens only through Android-backed secure storage.
-- [ ] Support token rotation, forget, revoke response, and corrupted-storage recovery.
-- [ ] Never include tokens in `toString`, logs, analytics, or route URLs.
+- [x] Persist non-secret server ID/name/recent hosts in preferences.
+- [x] Persist device tokens only through Android-backed secure storage.
+- [x] Support token rotation, forget, revoke response, and corrupted-storage recovery.
+- [x] Never include tokens in `toString`, logs, analytics, or route URLs.
 
 ### Task 4.3: Implement API and connection state
 
@@ -385,9 +385,9 @@ no duplicate action.
 - Create: `mobile/lib/connection/connection_controller.dart`
 - Add fake-server unit tests
 
-- [ ] Add authenticated JSON requests, timeout policy, structured errors, and cancellation.
-- [ ] Model `offline`, `scanning`, `pairing`, `connected`, `reconnecting`, `revoked`, and `incompatible` states.
-- [ ] Validate `server_id`, API version, and capabilities before using stored credentials.
+- [x] Add authenticated JSON requests, timeout policy, structured errors, and cancellation.
+- [x] Model `offline`, `scanning`, `pairing`, `connected`, `reconnecting`, `revoked`, and `incompatible` states.
+- [x] Validate `server_id`, API version, and capabilities before using stored credentials.
 
 ### Task 4.4: Implement LAN scanner and sticky reconnect
 
@@ -397,13 +397,15 @@ no duplicate action.
 - Create: `mobile/lib/connection/reconnect_service.dart`
 - Add unit and physical-device tests
 
-- [ ] Browse `_dzmm._tcp`, sweep `/24` with bounded concurrency, probe recent hosts, and allow manual entry.
-- [ ] Emit incremental deduplicated results by `server_id`.
-- [ ] Debounce network-change scans and update recent hosts after a successful identity match.
-- [ ] Explain and handle denied nearby-network permissions.
+- [x] Browse `_dzmm._tcp`, sweep `/24` with bounded concurrency, probe recent hosts, and allow manual entry.
+- [x] Emit incremental deduplicated results by `server_id`.
+- [x] Debounce network-change scans and update recent hosts after a successful identity match.
+- [x] Explain and handle denied nearby-network permissions.
 - [ ] Validate at least two home-router configurations and one mDNS-blocking configuration.
 
 **Gate 4:** a physical Android device rediscovers the same Mac after a DHCP address change without re-pairing.
+
+Automated evidence (2026-07-31): `flutter analyze`, 30 Flutter tests, debug APK build, and unsigned release APK build pass. Physical-device and router acceptance remains open.
 
 ## Phase 5 — Android pairing journeys
 
@@ -416,9 +418,9 @@ no duplicate action.
 - Create: `mobile/lib/features/pairing/manual_address_sheet.dart`
 - Add widget tests
 
-- [ ] Show instructions, scan progress, discovered hosts, compatibility, and paired status.
-- [ ] Provide permission denial guidance and manual fallback.
-- [ ] Do not treat HTTP 200 alone as compatible; validate the dzmm health schema.
+- [x] Show instructions, scan progress, discovered hosts, compatibility, and paired status.
+- [x] Provide permission denial guidance and manual fallback.
+- [x] Do not treat HTTP 200 alone as compatible; validate the dzmm health schema.
 
 ### Task 5.2: Implement Mac-approval pairing
 
@@ -428,9 +430,9 @@ no duplicate action.
 - Create: `mobile/lib/features/pairing/approval_wait_page.dart`
 - Add fake-server tests
 
-- [ ] Create device UUID/name, submit request, and long-poll by request-specific secret.
-- [ ] Handle approve, deny, expire, rate-limit, host-offline, and user-cancel.
-- [ ] Save token and server identity atomically on approval.
+- [x] Create device UUID/name, submit request, and long-poll by request-specific secret.
+- [x] Handle approve, deny, expire, rate-limit, host-offline, and user-cancel.
+- [x] Save token and server identity atomically on approval.
 
 ### Task 5.3: Add QR and PIN fallback
 
@@ -440,12 +442,14 @@ no duplicate action.
 - Create: `mobile/lib/features/pairing/pin_pair_sheet.dart`
 - Add parsing/widget tests
 
-- [ ] Parse only the dzmm pairing URI schema and validate expiry/server identity.
-- [ ] Exchange a claim once; show a clear expired/used message.
-- [ ] Use a six-digit OTP input and map bad/closed/rate-limited errors.
-- [ ] Re-pairing replaces the old token for the same server/device.
+- [x] Parse only the versioned dzmm pairing JSON payload and validate expiry/server identity.
+- [x] Exchange a claim once; show a clear expired/used message.
+- [x] Use a six-digit OTP input and map bad/closed/rate-limited errors.
+- [x] Re-pairing replaces the old token for the same server/device.
 
 **Gate 5:** approval, QR, and PIN each pair a fresh install; deny, expiry, QR replay, and PIN rate limiting all fail safely.
+
+Automated evidence (2026-07-31): fake-server, parser, controller, and widget coverage passes. Fresh-install physical-device acceptance remains open.
 
 ## Phase 6 — Android gameplay v1
 
@@ -493,7 +497,7 @@ no duplicate action.
 
 ### Task 6.4: Real-model playtest
 
-- [ ] Use the desktop LM Studio `magnum-v4-22b` configuration through the Mac backend.
+- [ ] Use the desktop `huihui-ai_qwen3-14b-abliterated` configuration through the Mac backend (updated acceptance model on 2026-07-31).
 - [ ] Complete at least 30 turns on Android without directly calling LM Studio from Android.
 - [ ] Verify narration/guide consistency, state changes, choices, errors, and recovery.
 - [ ] Record model failures separately from remote transport failures.
