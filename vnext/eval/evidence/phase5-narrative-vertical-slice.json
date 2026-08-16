@@ -1,6 +1,6 @@
 {
   "matrix_version": "narrative-platform-v2",
-  "commit": "ceb6006",
+  "commit": "2ba5d57",
   "environment": "Python 3.13.3; fresh temporary SQLite database; FastAPI TestClient; Vue production build; deterministic narrator",
   "evidence": {
     "domain_lifecycle": "WorldVersion persists an immutable v2 WorldDefinition including ruleset. Existing compose/archive/purge/rollback integration coverage remains green; no packaged lifecycle journey for a narrative world.",
