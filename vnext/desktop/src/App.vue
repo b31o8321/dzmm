@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { composeWorld, createTurn, getRun, type ComposedRun, type RunSnapshot } from './api'
+import {
+  composeWorld,
+  createTurn,
+  getRun,
+  rollbackTurn,
+  type ComposedRun,
+  type RunSnapshot,
+  type Turn,
+} from './api'
 
 const worldName = ref('雾港')
 const heroName = ref('米拉')
@@ -96,6 +104,24 @@ async function sendTurn() {
   }
 }
 
+async function rollback(turn: Turn) {
+  if (!run.value || turn.kind !== 'turn') return
+  busy.value = true
+  notice.value = ''
+  try {
+    await rollbackTurn(run.value.run_id, {
+      request_id: requestId('rollback'),
+      expected_revision: run.value.state.revision,
+      target_turn_id: turn.id,
+    })
+    await recoverRun(run.value.run_id)
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法恢复该回合'
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(() => {
   const activeRun = localStorage.getItem(activeRunKey)
   if (activeRun) void recoverRun(activeRun)
@@ -162,6 +188,8 @@ onMounted(() => {
           <small>回合 {{ turn.sequence }} · 状态 {{ turn.before_revision }} → {{ turn.after_revision }}</small>
           <p class="player">{{ turn.player_input }}</p>
           <p>{{ turn.narrative }}</p>
+          <button v-if="turn.kind === 'turn'" class="rollback" :disabled="busy" @click="rollback(turn)">恢复到此回合后</button>
+          <p v-else class="rollback-note">已恢复至回合 {{ turn.rollback_target_id?.slice(0, 8) }}</p>
         </article>
         <p v-if="!run.turns" class="empty">世界已准备好。写下第一步，Python 会先验证它，再让叙事继续。</p>
       </div>

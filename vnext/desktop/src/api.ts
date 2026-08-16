@@ -15,6 +15,8 @@ export type ComposedRun = {
 
 export type Turn = {
   id: string
+  kind: 'turn' | 'rollback'
+  rollback_target_id: string | null
   sequence: number
   player_input: string
   narrative: string
@@ -53,6 +55,14 @@ export function getRun(runId: string) {
 
 export function createTurn(runId: string, payload: object) {
   return request<{ state: RunState }>(`/runs/${runId}/turns`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function rollbackTurn(runId: string, payload: object) {
+  return request<{ state: RunState }>(`/runs/${runId}/rollbacks`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
