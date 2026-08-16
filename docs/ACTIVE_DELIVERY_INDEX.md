@@ -29,7 +29,8 @@
 - 桌面 v0.16.0 的玩法成熟度 88.1 可用于定义质量下限；vNext 首次评分为 0。
 - Android remote acceptance 78.1 证明已有功能方向，但 vNext 仍必须重新完成 Mac + Android + LAN 物理验收。
 - **Phase 0 已验证：** 实现提交为 `401c7be`。Python 3.13.3 的独立 venv 中，`pytest -q` 为 `4 passed`、`ruff check src tests` 通过；临时 `DZMM_NEXT_DATA_DIR` 执行 `alembic upgrade head` 后，`schema_meta` 有 app/api/contract 三条基线记录、`alembic_version=0001_phase0`；`/health` 返回 `api_version=2`、四份契约、`storage=isolated` 与 `foreign_keys=true`。评分器读取 `vnext/eval/evidence/phase0.json` 得 **0.0/100**、所有 P0 未达标、不可发布——这是尚未实现功能的正确零基线，不得据此加分。
+- **Phase 1 中间证据（尚未评分）：** `9bf5f4f` 在临时 SQLite 上验证了 World/WorldVersion/Hero/Run 的单事务 compose、重试、冲突与 20 次数据库写失败零残留；还覆盖三回合、SSE 事件与刷新恢复。`d413a87` 将模型 profile 固化为完整协议并验证 LM Studio 的 HTTP 200 error body 必须失败。桌面 vNext 的 `npm run build` 已通过，浏览器实测 Create → Confirm → Turn → Refresh 恢复成功。此证据仅覆盖本地未打包竖切和模拟模型响应；尚未满足 Phase 1 的真实模型 narration、已打包桌面和完整评分门槛。
 
 ### 下一关
 
-Phase 1：实现 `World → WorldVersion → Run → Turn[]` 的原子 idempotent compose、首次 `RunState` 与三回合可恢复桌面竖切；以 20 次失败注入和刷新恢复结果争取总分至少 45、Domain 与 Game Loop 至少 40。不得从 legacy 目录复制领域模型或 API。
+Phase 1：把已存在的 Python-first 回合接入已探测的真实模型 profile，并以 `huihui-ai_qwen3-14b-abliterated` 完成三回合桌面实跑；补齐模型取消/空流错误路径和对已打包桌面壳的验收。之后才按证据给 Domain、Game Loop、Model、Desktop 与 Engineering 维度评分；不得从 legacy 目录复制领域模型或 API。
