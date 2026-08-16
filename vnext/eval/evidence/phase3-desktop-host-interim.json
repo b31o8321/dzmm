@@ -1,0 +1,24 @@
+{
+  "commit": "b53da75",
+  "environment": "macOS arm64; Python 3.13.3; fresh temporary DZMM_NEXT_DATA_DIR; Tauri debug .app",
+  "evidence": {
+    "domain_lifecycle": "Archive, confirmed purge, and zero SQL orphan scan are covered by integration tests.",
+    "game_loop": "Python validates commands/revisions and appends idempotent rollback audit turns; browser flow verifies recovery.",
+    "creation_content": "Desktop browser imports a V3 card, applies its suggested hero and Lore before the single compose action. Backend supports V3/World Info, raw entry preservation, selection, and explicit new-version promotion; PNG metadata/export are absent.",
+    "model_stream": "Ollama and OpenAI-compatible contract probes are tested; LM Studio HTTP 200 error bodies fail; one real LM Studio model narrates turns.",
+    "desktop_ux": "A fresh PyInstaller sidecar migrates to 0005_turn_rollbacks and returns vNext /health. It is bundled in a Tauri debug .app; launching the .app starts the sidecar through the WebView host command on an isolated port. Packaged create/play/archive/recovery and accessibility journeys remain unrun.",
+    "mobile_recovery": "Not implemented in vNext.",
+    "long_play_performance": "No long-play measurement yet.",
+    "engineering_release": "Fresh migrations, backend tests, lint, desktop production build, frozen-sidecar health, and debug .app bundle pass; no signed release artifacts."
+  },
+  "scores": {
+    "domain_lifecycle": 60,
+    "game_loop": 65,
+    "creation_content": 60,
+    "model_stream": 55,
+    "desktop_ux": 60,
+    "mobile_recovery": 0,
+    "long_play_performance": 0,
+    "engineering_release": 50
+  }
+}

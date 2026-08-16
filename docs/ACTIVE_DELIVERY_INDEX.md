@@ -34,8 +34,9 @@
 - **Phase 2 rollback 证据（已评分，未过 gate）：** `abf1f60` 将回滚实现为新的审计 Turn，`edf4ac1` 将它接入桌面。浏览器在临时 DB 中验证两回合 → 恢复第一回合后 → 刷新：历史仍有三条记录，RunState 为新 revision 的第一回合快照。此测试使用 deterministic narrator；真实 Huihui 模型只为此前四回合证据背书，不能替代长局。
 - **Phase 3 content 证据（已评分，未过 gate）：** `53250f8` 支持 SillyTavern V3 card 与 World Info 解析、原始条目保留、关键词/常驻/优先级/预算选择，并让 Lore 提升产生 WorldVersion 2、既有 Run 留在版本 1。模型仅接收选择出的 Lore body，不能把 Lore 直接写入 RunState。
 - **Phase 3 desktop import 证据（已评分，未过 gate）：** `602a568` 的临时 DB 浏览器 E2E 验证 V3 卡 → 1 条 Lore → 建议 Hero → 单一 compose → 确认页面；Lore 没有静默变成实体。
-- **当前 vNext 矩阵：47.5 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase3-content-ui-interim.json`：Domain 60、Game Loop 65、Content 60、Model 55、Desktop 60、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
+- **Mac Host 打包中间证据（已评分，未过 gate）：** `b53da75` 以 PyInstaller 生成 arm64 sidecar，首次启动完成 Alembic 至 `0005_turn_rollbacks` 并返回 vNext `/health`；它被放入 Tauri debug `.app`，以独立端口和临时 `DZMM_NEXT_DATA_DIR` 启动该 `.app` 后，WebView 触发 Host command 并启动同一个 sidecar。该证据只证明打包和启动边界；尚未在打包应用中完成 create/play/archive/recovery 与无障碍旅程，不能加分。
+- **当前 vNext 矩阵：47.5 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase3-desktop-host-interim.json`：Domain 60、Game Loop 65、Content 60、Model 55、Desktop 60、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
 
 ### 下一关
 
-补齐模型取消/空流错误路径和 Tauri 打包桌面壳的验收；完成 30 回合真实模型跑团，随后推进 Android/LAN RC。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。
+补齐模型取消/空流错误路径和打包桌面的 create/play/archive/recovery 与无障碍验收；完成 30 回合真实模型跑团，随后推进 Android/LAN RC。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。
