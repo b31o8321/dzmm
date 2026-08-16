@@ -12,6 +12,7 @@ from . import API_VERSION, APP_NAME
 from .config import Settings
 from .contracts import contract_manifest
 from .db import create_engine
+from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService
 from .turns import (
     RevisionConflictError,
     RunNotFoundError,
@@ -40,6 +41,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.sessions = async_sessionmaker(app.state.engine, expire_on_commit=False)
         app.state.world_composer = WorldComposer(app.state.sessions)
         app.state.turn_coordinator = TurnCoordinator(app.state.sessions)
+        app.state.model_profiles = ModelProfileService(app.state.sessions)
+        app.state.model_prober = ModelProber()
         try:
             yield
         finally:
@@ -116,6 +119,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
         return StreamingResponse(events(), media_type="text/event-stream")
+
+    @app.post("/api/v2/model-profiles")
+    async def create_model_profile(payload: ModelProfileInput) -> JSONResponse:
+        try:
+            profile = await app.state.model_profiles.create(payload)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=201, content=profile.model_dump(mode="json"))
+
+    @app.post("/api/v2/model-profiles/{profile_id}:probe")
+    async def probe_model_profile(profile_id: str) -> dict[str, object]:
+        profile = await app.state.model_profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="model profile not found")
+        return (await app.state.model_prober.probe(profile)).model_dump(mode="json")
 
     return app
 

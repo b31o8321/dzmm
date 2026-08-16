@@ -84,3 +84,14 @@ compose_requests = Table(
     Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False),
     Column("created_at", DateTime(), nullable=False),
 )
+
+model_profiles = Table(
+    "model_profiles",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("name", String(120), nullable=False, unique=True),
+    Column("provider_type", String(30), nullable=False),
+    Column("base_url", String(500), nullable=False),
+    Column("model_name", String(200), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+)
