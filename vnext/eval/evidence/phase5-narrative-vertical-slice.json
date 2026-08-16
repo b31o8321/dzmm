@@ -1,6 +1,6 @@
 {
   "matrix_version": "narrative-platform-v2",
-  "commit": "fecce45",
+  "commit": "5d0b6e3",
   "environment": "Python 3.13.3; fresh temporary SQLite database; FastAPI TestClient; Vite local-browser journey; Vue production build; deterministic narrator and Huihui 14B real-model evidence",
   "evidence": {
     "domain_lifecycle": "WorldVersion persists an immutable v2 WorldDefinition including ruleset. Existing compose/archive/purge/rollback integration coverage remains green; no packaged lifecycle journey for a narrative world.",
@@ -10,7 +10,7 @@
     "model_stream": "Existing provider probes and malformed/empty/cancelled stream coverage remains green. Huihui 14B completed a v2 50-turn SSE run with one non-committing retry and correct recovery; it also narrated the full Fog Harbor choice route without direct state authority.",
     "desktop_ux": "Local browser on a fresh temporary DB completed Fog Harbor create -> three server-planned choices -> good ending -> rollback to turn one -> refresh -> chapter-two choices. The screen exposes ruleset selection, visible choice buttons, relationship reasons and the locked ending. No packaged Tauri evidence.",
     "mobile_recovery": "Pairing control plane exists, but Android has no v2 narrative gameplay and no physical device/LAN evidence.",
-    "long_play_performance": "Huihui 14B completed 50 v2 streamed turns (min 0.334s, median 0.802s, max 6.646s, one non-committing retry) with recovered revision/turn count correct. A v2 500-message reopen and target-device budget are still absent.",
+    "long_play_performance": "Huihui 14B completed 50 v2 streamed turns (min 0.334s, median 0.802s, max 6.646s, one non-committing retry) with recovered revision/turn count correct. A deterministic v2 500-turn reopen returned 165475 bytes in 0.005s with the revision and complete history intact. Target-device budget remains absent.",
     "engineering_release": "Fresh migration reaches 0007_narrative_ruleset_contract; ruff and 35 backend tests plus desktop build pass. No signed artifact or release checklist."
   },
   "scores": {
@@ -21,7 +21,7 @@
     "model_stream": 75,
     "desktop_ux": 70,
     "mobile_recovery": 0,
-    "long_play_performance": 65,
+    "long_play_performance": 75,
     "engineering_release": 60
   }
 }

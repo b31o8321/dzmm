@@ -45,6 +45,7 @@
 - **叙事规则集评审（未计分）：** `ADR-003` 与 2026-08-17 规格提出在相同 WorldVersion/Run/RunState/Turn aggregate 内加入 `trpg`、`story_adventure`、`relationship_drama`、`hybrid`。现有 **58.0/100** 是前序 TRPG 矩阵的实现基线，不因文档增加分数，也不能与新的平台矩阵横向比较；Phase 0 contract freeze 后，scorecard 必须按新矩阵重新取证。
 - **叙事规则集 Phase 0 / Mac 确定性切片（已实现，未过 gate）：** `2ba5d57` 将 contract 升为 2026-08-17 / schema v2，`WorldDefinition` 固化 ruleset、角色卡关系维度、章节/Flag/路线/ending definitions；唯一 `RunState` 保存关系 reason/once ledger、章节和锁定结局。`bb81a16` 增加雾港 native template、current-choice projection 和服务端 planned-choice endpoint；桌面页面仅发送 choice ID，不拼章节/结局 command。临时 DB 浏览器完成 create → 三次选择 → 好结局 → 回滚至第一回合后 → 刷新并恢复第二章选择；关系原因和 locked ending 均可见，控制台零错误。迁移 `0007_narrative_ruleset_contract` 仅更新 vNext contract metadata，不读取 legacy。平台矩阵取证在 `vnext/eval/evidence/phase5-narrative-vertical-slice.json`：**56.75 / 100，所有 P0 仍未达到 80，不可发布。** 该数值刻意不复用 v2 未覆盖的旧 TRPG 长局/Android 分数。
 - **真实模型补充证据（已实现，未过 gate）：** `fecce45` 将模型提示收紧为“只描述 Python 已确认结果”，并注入 ruleset/章节/路线/关系等只读上下文；单测确认模型没有状态裁判权限。台式机 Huihui 14B 在隔离数据库完成 v2 50 回合 SSE（最小 0.334s、中位 0.802s、最大 6.646s、一次非提交重试，recovery 正确），并完成雾港岚路线的三次选择与好结局（三段非空真实叙事）。原始取证为 `phase5-real-model-v2-50-turns.json` 与 `phase5-real-model-fog-harbor.json`。平台矩阵现为 **61.75 / 100，所有 P0 仍未达到 80，不可发布。** 仍缺 v2 500 消息重开、打包 Tauri、Android/LAN 与 release evidence。
+- **v2 重开性能补充证据（已实现，未过 gate）：** `5d0b6e3` 使 benchmark 使用 schema v2；隔离 DB 中 500 条持久化 Turn 重开为 0.005s / 165475 bytes，revision 与完整历史都正确。平台矩阵现为 **62.25 / 100，所有 P0 仍未达到 80，不可发布。** 长局维度仍缺目标设备流式预算，不能上调到 80。
 
 ### 下一关
 
