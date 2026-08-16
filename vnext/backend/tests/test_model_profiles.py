@@ -2,8 +2,30 @@ import asyncio
 import json
 
 import httpx
+import pytest
 
-from dzmm_vnext.model_profiles import ModelNarrator, ModelProber, ModelProfile, ProviderType
+from dzmm_vnext.model_profiles import (
+    ModelNarrator,
+    ModelProber,
+    ModelProfile,
+    NarrationError,
+    NarrationRateLimitError,
+    ProviderType,
+)
+
+
+async def collect_stream(narrator: ModelNarrator, profile: ModelProfile) -> list[str]:
+    return [
+        piece
+        async for piece in narrator.stream(
+            profile,
+            {"name": "Fog Harbor"},
+            {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
+            "I light the lamp.",
+            [],
+            [],
+        )
+    ]
 
 
 def test_profile_requires_a_complete_provider_protocol(migrated_client) -> None:
@@ -148,3 +170,39 @@ def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
     )
 
     assert narrative == "灯塔的微光摇曳。"
+
+
+def test_narrator_streams_openai_deltas_only_after_protocol_completion() -> None:
+    profile = ModelProfile(
+        id="profile-stream",
+        name="LM Studio",
+        provider_type=ProviderType.LM_STUDIO,
+        base_url="http://desktop.local:1234/v1",
+        model_name="huihui-ai_qwen3-14b-abliterated",
+    )
+    response = (
+        'data: {"choices":[{"delta":{"content":"灯塔"}}]}\n'
+        'data: {"choices":[{"delta":{"content":"亮起。"}}]}\n'
+        "data: [DONE]"
+    ).encode()
+    narrator = ModelNarrator(httpx.MockTransport(lambda _: httpx.Response(200, content=response)))
+
+    assert asyncio.run(collect_stream(narrator, profile)) == ["灯塔", "亮起。"]
+
+
+def test_narrator_rejects_empty_malformed_and_rate_limited_streams() -> None:
+    profile = ModelProfile(
+        id="profile-stream-errors",
+        name="LM Studio",
+        provider_type=ProviderType.LM_STUDIO,
+        base_url="http://desktop.local:1234/v1",
+        model_name="huihui-ai_qwen3-14b-abliterated",
+    )
+    for response, error in [
+        (httpx.Response(200, content=b"data: not-json"), "malformed SSE JSON"),
+        (httpx.Response(429), "HTTP 429"),
+    ]:
+        narrator = ModelNarrator(httpx.MockTransport(lambda _, response=response: response))
+        expected = NarrationRateLimitError if response.status_code == 429 else NarrationError
+        with pytest.raises(expected, match=error):
+            asyncio.run(collect_stream(narrator, profile))

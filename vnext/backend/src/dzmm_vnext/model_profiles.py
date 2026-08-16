@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -46,6 +47,10 @@ class ProbeResult(BaseModel):
 
 
 class NarrationError(ValueError):
+    pass
+
+
+class NarrationRateLimitError(NarrationError):
     pass
 
 
@@ -147,6 +152,41 @@ class ModelNarrator:
             raise NarrationError("model returned no valid narrative content")
         return narrative
 
+    async def stream(
+        self,
+        profile: ModelProfile,
+        definition: dict[str, Any],
+        state: dict[str, Any],
+        player_input: str,
+        outcomes: list[dict[str, Any]],
+        lore_entries: list[dict[str, Any]],
+    ) -> AsyncIterator[str]:
+        endpoint = _chat_endpoint(profile)
+        body = _narration_body(
+            profile, definition, state, player_input, outcomes, lore_entries, stream=True
+        )
+        try:
+            async with (
+                httpx.AsyncClient(transport=self._transport, timeout=30.0) as client,
+                client.stream("POST", endpoint, json=body) as response,
+            ):
+                if response.status_code == 429:
+                    raise NarrationRateLimitError("model returned HTTP 429")
+                if response.status_code != 200:
+                    raise NarrationError(f"model returned HTTP {response.status_code}")
+                completed = False
+                async for line in response.aiter_lines():
+                    piece, finished = _stream_piece(profile.provider_type, line)
+                    if piece:
+                        yield piece
+                    completed = completed or finished
+                if not completed:
+                    raise NarrationError("model stream ended without a completion marker")
+        except NarrationError:
+            raise
+        except httpx.HTTPError as error:
+            raise NarrationError(f"model connection failed: {error}") from error
+
 
 def _chat_endpoint(profile: ModelProfileInput) -> str:
     base_url = profile.base_url
@@ -186,6 +226,8 @@ def _narration_body(
     player_input: str,
     outcomes: list[dict[str, Any]],
     lore_entries: list[dict[str, Any]],
+    *,
+    stream: bool = False,
 ) -> dict[str, Any]:
     messages = [
         {
@@ -218,13 +260,13 @@ def _narration_body(
         return {
             "model": profile.model_name,
             "messages": messages,
-            "stream": False,
+            "stream": stream,
             "options": {"num_predict": 220},
         }
     body: dict[str, Any] = {
         "model": profile.model_name,
         "messages": messages,
-        "stream": False,
+        "stream": stream,
         "max_tokens": 160,
     }
     if profile.provider_type is ProviderType.LM_STUDIO and "qwen" in profile.model_name.lower():
@@ -244,3 +286,44 @@ def _clean_narrative(content: str | None) -> str | None:
         value = value.split("### JSON:", maxsplit=1)[0]
     value = re.sub(r"^#+\s*", "", value.strip())
     return value.strip() or None
+
+
+def _stream_piece(provider_type: ProviderType, line: str) -> tuple[str | None, bool]:
+    if not line:
+        return None, False
+    if provider_type is ProviderType.OLLAMA:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise NarrationError("model returned malformed Ollama stream JSON") from error
+        if not isinstance(payload, dict):
+            raise NarrationError("model returned malformed Ollama stream event")
+        if payload.get("error"):
+            raise NarrationError("model returned stream error")
+        message = payload.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if content is not None and not isinstance(content, str):
+            raise NarrationError("model returned malformed Ollama stream content")
+        return content, payload.get("done") is True
+
+    if not line.startswith("data:"):
+        raise NarrationError("model returned malformed SSE stream event")
+    data = line.removeprefix("data:").strip()
+    if data == "[DONE]":
+        return None, True
+    try:
+        payload = json.loads(data)
+    except json.JSONDecodeError as error:
+        raise NarrationError("model returned malformed SSE JSON") from error
+    if not isinstance(payload, dict):
+        raise NarrationError("model returned malformed SSE event")
+    if payload.get("error"):
+        raise NarrationError("model returned stream error")
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise NarrationError("model returned malformed SSE choices")
+    delta = choices[0].get("delta")
+    content = delta.get("content") if isinstance(delta, dict) else None
+    if content is not None and not isinstance(content, str):
+        raise NarrationError("model returned malformed SSE content")
+    return content, False
