@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from copy import deepcopy
 from datetime import UTC, datetime
 from secrets import randbelow
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
 from .lore import select_lore
-from .model_profiles import ModelNarrator, ModelProfile
+from .model_profiles import ModelNarrator, ModelProfile, NarrationError, _clean_narrative
 from .persistence import model_profiles, runs, turns, world_versions, worlds
 
 
@@ -148,6 +149,212 @@ class TurnCoordinator:
             if changed.rowcount != 1:
                 raise RevisionConflictError("run changed while the turn was being applied")
 
+            sequence = (
+                await session.execute(
+                    select(func.coalesce(func.max(turns.c.sequence), 0)).where(turns.c.run_id == run_id)
+                )
+            ).scalar_one() + 1
+            turn_id = str(uuid4())
+            await session.execute(
+                insert(turns).values(
+                    id=turn_id,
+                    run_id=run_id,
+                    request_id=payload.request_id,
+                    kind="turn",
+                    rollback_target_id=None,
+                    sequence=sequence,
+                    player_input=payload.player_input,
+                    narrative=narrative,
+                    commands=payload.commands,
+                    outcomes=outcomes,
+                    before_revision=before_revision,
+                    after_revision=after_revision,
+                    after_state=state,
+                    created_at=datetime.now(UTC).replace(tzinfo=None),
+                )
+            )
+            return TurnResult(
+                turn_id=turn_id,
+                kind="turn",
+                rollback_target_id=None,
+                sequence=sequence,
+                narrative=narrative,
+                commands=payload.commands,
+                outcomes=outcomes,
+                before_revision=before_revision,
+                after_revision=after_revision,
+                state=state,
+                created=True,
+            )
+
+    async def stream(self, run_id: str, payload: TurnInput) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Stream narration before committing the validated turn exactly once."""
+        async with self._session_factory() as session:
+            existing = await session.execute(
+                select(turns).where(turns.c.run_id == run_id, turns.c.request_id == payload.request_id)
+            )
+            existing_row = existing.mappings().one_or_none()
+            if existing_row:
+                if (
+                    existing_row["player_input"] != payload.player_input
+                    or existing_row["commands"] != payload.commands
+                ):
+                    yield "turn_failed", {
+                        "category": "idempotency",
+                        "detail": "request_id was already used for different turn input",
+                    }
+                    return
+                turn = _turn_result(existing_row, created=False)
+                yield "turn_started", {"revision": turn.before_revision}
+                yield "narrative_delta", {"text": turn.narrative}
+                for outcome in turn.outcomes:
+                    yield "command_applied", outcome
+                yield "turn_completed", {
+                    "turn_id": turn.turn_id,
+                    "revision": turn.after_revision,
+                    "created": False,
+                }
+                return
+            result = await session.execute(
+                select(
+                    runs.c.state,
+                    runs.c.state_revision,
+                    world_versions.c.definition,
+                    model_profiles.c.id.label("model_id"),
+                    model_profiles.c.name.label("model_name_label"),
+                    model_profiles.c.provider_type,
+                    model_profiles.c.base_url,
+                    model_profiles.c.model_name,
+                    worlds.c.status.label("world_status"),
+                )
+                .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .join(worlds, worlds.c.id == world_versions.c.world_id)
+                .outerjoin(model_profiles, model_profiles.c.id == runs.c.model_profile_id)
+                .where(runs.c.id == run_id)
+            )
+            run = result.mappings().one_or_none()
+        if run is None:
+            yield "turn_failed", {"category": "run", "detail": "run not found"}
+            return
+        if run["world_status"] != "active":
+            yield "turn_failed", {"category": "state", "detail": "archived world cannot receive new turns"}
+            return
+        if payload.expected_revision != run["state_revision"]:
+            yield "turn_failed", {
+                "category": "state",
+                "detail": f"expected revision {payload.expected_revision}, current revision is {run['state_revision']}",
+            }
+            return
+
+        state = deepcopy(run["state"])
+        try:
+            outcomes = _apply_commands(state, run["definition"], payload.commands)
+        except RevisionConflictError as error:
+            yield "turn_failed", {"category": "command", "detail": str(error)}
+            return
+        before_revision = run["state_revision"]
+        after_revision = before_revision + 1
+        state["revision"] = after_revision
+        try:
+            contract_validator("run_state.schema.json").validate(state)
+        except ValidationError as error:
+            yield "turn_failed", {"category": "state", "detail": str(error)}
+            return
+
+        yield "turn_started", {"revision": before_revision}
+        profile = _profile_from_row(run)
+        raw_narrative = ""
+        emitted_narrative = ""
+        try:
+            if profile is None:
+                raw_narrative = _deterministic_narrative(state, payload.player_input)
+                emitted_narrative = raw_narrative
+                yield "narrative_delta", {"text": raw_narrative}
+            else:
+                lore = select_lore(run["definition"], payload.player_input, character_budget=4000)
+                async for piece in self._narrator.stream(
+                    profile,
+                    run["definition"],
+                    state,
+                    payload.player_input,
+                    outcomes,
+                    lore.entries,
+                ):
+                    raw_narrative += piece
+                    visible = _visible_stream_narrative(raw_narrative)
+                    if visible.startswith(emitted_narrative):
+                        delta = visible[len(emitted_narrative) :]
+                        emitted_narrative = visible
+                        if delta:
+                            yield "narrative_delta", {"text": delta}
+            narrative = _clean_narrative(raw_narrative)
+            if not narrative or raw_narrative.lstrip().startswith("<think>") and "</think>" not in raw_narrative:
+                raise NarrationError("model returned no valid narrative content")
+        except NarrationError as error:
+            yield "turn_failed", {"category": "model", "detail": str(error)}
+            return
+
+        try:
+            turn = await self._commit_stream_turn(
+                run_id, payload, state, outcomes, before_revision, after_revision, narrative
+            )
+        except (RunNotFoundError, RevisionConflictError, TurnIdempotencyConflictError) as error:
+            yield "turn_failed", {"category": "state", "detail": str(error)}
+            return
+        for outcome in turn.outcomes:
+            yield "command_applied", outcome
+        yield "turn_completed", {
+            "turn_id": turn.turn_id,
+            "revision": turn.after_revision,
+            "created": turn.created,
+        }
+
+    async def _commit_stream_turn(
+        self,
+        run_id: str,
+        payload: TurnInput,
+        state: dict[str, Any],
+        outcomes: list[dict[str, Any]],
+        before_revision: int,
+        after_revision: int,
+        narrative: str,
+    ) -> TurnResult:
+        async with self._session_factory() as session, session.begin():
+            existing = await session.execute(
+                select(turns).where(turns.c.run_id == run_id, turns.c.request_id == payload.request_id)
+            )
+            existing_row = existing.mappings().one_or_none()
+            if existing_row:
+                if (
+                    existing_row["player_input"] != payload.player_input
+                    or existing_row["commands"] != payload.commands
+                ):
+                    raise TurnIdempotencyConflictError(
+                        "request_id was already used for different turn input"
+                    )
+                return _turn_result(existing_row, created=False)
+            current = await session.execute(
+                select(runs.c.state_revision, worlds.c.status.label("world_status"))
+                .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .join(worlds, worlds.c.id == world_versions.c.world_id)
+                .where(runs.c.id == run_id)
+            )
+            row = current.mappings().one_or_none()
+            if row is None:
+                raise RunNotFoundError("run not found")
+            if row["world_status"] != "active" or row["state_revision"] != before_revision:
+                raise RevisionConflictError("run changed while narration was streaming")
+            changed = await session.execute(
+                update(runs)
+                .where(runs.c.id == run_id, runs.c.state_revision == before_revision)
+                .values(
+                    state=state,
+                    state_revision=after_revision,
+                    updated_at=datetime.now(UTC).replace(tzinfo=None),
+                )
+            )
+            if changed.rowcount != 1:
+                raise RevisionConflictError("run changed while narration was streaming")
             sequence = (
                 await session.execute(
                     select(func.coalesce(func.max(turns.c.sequence), 0)).where(turns.c.run_id == run_id)
@@ -390,6 +597,21 @@ def _change_inventory(inventory: list[dict[str, Any]], item_id: str, delta: int)
 
 def _deterministic_narrative(state: dict[str, Any], player_input: str) -> str:
     return f"{state['hero']['name']} acts at {state['location_id']}: {player_input}"
+
+
+def _visible_stream_narrative(raw: str) -> str:
+    value = raw.lstrip()
+    if value.startswith("<think>"):
+        if "</think>" not in value:
+            return ""
+        value = value.split("</think>", maxsplit=1)[1].lstrip()
+    if value.startswith("###") and "### TRPG Narrative:" not in value:
+        return ""
+    if "### TRPG Narrative:" in value:
+        value = value.split("### TRPG Narrative:", maxsplit=1)[1]
+    if "### JSON:" in value:
+        value = value.split("### JSON:", maxsplit=1)[0]
+    return value.lstrip("# ").strip()
 
 
 def _profile_from_row(row: Any) -> ModelProfile | None:

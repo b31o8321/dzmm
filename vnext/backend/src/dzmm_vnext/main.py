@@ -197,23 +197,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/v2/runs/{run_id}/turns:stream")
     async def stream_turn(run_id: str, payload: TurnInput) -> StreamingResponse:
-        result = await play_turn(run_id, payload)
-
         async def events():
-            event_id = result.sequence * 100
-            yield _sse(event_id, "turn_started", {"revision": result.before_revision})
-            yield _sse(event_id + 1, "narrative_delta", {"text": result.narrative})
-            for index, outcome in enumerate(result.outcomes, start=2):
-                yield _sse(event_id + index, "command_applied", outcome)
-            yield _sse(
-                event_id + len(result.outcomes) + 2,
-                "turn_completed",
-                {
-                    "turn_id": result.turn_id,
-                    "revision": result.after_revision,
-                    "created": result.created,
-                },
-            )
+            event_id = 1
+            async for event_type, event_payload in app.state.turn_coordinator.stream(run_id, payload):
+                yield _sse(event_id, event_type, event_payload)
+                event_id += 1
 
         return StreamingResponse(events(), media_type="text/event-stream")
 

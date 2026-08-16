@@ -1,6 +1,9 @@
+import asyncio
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
+
+from dzmm_vnext.turns import TurnCoordinator, TurnInput
 
 
 def compose_payload(request_id: str) -> dict:
@@ -237,3 +240,64 @@ def test_rollback_creates_a_new_audit_turn_without_rewriting_history(migrated_cl
     assert recovered["turns"][1]["outcomes"] == [
         {"type": "inventory_change", "item_id": "lantern", "delta": 1}
     ]
+
+
+def test_stream_failure_or_client_cancellation_does_not_commit_a_turn(migrated_client) -> None:
+    client, _ = migrated_client
+    profile = client.post(
+        "/api/v2/model-profiles",
+        json={
+            "name": "stream test profile",
+            "provider_type": "lm_studio",
+            "base_url": "http://desktop.local:1234/v1",
+            "model_name": "stream-test",
+        },
+    ).json()
+    payload = compose_payload("stream-atomic-world")
+    payload["model_profile_id"] = profile["id"]
+    run_id = client.post("/api/v2/worlds:compose", json=payload).json()["run_id"]
+
+    class EmptyNarrator:
+        async def stream(self, *_args):
+            if False:
+                yield ""
+
+    class SlowNarrator:
+        async def stream(self, *_args):
+            yield "灯塔"
+            await asyncio.Future()
+
+    async def collect(coordinator, request_id: str):
+        payload = TurnInput(
+            request_id=request_id,
+            expected_revision=0,
+            player_input="I inspect the lighthouse.",
+            commands=[{"type": "narrate", "payload": {}}],
+        )
+        return [event async for event in coordinator.stream(run_id, payload)]
+
+    empty = TurnCoordinator(client.app.state.sessions, narrator=EmptyNarrator())
+    events = asyncio.run(collect(empty, "stream-empty"))
+    assert events[-1] == (
+        "turn_failed",
+        {"category": "model", "detail": "model returned no valid narrative content"},
+    )
+    assert client.get(f"/api/v2/runs/{run_id}").json()["state"]["revision"] == 0
+    assert client.get(f"/api/v2/runs/{run_id}").json()["turns"] == []
+
+    async def cancel() -> None:
+        coordinator = TurnCoordinator(client.app.state.sessions, narrator=SlowNarrator())
+        payload = TurnInput(
+            request_id="stream-cancel",
+            expected_revision=0,
+            player_input="I inspect the lighthouse.",
+            commands=[{"type": "narrate", "payload": {}}],
+        )
+        events = coordinator.stream(run_id, payload)
+        assert (await anext(events))[0] == "turn_started"
+        assert await anext(events) == ("narrative_delta", {"text": "灯塔"})
+        await events.aclose()
+
+    asyncio.run(cancel())
+    assert client.get(f"/api/v2/runs/{run_id}").json()["state"]["revision"] == 0
+    assert client.get(f"/api/v2/runs/{run_id}").json()["turns"] == []
