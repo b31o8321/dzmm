@@ -25,6 +25,7 @@
 4. Android 仍为 gameplay-only client，Mac 为 host；vNext 使用版本化的独立 API，而不是兼容旧远程接口。
 5. 每阶段只能按 vNext 成熟度矩阵累积证据；旧项目的 88.1 成熟度和 Android CI 不能转移为 vNext 分数。
 6. 世界书（Lorebook / World Info）与角色卡（Character Card）采用生态通用概念和安全互通；它们是内容/上下文层，不能直接写 RunState。`WorldDefinition` 仅为内部契约术语。
+7. 世界书与角色卡不只是兼容导入格式，而是 vNext 的一级、可版本化内容资产。公开 API、UI 与存储 contract 固定采用 `lorebook` / `character_cards`；当前 `lore` 和“角色卡转建议主角”的实现仅为未完成的过渡状态，不能作为 Phase 2 完成证据。
 
 ### 当前证据与风险
 
@@ -46,6 +47,7 @@
 - **叙事规则集 Phase 0 / Mac 确定性切片（已实现，未过 gate）：** `2ba5d57` 将 contract 升为 2026-08-17 / schema v2，`WorldDefinition` 固化 ruleset、角色卡关系维度、章节/Flag/路线/ending definitions；唯一 `RunState` 保存关系 reason/once ledger、章节和锁定结局。`bb81a16` 增加雾港 native template、current-choice projection 和服务端 planned-choice endpoint；桌面页面仅发送 choice ID，不拼章节/结局 command。临时 DB 浏览器完成 create → 三次选择 → 好结局 → 回滚至第一回合后 → 刷新并恢复第二章选择；关系原因和 locked ending 均可见，控制台零错误。迁移 `0007_narrative_ruleset_contract` 仅更新 vNext contract metadata，不读取 legacy。平台矩阵取证在 `vnext/eval/evidence/phase5-narrative-vertical-slice.json`：**56.75 / 100，所有 P0 仍未达到 80，不可发布。** 该数值刻意不复用 v2 未覆盖的旧 TRPG 长局/Android 分数。
 - **真实模型补充证据（已实现，未过 gate）：** `fecce45` 将模型提示收紧为“只描述 Python 已确认结果”，并注入 ruleset/章节/路线/关系等只读上下文；单测确认模型没有状态裁判权限。台式机 Huihui 14B 在隔离数据库完成 v2 50 回合 SSE（最小 0.334s、中位 0.802s、最大 6.646s、一次非提交重试，recovery 正确），并完成雾港岚路线的三次选择与好结局（三段非空真实叙事）。原始取证为 `phase5-real-model-v2-50-turns.json` 与 `phase5-real-model-fog-harbor.json`。平台矩阵现为 **61.75 / 100，所有 P0 仍未达到 80，不可发布。** 仍缺 v2 500 消息重开、打包 Tauri、Android/LAN 与 release evidence。
 - **v2 重开性能补充证据（已实现，未过 gate）：** `5d0b6e3` 使 benchmark 使用 schema v2；隔离 DB 中 500 条持久化 Turn 重开为 0.005s / 165475 bytes，revision 与完整历史都正确。平台矩阵现为 **62.25 / 100，所有 P0 仍未达到 80，不可发布。** 长局维度仍缺目标设备流式预算，不能上调到 80。
+- **内容资产决策补充（未计分）：** 已明确世界书（Lorebook / World Info）与角色卡（Character Card）是 DZMM 的通用一级内容资产，而非私有的 `lore` 或“建议主角”概念。当前实现只完成世界书条目的受限导入/选择与将角色卡降级为主角建议，尚未完成 `lorebook` 公共 contract、角色卡持久化或导出 round-trip；内容互通与作者体验维度不能因此加分。
 
 ### 下一关
 

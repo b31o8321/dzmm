@@ -15,7 +15,7 @@ vNext 已采用 `World → WorldVersion → Run → RunState → Turn[]` 作为�
 1. 在既有、不可变的 `WorldVersion.definition` 中加入受限的 `ruleset`、章节、选择、关系事件、Flag 与 ending definitions；不创建 Story、Route、Relationship 等新的存档根或 API 生命周期。
 2. `Run` 创建时固定 `world_version_id` 与 `ruleset_id`。所有可变章节、路线、Flags、关系、资源、TRPG 状态和 ending 都写入唯一 revisioned `RunState`；所有改变都有一个审计 `Turn`。
 3. `TurnCommand` 只能由 Python 验证/生成并以白名单应用。LLM 只产生无写权限的 `NarrativeIntent`；玩家仅提交动作或当前可选 choice，不能提交任意 command payload。
-4. 使用用户和互通层通用术语：**世界书（Lorebook / World Info）**、**角色卡（Character Card）**。`WorldDefinition` 是内部 JSON contract 名称；世界书是上下文知识层，角色卡是内容输入，二者不直接写 RunState。
+4. 使用用户和互通层通用术语：**世界书（Lorebook / World Info）**、**角色卡（Character Card）**。它们是 DZMM 的一级、可版本化内容资产，而非一次性导入结果或 DZMM 私有概念的别名。`WorldDefinition` 是内部 JSON contract 名称；世界书是上下文知识层，角色卡是内容输入，二者不直接写 RunState。公开 contract、UI 和导入/导出报告采用 `lorebook` / `character_cards`；不冻结 `lore`、`人物模板` 等中间术语。
 5. `hybrid` 是显式 capability 组合，不是“所有 command 默认开放”。规则集只允许其 definition 声明的 command、状态字段和跨域桥接。
 
 ```text
@@ -74,7 +74,7 @@ World
 ## Consequences
 
 - 现有 vNext JSON schemas 将在 Phase 0 升级到 v2；在此之前不半实现新字段，避免运行态和文档假设不一致。
-- World Info 的未知字段继续 escrow；只映射确定性知识字段。角色卡/世界书导入、提升、导出是 WorldVersion authoring 行为，不是 Run 行为。
+- World Info 的未知字段继续 escrow；只映射确定性知识字段。角色卡/世界书导入、提升、编辑、导出是 WorldVersion authoring 行为，不是 Run 行为。导入角色卡必须持久保存卡及其原始 payload；仅将其降级为“建议主角”不算完成角色卡互通。
 - 结局由 Python 的有限条件树与稳定优先级确定；LLM 可接收并叙述“已锁定的 ending”，不能推断真实 ending。
 - 关系变化将从“任意 number delta”变为“已定义 relationship event 的固定 effect + reason + once/cooldown ledger”。这限制作者的随意脚本，但换来可解释和可重放。
 - Android contract 需增加可见 chapter/choice/relationship/ending projection，却不能获得 ruleset authoring、模型或生命周期权限。
@@ -86,3 +86,4 @@ World
 3. [ ] 实现雾港 deterministic fixture 和 Mac journey，再接 Huihui 14B 真实模型验证。
 4. [ ] 在 scorecard 中替换平台矩阵，标记旧 58.0 为不可横比的前序基线。
 5. [ ] 最后才迁入 TRPG capabilities 并实现 hybrid；不创建第二存档模型。
+6. [ ] 将公开 `lore` contract/API/UI 替换为 `lorebook`，实现角色卡持久化、V3 JSON/PNG metadata 导入与保真导出 round-trip。
