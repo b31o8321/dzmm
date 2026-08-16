@@ -98,3 +98,26 @@ model_profiles = Table(
     Column("model_name", String(200), nullable=False),
     Column("created_at", DateTime(), nullable=False),
 )
+
+mobile_devices = Table(
+    "mobile_devices",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("name", String(120), nullable=False),
+    Column("status", String(20), nullable=False),
+    Column("token_hash", String(64), nullable=True),
+    Column("capabilities", JSON(), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+    Column("updated_at", DateTime(), nullable=False),
+)
+
+pairing_requests = Table(
+    "pairing_requests",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("device_id", String(36), ForeignKey("mobile_devices.id", ondelete="CASCADE"), nullable=False),
+    Column("code_hash", String(64), nullable=False),
+    Column("status", String(20), nullable=False),
+    Column("expires_at", DateTime(), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+)

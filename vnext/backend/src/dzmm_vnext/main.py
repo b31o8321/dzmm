@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -27,6 +27,12 @@ from .lifecycle import (
     integrity_scan,
 )
 from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService, NarrationError
+from .pairing import (
+    PairingCompletionInput,
+    PairingError,
+    PairingRequestInput,
+    PairingService,
+)
 from .turns import (
     RevisionConflictError,
     RunNotFoundError,
@@ -60,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.model_prober = ModelProber()
         app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
         app.state.content = ContentService(app.state.sessions)
+        app.state.pairing = PairingService(app.state.sessions)
         try:
             yield
         finally:
@@ -78,6 +85,77 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "storage": "isolated",
             "foreign_keys": bool(foreign_keys),
         }
+
+    @app.get("/api/v2/host/capabilities")
+    async def host_capabilities() -> dict[str, object]:
+        return {
+            "api_version": API_VERSION,
+            "mobile": {"pairing": "pin_approval", "capabilities": ["gameplay"]},
+        }
+
+    @app.post("/api/v2/mobile/pairing-requests")
+    async def create_pairing_request(payload: PairingRequestInput) -> dict[str, object]:
+        return (await app.state.pairing.request(payload)).model_dump(mode="json")
+
+    @app.get("/api/v2/host/pairing-requests")
+    async def list_pairing_requests(request: Request) -> list[dict[str, object]]:
+        _require_loopback_host(request)
+        return [item.model_dump(mode="json") for item in await app.state.pairing.pending()]
+
+    @app.post("/api/v2/host/pairing-requests/{request_id}:approve")
+    async def approve_pairing_request(request_id: str, request: Request) -> dict[str, str]:
+        _require_loopback_host(request)
+        try:
+            await app.state.pairing.approve(request_id)
+        except PairingError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {"request_id": request_id, "status": "approved"}
+
+    @app.post("/api/v2/mobile/pairing-requests/{request_id}:complete")
+    async def complete_pairing_request(
+        request_id: str, payload: PairingCompletionInput
+    ) -> dict[str, object]:
+        try:
+            return (await app.state.pairing.complete(request_id, payload)).model_dump()
+        except PairingError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/api/v2/mobile/session")
+    async def mobile_session(authorization: str | None = Header(default=None)) -> dict[str, object]:
+        return (await _mobile_device(app, authorization)).model_dump()
+
+    @app.get("/api/v2/mobile/runs/{run_id}")
+    async def get_mobile_run(
+        run_id: str, authorization: str | None = Header(default=None)
+    ) -> dict[str, object]:
+        await _mobile_device(app, authorization)
+        snapshot = await app.state.world_composer.load_run(run_id)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return snapshot.model_dump(mode="json")
+
+    @app.post("/api/v2/mobile/runs/{run_id}/turns:stream")
+    async def stream_mobile_turn(
+        run_id: str, payload: TurnInput, authorization: str | None = Header(default=None)
+    ) -> StreamingResponse:
+        await _mobile_device(app, authorization)
+
+        async def events():
+            event_id = 1
+            async for event_type, event_payload in app.state.turn_coordinator.stream(run_id, payload):
+                yield _sse(event_id, event_type, event_payload)
+                event_id += 1
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
+    @app.post("/api/v2/host/mobile-devices/{device_id}:revoke")
+    async def revoke_mobile_device(device_id: str, request: Request) -> dict[str, str]:
+        _require_loopback_host(request)
+        try:
+            await app.state.pairing.revoke(device_id)
+        except PairingError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"device_id": device_id, "status": "revoked"}
 
     @app.post("/api/v2/worlds:compose")
     async def compose_world(payload: ComposeWorldInput) -> JSONResponse:
@@ -230,3 +308,26 @@ def _sse(event_id: int, event_type: str, payload: dict[str, Any]) -> str:
     import json
 
     return f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _require_loopback_host(request: Request) -> None:
+    client = request.client.host if request.client else ""
+    if client not in {"127.0.0.1", "::1", "testclient"}:
+        raise HTTPException(status_code=403, detail="host control requires a loopback connection")
+
+
+def _bearer_token(authorization: str | None) -> str:
+    prefix = "Bearer "
+    if authorization is None or not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="mobile bearer token is required")
+    return authorization.removeprefix(prefix)
+
+
+async def _mobile_device(app: FastAPI, authorization: str | None):
+    try:
+        device = await app.state.pairing.authenticate(_bearer_token(authorization))
+    except PairingError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    if "gameplay" not in device.capabilities:
+        raise HTTPException(status_code=403, detail="mobile device lacks gameplay capability")
+    return device

@@ -18,7 +18,7 @@ def test_sidecar_migrates_a_fresh_isolated_database(tmp_path, monkeypatch) -> No
         tables = connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='worlds'"
         ).fetchone()
-    assert version == ("0005_turn_rollbacks",)
+    assert version == ("0006_mobile_pairing",)
     assert tables == ("worlds",)
 
 

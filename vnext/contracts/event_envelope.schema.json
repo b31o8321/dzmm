@@ -6,7 +6,7 @@
   "required": ["id", "type", "run_id", "payload"],
   "properties": {
     "id": {"type": "integer", "minimum": 1},
-    "type": {"enum": ["turn_started", "narrative_delta", "command_applied", "turn_completed", "turn_error", "event_gap"]},
+    "type": {"enum": ["turn_started", "narrative_delta", "command_applied", "turn_completed", "turn_failed", "event_gap"]},
     "run_id": {"type": "string", "minLength": 1},
     "payload": {"type": "object"}
   },
