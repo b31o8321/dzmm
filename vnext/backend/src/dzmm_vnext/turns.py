@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
 from .model_profiles import ModelNarrator, ModelProfile
-from .persistence import model_profiles, runs, turns, world_versions
+from .persistence import model_profiles, runs, turns, world_versions, worlds
 
 
 class TurnInput(BaseModel):
@@ -87,14 +87,18 @@ class TurnCoordinator:
                     model_profiles.c.provider_type,
                     model_profiles.c.base_url,
                     model_profiles.c.model_name,
+                    worlds.c.status.label("world_status"),
                 )
                 .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .join(worlds, worlds.c.id == world_versions.c.world_id)
                 .outerjoin(model_profiles, model_profiles.c.id == runs.c.model_profile_id)
                 .where(runs.c.id == run_id)
             )
             run = result.mappings().one_or_none()
             if run is None:
                 raise RunNotFoundError("run not found")
+            if run["world_status"] != "active":
+                raise RevisionConflictError("archived world cannot receive new turns")
             if payload.expected_revision != run["state_revision"]:
                 raise RevisionConflictError(
                     f"expected revision {payload.expected_revision}, current revision is {run['state_revision']}"

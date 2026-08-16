@@ -12,6 +12,13 @@ from . import API_VERSION, APP_NAME
 from .config import Settings
 from .contracts import contract_manifest
 from .db import create_engine
+from .lifecycle import (
+    PurgeConfirmation,
+    PurgeConfirmationError,
+    WorldLifecycle,
+    WorldNotFoundError,
+    integrity_scan,
+)
 from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService, NarrationError
 from .turns import (
     RevisionConflictError,
@@ -43,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.turn_coordinator = TurnCoordinator(app.state.sessions)
         app.state.model_profiles = ModelProfileService(app.state.sessions)
         app.state.model_prober = ModelProber()
+        app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
         try:
             yield
         finally:
@@ -81,6 +89,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if snapshot is None:
             raise HTTPException(status_code=404, detail="run not found")
         return snapshot.model_dump(mode="json")
+
+    @app.post("/api/v2/worlds/{world_id}:archive")
+    async def archive_world(world_id: str) -> dict[str, str]:
+        try:
+            status = await app.state.world_lifecycle.archive(world_id)
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"world_id": world_id, "status": status}
+
+    @app.get("/api/v2/worlds/{world_id}/purge-manifest")
+    async def world_purge_manifest(world_id: str) -> dict[str, object]:
+        try:
+            return (await app.state.world_lifecycle.manifest(world_id)).model_dump(mode="json")
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/v2/worlds/{world_id}")
+    async def purge_world(world_id: str, payload: PurgeConfirmation) -> dict[str, object]:
+        try:
+            return (
+                await app.state.world_lifecycle.purge(world_id, payload.confirmation_token)
+            ).model_dump(mode="json")
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except PurgeConfirmationError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/api/v2/integrity")
+    async def get_integrity() -> dict[str, object]:
+        orphans = await integrity_scan(app.state.sessions)
+        return {"orphans": orphans, "clean": not any(orphans.values())}
 
     async def play_turn(run_id: str, payload: TurnInput) -> TurnResult:
         try:
