@@ -10,6 +10,7 @@ DZMM vNext 是一个本地优先的单人 AI TRPG：玩家在 Mac 建立可审�
 - **保留：** 本地优先、FastAPI/Python engine、SQLite、SSE、Tauri desktop host、Flutter Android gameplay client 的技术方向。
 - **重做：** 数据库、route、domain service、frontend route、mobile API contract、打包 identifier。
 - **不做：** 云同步、多人桌、群聊 bot、任意脚本/regex、iOS、公共网络直连。
+- **模型基准：** 本地 Qwen 7B 用于快速工程/断线/压力测试；台式机 `huihui-ai_qwen3-14b-abliterated` 是正式真实跑团和成熟度评分模型；22B 只用于定位 prompt 与模型能力差异，不是发布门槛。
 
 ## P0 product requirements
 
@@ -149,7 +150,4 @@ Each gate records command output, environment, artifact/commit, score delta and 
 
 ## First implementation decision
 
-开始代码前只需确认两项：
-
-1. vNext 的用户可见名称是否仍为 **DZMM**，还是先以 **DZMM Next / vNext Preview** 发布？建议 Preview，避免覆盖已安装应用。
-2. Phase 1 的真实模型基准是否固定为 `huihui-ai_qwen3-14b-abliterated`，并用本地 Qwen 7B 做快速工程测试？建议是。
+vNext 先以 **DZMM Next Preview** 的 application identifier、数据目录与安装产物发布，避免覆盖现有 DZMM；正式模型基准已固定为 `huihui-ai_qwen3-14b-abliterated`，本地 Qwen 7B 用于快速工程测试。
