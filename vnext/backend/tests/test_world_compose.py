@@ -10,9 +10,10 @@ def compose_payload(request_id: str) -> dict:
     return {
         "request_id": request_id,
         "world_definition": {
-            "schema_version": 1,
+            "schema_version": 2,
             "name": "Fog Harbor",
             "lore": [],
+            "character_cards": [],
             "locations": [
                 {"id": "harbor", "name": "Fog Harbor"},
                 {"id": "lighthouse", "name": "Old Lighthouse"},
@@ -20,7 +21,15 @@ def compose_payload(request_id: str) -> dict:
             "factions": [],
             "npcs": [],
             "events": [],
-            "ruleset": {"id": "core"},
+            "resources": [{"id": "lantern", "name": "Lantern"}],
+            "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
+            "story": {
+                "chapters": [],
+                "flags": [],
+                "relationship_events": [],
+                "routes": [],
+                "endings": [],
+            },
         },
         "hero": {"name": "Mira", "profile": {"origin": "sailor"}},
     }
@@ -40,17 +49,23 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
     assert first.status_code == 201
     created = first.json()
     assert created["state"] == {
-        "schema_version": 1,
+        "schema_version": 2,
         "revision": 0,
         "hero": {
             "id": created["hero_id"],
             "name": "Mira",
             "profile": {"origin": "sailor"},
         },
+        "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
         "location_id": "harbor",
         "inventory": [],
         "entities": {},
         "events": {},
+        "chapter": None,
+        "route": None,
+        "flags": {},
+        "relationships": {},
+        "ending": None,
     }
     assert table_counts(database) == {
         "worlds": 1,

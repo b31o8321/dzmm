@@ -15,7 +15,7 @@ from dzmm_vnext.main import create_app
 
 def test_contract_manifest_contains_every_vnext_contract() -> None:
     manifest = contract_manifest()
-    assert manifest["version"] == "2026-08-16"
+    assert manifest["version"] == "2026-08-17"
     assert manifest["contracts"] == [
         "event_envelope.schema.json",
         "run_state.schema.json",
@@ -47,19 +47,22 @@ def test_health_uses_isolated_fresh_data_directory(tmp_path) -> None:
 
 def test_contract_validators_reject_incomplete_payloads() -> None:
     world = {
-        "schema_version": 1,
+        "schema_version": 2,
         "name": "Fog Harbor",
         "lore": [],
+        "character_cards": [],
         "locations": [],
         "factions": [],
         "npcs": [],
         "events": [],
-        "ruleset": {"id": "core"},
+        "resources": [],
+        "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
+        "story": {"chapters": [], "flags": [], "relationship_events": [], "routes": [], "endings": []},
     }
     contract_validator("world_definition.schema.json").validate(world)
 
     with pytest.raises(ValidationError):
-        contract_validator("run_state.schema.json").validate({"schema_version": 1})
+        contract_validator("run_state.schema.json").validate({"schema_version": 2})
 
 
 def test_fresh_database_migration_records_vnext_baseline(tmp_path, monkeypatch) -> None:
@@ -74,5 +77,5 @@ def test_fresh_database_migration_records_vnext_baseline(tmp_path, monkeypatch) 
     assert rows == [
         ("api_version", "2"),
         ("app", "dzmm-next"),
-        ("contract_version", "2026-08-16"),
+        ("contract_version", "2026-08-17"),
     ]

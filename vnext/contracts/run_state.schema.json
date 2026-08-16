@@ -1,17 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dzmm.local/contracts/run-state/2026-08-16",
+  "$id": "https://dzmm.local/contracts/run-state/2026-08-17",
   "title": "RunState",
   "type": "object",
-  "required": ["schema_version", "revision", "hero", "location_id", "inventory", "entities", "events"],
+  "required": ["schema_version", "revision", "hero", "ruleset", "location_id", "inventory", "entities", "events", "chapter", "route", "flags", "relationships", "ending"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "revision": {"type": "integer", "minimum": 0},
     "hero": {"type": "object"},
+    "ruleset": {"type": "object", "required": ["id", "enabled_capabilities"], "properties": {"id": {"enum": ["trpg", "story_adventure", "relationship_drama", "hybrid"]}, "enabled_capabilities": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
     "location_id": {"type": "string"},
-    "inventory": {"type": "array", "items": {"type": "object"}},
-    "entities": {"type": "object"},
-    "events": {"type": "object"}
-  },
-  "additionalProperties": false
+    "inventory": {"type": "array", "items": {"type": "object", "required": ["id", "quantity"], "properties": {"id": {"type": "string"}, "quantity": {"type": "integer", "minimum": 1}}, "additionalProperties": false}},
+    "entities": {"type": "object"}, "events": {"type": "object"},
+    "chapter": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["id", "status", "resolved_choice_ids"], "properties": {"id": {"type": "string"}, "status": {"enum": ["active", "completed"]}, "resolved_choice_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}}, "additionalProperties": false}]},
+    "route": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["id", "status"], "properties": {"id": {"type": "string"}, "status": {"const": "locked"}}, "additionalProperties": false}]},
+    "flags": {"type": "object", "additionalProperties": {"type": "boolean"}},
+    "relationships": {"type": "object", "additionalProperties": {"type": "object", "required": ["dimensions", "applied_events"], "properties": {"dimensions": {"type": "object", "additionalProperties": {"type": "integer", "minimum": -100, "maximum": 100}}, "applied_events": {"type": "object", "additionalProperties": {"type": "object", "required": ["turn_revision", "reason_key", "chapter_id", "cooldown_until_revision"], "properties": {"turn_revision": {"type": "integer", "minimum": 0}, "reason_key": {"type": "string"}, "chapter_id": {"anyOf": [{"type": "string"}, {"type": "null"}]}, "cooldown_until_revision": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]}}, "additionalProperties": false}}}, "additionalProperties": false}},
+    "ending": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["id", "kind", "narrative_key"], "properties": {"id": {"type": "string"}, "kind": {"enum": ["good", "normal", "bad", "hidden"]}, "narrative_key": {"type": "string"}}, "additionalProperties": false}]}
+  }, "additionalProperties": false
 }

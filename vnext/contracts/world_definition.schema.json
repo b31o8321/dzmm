@@ -1,22 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dzmm.local/contracts/world-definition/2026-08-16",
+  "$id": "https://dzmm.local/contracts/world-definition/2026-08-17",
   "title": "WorldDefinition",
   "type": "object",
-  "required": ["schema_version", "name", "lore", "locations", "factions", "npcs", "events", "ruleset"],
+  "required": ["schema_version", "name", "lore", "character_cards", "locations", "factions", "npcs", "events", "resources", "ruleset", "story"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "name": {"type": "string", "minLength": 1, "maxLength": 120},
     "lore": {"type": "array", "items": {"$ref": "#/$defs/loreEntry"}},
+    "character_cards": {"type": "array", "items": {"$ref": "#/$defs/characterCard"}},
     "locations": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
     "factions": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
     "npcs": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
     "events": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
-    "ruleset": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string", "minLength": 1}}, "additionalProperties": false}
+    "resources": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "ruleset": {"$ref": "#/$defs/ruleset"},
+    "story": {"$ref": "#/$defs/story"}
   },
   "additionalProperties": false,
   "$defs": {
-    "entity": {"type": "object", "required": ["id", "name"], "properties": {"id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}, "name": {"type": "string", "minLength": 1}}, "additionalProperties": true},
-    "loreEntry": {"type": "object", "required": ["id", "title", "body", "activation", "priority"], "properties": {"id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}, "title": {"type": "string", "minLength": 1}, "body": {"type": "string"}, "activation": {"enum": ["always", "keyword"]}, "keywords": {"type": "array", "items": {"type": "string"}}, "priority": {"type": "integer", "minimum": 0, "maximum": 100}, "source": {"type": "object"}}, "additionalProperties": false}
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+    "entity": {"type": "object", "required": ["id", "name"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}}, "additionalProperties": true},
+    "loreEntry": {"type": "object", "required": ["id", "title", "body", "activation", "priority"], "properties": {"id": {"$ref": "#/$defs/id"}, "title": {"type": "string", "minLength": 1}, "body": {"type": "string"}, "activation": {"enum": ["always", "keyword"]}, "keywords": {"type": "array", "items": {"type": "string"}}, "priority": {"type": "integer", "minimum": 0, "maximum": 100}, "source": {"type": "object"}}, "additionalProperties": false},
+    "characterCard": {"type": "object", "required": ["id", "name", "format", "relationship_dimensions"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}, "format": {"enum": ["native", "sillytavern_v3"]}, "relationship_dimensions": {"type": "object", "propertyNames": {"pattern": "^[a-z][a-z0-9_-]{0,31}$"}, "additionalProperties": {"type": "integer", "minimum": -100, "maximum": 100}}, "source_payload": {"type": "object"}}, "additionalProperties": false},
+    "ruleset": {"type": "object", "required": ["id", "enabled_capabilities"], "properties": {"id": {"enum": ["trpg", "story_adventure", "relationship_drama", "hybrid"]}, "enabled_capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["trpg", "chapters", "choices", "relationships", "routes", "endings", "resources"]}}}, "additionalProperties": false},
+    "chapter": {"type": "object", "required": ["id", "title", "order", "choices", "next_chapter_id"], "properties": {"id": {"$ref": "#/$defs/id"}, "title": {"type": "string", "minLength": 1}, "order": {"type": "integer", "minimum": 1}, "choices": {"type": "array", "items": {"$ref": "#/$defs/storyChoice"}}, "next_chapter_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}}, "additionalProperties": false},
+    "storyChoice": {"type": "object", "required": ["id", "label", "effects"], "properties": {"id": {"$ref": "#/$defs/id"}, "label": {"type": "string", "minLength": 1}, "effects": {"type": "array", "items": {"$ref": "#/$defs/storyEffect"}}}, "additionalProperties": false},
+    "storyEffect": {"type": "object", "required": ["type"], "properties": {"type": {"enum": ["set_story_flag", "apply_relationship_event", "grant_resource", "set_route"]}, "flag_id": {"$ref": "#/$defs/id"}, "value": {"type": "boolean"}, "relationship_event_id": {"$ref": "#/$defs/id"}, "resource_id": {"$ref": "#/$defs/id"}, "quantity": {"type": "integer", "minimum": 1, "maximum": 99}, "route_id": {"$ref": "#/$defs/id"}}, "additionalProperties": false},
+    "storyFlag": {"type": "object", "required": ["id", "default", "writers"], "properties": {"id": {"$ref": "#/$defs/id"}, "default": {"type": "boolean"}, "writers": {"type": "array", "items": {"type": "string", "pattern": "^choice:[a-z][a-z0-9_-]{0,63}$"}}}, "additionalProperties": false},
+    "relationshipEvent": {"type": "object", "required": ["id", "character_card_id", "deltas", "reason_key", "once_scope", "cooldown_turns"], "properties": {"id": {"$ref": "#/$defs/id"}, "character_card_id": {"$ref": "#/$defs/id"}, "deltas": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": -100, "maximum": 100}}, "reason_key": {"type": "string", "minLength": 1}, "once_scope": {"enum": ["run", "chapter", "none"]}, "cooldown_turns": {"type": "integer", "minimum": 0, "maximum": 1000}}, "additionalProperties": false},
+    "route": {"type": "object", "required": ["id", "name"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+    "ending": {"type": "object", "required": ["id", "kind", "priority", "when", "narrative_key"], "properties": {"id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["good", "normal", "bad", "hidden"]}, "priority": {"type": "integer", "minimum": 0, "maximum": 1000}, "when": {"type": "object"}, "narrative_key": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+    "story": {"type": "object", "required": ["chapters", "flags", "relationship_events", "routes", "endings"], "properties": {"chapters": {"type": "array", "items": {"$ref": "#/$defs/chapter"}}, "flags": {"type": "array", "items": {"$ref": "#/$defs/storyFlag"}}, "relationship_events": {"type": "array", "items": {"$ref": "#/$defs/relationshipEvent"}}, "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "endings": {"type": "array", "items": {"$ref": "#/$defs/ending"}}}, "additionalProperties": false}
   }
 }

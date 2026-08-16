@@ -2,7 +2,12 @@
 
 ## Product thesis
 
-DZMM vNext 是一个本地优先的单人 AI TRPG：玩家在 Mac 建立可审阅的世界与角色，在桌面或 Android 继续同一局；Python 是规则和状态的唯一裁判，模型只负责叙事与意图。它消费酒馆生态的内容，但不成为酒馆式通用 prompt 工作台。
+DZMM vNext 是一个本地优先、状态驱动的互动叙事平台：玩家在 Mac 建立可审阅的世界与角色，在桌面或 Android 继续同一局；Python 是规则和状态的唯一裁判，模型只负责叙事与受限意图。TRPG 是重要规则集，但不是唯一玩法；它消费酒馆生态的世界书与角色卡内容，但不成为酒馆式通用 prompt 工作台。
+
+> 叙事规则集、章节/关系/结局 contract、雾港首个垂直切片与更新后的成熟度矩阵，以
+> [2026-08-17 Narrative Rulesets 规格](2026-08-17-narrative-rulesets-interactive-story-platform.md)
+> 和 ADR-003 为准。本文件记录 clean-slate 基线及已完成阶段；不要把其旧 TRPG-only
+> 表述解释为限制新的平台定位。
 
 ## Scope and constraints
 

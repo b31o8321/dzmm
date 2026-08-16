@@ -2,7 +2,7 @@
 
 ## DZMM vNext 干净重做
 
-- **状态：** Active — Phase 0–3 的已实现范围已有中间证据；当前进入打包桌面壳、模型流失败恢复与长局验收，随后才进入 Android/LAN RC
+- **状态：** Active — Phase 0–3 的已实现范围已有中间证据；当前进入打包桌面壳、模型流失败恢复与长局验收。叙事规则集已进入产品/架构评审，批准后以“剧情冒险 + 关系 + 多结局”垂直切片推进，再进入 Android/LAN RC。
 - **日期：** 2026-08-16
 - **工作树 / 分支：** `.worktrees/dzmm-vnext` / `feature/dzmm-vnext`
 - **基线：** `main` at `df38037` (`v0.16.0`)
@@ -13,15 +13,18 @@
 - [产品与领域现状评审](reviews/2026-08-16-dzmm-product-domain-review.md)（历史与设计参考）
 - [ADR-002：vNext 干净重做](adr/ADR-002-vnext-clean-slate-rebuild.md)
 - [vNext 规格、评分矩阵与分阶段实施计划](superpowers/specs/2026-08-16-dzmm-vnext-clean-rebuild.md)
+- [叙事规则集：互动叙事平台规格、雾港示例、矩阵与 Plan](superpowers/specs/2026-08-17-narrative-rulesets-interactive-story-platform.md)
+- [ADR-003：在版本化世界聚合上扩展叙事规则集](adr/ADR-003-narrative-rulesets-on-versioned-world-aggregate.md)
 - [世界中心交互原型](prototypes/2026-08-16-world-center-prototype.html)
 
 ### 已确认决策
 
-1. DZMM 保持「本地优先、单人 AI TRPG、Python 决定规则与状态」定位，不复刻酒馆的完整提示词/脚本工作台。
+1. DZMM vNext 定位为「本地优先、状态驱动的互动叙事平台」；TRPG、剧情冒险、关系叙事和受限 hybrid 共享一个版本化聚合，Python 决定规则与状态，不复刻酒馆的完整提示词/脚本工作台。
 2. vNext 不迁移真实用户数据，不兼容旧 API、旧 schema 或旧页面；`main` 只作为产品行为和测试设计的参考。
 3. 世界是一个版本化 aggregate；WorldBook 是受限叙事知识层，不能直接写入运行态。
 4. Android 仍为 gameplay-only client，Mac 为 host；vNext 使用版本化的独立 API，而不是兼容旧远程接口。
 5. 每阶段只能按 vNext 成熟度矩阵累积证据；旧项目的 88.1 成熟度和 Android CI 不能转移为 vNext 分数。
+6. 世界书（Lorebook / World Info）与角色卡（Character Card）采用生态通用概念和安全互通；它们是内容/上下文层，不能直接写 RunState。`WorldDefinition` 仅为内部契约术语。
 
 ### 当前证据与风险
 
@@ -39,7 +42,9 @@
 - **50 回合与重开中间证据（已评分，未过 gate）：** `8409b01` 记录 50 回合 Huihui 14B 流式实跑（中位 0.553 秒，最大 3.045 秒、零重试）和 500 条持久化回合的确定性 API 重开（0.004 秒、165 KB）。这证明本地恢复，不替代目标设备的流式预算。
 - **Mobile control-plane 基础（未计分）：** `4ccd8c9` 增加 API v2 独立配对请求、loopback host 批准、一次性 token 交付、token 哈希校验与撤销；mobile bearer 只能读 Run 和提交 gameplay SSE，不能触及世界/模型管理。28 项后端测试覆盖批准、使用、撤销和流式回合。尚无 Flutter 客户端、LAN 发现或实体设备证据，因此 Mobile 仍为 0。
 - **当前 vNext 矩阵：58.0 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase4-performance-interim.json`：Domain 60、Game Loop 75、Content 60、Model 65、Desktop 60、Mobile 0、Long-play 75、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、目标设备性能和发布证据；不以局部真实模型成功推断这些维度完成。
+- **叙事规则集评审（未计分）：** `ADR-003` 与 2026-08-17 规格提出在相同 WorldVersion/Run/RunState/Turn aggregate 内加入 `trpg`、`story_adventure`、`relationship_drama`、`hybrid`。现有 **58.0/100** 是前序 TRPG 矩阵的实现基线，不因文档增加分数，也不能与新的平台矩阵横向比较；Phase 0 contract freeze 后，scorecard 必须按新矩阵重新取证。
+- **叙事规则集 Phase 0 / 确定性切片（已实现，未过 gate）：** `ceb6006` 将 contract 升为 2026-08-17 / schema v2，`WorldDefinition` 固化 ruleset、角色卡关系维度、章节/Flag/路线/ending definitions；唯一 `RunState` 保存关系 reason/once ledger、章节和锁定结局。雾港 fixture 在临时 DB 覆盖 3 章、两路线、好/坏 ending、直接 Flag 注入拒绝、once-event 原子拒绝、ending read-only 与审计回滚。迁移 `0007_narrative_ruleset_contract` 仅更新 vNext contract metadata，不读取 legacy。平台矩阵取证在 `vnext/eval/evidence/phase5-narrative-vertical-slice.json`：**54.75 / 100，所有 P0 仍未达到 80，不可发布。** 该数值刻意不复用 v2 未覆盖的旧 TRPG 长局/Android 分数。
 
 ### 下一关
 
-补齐打包桌面的 create/play/archive/recovery 与无障碍验收；执行 50 回合/500 消息性能验收，随后推进 Android/LAN RC。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。
+为雾港完成 Mac 创建向导、choice/关系审计/结局页与刷新恢复，再以 Huihui 14B 跑真实剧情长局；随后迁入 TRPG capability 并验证 hybrid，最后推进 Android/LAN RC。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。

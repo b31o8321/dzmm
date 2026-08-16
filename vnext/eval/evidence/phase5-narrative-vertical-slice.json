@@ -1,0 +1,27 @@
+{
+  "matrix_version": "narrative-platform-v2",
+  "commit": "ceb6006",
+  "environment": "Python 3.13.3; fresh temporary SQLite database; FastAPI TestClient; Vue production build; deterministic narrator",
+  "evidence": {
+    "domain_lifecycle": "WorldVersion persists an immutable v2 WorldDefinition including ruleset. Existing compose/archive/purge/rollback integration coverage remains green; no packaged lifecycle journey for a narrative world.",
+    "state_command_safety": "32 backend tests cover schema-gated commands, fixed ruleset capabilities, revision conflicts, direct Flag command rejection, once-per-run relationship rejection, ending read-only lock, and audit rollback. Client-to-command planning remains a later API/UI gate.",
+    "narrative_integrity": "The deterministic Fog Harbor vertical slice covers three chapters, two character routes, relationship reason ledger, resource/Flag effects, good and bad endings, stable ending priority, refresh and rollback. No real-model narrative journey or UI choice flow yet.",
+    "content_authoring": "Existing SillyTavern V3/World Info import, preservation, selection and explicit Lore promotion remain covered. Character-card authoring/import into relationship definitions and export round-trip are not implemented.",
+    "model_stream": "Existing provider probes and malformed/empty/cancelled stream coverage remains green. No v2 narrative ruleset run against the Huihui 14B baseline yet.",
+    "desktop_ux": "Vue production build uses the v2 TRPG compose contract. The narrative-ruleset wizard, choice panel, relationship audit and ending page are not implemented.",
+    "mobile_recovery": "Pairing control plane exists, but Android has no v2 narrative gameplay and no physical device/LAN evidence.",
+    "long_play_performance": "Earlier TRPG 50-turn and 500-message results do not prove v2 narrative state performance; no v2 long-play measurement.",
+    "engineering_release": "Fresh migration reaches 0007_narrative_ruleset_contract; ruff and 32 backend tests plus desktop build pass. No signed artifact or release checklist."
+  },
+  "scores": {
+    "domain_lifecycle": 65,
+    "state_command_safety": 70,
+    "narrative_integrity": 65,
+    "content_authoring": 60,
+    "model_stream": 65,
+    "desktop_ux": 60,
+    "mobile_recovery": 0,
+    "long_play_performance": 0,
+    "engineering_release": 55
+  }
+}

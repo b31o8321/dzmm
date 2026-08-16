@@ -15,6 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from .contracts import contract_validator
 from .lore import select_lore
 from .model_profiles import ModelNarrator, ModelProfile, NarrationError, _clean_narrative
+from .narrative import (
+    NarrativeRuleError,
+    advance_chapter,
+    choose_story_choice,
+    evaluate_endings,
+)
 from .persistence import model_profiles, runs, turns, world_versions, worlds
 
 
@@ -529,30 +535,37 @@ def _apply_commands(
         for entity in definition[group]
     }
     known_events = {event["id"] for event in definition["events"]}
+    known_resources = {resource["id"] for resource in definition["resources"]}
     outcomes: list[dict[str, Any]] = []
     for command in commands:
         _validate_command(command)
         command_type = command["type"]
+        if state["ending"] is not None:
+            raise RevisionConflictError("ending is locked; this run is read-only")
         payload = command.get("payload", {})
         if command_type == "narrate":
             outcomes.append({"type": "narrate", "accepted": True})
         elif command_type == "offer_choices":
+            _require_turn_capability(state, "choices")
             choices = payload.get("choices")
             if not isinstance(choices, list) or not all(isinstance(choice, str) for choice in choices):
                 raise RevisionConflictError("offer_choices requires a list of string choices")
             outcomes.append({"type": "offer_choices", "choices": choices})
         elif command_type == "roll_dice":
+            _require_turn_capability(state, "trpg")
             sides = payload.get("sides")
             if not isinstance(sides, int) or not 2 <= sides <= 100:
                 raise RevisionConflictError("roll_dice requires sides from 2 to 100")
             outcomes.append({"type": "roll_dice", "sides": sides, "result": randbelow(sides) + 1})
         elif command_type == "move":
+            _require_turn_capability(state, "trpg")
             location_id = payload.get("location_id")
             if location_id not in known_locations:
                 raise RevisionConflictError("move references an unknown location")
             state["location_id"] = location_id
             outcomes.append({"type": "move", "location_id": location_id})
         elif command_type == "set_entity_state":
+            _require_turn_capability(state, "trpg")
             entity_id = payload.get("entity_id")
             if entity_id not in known_entities:
                 raise RevisionConflictError("set_entity_state references an unknown entity")
@@ -560,6 +573,7 @@ def _apply_commands(
             state["entities"][entity_id] = value
             outcomes.append({"type": "set_entity_state", "entity_id": entity_id})
         elif command_type == "set_event_state":
+            _require_turn_capability(state, "trpg")
             event_id = payload.get("event_id")
             if event_id not in known_events:
                 raise RevisionConflictError("set_event_state references an unknown event")
@@ -567,11 +581,33 @@ def _apply_commands(
             state["events"][event_id] = value
             outcomes.append({"type": "set_event_state", "event_id": event_id})
         elif command_type == "inventory_change":
+            _require_turn_capability(state, "trpg")
             item_id, delta = payload.get("item_id"), payload.get("delta")
             if not isinstance(item_id, str) or not item_id or not isinstance(delta, int) or delta == 0:
                 raise RevisionConflictError("inventory_change requires item_id and non-zero integer delta")
+            if item_id not in known_resources:
+                raise RevisionConflictError("inventory_change references an unknown resource")
             _change_inventory(state["inventory"], item_id, delta)
             outcomes.append({"type": "inventory_change", "item_id": item_id, "delta": delta})
+        elif command_type == "choose_story_choice":
+            try:
+                outcomes.extend(choose_story_choice(state, definition, payload.get("choice_id")))
+            except NarrativeRuleError as error:
+                raise RevisionConflictError(str(error)) from error
+        elif command_type == "advance_chapter":
+            if payload:
+                raise RevisionConflictError("advance_chapter does not accept a payload")
+            try:
+                outcomes.append(advance_chapter(state, definition))
+            except NarrativeRuleError as error:
+                raise RevisionConflictError(str(error)) from error
+        elif command_type == "evaluate_endings":
+            if payload:
+                raise RevisionConflictError("evaluate_endings does not accept a payload")
+            try:
+                outcomes.append(evaluate_endings(state, definition))
+            except NarrativeRuleError as error:
+                raise RevisionConflictError(str(error)) from error
     return outcomes
 
 
@@ -593,6 +629,11 @@ def _change_inventory(inventory: list[dict[str, Any]], item_id: str, delta: int)
         current["quantity"] = quantity
     elif current is not None:
         inventory.remove(current)
+
+
+def _require_turn_capability(state: dict[str, Any], capability: str) -> None:
+    if capability not in state["ruleset"]["enabled_capabilities"]:
+        raise RevisionConflictError(f"ruleset does not enable {capability}")
 
 
 def _deterministic_narrative(state: dict[str, Any], player_input: str) -> str:

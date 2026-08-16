@@ -48,9 +48,10 @@ async function createWorld() {
     composed.value = await composeWorld({
       request_id: requestId('compose'),
       world_definition: {
-        schema_version: 1,
+        schema_version: 2,
         name: worldName.value,
         lore: importedContent.value?.lore ?? [],
+        character_cards: [],
         locations: [
           { id: 'harbor', name: harborName.value },
           { id: 'lighthouse', name: lighthouseName.value },
@@ -58,7 +59,15 @@ async function createWorld() {
         factions: [],
         npcs: [],
         events: [],
-        ruleset: { id: 'core' },
+        resources: [],
+        ruleset: { id: 'trpg', enabled_capabilities: ['trpg', 'resources'] },
+        story: {
+          chapters: [],
+          flags: [],
+          relationship_events: [],
+          routes: [],
+          endings: [],
+        },
       },
       hero: { name: heroName.value, profile: {} },
     })

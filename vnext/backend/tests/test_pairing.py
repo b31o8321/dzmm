@@ -56,9 +56,10 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
         json={
             "request_id": "mobile-playable-run",
             "world_definition": {
-                "schema_version": 1,
+                "schema_version": 2,
                 "name": "Mobile Run",
                 "lore": [],
+                "character_cards": [],
                 "locations": [
                     {"id": "harbor", "name": "Fog Harbor"},
                     {"id": "lighthouse", "name": "Old Lighthouse"},
@@ -66,7 +67,9 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
                 "factions": [],
                 "npcs": [],
                 "events": [],
-                "ruleset": {"id": "core"},
+                "resources": [],
+                "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
+                "story": {"chapters": [], "flags": [], "relationship_events": [], "routes": [], "endings": []},
             },
             "hero": {"name": "Mira", "profile": {}},
         },

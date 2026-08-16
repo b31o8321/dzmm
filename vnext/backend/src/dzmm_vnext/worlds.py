@@ -12,6 +12,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
+from .narrative import NarrativeRuleError, initial_state, validate_definition
 from .persistence import (
     compose_requests,
     heroes,
@@ -160,6 +161,10 @@ class WorldComposer:
             contract_validator("world_definition.schema.json").validate(definition)
         except ValidationError as error:
             raise DomainValidationError(f"invalid WorldDefinition: {error.message}") from error
+        try:
+            validate_definition(definition)
+        except NarrativeRuleError as error:
+            raise DomainValidationError(f"invalid narrative ruleset: {error}") from error
         if len(definition["locations"]) < 2:
             raise DomainValidationError("a playable vNext world needs at least two locations")
 
@@ -220,15 +225,10 @@ class WorldComposer:
 def _initial_state(
     definition: dict[str, Any], hero_id: str, hero: HeroInput
 ) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "revision": 0,
-        "hero": {"id": hero_id, "name": hero.name, "profile": hero.profile},
-        "location_id": definition["locations"][0]["id"],
-        "inventory": [],
-        "entities": {},
-        "events": {},
-    }
+    return initial_state(
+        definition,
+        {"id": hero_id, "name": hero.name, "profile": hero.profile},
+    )
 
 
 def _fingerprint(payload: ComposeWorldInput) -> str:
