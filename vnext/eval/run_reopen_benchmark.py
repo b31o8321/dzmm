@@ -35,9 +35,10 @@ def main() -> None:
                 json={
                     "request_id": "reopen-compose",
                     "world_definition": {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "name": "Reopen Benchmark",
                         "lore": [],
+                        "character_cards": [],
                         "locations": [
                             {"id": "harbor", "name": "Fog Harbor"},
                             {"id": "lighthouse", "name": "Old Lighthouse"},
@@ -45,7 +46,15 @@ def main() -> None:
                         "factions": [],
                         "npcs": [],
                         "events": [],
-                        "ruleset": {"id": "core"},
+                        "resources": [],
+                        "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
+                        "story": {
+                            "chapters": [],
+                            "flags": [],
+                            "relationship_events": [],
+                            "routes": [],
+                            "endings": [],
+                        },
                     },
                     "hero": {"name": "Mira", "profile": {}},
                 },
