@@ -30,8 +30,9 @@
 - Android remote acceptance 78.1 证明已有功能方向，但 vNext 仍必须重新完成 Mac + Android + LAN 物理验收。
 - **Phase 0 已验证：** 实现提交为 `401c7be`。Python 3.13.3 的独立 venv 中，`pytest -q` 为 `4 passed`、`ruff check src tests` 通过；临时 `DZMM_NEXT_DATA_DIR` 执行 `alembic upgrade head` 后，`schema_meta` 有 app/api/contract 三条基线记录、`alembic_version=0001_phase0`；`/health` 返回 `api_version=2`、四份契约、`storage=isolated` 与 `foreign_keys=true`。评分器读取 `vnext/eval/evidence/phase0.json` 得 **0.0/100**、所有 P0 未达标、不可发布——这是尚未实现功能的正确零基线，不得据此加分。
 - **Phase 1 中间证据（已评分，未过 gate）：** `9bf5f4f` 在临时 SQLite 上验证了 World/WorldVersion/Hero/Run 的单事务 compose、重试、冲突与 20 次数据库写失败零残留；还覆盖三回合、SSE 事件与刷新恢复。`d413a87` 将模型 profile 固化为完整协议并验证 LM Studio 的 HTTP 200 error body 必须失败。`ca82df6` 把 Run 绑定到 profile，并以台式机 LM Studio 的 `huihui-ai_qwen3-14b-abliterated` 完成四回合实跑：Python 最终状态为地点/库存/revision 的唯一来源，Qwen RP 包装与 JSON 回显会被净化。桌面 vNext 的 `npm run build` 已通过，浏览器实测 Create → Confirm → Turn → Refresh 恢复成功。
-- **当前 vNext 矩阵：37.5 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase1-interim.json`：Domain 45、Game Loop 50、Content 35、Model 55、Desktop 50、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 archive/purge、Lore/ST、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
+- **Phase 2 lifecycle 证据（已评分，未过 gate）：** `cde8ef3` 实现了 archive、确认 token 保护的 purge manifest、聚合删除与零 SQL 孤儿扫描；测试还确认 archived World 不能再收回合。当前没有资产或派生索引模块，manifest 因此明确报告空集合，不把不存在的清理能力计为完成。
+- **当前 vNext 矩阵：39.75 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase2-lifecycle-interim.json`：Domain 60、Game Loop 50、Content 35、Model 55、Desktop 50、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 Lore/ST、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
 
 ### 下一关
 
-Phase 1 剩余：补齐模型取消/空流错误路径和 Tauri 打包桌面壳的验收；随后转入 Phase 2 的 archive/purge manifest、零孤儿扫描、rollback 与 30 回合真实模型跑团。不得从 legacy 目录复制领域模型或 API。
+补齐模型取消/空流错误路径和 Tauri 打包桌面壳的验收；在 Phase 2 增加 rollback、资产/索引清理边界和 30 回合真实模型跑团。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。
