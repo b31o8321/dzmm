@@ -32,7 +32,8 @@
 - **Phase 1 中间证据（已评分，未过 gate）：** `9bf5f4f` 在临时 SQLite 上验证了 World/WorldVersion/Hero/Run 的单事务 compose、重试、冲突与 20 次数据库写失败零残留；还覆盖三回合、SSE 事件与刷新恢复。`d413a87` 将模型 profile 固化为完整协议并验证 LM Studio 的 HTTP 200 error body 必须失败。`ca82df6` 把 Run 绑定到 profile，并以台式机 LM Studio 的 `huihui-ai_qwen3-14b-abliterated` 完成四回合实跑：Python 最终状态为地点/库存/revision 的唯一来源，Qwen RP 包装与 JSON 回显会被净化。桌面 vNext 的 `npm run build` 已通过，浏览器实测 Create → Confirm → Turn → Refresh 恢复成功。
 - **Phase 2 lifecycle 证据（已评分，未过 gate）：** `cde8ef3` 实现了 archive、确认 token 保护的 purge manifest、聚合删除与零 SQL 孤儿扫描；测试还确认 archived World 不能再收回合。当前没有资产或派生索引模块，manifest 因此明确报告空集合，不把不存在的清理能力计为完成。
 - **Phase 2 rollback 证据（已评分，未过 gate）：** `abf1f60` 将回滚实现为新的审计 Turn，`edf4ac1` 将它接入桌面。浏览器在临时 DB 中验证两回合 → 恢复第一回合后 → 刷新：历史仍有三条记录，RunState 为新 revision 的第一回合快照。此测试使用 deterministic narrator；真实 Huihui 模型只为此前四回合证据背书，不能替代长局。
-- **当前 vNext 矩阵：43.75 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase2-rollback-interim.json`：Domain 60、Game Loop 65、Content 35、Model 55、Desktop 60、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 Lore/ST、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
+- **Phase 3 content 证据（已评分，未过 gate）：** `53250f8` 支持 SillyTavern V3 card 与 World Info 解析、原始条目保留、关键词/常驻/优先级/预算选择，并让 Lore 提升产生 WorldVersion 2、既有 Run 留在版本 1。模型仅接收选择出的 Lore body，不能把 Lore 直接写入 RunState。
+- **当前 vNext 矩阵：46.75 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase3-content-interim.json`：Domain 60、Game Loop 65、Content 55、Model 55、Desktop 60、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
 
 ### 下一关
 
