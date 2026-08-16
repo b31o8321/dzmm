@@ -143,6 +143,48 @@ def test_narrator_only_accepts_protocol_valid_content() -> None:
     assert narrative == "灯塔亮起。"
 
 
+def test_narrator_describes_validated_narrative_state_without_granting_state_authority() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "岚接过证词。"}}]})
+
+    profile = ModelProfile(
+        id="profile-narrative",
+        name="LM Studio",
+        provider_type=ProviderType.LM_STUDIO,
+        base_url="http://desktop.local:1234/v1",
+        model_name="huihui-ai_qwen3-14b-abliterated",
+    )
+    narrative = asyncio.run(
+        ModelNarrator(httpx.MockTransport(handler)).narrate(
+            profile,
+            {"name": "雾港"},
+            {
+                "hero": {"name": "米拉"},
+                "location_id": "harbor",
+                "ruleset": {"id": "hybrid"},
+                "chapter": {"id": "ch2", "status": "active", "resolved_choice_ids": []},
+                "route": {"id": "lan-route", "status": "locked"},
+                "relationships": {"lan": {"dimensions": {"trust": 40}}},
+                "ending": None,
+            },
+            "把证词交给岚",
+            [{"type": "lock_route", "route_id": "lan-route"}],
+            [],
+        )
+    )
+
+    assert narrative == "岚接过证词。"
+    system = seen["body"]["messages"][0]["content"]
+    payload = json.loads(seen["body"]["messages"][1]["content"].removeprefix("/no_think\n"))
+    assert "不是状态裁判" in system
+    assert payload["ruleset"] == "hybrid"
+    assert payload["chapter"]["id"] == "ch2"
+    assert payload["relationships"]["lan"]["dimensions"]["trust"] == 40
+
+
 def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
     profile = ModelProfile(
         id="profile-4",

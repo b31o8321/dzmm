@@ -58,9 +58,10 @@ def main() -> None:
                     "request_id": "long-play-compose",
                     "model_profile_id": profile.json()["id"],
                     "world_definition": {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "name": "Long-play Fog Harbor",
                         "lore": [],
+                        "character_cards": [],
                         "locations": [
                             {"id": "harbor", "name": "Fog Harbor"},
                             {"id": "lighthouse", "name": "Old Lighthouse"},
@@ -68,7 +69,15 @@ def main() -> None:
                         "factions": [],
                         "npcs": [],
                         "events": [],
-                        "ruleset": {"id": "core"},
+                        "resources": [],
+                        "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
+                        "story": {
+                            "chapters": [],
+                            "flags": [],
+                            "relationship_events": [],
+                            "routes": [],
+                            "endings": [],
+                        },
                     },
                     "hero": {"name": "Mira", "profile": {}},
                 },

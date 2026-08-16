@@ -1,0 +1,13 @@
+{
+  "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real LM Studio provider",
+  "model": "huihui-ai_qwen3-14b-abliterated",
+  "base_url": "http://192.168.31.169:1234/v1",
+  "turns": 50,
+  "retries_after_non_committing_model_failures": 1,
+  "latency_seconds": {
+    "min": 0.334,
+    "median": 0.802,
+    "max": 6.646
+  },
+  "recovery": "state revision and persisted turn count matched completed turns"
+}

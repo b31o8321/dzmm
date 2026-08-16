@@ -233,8 +233,9 @@ def _narration_body(
         {
             "role": "system",
             "content": (
-                "你是单人 TRPG 的叙事者。只用简洁中文描述已经由规则引擎确认的结果；"
-                "不要编造物品、地点、数值或状态变化，不要解释规则，不要输出标签或 JSON。"
+                "你是本地互动叙事的叙事者。只用简洁中文描述 Python 规则引擎已经确认的结果；"
+                "你不是状态裁判：不得编造或改变物品、地点、关系、Flag、章节、路线、数值或结局，"
+                "不得解释规则，也不得输出标签、命令或 JSON。"
             ),
         },
         {
@@ -245,6 +246,11 @@ def _narration_body(
                     "world": definition["name"],
                     "hero": state["hero"]["name"],
                     "location_id": state["location_id"],
+                    "ruleset": state.get("ruleset", {}).get("id"),
+                    "chapter": state.get("chapter"),
+                    "route": state.get("route"),
+                    "relationships": state.get("relationships", {}),
+                    "ending": state.get("ending"),
                     "player_input": player_input,
                     "validated_outcomes": outcomes,
                     "active_lore": [
