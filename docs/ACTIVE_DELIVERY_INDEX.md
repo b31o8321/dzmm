@@ -2,9 +2,9 @@
 
 ## DZMM vNext 干净重做
 
-- **状态：** Active — clean-slate scope confirmed
+- **状态：** Active — Phase 0 gate passed; Phase 1 is next
 - **日期：** 2026-08-16
-- **工作树 / 分支：** `.worktrees/dzmm-domain-consolidation-review` / `docs/dzmm-domain-consolidation-review`
+- **工作树 / 分支：** `.worktrees/dzmm-vnext` / `feature/dzmm-vnext`
 - **基线：** `main` at `df38037` (`v0.16.0`)
 - **目标：** 在隔离的 vNext 产品根中重建 DZMM：单一版本化世界聚合、可恢复 Python-first 回合、受限 Lorebook/内容导入、Mac host 与 Android gameplay client。旧数据库、旧 API 和旧代码不构成迁移或兼容约束。
 
@@ -28,7 +28,8 @@
 - v0.16 的重叠领域模型与手工级联删除是 vNext clean-slate 的触发证据，而不是待迁移负担。
 - 桌面 v0.16.0 的玩法成熟度 88.1 可用于定义质量下限；vNext 首次评分为 0。
 - Android remote acceptance 78.1 证明已有功能方向，但 vNext 仍必须重新完成 Mac + Android + LAN 物理验收。
+- **Phase 0 已验证：** Python 3.13.3 的独立 venv 中，`pytest -q` 为 `4 passed`、`ruff check src tests` 通过；临时 `DZMM_NEXT_DATA_DIR` 执行 `alembic upgrade head` 后，`schema_meta` 有 app/api/contract 三条基线记录、`alembic_version=0001_phase0`；`/health` 返回 `api_version=2`、四份契约、`storage=isolated` 与 `foreign_keys=true`。评分器读取 `vnext/eval/evidence/phase0.json` 得 **0.0/100**、所有 P0 未达标、不可发布——这是尚未实现功能的正确零基线，不得据此加分。
 
 ### 下一关
 
-在 `.worktrees/dzmm-vnext` 创建干净产品根与新数据库后，先完成 Phase 0 的可运行骨架和评分 harness；不得从 legacy 目录复制领域模型或 API。
+Phase 1：实现 `World → WorldVersion → Run → Turn[]` 的原子 idempotent compose、首次 `RunState` 与三回合可恢复桌面竖切；以 20 次失败注入和刷新恢复结果争取总分至少 45、Domain 与 Game Loop 至少 40。不得从 legacy 目录复制领域模型或 API。

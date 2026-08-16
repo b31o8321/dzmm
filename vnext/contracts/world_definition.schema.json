@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dzmm.local/contracts/world-definition/2026-08-16",
+  "title": "WorldDefinition",
+  "type": "object",
+  "required": ["schema_version", "name", "lore", "locations", "factions", "npcs", "events", "ruleset"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "lore": {"type": "array", "items": {"$ref": "#/$defs/loreEntry"}},
+    "locations": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "factions": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "npcs": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "events": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "ruleset": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string", "minLength": 1}}, "additionalProperties": false}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "entity": {"type": "object", "required": ["id", "name"], "properties": {"id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}, "name": {"type": "string", "minLength": 1}}, "additionalProperties": true},
+    "loreEntry": {"type": "object", "required": ["id", "title", "body", "activation", "priority"], "properties": {"id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}, "title": {"type": "string", "minLength": 1}, "body": {"type": "string"}, "activation": {"enum": ["always", "keyword"]}, "keywords": {"type": "array", "items": {"type": "string"}}, "priority": {"type": "integer", "minimum": 0, "maximum": 100}, "source": {"type": "object"}}, "additionalProperties": false}
+  }
+}

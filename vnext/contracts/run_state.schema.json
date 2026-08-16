@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dzmm.local/contracts/run-state/2026-08-16",
+  "title": "RunState",
+  "type": "object",
+  "required": ["schema_version", "revision", "hero", "location_id", "inventory", "entities", "events"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "revision": {"type": "integer", "minimum": 0},
+    "hero": {"type": "object"},
+    "location_id": {"type": "string"},
+    "inventory": {"type": "array", "items": {"type": "object"}},
+    "entities": {"type": "object"},
+    "events": {"type": "object"}
+  },
+  "additionalProperties": false
+}

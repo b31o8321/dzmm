@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+DEFAULT_DATA_DIR = Path.home() / ".dzmm-vnext"
+
+
+@dataclass(frozen=True)
+class Settings:
+    data_dir: Path
+
+    @property
+    def database_path(self) -> Path:
+        return self.data_dir / "dzmm-next.db"
+
+    @property
+    def database_url(self) -> str:
+        return f"sqlite+aiosqlite:///{self.database_path}"
+
+    @property
+    def sync_database_url(self) -> str:
+        return f"sqlite:///{self.database_path}"
+
+    @classmethod
+    def from_env(cls) -> Settings:
+        value = os.environ.get("DZMM_NEXT_DATA_DIR")
+        return cls(data_dir=Path(value).expanduser() if value else DEFAULT_DATA_DIR)
+
+    def ensure_layout(self) -> None:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
