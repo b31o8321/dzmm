@@ -37,6 +37,7 @@
 - **Mac Host 打包中间证据（已评分，未过 gate）：** `b53da75` 以 PyInstaller 生成 arm64 sidecar，首次启动完成 Alembic 至 `0005_turn_rollbacks` 并返回 vNext `/health`；它被放入 Tauri debug `.app`，以独立端口和临时 `DZMM_NEXT_DATA_DIR` 启动该 `.app` 后，WebView 触发 Host command 并启动同一个 sidecar。该证据只证明打包和启动边界；尚未在打包应用中完成 create/play/archive/recovery 与无障碍旅程，不能加分。
 - **真实模型流与长局中间证据（已评分，未过 gate）：** `078c268` 让 SSE token 在回合提交前传输，畸形/空流、429 与客户端取消都不会写入半回合。`phase2-real-model-30-turns.json` 记录台式机 Huihui 14B 在临时数据库的 30 回合实跑（中位 0.519 秒，最大 3.053 秒），最终 revision 与 Turn 数均为 30；未以此替代 50 回合、500 消息或实际设备指标。
 - **50 回合与重开中间证据（已评分，未过 gate）：** `8409b01` 记录 50 回合 Huihui 14B 流式实跑（中位 0.553 秒，最大 3.045 秒、零重试）和 500 条持久化回合的确定性 API 重开（0.004 秒、165 KB）。这证明本地恢复，不替代目标设备的流式预算。
+- **Mobile control-plane 基础（未计分）：** `4ccd8c9` 增加 API v2 独立配对请求、loopback host 批准、一次性 token 交付、token 哈希校验与撤销；mobile bearer 只能读 Run 和提交 gameplay SSE，不能触及世界/模型管理。28 项后端测试覆盖批准、使用、撤销和流式回合。尚无 Flutter 客户端、LAN 发现或实体设备证据，因此 Mobile 仍为 0。
 - **当前 vNext 矩阵：58.0 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase4-performance-interim.json`：Domain 60、Game Loop 75、Content 60、Model 65、Desktop 60、Mobile 0、Long-play 75、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、目标设备性能和发布证据；不以局部真实模型成功推断这些维度完成。
 
 ### 下一关
