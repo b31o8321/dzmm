@@ -12,7 +12,7 @@ from . import API_VERSION, APP_NAME
 from .config import Settings
 from .contracts import contract_manifest
 from .db import create_engine
-from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService
+from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService, NarrationError
 from .turns import (
     RevisionConflictError,
     RunNotFoundError,
@@ -87,6 +87,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await app.state.turn_coordinator.play(run_id, payload)
         except RunNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except NarrationError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
         except (RevisionConflictError, TurnIdempotencyConflictError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 

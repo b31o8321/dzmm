@@ -12,7 +12,8 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
-from .persistence import runs, turns, world_versions
+from .model_profiles import ModelNarrator, ModelProfile
+from .persistence import model_profiles, runs, turns, world_versions
 
 
 class TurnInput(BaseModel):
@@ -49,8 +50,13 @@ class TurnIdempotencyConflictError(ValueError):
 
 
 class TurnCoordinator:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        narrator: ModelNarrator | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._narrator = narrator or ModelNarrator()
 
     async def play(self, run_id: str, payload: TurnInput) -> TurnResult:
         async with self._session_factory() as session, session.begin():
@@ -72,8 +78,18 @@ class TurnCoordinator:
                 return _turn_result(existing_row, created=False)
 
             result = await session.execute(
-                select(runs.c.state, runs.c.state_revision, world_versions.c.definition)
+                select(
+                    runs.c.state,
+                    runs.c.state_revision,
+                    world_versions.c.definition,
+                    model_profiles.c.id.label("model_id"),
+                    model_profiles.c.name.label("model_name_label"),
+                    model_profiles.c.provider_type,
+                    model_profiles.c.base_url,
+                    model_profiles.c.model_name,
+                )
                 .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .outerjoin(model_profiles, model_profiles.c.id == runs.c.model_profile_id)
                 .where(runs.c.id == run_id)
             )
             run = result.mappings().one_or_none()
@@ -94,6 +110,9 @@ class TurnCoordinator:
             except ValidationError as error:
                 raise RevisionConflictError(f"engine created invalid RunState: {error.message}") from error
 
+            profile = _profile_from_row(run)
+            narrative = await self._narrate(profile, run["definition"], state, payload.player_input, outcomes)
+
             changed = await session.execute(
                 update(runs)
                 .where(runs.c.id == run_id, runs.c.state_revision == before_revision)
@@ -111,7 +130,6 @@ class TurnCoordinator:
                     select(func.coalesce(func.max(turns.c.sequence), 0)).where(turns.c.run_id == run_id)
                 )
             ).scalar_one() + 1
-            narrative = _narrative(state, payload.player_input)
             turn_id = str(uuid4())
             await session.execute(
                 insert(turns).values(
@@ -140,6 +158,18 @@ class TurnCoordinator:
                 state=state,
                 created=True,
             )
+
+    async def _narrate(
+        self,
+        profile: ModelProfile | None,
+        definition: dict[str, Any],
+        state: dict[str, Any],
+        player_input: str,
+        outcomes: list[dict[str, Any]],
+    ) -> str:
+        if profile is None:
+            return _deterministic_narrative(state, player_input)
+        return await self._narrator.narrate(profile, definition, state, player_input, outcomes)
 
 def _apply_commands(
     state: dict[str, Any], definition: dict[str, Any], commands: list[dict[str, Any]]
@@ -217,8 +247,20 @@ def _change_inventory(inventory: list[dict[str, Any]], item_id: str, delta: int)
         inventory.remove(current)
 
 
-def _narrative(state: dict[str, Any], player_input: str) -> str:
+def _deterministic_narrative(state: dict[str, Any], player_input: str) -> str:
     return f"{state['hero']['name']} acts at {state['location_id']}: {player_input}"
+
+
+def _profile_from_row(row: Any) -> ModelProfile | None:
+    if row["model_id"] is None:
+        return None
+    return ModelProfile(
+        id=row["model_id"],
+        name=row["model_name_label"],
+        provider_type=row["provider_type"],
+        base_url=row["base_url"],
+        model_name=row["model_name"],
+    )
 
 
 def _turn_result(row: Any, *, created: bool) -> TurnResult:

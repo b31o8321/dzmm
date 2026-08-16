@@ -83,6 +83,17 @@ def test_compose_rejects_reused_request_id_with_different_input(migrated_client)
     assert table_counts(database)["runs"] == 1
 
 
+def test_compose_rejects_unknown_model_profile(migrated_client) -> None:
+    client, database = migrated_client
+    payload = compose_payload("missing-model-profile")
+    payload["model_profile_id"] = "missing"
+
+    response = client.post("/api/v2/worlds:compose", json=payload)
+
+    assert response.status_code == 422
+    assert table_counts(database)["runs"] == 0
+
+
 def test_twenty_database_failures_leave_no_partial_aggregate(migrated_client) -> None:
     client, database = migrated_client
     with sqlite3.connect(database) as connection:

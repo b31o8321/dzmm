@@ -49,6 +49,7 @@ runs = Table(
     Column("id", String(36), primary_key=True),
     Column("world_version_id", String(36), ForeignKey("world_versions.id", ondelete="RESTRICT"), nullable=False),
     Column("hero_id", String(36), ForeignKey("heroes.id", ondelete="RESTRICT"), nullable=False),
+    Column("model_profile_id", String(36), nullable=True),
     Column("status", String(20), nullable=False),
     Column("state", JSON(), nullable=False),
     Column("state_revision", Integer(), nullable=False),

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -41,6 +43,10 @@ class ProbeResult(BaseModel):
     success: bool
     endpoint: str
     detail: str
+
+
+class NarrationError(ValueError):
+    pass
 
 
 class ModelProfileService:
@@ -100,7 +106,7 @@ class ModelProber:
             payload = response.json()
         except ValueError:
             return ProbeResult(success=False, endpoint=endpoint, detail="provider returned non-JSON response")
-        content = _probe_content(profile.provider_type, payload)
+        content = _chat_content(profile.provider_type, payload)
         if isinstance(content, str) and content.strip():
             return ProbeResult(success=True, endpoint=endpoint, detail="protocol response contains content")
         return ProbeResult(
@@ -108,6 +114,37 @@ class ModelProber:
             endpoint=endpoint,
             detail="provider returned HTTP 200 but not a valid non-empty chat response",
         )
+
+
+class ModelNarrator:
+    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self._transport = transport
+
+    async def narrate(
+        self,
+        profile: ModelProfile,
+        definition: dict[str, Any],
+        state: dict[str, Any],
+        player_input: str,
+        outcomes: list[dict[str, Any]],
+    ) -> str:
+        endpoint = _chat_endpoint(profile)
+        body = _narration_body(profile, definition, state, player_input, outcomes)
+        try:
+            async with httpx.AsyncClient(transport=self._transport, timeout=30.0) as client:
+                response = await client.post(endpoint, json=body)
+        except httpx.HTTPError as error:
+            raise NarrationError(f"model connection failed: {error}") from error
+        if response.status_code != 200:
+            raise NarrationError(f"model returned HTTP {response.status_code}")
+        try:
+            content = _chat_content(profile.provider_type, response.json())
+        except ValueError as error:
+            raise NarrationError("model returned non-JSON response") from error
+        narrative = _clean_narrative(content)
+        if not narrative:
+            raise NarrationError("model returned no valid narrative content")
+        return narrative
 
 
 def _chat_endpoint(profile: ModelProfileInput) -> str:
@@ -128,7 +165,7 @@ def _probe_body(profile: ModelProfile) -> dict[str, Any]:
     return {"model": profile.model_name, "messages": messages, "stream": False, "max_tokens": 8}
 
 
-def _probe_content(provider_type: ProviderType, payload: Any) -> str | None:
+def _chat_content(provider_type: ProviderType, payload: Any) -> str | None:
     if not isinstance(payload, dict) or payload.get("error"):
         return None
     if provider_type is ProviderType.OLLAMA:
@@ -139,3 +176,65 @@ def _probe_content(provider_type: ProviderType, payload: Any) -> str | None:
         return None
     message = choices[0].get("message")
     return message.get("content") if isinstance(message, dict) else None
+
+
+def _narration_body(
+    profile: ModelProfile,
+    definition: dict[str, Any],
+    state: dict[str, Any],
+    player_input: str,
+    outcomes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是单人 TRPG 的叙事者。只用简洁中文描述已经由规则引擎确认的结果；"
+                "不要编造物品、地点、数值或状态变化，不要解释规则，不要输出标签或 JSON。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": "/no_think\n"
+            + json.dumps(
+                {
+                    "world": definition["name"],
+                    "hero": state["hero"]["name"],
+                    "location_id": state["location_id"],
+                    "player_input": player_input,
+                    "validated_outcomes": outcomes,
+                },
+                ensure_ascii=False,
+            ),
+        },
+    ]
+    if profile.provider_type is ProviderType.OLLAMA:
+        return {
+            "model": profile.model_name,
+            "messages": messages,
+            "stream": False,
+            "options": {"num_predict": 220},
+        }
+    body: dict[str, Any] = {
+        "model": profile.model_name,
+        "messages": messages,
+        "stream": False,
+        "max_tokens": 160,
+    }
+    if profile.provider_type is ProviderType.LM_STUDIO and "qwen" in profile.model_name.lower():
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    return body
+
+
+def _clean_narrative(content: str | None) -> str | None:
+    if not isinstance(content, str):
+        return None
+    value = content.strip()
+    if "</think>" in value:
+        value = value.split("</think>", maxsplit=1)[1].strip()
+    if "### TRPG Narrative:" in value:
+        value = value.split("### TRPG Narrative:", maxsplit=1)[1]
+    if "### JSON:" in value:
+        value = value.split("### JSON:", maxsplit=1)[0]
+    value = re.sub(r"^#+\s*", "", value.strip())
+    return value.strip() or None

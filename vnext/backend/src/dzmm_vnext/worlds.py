@@ -12,7 +12,15 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
-from .persistence import compose_requests, heroes, runs, turns, world_versions, worlds
+from .persistence import (
+    compose_requests,
+    heroes,
+    model_profiles,
+    runs,
+    turns,
+    world_versions,
+    worlds,
+)
 
 
 class HeroInput(BaseModel):
@@ -28,6 +36,7 @@ class ComposeWorldInput(BaseModel):
     request_id: str = Field(min_length=1, max_length=80)
     world_definition: dict[str, Any]
     hero: HeroInput
+    model_profile_id: str | None = None
 
 
 class ComposeWorldResult(BaseModel):
@@ -35,6 +44,7 @@ class ComposeWorldResult(BaseModel):
     world_version_id: str
     hero_id: str
     run_id: str
+    model_profile_id: str | None
     state: dict[str, Any]
     created: bool
 
@@ -72,6 +82,13 @@ class WorldComposer:
                 if row["fingerprint"] != fingerprint:
                     raise IdempotencyConflictError("request_id was already used for different world input")
                 return await self._result_for_existing(session, row["world_id"], row["run_id"])
+
+            if payload.model_profile_id:
+                profile = await session.execute(
+                    select(model_profiles.c.id).where(model_profiles.c.id == payload.model_profile_id)
+                )
+                if profile.scalar_one_or_none() is None:
+                    raise DomainValidationError("model_profile_id does not exist")
 
             now = datetime.now(UTC).replace(tzinfo=None)
             world_id, world_version_id, hero_id, run_id = (str(uuid4()) for _ in range(4))
@@ -111,6 +128,7 @@ class WorldComposer:
                     id=run_id,
                     world_version_id=world_version_id,
                     hero_id=hero_id,
+                    model_profile_id=payload.model_profile_id,
                     status="active",
                     state=state,
                     state_revision=0,
@@ -132,6 +150,7 @@ class WorldComposer:
                 world_version_id=world_version_id,
                 hero_id=hero_id,
                 run_id=run_id,
+                model_profile_id=payload.model_profile_id,
                 state=state,
                 created=True,
             )
@@ -148,7 +167,9 @@ class WorldComposer:
         self, session: AsyncSession, world_id: str, run_id: str
     ) -> ComposeWorldResult:
         result = await session.execute(
-            select(runs.c.world_version_id, runs.c.hero_id, runs.c.state).where(runs.c.id == run_id)
+            select(runs.c.world_version_id, runs.c.hero_id, runs.c.model_profile_id, runs.c.state).where(
+                runs.c.id == run_id
+            )
         )
         row = result.mappings().one()
         return ComposeWorldResult(
@@ -156,6 +177,7 @@ class WorldComposer:
             world_version_id=row["world_version_id"],
             hero_id=row["hero_id"],
             run_id=run_id,
+            model_profile_id=row["model_profile_id"],
             state=row["state"],
             created=False,
         )

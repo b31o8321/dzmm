@@ -3,7 +3,7 @@ import json
 
 import httpx
 
-from dzmm_vnext.model_profiles import ModelProber, ModelProfile, ProviderType
+from dzmm_vnext.model_profiles import ModelNarrator, ModelProber, ModelProfile, ProviderType
 
 
 def test_profile_requires_a_complete_provider_protocol(migrated_client) -> None:
@@ -92,3 +92,57 @@ def test_probe_requires_non_empty_protocol_content() -> None:
 
     assert empty.success is False
     assert successful.success is True
+
+
+def test_narrator_only_accepts_protocol_valid_content() -> None:
+    profile = ModelProfile(
+        id="profile-3",
+        name="LM Studio",
+        provider_type=ProviderType.LM_STUDIO,
+        base_url="http://desktop.local:1234/v1",
+        model_name="huihui-ai_qwen3-14b-abliterated",
+    )
+    narrator = ModelNarrator(
+        httpx.MockTransport(
+            lambda _: httpx.Response(200, json={"choices": [{"message": {"content": "灯塔亮起。"}}]})
+        )
+    )
+    narrative = asyncio.run(
+        narrator.narrate(
+            profile,
+            {"name": "Fog Harbor"},
+            {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
+            "I light the lamp.",
+            [{"type": "move", "location_id": "lighthouse"}],
+        )
+    )
+
+    assert narrative == "灯塔亮起。"
+
+
+def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
+    profile = ModelProfile(
+        id="profile-4",
+        name="LM Studio",
+        provider_type=ProviderType.LM_STUDIO,
+        base_url="http://desktop.local:1234/v1",
+        model_name="huihui-ai_qwen3-14b-abliterated",
+    )
+    wrapped = "### TRPG Narrative:\n### 灯塔的微光摇曳。\n\n### JSON:\n{\"narrative\": \"ignored\"}"
+    narrator = ModelNarrator(
+        httpx.MockTransport(
+            lambda _: httpx.Response(200, json={"choices": [{"message": {"content": wrapped}}]})
+        )
+    )
+
+    narrative = asyncio.run(
+        narrator.narrate(
+            profile,
+            {"name": "Fog Harbor"},
+            {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
+            "I light the lamp.",
+            [],
+        )
+    )
+
+    assert narrative == "灯塔的微光摇曳。"
