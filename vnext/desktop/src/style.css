@@ -14,6 +14,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .brand span { color: #d8bb74; font-weight: 400; }
 .host-dot { justify-self: end; color: #a6bbb4; }
 .host-dot i { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: #7cc9a5; }
+.host-dot.starting i { background: #d8bb74; }
+.host-dot.error i { background: #de8e71; }
 .route-strip { display: flex; align-items: center; gap: 12px; margin: 32px 0; font: 12px 'DM Mono', monospace; color: #809c94; letter-spacing: .08em; }
 .route-strip b { color: #45635c; }.route-strip .active { color: #e6cf8e; }
 .scene { animation: rise .38s ease-out both; }.eyebrow { margin: 0 0 12px; color: #d8bb74; font: 12px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }

@@ -2,7 +2,7 @@
 
 ## DZMM vNext 干净重做
 
-- **状态：** Active — Phase 0 gate passed; Phase 1 is next
+- **状态：** Active — Phase 0–3 的已实现范围已有中间证据；当前进入打包桌面壳、模型流失败恢复与长局验收，随后才进入 Android/LAN RC
 - **日期：** 2026-08-16
 - **工作树 / 分支：** `.worktrees/dzmm-vnext` / `feature/dzmm-vnext`
 - **基线：** `main` at `df38037` (`v0.16.0`)
@@ -38,4 +38,4 @@
 
 ### 下一关
 
-补齐模型取消/空流错误路径和 Tauri 打包桌面壳的验收；在 Phase 2 增加 rollback、资产/索引清理边界和 30 回合真实模型跑团。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。
+补齐模型取消/空流错误路径和 Tauri 打包桌面壳的验收；完成 30 回合真实模型跑团，随后推进 Android/LAN RC。达到每项证据的实际门槛前，不得从 legacy 目录复制领域模型或 API。

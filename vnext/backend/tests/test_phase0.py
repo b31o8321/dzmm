@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,7 @@ from fastapi.testclient import TestClient
 from jsonschema import ValidationError
 
 from dzmm_vnext.config import Settings
-from dzmm_vnext.contracts import contract_manifest, contract_validator
+from dzmm_vnext.contracts import contract_manifest, contract_validator, contracts_dir
 from dzmm_vnext.main import create_app
 
 
@@ -21,6 +22,12 @@ def test_contract_manifest_contains_every_vnext_contract() -> None:
         "turn_command.schema.json",
         "world_definition.schema.json",
     ]
+
+
+def test_contracts_use_the_sidecar_bundle_root(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+
+    assert contracts_dir() == tmp_path / "contracts"
 
 
 def test_health_uses_isolated_fresh_data_directory(tmp_path) -> None:

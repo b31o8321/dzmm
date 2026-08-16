@@ -7,11 +7,13 @@ import {
   getRun,
   importSillyTavern,
   rollbackTurn,
+  setApiBase,
   type ComposedRun,
   type ImportedContent,
   type RunSnapshot,
   type Turn,
 } from './api'
+import { startHost } from './host'
 
 const worldName = ref('雾港')
 const heroName = ref('米拉')
@@ -27,6 +29,9 @@ const notice = ref('')
 const activeRunKey = 'dzmm-next-active-run'
 const importJson = ref('')
 const importedContent = ref<ImportedContent | null>(null)
+const hostStatus = ref<'starting' | 'ready' | 'error'>('starting')
+const hostError = ref('')
+const hostReady = computed(() => hostStatus.value === 'ready')
 
 const locationLabel = computed(() =>
   run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
@@ -139,10 +144,23 @@ async function rollback(turn: Turn) {
   }
 }
 
-onMounted(() => {
+async function bootHost() {
+  hostStatus.value = 'starting'
+  hostError.value = ''
+  try {
+    const hostApiBase = await startHost()
+    if (hostApiBase) setApiBase(hostApiBase)
+    hostStatus.value = 'ready'
+  } catch (error) {
+    hostStatus.value = 'error'
+    hostError.value = error instanceof Error ? error.message : 'Mac Host 无法启动'
+    return
+  }
   const activeRun = localStorage.getItem(activeRunKey)
   if (activeRun) void recoverRun(activeRun)
-})
+}
+
+onMounted(() => void bootHost())
 </script>
 
 <template>
@@ -150,7 +168,7 @@ onMounted(() => {
     <header class="masthead">
       <a class="brand" href="#" @click.prevent="step = 'compose'">DZMM <span>Next</span></a>
       <p>本地世界账本 · API v2</p>
-      <div class="host-dot"><i></i> Mac Host</div>
+      <div class="host-dot" :class="hostStatus"><i></i> Mac Host {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '启动中' : '不可用' }}</div>
     </header>
 
     <section class="route-strip" aria-label="跑团路径">
@@ -160,6 +178,9 @@ onMounted(() => {
     </section>
 
     <p v-if="notice" class="notice" role="alert">{{ notice }}</p>
+    <p v-if="hostError" class="notice" role="alert">
+      {{ hostError }} <button class="minor-action" type="button" @click="bootHost">重试 Host</button>
+    </p>
 
     <section v-if="step === 'compose'" class="scene compose-scene">
       <div class="scene-copy">
@@ -183,7 +204,7 @@ onMounted(() => {
             已导入 {{ importedContent.lore.length }} 条 Lore · {{ importedContent.report.source_format }}
           </p>
         </details>
-        <button :disabled="busy">{{ busy ? '正在装订世界…' : '确认并创建世界' }}</button>
+        <button :disabled="busy || !hostReady">{{ busy ? '正在装订世界…' : hostReady ? '确认并创建世界' : '等待 Mac Host…' }}</button>
       </form>
     </section>
 
@@ -195,7 +216,7 @@ onMounted(() => {
         <div><dt>World version</dt><dd>{{ composed.world_version_id.slice(0, 8) }}</dd></div>
         <div><dt>Run</dt><dd>{{ composed.run_id.slice(0, 8) }}</dd></div>
       </dl>
-      <button :disabled="busy" @click="enterRun">进入第一回合</button>
+      <button :disabled="busy || !hostReady" @click="enterRun">进入第一回合</button>
     </section>
 
     <section v-else-if="run" class="scene play-scene">
@@ -222,7 +243,7 @@ onMounted(() => {
       <form class="turn-form" @submit.prevent="sendTurn">
         <label>行动<input v-model="playerInput" placeholder="我检查码头的灯火…" required maxlength="4000" /></label>
         <label>目的地<select v-model="destination"><option value="harbor">{{ harborName }}</option><option value="lighthouse">{{ lighthouseName }}</option></select></label>
-        <button :disabled="busy || !playerInput.trim()">{{ busy ? '正在结算回合…' : '执行回合' }}</button>
+        <button :disabled="busy || !hostReady || !playerInput.trim()">{{ busy ? '正在结算回合…' : '执行回合' }}</button>
       </form>
     </section>
   </main>

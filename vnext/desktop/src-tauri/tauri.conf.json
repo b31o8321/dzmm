@@ -1,0 +1,33 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "DZMM Next",
+  "version": "0.1.0",
+  "identifier": "local.dzmm.next",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:5182",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "DZMM Next",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ],
+    "security": {"csp": null}
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "resources": {
+      "backend-runtime/": "backend-runtime/"
+    }
+  }
+}

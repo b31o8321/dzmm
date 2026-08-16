@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -9,6 +10,9 @@ from . import CONTRACT_VERSION
 
 
 def contracts_dir() -> Path:
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        return Path(bundle_root) / "contracts"
     return Path(__file__).resolve().parents[3] / "contracts"
 
 

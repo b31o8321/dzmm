@@ -42,7 +42,11 @@ export type ImportedContent = {
   }
 }
 
-const apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
+let apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
+
+export function setApiBase(base: string) {
+  apiBase = base
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, init)
