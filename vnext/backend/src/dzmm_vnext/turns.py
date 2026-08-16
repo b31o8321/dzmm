@@ -12,6 +12,7 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
+from .lore import select_lore
 from .model_profiles import ModelNarrator, ModelProfile
 from .persistence import model_profiles, runs, turns, world_versions, worlds
 
@@ -125,7 +126,15 @@ class TurnCoordinator:
                 raise RevisionConflictError(f"engine created invalid RunState: {error.message}") from error
 
             profile = _profile_from_row(run)
-            narrative = await self._narrate(profile, run["definition"], state, payload.player_input, outcomes)
+            lore = select_lore(run["definition"], payload.player_input, character_budget=4000)
+            narrative = await self._narrate(
+                profile,
+                run["definition"],
+                state,
+                payload.player_input,
+                outcomes,
+                lore.entries,
+            )
 
             changed = await session.execute(
                 update(runs)
@@ -290,10 +299,18 @@ class TurnCoordinator:
         state: dict[str, Any],
         player_input: str,
         outcomes: list[dict[str, Any]],
+        lore_entries: list[dict[str, Any]],
     ) -> str:
         if profile is None:
             return _deterministic_narrative(state, player_input)
-        return await self._narrator.narrate(profile, definition, state, player_input, outcomes)
+        return await self._narrator.narrate(
+            profile,
+            definition,
+            state,
+            player_input,
+            outcomes,
+            lore_entries,
+        )
 
 def _apply_commands(
     state: dict[str, Any], definition: dict[str, Any], commands: list[dict[str, Any]]

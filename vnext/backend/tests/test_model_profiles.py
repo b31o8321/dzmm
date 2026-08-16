@@ -114,6 +114,7 @@ def test_narrator_only_accepts_protocol_valid_content() -> None:
             {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
             "I light the lamp.",
             [{"type": "move", "location_id": "lighthouse"}],
+            [],
         )
     )
 
@@ -141,6 +142,7 @@ def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
             {"name": "Fog Harbor"},
             {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
             "I light the lamp.",
+            [],
             [],
         )
     )

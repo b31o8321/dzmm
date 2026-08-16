@@ -10,6 +10,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import API_VERSION, APP_NAME
 from .config import Settings
+from .content import (
+    ContentNotFoundError,
+    ContentService,
+    LorePromotionInput,
+    LoreSelectionInput,
+    SillyTavernImportInput,
+)
 from .contracts import contract_manifest
 from .db import create_engine
 from .lifecycle import (
@@ -52,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.model_profiles = ModelProfileService(app.state.sessions)
         app.state.model_prober = ModelProber()
         app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
+        app.state.content = ContentService(app.state.sessions)
         try:
             yield
         finally:
@@ -121,6 +129,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_integrity() -> dict[str, object]:
         orphans = await integrity_scan(app.state.sessions)
         return {"orphans": orphans, "clean": not any(orphans.values())}
+
+    @app.post("/api/v2/content/sillytavern:import")
+    async def import_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:
+        try:
+            return app.state.content.import_sillytavern(payload).model_dump(mode="json")
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/api/v2/world-versions/{world_version_id}/lore:select")
+    async def select_world_lore(
+        world_version_id: str, payload: LoreSelectionInput
+    ) -> dict[str, object]:
+        try:
+            return (
+                await app.state.content.select_lore(world_version_id, payload)
+            ).model_dump(mode="json")
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/api/v2/worlds/{world_id}/lore/{lore_id}:promote")
+    async def promote_world_lore(
+        world_id: str, lore_id: str, payload: LorePromotionInput
+    ) -> dict[str, object]:
+        try:
+            return (
+                await app.state.content.promote_lore(world_id, lore_id, payload)
+            ).model_dump(mode="json")
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
 
     async def play_turn(run_id: str, payload: TurnInput) -> TurnResult:
         try:

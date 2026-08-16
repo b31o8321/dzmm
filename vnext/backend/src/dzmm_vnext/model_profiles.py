@@ -127,9 +127,10 @@ class ModelNarrator:
         state: dict[str, Any],
         player_input: str,
         outcomes: list[dict[str, Any]],
+        lore_entries: list[dict[str, Any]],
     ) -> str:
         endpoint = _chat_endpoint(profile)
-        body = _narration_body(profile, definition, state, player_input, outcomes)
+        body = _narration_body(profile, definition, state, player_input, outcomes, lore_entries)
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=30.0) as client:
                 response = await client.post(endpoint, json=body)
@@ -184,6 +185,7 @@ def _narration_body(
     state: dict[str, Any],
     player_input: str,
     outcomes: list[dict[str, Any]],
+    lore_entries: list[dict[str, Any]],
 ) -> dict[str, Any]:
     messages = [
         {
@@ -203,6 +205,10 @@ def _narration_body(
                     "location_id": state["location_id"],
                     "player_input": player_input,
                     "validated_outcomes": outcomes,
+                    "active_lore": [
+                        {"id": entry["id"], "title": entry["title"], "body": entry["body"]}
+                        for entry in lore_entries
+                    ],
                 },
                 ensure_ascii=False,
             ),
