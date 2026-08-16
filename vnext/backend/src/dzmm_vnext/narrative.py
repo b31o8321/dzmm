@@ -176,6 +176,36 @@ def evaluate_endings(state: dict[str, Any], definition: dict[str, Any]) -> dict[
     return {"type": "lock_ending", **state["ending"]}
 
 
+def available_choices(state: dict[str, Any], definition: dict[str, Any]) -> list[dict[str, str]]:
+    chapter_state = state["chapter"]
+    if state["ending"] is not None or chapter_state is None or chapter_state["status"] != "active":
+        return []
+    if "choices" not in state["ruleset"]["enabled_capabilities"]:
+        return []
+    chapter = _chapter(definition, chapter_state["id"])
+    resolved = set(chapter_state["resolved_choice_ids"])
+    return [
+        {"id": choice["id"], "label": choice["label"]}
+        for choice in chapter["choices"]
+        if choice["id"] not in resolved
+    ]
+
+
+def planned_choice_commands(
+    state: dict[str, Any], definition: dict[str, Any], choice_id: str
+) -> list[dict[str, Any]]:
+    if choice_id not in {choice["id"] for choice in available_choices(state, definition)}:
+        raise NarrativeRuleError("choice is not available in the active chapter")
+    chapter = _chapter(definition, state["chapter"]["id"])
+    commands: list[dict[str, Any]] = [
+        {"type": "choose_story_choice", "payload": {"choice_id": choice_id}},
+        {"type": "advance_chapter", "payload": {}},
+    ]
+    if chapter["next_chapter_id"] is None:
+        commands.append({"type": "evaluate_endings", "payload": {}})
+    return commands
+
+
 def _apply_effect(
     state: dict[str, Any], definition: dict[str, Any], effect: dict[str, Any], cause: str
 ) -> list[dict[str, Any]]:

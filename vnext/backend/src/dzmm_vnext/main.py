@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -34,6 +35,7 @@ from .pairing import (
     PairingService,
 )
 from .turns import (
+    ChoiceTurnInput,
     RevisionConflictError,
     RunNotFoundError,
     TurnCoordinator,
@@ -42,6 +44,7 @@ from .turns import (
     TurnResult,
     TurnRollbackInput,
 )
+from .world_templates import fog_harbor_template
 from .worlds import (
     ComposeWorldInput,
     DomainValidationError,
@@ -73,6 +76,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await app.state.engine.dispose()
 
     app = FastAPI(title="DZMM Next Preview", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^(http://(127\.0\.0\.1|localhost):\d+|https://tauri\.localhost)$",
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["authorization", "content-type"],
+    )
 
     @app.get("/health")
     async def health() -> dict[str, object]:
@@ -170,6 +179,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             content=result.model_dump(mode="json"),
         )
 
+    @app.get("/api/v2/world-templates/fog-harbor")
+    async def get_fog_harbor_template() -> dict[str, object]:
+        return fog_harbor_template()
+
     @app.get("/api/v2/runs/{run_id}")
     async def get_run(run_id: str) -> dict[str, object]:
         snapshot = await app.state.world_composer.load_run(run_id)
@@ -257,9 +270,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (RevisionConflictError, TurnIdempotencyConflictError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    async def play_choice(run_id: str, payload: ChoiceTurnInput) -> TurnResult:
+        try:
+            return await app.state.turn_coordinator.play_choice(run_id, payload)
+        except RunNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (RevisionConflictError, TurnIdempotencyConflictError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/api/v2/runs/{run_id}/turns")
     async def create_turn(run_id: str, payload: TurnInput) -> JSONResponse:
         result = await play_turn(run_id, payload)
+        return JSONResponse(
+            status_code=201 if result.created else 200,
+            content=result.model_dump(mode="json"),
+        )
+
+    @app.post("/api/v2/runs/{run_id}/choices")
+    async def choose_turn(run_id: str, payload: ChoiceTurnInput) -> JSONResponse:
+        result = await play_choice(run_id, payload)
         return JSONResponse(
             status_code=201 if result.created else 200,
             content=result.model_dump(mode="json"),

@@ -190,6 +190,56 @@ def test_narrative_definition_rejects_invalid_relationship_dimension(migrated_cl
     assert "undefined dimension" in response.json()["detail"]
 
 
+def test_choice_endpoint_only_accepts_a_current_choice_and_is_idempotent(migrated_client) -> None:
+    client, _ = migrated_client
+    composed = client.post("/api/v2/worlds:compose", json=fog_harbor_payload("fog-choice-endpoint")).json()
+    run_id = composed["run_id"]
+    snapshot = client.get(f"/api/v2/runs/{run_id}")
+    assert snapshot.status_code == 200
+    assert snapshot.json()["available_choices"] == [
+        {"id": "rescue-lan", "label": "救岚"},
+        {"id": "hide-chart", "label": "替沈砚藏起航图"},
+    ]
+
+    payload = {
+        "request_id": "fog-choice-1",
+        "expected_revision": 0,
+        "player_input": "我冲进潮雾救岚。",
+        "choice_id": "rescue-lan",
+    }
+    chosen = client.post(f"/api/v2/runs/{run_id}/choices", json=payload)
+    assert chosen.status_code == 201
+    assert chosen.json()["state"]["chapter"]["id"] == "ch2"
+    assert chosen.json()["commands"] == [
+        {"type": "choose_story_choice", "payload": {"choice_id": "rescue-lan"}},
+        {"type": "advance_chapter", "payload": {}},
+    ]
+
+    retry = client.post(f"/api/v2/runs/{run_id}/choices", json=payload)
+    assert retry.status_code == 200
+    assert retry.json()["turn_id"] == chosen.json()["turn_id"]
+    unavailable = client.post(
+        f"/api/v2/runs/{run_id}/choices",
+        json={**payload, "request_id": "fog-choice-invalid", "expected_revision": 1, "choice_id": "rescue-lan"},
+    )
+    assert unavailable.status_code == 409
+    assert "not available" in unavailable.json()["detail"]
+
+
+def test_fog_harbor_template_is_a_composable_hybrid_world(migrated_client) -> None:
+    client, _ = migrated_client
+    template = client.get("/api/v2/world-templates/fog-harbor")
+    assert template.status_code == 200
+    payload = template.json()
+    payload["request_id"] = "fog-template"
+
+    composed = client.post("/api/v2/worlds:compose", json=payload)
+
+    assert composed.status_code == 201
+    assert composed.json()["state"]["ruleset"]["id"] == "hybrid"
+    assert composed.json()["state"]["chapter"]["id"] == "ch1"
+
+
 def test_relationship_once_event_rejects_the_whole_turn_without_state_write(migrated_client) -> None:
     client, _ = migrated_client
     payload = fog_harbor_payload("fog-once")

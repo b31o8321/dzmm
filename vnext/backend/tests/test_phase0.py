@@ -45,6 +45,28 @@ def test_health_uses_isolated_fresh_data_directory(tmp_path) -> None:
     }
 
 
+def test_local_desktop_origins_can_call_api_but_unrelated_origins_cannot(migrated_client) -> None:
+    client, _ = migrated_client
+    allowed = client.options(
+        "/api/v2/world-templates/fog-harbor",
+        headers={
+            "origin": "http://127.0.0.1:5175",
+            "access-control-request-method": "GET",
+        },
+    )
+    denied = client.options(
+        "/api/v2/world-templates/fog-harbor",
+        headers={
+            "origin": "https://untrusted.example",
+            "access-control-request-method": "GET",
+        },
+    )
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5175"
+    assert denied.status_code == 400
+
+
 def test_contract_validators_reject_incomplete_payloads() -> None:
     world = {
         "schema_version": 2,

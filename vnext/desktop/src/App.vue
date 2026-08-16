@@ -2,8 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  chooseTurn,
   composeWorld,
   createTurn,
+  getFogHarborTemplate,
   getRun,
   importSillyTavern,
   rollbackTurn,
@@ -17,6 +19,7 @@ import { startHost } from './host'
 
 const worldName = ref('雾港')
 const heroName = ref('米拉')
+const experience = ref<'fog_harbor' | 'trpg'>('fog_harbor')
 const harborName = ref('雾港码头')
 const lighthouseName = ref('旧灯塔')
 const step = ref<'compose' | 'confirm' | 'play'>('compose')
@@ -36,6 +39,13 @@ const hostReady = computed(() => hostStatus.value === 'ready')
 const locationLabel = computed(() =>
   run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
 )
+const activeChapter = computed(() => run.value?.state.chapter)
+const relationshipEntries = computed(() => Object.entries(run.value?.state.relationships ?? {}))
+const endingLabel = computed(() => {
+  const ending = run.value?.state.ending
+  if (!ending) return ''
+  return { good: '好结局', normal: '普通结局', bad: '坏结局', hidden: '隐藏结局' }[ending.kind]
+})
 
 function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
@@ -45,35 +55,58 @@ async function createWorld() {
   busy.value = true
   notice.value = ''
   try {
+    const template = experience.value === 'fog_harbor' ? await getFogHarborTemplate() : null
+    const worldDefinition = template
+      ? { ...template.world_definition, name: worldName.value }
+      : {
+          schema_version: 2,
+          name: worldName.value,
+          lore: importedContent.value?.lore ?? [],
+          character_cards: [],
+          locations: [
+            { id: 'harbor', name: harborName.value },
+            { id: 'lighthouse', name: lighthouseName.value },
+          ],
+          factions: [],
+          npcs: [],
+          events: [],
+          resources: [],
+          ruleset: { id: 'trpg', enabled_capabilities: ['trpg', 'resources'] },
+          story: {
+            chapters: [],
+            flags: [],
+            relationship_events: [],
+            routes: [],
+            endings: [],
+          },
+        }
     composed.value = await composeWorld({
       request_id: requestId('compose'),
-      world_definition: {
-        schema_version: 2,
-        name: worldName.value,
-        lore: importedContent.value?.lore ?? [],
-        character_cards: [],
-        locations: [
-          { id: 'harbor', name: harborName.value },
-          { id: 'lighthouse', name: lighthouseName.value },
-        ],
-        factions: [],
-        npcs: [],
-        events: [],
-        resources: [],
-        ruleset: { id: 'trpg', enabled_capabilities: ['trpg', 'resources'] },
-        story: {
-          chapters: [],
-          flags: [],
-          relationship_events: [],
-          routes: [],
-          endings: [],
-        },
-      },
-      hero: { name: heroName.value, profile: {} },
+      world_definition: worldDefinition,
+      hero: template ? { ...template.hero, name: heroName.value } : { name: heroName.value, profile: {} },
     })
     step.value = 'confirm'
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '无法创建世界'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function chooseStory(choice: { id: string; label: string }) {
+  if (!run.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await chooseTurn(run.value.run_id, {
+      request_id: requestId('choice'),
+      expected_revision: run.value.state.revision,
+      player_input: choice.label,
+      choice_id: choice.id,
+    })
+    await recoverRun(run.value.run_id)
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '这个选择没有生效'
   } finally {
     busy.value = false
   }
@@ -183,7 +216,7 @@ onMounted(() => void bootHost())
     <section class="route-strip" aria-label="跑团路径">
       <span :class="{ active: step === 'compose' }">世界</span><b>—</b>
       <span :class="{ active: step === 'confirm' }">确认</span><b>—</b>
-      <span :class="{ active: step === 'play' }">跑团</span>
+      <span :class="{ active: step === 'play' }">游玩</span>
     </section>
 
     <p v-if="notice" class="notice" role="alert">{{ notice }}</p>
@@ -198,13 +231,24 @@ onMounted(() => void bootHost())
         <p>确认一次，世界、版本、角色和第一局会一起生成。中途失败不会留下半成品。</p>
       </div>
       <form class="ledger-card" @submit.prevent="createWorld">
+        <fieldset class="experience-picker">
+          <legend>这次想怎样玩？</legend>
+          <label :class="{ selected: experience === 'fog_harbor' }">
+            <input v-model="experience" type="radio" value="fog_harbor" />
+            <span><b>雾港 · 剧情与关系</b><small>三章、两条角色路线与多结局</small></span>
+          </label>
+          <label :class="{ selected: experience === 'trpg' }">
+            <input v-model="experience" type="radio" value="trpg" />
+            <span><b>自定义 TRPG</b><small>地点、行动与 Python 裁决</small></span>
+          </label>
+        </fieldset>
         <label>世界名称<input v-model.trim="worldName" required maxlength="120" /></label>
         <label>主角名称<input v-model.trim="heroName" required maxlength="120" /></label>
-        <div class="location-pair">
+        <div v-if="experience === 'trpg'" class="location-pair">
           <label>起点<input v-model.trim="harborName" required /></label>
           <label>远点<input v-model.trim="lighthouseName" required /></label>
         </div>
-        <details class="import-panel">
+        <details v-if="experience === 'trpg'" class="import-panel">
           <summary>导入 SillyTavern 内容（可选）</summary>
           <p>支持 V3 角色卡与 World Info JSON。它们先作为 Lore 上下文进入世界。</p>
           <textarea v-model="importJson" placeholder="粘贴 SillyTavern JSON…" rows="5"></textarea>
@@ -220,7 +264,7 @@ onMounted(() => void bootHost())
     <section v-else-if="step === 'confirm' && composed" class="scene confirmation">
       <p class="eyebrow">世界已装订</p>
       <h1>{{ worldName }}</h1>
-      <p>版本 1 已固定。{{ heroName }} 从 {{ harborName }} 出发；之后的状态只属于这一次 Run。</p>
+      <p>版本 1 已固定。{{ heroName }} 从 {{ experience === 'fog_harbor' ? '雾港码头' : harborName }} 出发；之后的状态只属于这一次 Run。</p>
       <dl>
         <div><dt>World version</dt><dd>{{ composed.world_version_id.slice(0, 8) }}</dd></div>
         <div><dt>Run</dt><dd>{{ composed.run_id.slice(0, 8) }}</dd></div>
@@ -230,15 +274,31 @@ onMounted(() => void bootHost())
 
     <section v-else-if="run" class="scene play-scene">
       <aside class="run-state">
-        <p class="eyebrow">当前坐标</p>
+        <p class="eyebrow">{{ activeChapter ? '当前章节' : '当前坐标' }}</p>
+        <p v-if="activeChapter" class="chapter-mark">{{ activeChapter.id.toUpperCase() }}</p>
+        <h2 v-if="activeChapter">{{ activeChapter.id === 'ch1' ? '潮雾抵港' : activeChapter.id === 'ch2' ? '沉船的证词' : '潮门之夜' }}</h2>
         <h2>{{ locationLabel }}</h2>
         <dl>
           <div><dt>角色</dt><dd>{{ run.state.hero.name }}</dd></div>
           <div><dt>状态版本</dt><dd>{{ run.state.revision }}</dd></div>
+          <div v-if="run.state.route"><dt>路线</dt><dd>{{ run.state.route.id === 'lan-route' ? '岚' : run.state.route.id === 'shen-route' ? '沈砚' : '中立' }}</dd></div>
           <div><dt>物品</dt><dd>{{ run.state.inventory.length ? run.state.inventory.map(i => `${i.id} ×${i.quantity}`).join('，') : '无' }}</dd></div>
         </dl>
+        <section v-if="relationshipEntries.length" class="relationship-ledger" aria-label="关系状态">
+          <p class="eyebrow">关系账本</p>
+          <article v-for="[characterId, relationship] in relationshipEntries" :key="characterId">
+            <b>{{ characterId === 'lan' ? '岚' : '沈砚' }}</b>
+            <span v-for="[dimension, value] in Object.entries(relationship.dimensions)" :key="dimension">{{ dimension === 'affection' ? '好感' : '信任' }} {{ value }}</span>
+            <small v-if="Object.values(relationship.applied_events)[0]">{{ Object.values(relationship.applied_events)[0].reason_key }}</small>
+          </article>
+        </section>
       </aside>
       <div class="chronicle" aria-live="polite">
+        <section v-if="run.state.ending" class="ending-card" :class="run.state.ending.kind">
+          <p class="eyebrow">{{ endingLabel }}</p>
+          <h2>{{ run.state.ending.id === 'lan-dawn' ? '灯塔之后是破晓' : run.state.ending.id === 'shen-low-tide' ? '潮退时仍有人等你' : run.state.ending.id === 'neutral-harbor' ? '雾港没有忘记你' : '潮水带走了名字' }}</h2>
+          <p>结局已由世界规则锁定。你可以回看记录，或回滚到此前的选择之后。</p>
+        </section>
         <p class="eyebrow">回合记录</p>
         <article v-for="turn in run.turns" :key="turn.id">
           <small>回合 {{ turn.sequence }} · 状态 {{ turn.before_revision }} → {{ turn.after_revision }}</small>
@@ -249,7 +309,11 @@ onMounted(() => void bootHost())
         </article>
         <p v-if="!run.turns" class="empty">世界已准备好。写下第一步，Python 会先验证它，再让叙事继续。</p>
       </div>
-      <form class="turn-form" @submit.prevent="sendTurn">
+      <section v-if="run.available_choices.length" class="choice-deck" aria-label="当前可选行动">
+        <p class="eyebrow">此刻可做的选择</p>
+        <button v-for="choice in run.available_choices" :key="choice.id" type="button" :disabled="busy || !hostReady" @click="chooseStory(choice)">{{ choice.label }}</button>
+      </section>
+      <form v-else-if="!run.state.ending" class="turn-form" @submit.prevent="sendTurn">
         <label>行动<input v-model="playerInput" placeholder="我检查码头的灯火…" required maxlength="4000" /></label>
         <label>目的地<select v-model="destination"><option value="harbor">{{ harborName }}</option><option value="lighthouse">{{ lighthouseName }}</option></select></label>
         <button :disabled="busy || !hostReady || !playerInput.trim()">{{ busy ? '正在结算回合…' : '执行回合' }}</button>

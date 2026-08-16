@@ -20,6 +20,7 @@ from .narrative import (
     advance_chapter,
     choose_story_choice,
     evaluate_endings,
+    planned_choice_commands,
 )
 from .persistence import model_profiles, runs, turns, world_versions, worlds
 
@@ -39,6 +40,15 @@ class TurnRollbackInput(BaseModel):
     request_id: str = Field(min_length=1, max_length=80)
     expected_revision: int = Field(ge=0)
     target_turn_id: str = Field(min_length=1, max_length=36)
+
+
+class ChoiceTurnInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=1, max_length=80)
+    expected_revision: int = Field(ge=0)
+    player_input: str = Field(min_length=1, max_length=4000)
+    choice_id: str = Field(min_length=1, max_length=64)
 
 
 class TurnResult(BaseModel):
@@ -192,6 +202,55 @@ class TurnCoordinator:
                 state=state,
                 created=True,
             )
+
+    async def play_choice(self, run_id: str, payload: ChoiceTurnInput) -> TurnResult:
+        async with self._session_factory() as session:
+            existing = await session.execute(
+                select(turns).where(
+                    turns.c.run_id == run_id,
+                    turns.c.request_id == payload.request_id,
+                )
+            )
+            existing_row = existing.mappings().one_or_none()
+            if existing_row:
+                commands = existing_row["commands"]
+                if (
+                    existing_row["player_input"] != payload.player_input
+                    or not commands
+                    or commands[0] != {
+                        "type": "choose_story_choice",
+                        "payload": {"choice_id": payload.choice_id},
+                    }
+                ):
+                    raise TurnIdempotencyConflictError(
+                        "request_id was already used for different choice input"
+                    )
+                return _turn_result(existing_row, created=False)
+            result = await session.execute(
+                select(runs.c.state, runs.c.state_revision, world_versions.c.definition)
+                .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .where(runs.c.id == run_id)
+            )
+            run = result.mappings().one_or_none()
+        if run is None:
+            raise RunNotFoundError("run not found")
+        if payload.expected_revision != run["state_revision"]:
+            raise RevisionConflictError(
+                f"expected revision {payload.expected_revision}, current revision is {run['state_revision']}"
+            )
+        try:
+            commands = planned_choice_commands(run["state"], run["definition"], payload.choice_id)
+        except NarrativeRuleError as error:
+            raise RevisionConflictError(str(error)) from error
+        return await self.play(
+            run_id,
+            TurnInput(
+                request_id=payload.request_id,
+                expected_revision=payload.expected_revision,
+                player_input=payload.player_input,
+                commands=commands,
+            ),
+        )
 
     async def stream(self, run_id: str, payload: TurnInput) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Stream narration before committing the validated turn exactly once."""

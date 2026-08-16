@@ -12,7 +12,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
-from .narrative import NarrativeRuleError, initial_state, validate_definition
+from .narrative import NarrativeRuleError, available_choices, initial_state, validate_definition
 from .persistence import (
     compose_requests,
     heroes,
@@ -55,6 +55,7 @@ class RunSnapshot(BaseModel):
     world_version_id: str
     hero_id: str
     state: dict[str, Any]
+    available_choices: list[dict[str, str]]
     turns: list[dict[str, Any]]
 
 
@@ -190,9 +191,15 @@ class WorldComposer:
     async def load_run(self, run_id: str) -> RunSnapshot | None:
         async with self._session_factory() as session:
             result = await session.execute(
-                select(runs.c.id, runs.c.world_version_id, runs.c.hero_id, runs.c.state).where(
-                    runs.c.id == run_id
+                select(
+                    runs.c.id,
+                    runs.c.world_version_id,
+                    runs.c.hero_id,
+                    runs.c.state,
+                    world_versions.c.definition,
                 )
+                .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .where(runs.c.id == run_id)
             )
             run = result.mappings().one_or_none()
             if run is None:
@@ -218,6 +225,7 @@ class WorldComposer:
                 world_version_id=run["world_version_id"],
                 hero_id=run["hero_id"],
                 state=run["state"],
+                available_choices=available_choices(run["state"], run["definition"]),
                 turns=[dict(row) for row in turn_rows.mappings()],
             )
 

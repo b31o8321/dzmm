@@ -1,8 +1,17 @@
 export type RunState = {
   revision: number
   hero: { id: string; name: string }
+  ruleset: { id: string; enabled_capabilities: string[] }
   location_id: string
   inventory: Array<{ id: string; quantity: number }>
+  chapter: { id: string; status: 'active' | 'completed'; resolved_choice_ids: string[] } | null
+  route: { id: string; status: 'locked' } | null
+  flags: Record<string, boolean>
+  relationships: Record<string, {
+    dimensions: Record<string, number>
+    applied_events: Record<string, { reason_key: string }>
+  }>
+  ending: { id: string; kind: 'good' | 'normal' | 'bad' | 'hidden'; narrative_key: string } | null
 }
 
 export type ComposedRun = {
@@ -28,6 +37,12 @@ export type RunSnapshot = {
   run_id: string
   state: RunState
   turns: Turn[]
+  available_choices: Array<{ id: string; label: string }>
+}
+
+export type WorldTemplate = {
+  world_definition: Record<string, unknown>
+  hero: { name: string; profile: Record<string, unknown> }
 }
 
 export type ImportedContent = {
@@ -75,6 +90,18 @@ export function createTurn(runId: string, payload: object) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   })
+}
+
+export function chooseTurn(runId: string, payload: object) {
+  return request<{ state: RunState }>(`/runs/${runId}/choices`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getFogHarborTemplate() {
+  return request<WorldTemplate>('/world-templates/fog-harbor')
 }
 
 export function rollbackTurn(runId: string, payload: object) {
