@@ -30,6 +30,18 @@ export type RunSnapshot = {
   turns: Turn[]
 }
 
+export type ImportedContent = {
+  suggested_hero: { name: string; profile: Record<string, unknown> } | null
+  lore: Array<Record<string, unknown>>
+  report: {
+    source_format: string
+    supported_fields: string[]
+    preserved_fields: string[]
+    ignored_fields: string[]
+    warnings: string[]
+  }
+}
+
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -66,5 +78,13 @@ export function rollbackTurn(runId: string, payload: object) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
+  })
+}
+
+export function importSillyTavern(content: object) {
+  return request<ImportedContent>('/content/sillytavern:import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content }),
   })
 }

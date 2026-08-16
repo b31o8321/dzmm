@@ -5,8 +5,10 @@ import {
   composeWorld,
   createTurn,
   getRun,
+  importSillyTavern,
   rollbackTurn,
   type ComposedRun,
+  type ImportedContent,
   type RunSnapshot,
   type Turn,
 } from './api'
@@ -23,6 +25,8 @@ const destination = ref('lighthouse')
 const busy = ref(false)
 const notice = ref('')
 const activeRunKey = 'dzmm-next-active-run'
+const importJson = ref('')
+const importedContent = ref<ImportedContent | null>(null)
 
 const locationLabel = computed(() =>
   run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
@@ -41,7 +45,7 @@ async function createWorld() {
       world_definition: {
         schema_version: 1,
         name: worldName.value,
-        lore: [],
+        lore: importedContent.value?.lore ?? [],
         locations: [
           { id: 'harbor', name: harborName.value },
           { id: 'lighthouse', name: lighthouseName.value },
@@ -58,6 +62,19 @@ async function createWorld() {
     notice.value = error instanceof Error ? error.message : '无法创建世界'
   } finally {
     busy.value = false
+  }
+}
+
+async function applySillyTavernImport() {
+  notice.value = ''
+  try {
+    const content = JSON.parse(importJson.value) as object
+    importedContent.value = await importSillyTavern(content)
+    if (importedContent.value.suggested_hero?.name) {
+      heroName.value = importedContent.value.suggested_hero.name
+    }
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法解析导入内容'
   }
 }
 
@@ -157,6 +174,15 @@ onMounted(() => {
           <label>起点<input v-model.trim="harborName" required /></label>
           <label>远点<input v-model.trim="lighthouseName" required /></label>
         </div>
+        <details class="import-panel">
+          <summary>导入 SillyTavern 内容（可选）</summary>
+          <p>支持 V3 角色卡与 World Info JSON。它们先作为 Lore 上下文进入世界。</p>
+          <textarea v-model="importJson" placeholder="粘贴 SillyTavern JSON…" rows="5"></textarea>
+          <button type="button" class="minor-action" @click="applySillyTavernImport">解析并应用</button>
+          <p v-if="importedContent" class="import-result">
+            已导入 {{ importedContent.lore.length }} 条 Lore · {{ importedContent.report.source_format }}
+          </p>
+        </details>
         <button :disabled="busy">{{ busy ? '正在装订世界…' : '确认并创建世界' }}</button>
       </form>
     </section>
