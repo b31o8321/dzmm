@@ -14,8 +14,8 @@ from .config import Settings
 from .content import (
     ContentNotFoundError,
     ContentService,
-    LorePromotionInput,
-    LoreSelectionInput,
+    LorebookPromotionInput,
+    LorebookSelectionInput,
     SillyTavernImportInput,
 )
 from .contracts import contract_manifest
@@ -225,31 +225,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def import_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:
         try:
             return app.state.content.import_sillytavern(payload).model_dump(mode="json")
+        except (TypeError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/api/v2/world-versions/{world_version_id}/lorebook:select")
+    async def select_world_lorebook(
+        world_version_id: str, payload: LorebookSelectionInput
+    ) -> dict[str, object]:
+        try:
+            return (
+                await app.state.content.select_lorebook(world_version_id, payload)
+            ).model_dump(mode="json")
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/api/v2/worlds/{world_id}/lorebook/{entry_id}:promote")
+    async def promote_world_lorebook_entry(
+        world_id: str, entry_id: str, payload: LorebookPromotionInput
+    ) -> dict[str, object]:
+        try:
+            return (
+                await app.state.content.promote_lorebook_entry(world_id, entry_id, payload)
+            ).model_dump(mode="json")
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
-    @app.post("/api/v2/world-versions/{world_version_id}/lore:select")
-    async def select_world_lore(
-        world_version_id: str, payload: LoreSelectionInput
+    @app.get("/api/v2/world-versions/{world_version_id}/character-cards/{character_card_id}:export")
+    async def export_character_card(
+        world_version_id: str, character_card_id: str
     ) -> dict[str, object]:
         try:
-            return (
-                await app.state.content.select_lore(world_version_id, payload)
-            ).model_dump(mode="json")
+            return await app.state.content.export_character_card(world_version_id, character_card_id)
         except ContentNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
-
-    @app.post("/api/v2/worlds/{world_id}/lore/{lore_id}:promote")
-    async def promote_world_lore(
-        world_id: str, lore_id: str, payload: LorePromotionInput
-    ) -> dict[str, object]:
-        try:
-            return (
-                await app.state.content.promote_lore(world_id, lore_id, payload)
-            ).model_dump(mode="json")
-        except ContentNotFoundError as error:
-            raise HTTPException(status_code=404, detail=str(error)) from error
-        except ValueError as error:
+        except TypeError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
     async def play_turn(run_id: str, payload: TurnInput) -> TurnResult:

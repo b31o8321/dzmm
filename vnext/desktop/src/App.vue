@@ -61,8 +61,8 @@ async function createWorld() {
       : {
           schema_version: 2,
           name: worldName.value,
-          lore: importedContent.value?.lore ?? [],
-          character_cards: [],
+          lorebook: importedContent.value?.lorebook ?? { entries: [] },
+          character_cards: importedContent.value?.character_cards ?? [],
           locations: [
             { id: 'harbor', name: harborName.value },
             { id: 'lighthouse', name: lighthouseName.value },
@@ -250,11 +250,11 @@ onMounted(() => void bootHost())
         </div>
         <details v-if="experience === 'trpg'" class="import-panel">
           <summary>导入 SillyTavern 内容（可选）</summary>
-          <p>支持 V3 角色卡与 World Info JSON。它们先作为 Lore 上下文进入世界。</p>
+          <p>支持 V3 角色卡与 World Info JSON，作为世界书和角色卡资产保存进这个世界。</p>
           <textarea v-model="importJson" placeholder="粘贴 SillyTavern JSON…" rows="5"></textarea>
           <button type="button" class="minor-action" @click="applySillyTavernImport">解析并应用</button>
           <p v-if="importedContent" class="import-result">
-            已导入 {{ importedContent.lore.length }} 条 Lore · {{ importedContent.report.source_format }}
+            已导入 {{ importedContent.lorebook.entries.length }} 条世界书条目、{{ importedContent.character_cards.length }} 张角色卡 · {{ importedContent.report.source_format }}
           </p>
         </details>
         <button :disabled="busy || !hostReady">{{ busy ? '正在装订世界…' : hostReady ? '确认并创建世界' : '等待 Mac Host…' }}</button>

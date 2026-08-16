@@ -1,7 +1,7 @@
 from test_world_compose import compose_payload
 
 
-def test_sillytavern_v3_card_import_preserves_raw_lore_fields(migrated_client) -> None:
+def test_sillytavern_v3_card_import_persists_a_character_card_and_round_trips(migrated_client) -> None:
     client, _ = migrated_client
     response = client.post(
         "/api/v2/content/sillytavern:import",
@@ -31,12 +31,26 @@ def test_sillytavern_v3_card_import_preserves_raw_lore_fields(migrated_client) -
     assert response.status_code == 200
     body = response.json()
     assert body["suggested_hero"] == {"name": "Mira", "profile": {"description": "A sailor."}}
-    assert body["lore"][0]["activation"] == "keyword"
-    assert body["lore"][0]["keywords"] == ["fog", "oracle"]
-    assert body["lore"][0]["source"]["sillytavern"]["extensions"] == {"vendor": "kept"}
+    assert body["lorebook"]["entries"][0]["activation"] == "keyword"
+    assert body["lorebook"]["entries"][0]["keywords"] == ["fog", "oracle"]
+    assert body["lorebook"]["entries"][0]["source"]["sillytavern"]["extensions"] == {"vendor": "kept"}
+    card = body["character_cards"][0]
+    assert card["format"] == "sillytavern_v3"
+    assert card["mapped"]["description"] == "A sailor."
+    assert card["mapped"]["character_book_entry_ids"] == ["card-oracle"]
+
+    payload = compose_payload("card-world")
+    payload["world_definition"]["lorebook"] = body["lorebook"]
+    payload["world_definition"]["character_cards"] = body["character_cards"]
+    created = client.post("/api/v2/worlds:compose", json=payload).json()
+    exported = client.get(
+        f"/api/v2/world-versions/{created['world_version_id']}/character-cards/{card['id']}:export"
+    )
+    assert exported.status_code == 200
+    assert exported.json()["data"]["character_book"]["entries"][0]["extensions"] == {"vendor": "kept"}
 
 
-def test_world_info_selection_and_explicit_lore_promotion_create_new_version(migrated_client) -> None:
+def test_world_info_selection_and_explicit_lorebook_promotion_create_new_version(migrated_client) -> None:
     client, _ = migrated_client
     imported = client.post(
         "/api/v2/content/sillytavern:import",
@@ -60,21 +74,26 @@ def test_world_info_selection_and_explicit_lore_promotion_create_new_version(mig
         },
     )
     assert imported.status_code == 200
-    lore = imported.json()["lore"]
-    assert {entry["activation"] for entry in lore} == {"always", "keyword"}
+    lorebook = imported.json()["lorebook"]
+    assert {entry["activation"] for entry in lorebook["entries"]} == {"always", "keyword"}
 
     payload = compose_payload("content-world")
-    payload["world_definition"]["lore"] = lore
+    payload["world_definition"]["lorebook"] = lorebook
     created = client.post("/api/v2/worlds:compose", json=payload).json()
     selected = client.post(
-        f"/api/v2/world-versions/{created['world_version_id']}/lore:select",
+        f"/api/v2/world-versions/{created['world_version_id']}/lorebook:select",
         json={"player_input": "I walk through rain.", "character_budget": 100},
     )
     assert selected.status_code == 200
     assert selected.json()["included_ids"] == ["world-info-weather", "world-info-law"]
+    legacy_path = client.post(
+        f"/api/v2/world-versions/{created['world_version_id']}/lore:select",
+        json={"player_input": "I walk through rain.", "character_budget": 100},
+    )
+    assert legacy_path.status_code == 404
 
     promoted = client.post(
-        f"/api/v2/worlds/{created['world_id']}/lore/world-info-weather:promote",
+        f"/api/v2/worlds/{created['world_id']}/lorebook/world-info-weather:promote",
         json={"entity_kind": "npcs", "entity": {"id": "rain-warden", "name": "Rain Warden"}},
     )
     assert promoted.status_code == 200

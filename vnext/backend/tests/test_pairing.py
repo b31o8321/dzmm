@@ -58,7 +58,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
             "world_definition": {
                 "schema_version": 2,
                 "name": "Mobile Run",
-                "lore": [],
+                "lorebook": {"entries": []},
                 "character_cards": [],
                 "locations": [
                     {"id": "harbor", "name": "Fog Harbor"},

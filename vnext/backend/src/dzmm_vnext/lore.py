@@ -5,22 +5,22 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class LoreSelection:
+class LorebookSelection:
     entries: list[dict[str, Any]]
     included_ids: list[str]
     excluded_ids: list[str]
     used_characters: int
 
 
-def select_lore(
+def select_lorebook(
     definition: dict[str, Any], player_input: str, character_budget: int
-) -> LoreSelection:
+) -> LorebookSelection:
     if character_budget < 1:
         raise ValueError("character_budget must be positive")
     normalized_input = player_input.casefold()
     candidates = [
         (index, entry)
-        for index, entry in enumerate(definition.get("lore", []))
+        for index, entry in enumerate(definition["lorebook"]["entries"])
         if _is_active(entry, normalized_input)
     ]
     candidates.sort(key=lambda item: (-item[1]["priority"], item[0]))
@@ -34,7 +34,7 @@ def select_lore(
             continue
         entries.append(entry)
         used_characters += len(body)
-    return LoreSelection(
+    return LorebookSelection(
         entries=entries,
         included_ids=[entry["id"] for entry in entries],
         excluded_ids=excluded_ids,

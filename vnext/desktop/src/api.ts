@@ -47,7 +47,8 @@ export type WorldTemplate = {
 
 export type ImportedContent = {
   suggested_hero: { name: string; profile: Record<string, unknown> } | null
-  lore: Array<Record<string, unknown>>
+  lorebook: { entries: Array<Record<string, unknown>> }
+  character_cards: Array<Record<string, unknown>>
   report: {
     source_format: string
     supported_fields: string[]

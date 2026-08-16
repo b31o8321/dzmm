@@ -12,7 +12,7 @@ def compose_payload(request_id: str) -> dict:
         "world_definition": {
             "schema_version": 2,
             "name": "Fog Harbor",
-            "lore": [],
+            "lorebook": {"entries": []},
             "character_cards": [],
             "locations": [
                 {"id": "harbor", "name": "Fog Harbor"},

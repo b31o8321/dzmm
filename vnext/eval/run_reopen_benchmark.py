@@ -37,7 +37,7 @@ def main() -> None:
                     "world_definition": {
                         "schema_version": 2,
                         "name": "Reopen Benchmark",
-                        "lore": [],
+                        "lorebook": {"entries": []},
                         "character_cards": [],
                         "locations": [
                             {"id": "harbor", "name": "Fog Harbor"},

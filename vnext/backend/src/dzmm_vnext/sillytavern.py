@@ -16,7 +16,8 @@ class ImportReport(BaseModel):
 
 class ImportedContent(BaseModel):
     suggested_hero: dict[str, Any] | None
-    lore: list[dict[str, Any]]
+    lorebook: dict[str, list[dict[str, Any]]]
+    character_cards: list[dict[str, Any]]
     report: ImportReport
 
 
@@ -33,7 +34,7 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
     name = _string(data.get("name")) or "Imported character"
     book = data.get("character_book") if isinstance(data.get("character_book"), dict) else {}
     entries = book.get("entries", [])
-    lore, warnings = _entries_to_lore(entries, "card")
+    lorebook_entries, warnings = _entries_to_lorebook_entries(entries, "card")
     profile = {
         key: data[key]
         for key in ("description", "personality", "scenario", "first_mes", "mes_example")
@@ -41,7 +42,20 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
     }
     return ImportedContent(
         suggested_hero={"name": name, "profile": profile},
-        lore=lore,
+        lorebook={"entries": lorebook_entries},
+        character_cards=[
+            {
+                "id": _card_id(name),
+                "name": name,
+                "format": "sillytavern_v3",
+                "relationship_dimensions": {},
+                "mapped": {
+                    **profile,
+                    "character_book_entry_ids": [entry["id"] for entry in lorebook_entries],
+                },
+                "source_payload": payload,
+            }
+        ],
         report=ImportReport(
             source_format="sillytavern_v3_character_card",
             supported_fields=["data.name", "data.character_book.entries"],
@@ -53,10 +67,11 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
 
 
 def _import_world_info(payload: dict[str, Any]) -> ImportedContent:
-    lore, warnings = _entries_to_lore(payload["entries"], "world-info")
+    lorebook_entries, warnings = _entries_to_lorebook_entries(payload["entries"], "world-info")
     return ImportedContent(
         suggested_hero=None,
-        lore=lore,
+        lorebook={"entries": lorebook_entries},
+        character_cards=[],
         report=ImportReport(
             source_format="sillytavern_world_info",
             supported_fields=["entries.keys", "entries.content", "entries.constant", "entries.order"],
@@ -67,11 +82,13 @@ def _import_world_info(payload: dict[str, Any]) -> ImportedContent:
     )
 
 
-def _entries_to_lore(entries: Any, prefix: str) -> tuple[list[dict[str, Any]], list[str]]:
+def _entries_to_lorebook_entries(
+    entries: Any, prefix: str
+) -> tuple[list[dict[str, Any]], list[str]]:
     source_entries = entries.values() if isinstance(entries, dict) else entries
     if not isinstance(source_entries, list) and not hasattr(source_entries, "__iter__"):
         return [], ["entries is not iterable"]
-    lore: list[dict[str, Any]] = []
+    lorebook_entries: list[dict[str, Any]] = []
     warnings: list[str] = []
     used_ids: set[str] = set()
     for index, raw in enumerate(source_entries):
@@ -86,7 +103,7 @@ def _entries_to_lore(entries: Any, prefix: str) -> tuple[list[dict[str, Any]], l
         activation = "always" if raw.get("constant") or raw.get("always") or not keys else "keyword"
         entry_id = _unique_id(f"{prefix}-{raw.get('id', index)}", used_ids)
         used_ids.add(entry_id)
-        lore.append(
+        lorebook_entries.append(
             {
                 "id": entry_id,
                 "title": _string(raw.get("comment")) or (keys[0] if keys else f"Imported lore {index + 1}"),
@@ -97,7 +114,7 @@ def _entries_to_lore(entries: Any, prefix: str) -> tuple[list[dict[str, Any]], l
                 "source": {"sillytavern": raw},
             }
         )
-    return lore, warnings
+    return lorebook_entries, warnings
 
 
 def _keywords(value: Any) -> list[str]:
@@ -115,12 +132,16 @@ def _string(value: Any) -> str:
 
 
 def _unique_id(raw: str, used_ids: set[str]) -> str:
-    base = re.sub(r"[^a-z0-9_-]+", "-", raw.casefold()).strip("-") or "lore"
+    base = re.sub(r"[^a-z0-9_-]+", "-", raw.casefold()).strip("-") or "entry"
     if not base[0].isalpha():
-        base = f"lore-{base}"
+        base = f"entry-{base}"
     base = base[:64]
     candidate, suffix = base, 2
     while candidate in used_ids:
         candidate = f"{base[:60]}-{suffix}"
         suffix += 1
     return candidate
+
+
+def _card_id(name: str) -> str:
+    return _unique_id(f"card-{name}", set())

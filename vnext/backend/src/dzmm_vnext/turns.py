@@ -13,7 +13,7 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
-from .lore import select_lore
+from .lore import select_lorebook
 from .model_profiles import ModelNarrator, ModelProfile, NarrationError, _clean_narrative
 from .narrative import (
     NarrativeRuleError,
@@ -143,7 +143,7 @@ class TurnCoordinator:
                 raise RevisionConflictError(f"engine created invalid RunState: {error.message}") from error
 
             profile = _profile_from_row(run)
-            lore = select_lore(run["definition"], payload.player_input, character_budget=4000)
+            lore = select_lorebook(run["definition"], payload.player_input, character_budget=4000)
             narrative = await self._narrate(
                 profile,
                 run["definition"],
@@ -336,7 +336,7 @@ class TurnCoordinator:
                 emitted_narrative = raw_narrative
                 yield "narrative_delta", {"text": raw_narrative}
             else:
-                lore = select_lore(run["definition"], payload.player_input, character_budget=4000)
+                lore = select_lorebook(run["definition"], payload.player_input, character_budget=4000)
                 async for piece in self._narrator.stream(
                     profile,
                     run["definition"],

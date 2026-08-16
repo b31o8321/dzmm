@@ -11,7 +11,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
-from .lore import LoreSelection, select_lore
+from .lore import LorebookSelection, select_lorebook
 from .persistence import world_versions, worlds
 from .sillytavern import ImportedContent, import_sillytavern
 
@@ -22,21 +22,21 @@ class SillyTavernImportInput(BaseModel):
     content: dict[str, Any]
 
 
-class LoreSelectionInput(BaseModel):
+class LorebookSelectionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     player_input: str = Field(min_length=1, max_length=4000)
     character_budget: int = Field(default=4000, ge=1, le=20000)
 
 
-class LoreSelectionResult(BaseModel):
+class LorebookSelectionResult(BaseModel):
     entries: list[dict[str, Any]]
     included_ids: list[str]
     excluded_ids: list[str]
     used_characters: int
 
 
-class LorePromotionInput(BaseModel):
+class LorebookPromotionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     entity_kind: Literal["locations", "factions", "npcs", "events"]
@@ -61,9 +61,9 @@ class ContentService:
     def import_sillytavern(self, payload: SillyTavernImportInput) -> ImportedContent:
         return import_sillytavern(payload.content)
 
-    async def select_lore(
-        self, world_version_id: str, payload: LoreSelectionInput
-    ) -> LoreSelectionResult:
+    async def select_lorebook(
+        self, world_version_id: str, payload: LorebookSelectionInput
+    ) -> LorebookSelectionResult:
         async with self._session_factory() as session:
             result = await session.execute(
                 select(world_versions.c.definition).where(world_versions.c.id == world_version_id)
@@ -71,10 +71,10 @@ class ContentService:
             definition = result.scalar_one_or_none()
         if definition is None:
             raise ContentNotFoundError("world version not found")
-        return _selection_result(select_lore(definition, payload.player_input, payload.character_budget))
+        return _selection_result(select_lorebook(definition, payload.player_input, payload.character_budget))
 
-    async def promote_lore(
-        self, world_id: str, lore_id: str, payload: LorePromotionInput
+    async def promote_lorebook_entry(
+        self, world_id: str, entry_id: str, payload: LorebookPromotionInput
     ) -> WorldVersionResult:
         async with self._session_factory() as session, session.begin():
             latest_result = await session.execute(
@@ -94,8 +94,8 @@ class ContentService:
             if latest["status"] != "active":
                 raise ContentNotFoundError("archived world cannot create a new version")
             definition = deepcopy(latest["definition"])
-            if not any(entry["id"] == lore_id for entry in definition["lore"]):
-                raise ContentNotFoundError("lore entry not found")
+            if not any(entry["id"] == entry_id for entry in definition["lorebook"]["entries"]):
+                raise ContentNotFoundError("lorebook entry not found")
             entity_id = payload.entity.get("id")
             if not isinstance(entity_id, str) or not entity_id:
                 raise ValueError("promoted entity requires an id")
@@ -125,9 +125,30 @@ class ContentService:
                 definition=definition,
             )
 
+    async def export_character_card(
+        self, world_version_id: str, character_card_id: str
+    ) -> dict[str, Any]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(world_versions.c.definition).where(world_versions.c.id == world_version_id)
+            )
+            definition = result.scalar_one_or_none()
+        if definition is None:
+            raise ContentNotFoundError("world version not found")
+        card = next(
+            (item for item in definition["character_cards"] if item["id"] == character_card_id),
+            None,
+        )
+        if card is None:
+            raise ContentNotFoundError("character card not found")
+        payload = card.get("source_payload")
+        if not isinstance(payload, dict):
+            raise TypeError("character card has no source payload to export")
+        return deepcopy(payload)
 
-def _selection_result(selection: LoreSelection) -> LoreSelectionResult:
-    return LoreSelectionResult(
+
+def _selection_result(selection: LorebookSelection) -> LorebookSelectionResult:
+    return LorebookSelectionResult(
         entries=selection.entries,
         included_ids=selection.included_ids,
         excluded_ids=selection.excluded_ids,

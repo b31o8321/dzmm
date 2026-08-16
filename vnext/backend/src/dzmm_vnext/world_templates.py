@@ -9,15 +9,17 @@ def fog_harbor_template() -> dict[str, Any]:
     definition = {
         "schema_version": 2,
         "name": "雾港",
-        "lore": [
-            {
-                "id": "gray-tide",
-                "title": "灰潮",
-                "body": "雾港的潮水会吞没失约者。",
-                "activation": "always",
-                "priority": 90,
-            }
-        ],
+        "lorebook": {
+            "entries": [
+                {
+                    "id": "gray-tide",
+                    "title": "灰潮",
+                    "body": "雾港的潮水会吞没失约者。",
+                    "activation": "always",
+                    "priority": 90,
+                }
+            ]
+        },
         "character_cards": [
             {
                 "id": "lan",

@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dzmm.local/contracts/world-definition/2026-08-17",
+  "$id": "https://dzmm.local/contracts/world-definition/2026-08-17-lorebook",
   "title": "WorldDefinition",
   "type": "object",
-  "required": ["schema_version", "name", "lore", "character_cards", "locations", "factions", "npcs", "events", "resources", "ruleset", "story"],
+  "required": ["schema_version", "name", "lorebook", "character_cards", "locations", "factions", "npcs", "events", "resources", "ruleset", "story"],
   "properties": {
     "schema_version": {"const": 2},
     "name": {"type": "string", "minLength": 1, "maxLength": 120},
-    "lore": {"type": "array", "items": {"$ref": "#/$defs/loreEntry"}},
+    "lorebook": {"$ref": "#/$defs/lorebook"},
     "character_cards": {"type": "array", "items": {"$ref": "#/$defs/characterCard"}},
     "locations": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
     "factions": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
@@ -21,8 +21,9 @@
   "$defs": {
     "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
     "entity": {"type": "object", "required": ["id", "name"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}}, "additionalProperties": true},
-    "loreEntry": {"type": "object", "required": ["id", "title", "body", "activation", "priority"], "properties": {"id": {"$ref": "#/$defs/id"}, "title": {"type": "string", "minLength": 1}, "body": {"type": "string"}, "activation": {"enum": ["always", "keyword"]}, "keywords": {"type": "array", "items": {"type": "string"}}, "priority": {"type": "integer", "minimum": 0, "maximum": 100}, "source": {"type": "object"}}, "additionalProperties": false},
-    "characterCard": {"type": "object", "required": ["id", "name", "format", "relationship_dimensions"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}, "format": {"enum": ["native", "sillytavern_v3"]}, "relationship_dimensions": {"type": "object", "propertyNames": {"pattern": "^[a-z][a-z0-9_-]{0,31}$"}, "additionalProperties": {"type": "integer", "minimum": -100, "maximum": 100}}, "source_payload": {"type": "object"}}, "additionalProperties": false},
+    "lorebook": {"type": "object", "required": ["entries"], "properties": {"entries": {"type": "array", "items": {"$ref": "#/$defs/lorebookEntry"}}}, "additionalProperties": false},
+    "lorebookEntry": {"type": "object", "required": ["id", "title", "body", "activation", "priority"], "properties": {"id": {"$ref": "#/$defs/id"}, "title": {"type": "string", "minLength": 1}, "body": {"type": "string"}, "activation": {"enum": ["always", "keyword"]}, "keywords": {"type": "array", "items": {"type": "string"}}, "priority": {"type": "integer", "minimum": 0, "maximum": 100}, "source": {"type": "object"}}, "additionalProperties": false},
+    "characterCard": {"type": "object", "required": ["id", "name", "format", "relationship_dimensions"], "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1}, "format": {"enum": ["native", "sillytavern_v3"]}, "relationship_dimensions": {"type": "object", "propertyNames": {"pattern": "^[a-z][a-z0-9_-]{0,31}$"}, "additionalProperties": {"type": "integer", "minimum": -100, "maximum": 100}}, "mapped": {"type": "object"}, "source_payload": {"type": "object"}}, "additionalProperties": false},
     "ruleset": {"type": "object", "required": ["id", "enabled_capabilities"], "properties": {"id": {"enum": ["trpg", "story_adventure", "relationship_drama", "hybrid"]}, "enabled_capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["trpg", "chapters", "choices", "relationships", "routes", "endings", "resources"]}}}, "additionalProperties": false},
     "chapter": {"type": "object", "required": ["id", "title", "order", "choices", "next_chapter_id"], "properties": {"id": {"$ref": "#/$defs/id"}, "title": {"type": "string", "minLength": 1}, "order": {"type": "integer", "minimum": 1}, "choices": {"type": "array", "items": {"$ref": "#/$defs/storyChoice"}}, "next_chapter_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}}, "additionalProperties": false},
     "storyChoice": {"type": "object", "required": ["id", "label", "effects"], "properties": {"id": {"$ref": "#/$defs/id"}, "label": {"type": "string", "minLength": 1}, "effects": {"type": "array", "items": {"$ref": "#/$defs/storyEffect"}}}, "additionalProperties": false},

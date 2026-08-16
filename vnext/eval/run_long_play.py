@@ -60,7 +60,7 @@ def main() -> None:
                     "world_definition": {
                         "schema_version": 2,
                         "name": "Long-play Fog Harbor",
-                        "lore": [],
+                        "lorebook": {"entries": []},
                         "character_cards": [],
                         "locations": [
                             {"id": "harbor", "name": "Fog Harbor"},
