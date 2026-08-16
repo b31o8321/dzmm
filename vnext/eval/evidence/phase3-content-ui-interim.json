@@ -1,0 +1,24 @@
+{
+  "commit": "602a568",
+  "environment": "Python 3.13.3; fresh temporary SQLite database; Vite desktop browser E2E",
+  "evidence": {
+    "domain_lifecycle": "Archive, confirmed purge, and zero SQL orphan scan are covered by integration tests.",
+    "game_loop": "Python validates commands/revisions and appends idempotent rollback audit turns; browser flow verifies recovery.",
+    "creation_content": "Desktop browser imports a V3 card, applies its suggested hero and Lore before the single compose action. Backend supports V3/World Info, raw entry preservation, selection, and explicit new-version promotion; PNG metadata/export are absent.",
+    "model_stream": "Ollama and OpenAI-compatible contract probes are tested; LM Studio HTTP 200 error bodies fail; one real LM Studio model narrates turns.",
+    "desktop_ux": "Vite production build plus local browser create/import/confirm/play/rollback/refresh flows passed; no packaged Tauri evidence.",
+    "mobile_recovery": "Not implemented in vNext.",
+    "long_play_performance": "No long-play measurement yet.",
+    "engineering_release": "Fresh migrations, backend tests, lint, and desktop production build pass; no signed release artifacts."
+  },
+  "scores": {
+    "domain_lifecycle": 60,
+    "game_loop": 65,
+    "creation_content": 60,
+    "model_stream": 55,
+    "desktop_ux": 60,
+    "mobile_recovery": 0,
+    "long_play_performance": 0,
+    "engineering_release": 50
+  }
+}

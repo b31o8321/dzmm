@@ -33,7 +33,8 @@
 - **Phase 2 lifecycle 证据（已评分，未过 gate）：** `cde8ef3` 实现了 archive、确认 token 保护的 purge manifest、聚合删除与零 SQL 孤儿扫描；测试还确认 archived World 不能再收回合。当前没有资产或派生索引模块，manifest 因此明确报告空集合，不把不存在的清理能力计为完成。
 - **Phase 2 rollback 证据（已评分，未过 gate）：** `abf1f60` 将回滚实现为新的审计 Turn，`edf4ac1` 将它接入桌面。浏览器在临时 DB 中验证两回合 → 恢复第一回合后 → 刷新：历史仍有三条记录，RunState 为新 revision 的第一回合快照。此测试使用 deterministic narrator；真实 Huihui 模型只为此前四回合证据背书，不能替代长局。
 - **Phase 3 content 证据（已评分，未过 gate）：** `53250f8` 支持 SillyTavern V3 card 与 World Info 解析、原始条目保留、关键词/常驻/优先级/预算选择，并让 Lore 提升产生 WorldVersion 2、既有 Run 留在版本 1。模型仅接收选择出的 Lore body，不能把 Lore 直接写入 RunState。
-- **当前 vNext 矩阵：46.75 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase3-content-interim.json`：Domain 60、Game Loop 65、Content 55、Model 55、Desktop 60、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
+- **Phase 3 desktop import 证据（已评分，未过 gate）：** `602a568` 的临时 DB 浏览器 E2E 验证 V3 卡 → 1 条 Lore → 建议 Hero → 单一 compose → 确认页面；Lore 没有静默变成实体。
+- **当前 vNext 矩阵：47.5 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase3-content-ui-interim.json`：Domain 60、Game Loop 65、Content 60、Model 55、Desktop 60、Mobile 0、Long-play 0、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、长局和发布证据；不以局部真实模型成功推断这些维度完成。
 
 ### 下一关
 
