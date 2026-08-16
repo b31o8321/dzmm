@@ -1,6 +1,6 @@
 # DZMM vNext 叙事规则集：本地优先、状态驱动的互动叙事平台
 
-**状态：** Active — Phase 0 contract v2 与确定性雾港垂直切片已实现；真实模型、叙事 UI 与 Android 验收待推进
+**状态：** Active — Phase 0 contract v2、确定性雾港切片与 Mac 本地浏览器旅程已实现；真实模型、打包桌面与 Android 验收待推进
 **日期：** 2026-08-17
 **范围：** 只扩展 vNext 的 `World → WorldVersion → Run → RunState → Turn` 聚合；不读取、迁移或兼容 v0.x。
 
