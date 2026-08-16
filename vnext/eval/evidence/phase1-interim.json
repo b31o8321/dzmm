@@ -1,0 +1,24 @@
+{
+  "commit": "ca82df6",
+  "environment": "Python 3.13.3; fresh temporary DZMM_NEXT_DATA_DIR; LM Studio at 192.168.31.169:1234/v1; huihui-ai_qwen3-14b-abliterated",
+  "evidence": {
+    "domain_lifecycle": "Atomic compose/retry/conflict plus 20 injected database failures leave no partial aggregate.",
+    "game_loop": "Python validates commands and revision; 3 real-model turns reload correctly, then a fourth output-cleaning turn passes.",
+    "creation_content": "A two-location desktop creation flow exists, but Lorebook and ST import/export do not.",
+    "model_stream": "Ollama and OpenAI-compatible contract probes are tested; LM Studio HTTP 200 error bodies fail; one real LM Studio model narrates turns.",
+    "desktop_ux": "Vite production build plus local browser Create -> Confirm -> Turn -> Refresh recovery passed; no packaged Tauri evidence.",
+    "mobile_recovery": "Not implemented in vNext.",
+    "long_play_performance": "No long-play measurement yet.",
+    "engineering_release": "Fresh migrations, backend tests, lint, and desktop production build pass; no signed release artifacts."
+  },
+  "scores": {
+    "domain_lifecycle": 45,
+    "game_loop": 50,
+    "creation_content": 35,
+    "model_stream": 55,
+    "desktop_ux": 50,
+    "mobile_recovery": 0,
+    "long_play_performance": 0,
+    "engineering_release": 50
+  }
+}
