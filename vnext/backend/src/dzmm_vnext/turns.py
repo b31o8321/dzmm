@@ -25,8 +25,18 @@ class TurnInput(BaseModel):
     commands: list[dict[str, Any]] = Field(min_length=1, max_length=16)
 
 
+class TurnRollbackInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=1, max_length=80)
+    expected_revision: int = Field(ge=0)
+    target_turn_id: str = Field(min_length=1, max_length=36)
+
+
 class TurnResult(BaseModel):
     turn_id: str
+    kind: str
+    rollback_target_id: str | None
     sequence: int
     narrative: str
     commands: list[dict[str, Any]]
@@ -140,6 +150,8 @@ class TurnCoordinator:
                     id=turn_id,
                     run_id=run_id,
                     request_id=payload.request_id,
+                    kind="turn",
+                    rollback_target_id=None,
                     sequence=sequence,
                     player_input=payload.player_input,
                     narrative=narrative,
@@ -153,9 +165,117 @@ class TurnCoordinator:
             )
             return TurnResult(
                 turn_id=turn_id,
+                kind="turn",
+                rollback_target_id=None,
                 sequence=sequence,
                 narrative=narrative,
                 commands=payload.commands,
+                outcomes=outcomes,
+                before_revision=before_revision,
+                after_revision=after_revision,
+                state=state,
+                created=True,
+            )
+
+    async def rollback(self, run_id: str, payload: TurnRollbackInput) -> TurnResult:
+        async with self._session_factory() as session, session.begin():
+            existing = await session.execute(
+                select(turns).where(
+                    turns.c.run_id == run_id,
+                    turns.c.request_id == payload.request_id,
+                )
+            )
+            existing_row = existing.mappings().one_or_none()
+            if existing_row:
+                if (
+                    existing_row["kind"] != "rollback"
+                    or existing_row["rollback_target_id"] != payload.target_turn_id
+                ):
+                    raise TurnIdempotencyConflictError(
+                        "request_id was already used for different turn input"
+                    )
+                return _turn_result(existing_row, created=False)
+
+            run_result = await session.execute(
+                select(runs.c.state_revision, worlds.c.status.label("world_status"))
+                .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .join(worlds, worlds.c.id == world_versions.c.world_id)
+                .where(runs.c.id == run_id)
+            )
+            run = run_result.mappings().one_or_none()
+            if run is None:
+                raise RunNotFoundError("run not found")
+            if run["world_status"] != "active":
+                raise RevisionConflictError("archived world cannot receive new turns")
+            if payload.expected_revision != run["state_revision"]:
+                raise RevisionConflictError(
+                    f"expected revision {payload.expected_revision}, current revision is {run['state_revision']}"
+                )
+
+            target_result = await session.execute(
+                select(turns).where(
+                    turns.c.id == payload.target_turn_id,
+                    turns.c.run_id == run_id,
+                )
+            )
+            target = target_result.mappings().one_or_none()
+            if target is None:
+                raise RevisionConflictError("rollback target is not part of this run")
+
+            before_revision = run["state_revision"]
+            after_revision = before_revision + 1
+            state = deepcopy(target["after_state"])
+            state["revision"] = after_revision
+            try:
+                contract_validator("run_state.schema.json").validate(state)
+            except ValidationError as error:
+                raise RevisionConflictError(f"rollback created invalid RunState: {error.message}") from error
+
+            changed = await session.execute(
+                update(runs)
+                .where(runs.c.id == run_id, runs.c.state_revision == before_revision)
+                .values(
+                    state=state,
+                    state_revision=after_revision,
+                    updated_at=datetime.now(UTC).replace(tzinfo=None),
+                )
+            )
+            if changed.rowcount != 1:
+                raise RevisionConflictError("run changed while the rollback was being applied")
+
+            sequence = (
+                await session.execute(
+                    select(func.coalesce(func.max(turns.c.sequence), 0)).where(turns.c.run_id == run_id)
+                )
+            ).scalar_one() + 1
+            turn_id = str(uuid4())
+            outcomes = [{"type": "rollback", "target_turn_id": target["id"]}]
+            narrative = f"Recovered the state after turn {target['sequence']}."
+            await session.execute(
+                insert(turns).values(
+                    id=turn_id,
+                    run_id=run_id,
+                    request_id=payload.request_id,
+                    kind="rollback",
+                    rollback_target_id=target["id"],
+                    sequence=sequence,
+                    player_input=f"Rollback to turn {target['sequence']}",
+                    narrative=narrative,
+                    commands=[],
+                    outcomes=outcomes,
+                    before_revision=before_revision,
+                    after_revision=after_revision,
+                    after_state=state,
+                    created_at=datetime.now(UTC).replace(tzinfo=None),
+                )
+            )
+            return TurnResult(
+                turn_id=turn_id,
+                kind="rollback",
+                rollback_target_id=target["id"],
+                sequence=sequence,
+                narrative=narrative,
+                commands=[],
                 outcomes=outcomes,
                 before_revision=before_revision,
                 after_revision=after_revision,
@@ -270,6 +390,8 @@ def _profile_from_row(row: Any) -> ModelProfile | None:
 def _turn_result(row: Any, *, created: bool) -> TurnResult:
     return TurnResult(
         turn_id=row["id"],
+        kind=row["kind"],
+        rollback_target_id=row["rollback_target_id"],
         sequence=row["sequence"],
         narrative=row["narrative"],
         commands=row["commands"],

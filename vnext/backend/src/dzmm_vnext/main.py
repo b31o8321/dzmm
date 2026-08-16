@@ -27,6 +27,7 @@ from .turns import (
     TurnIdempotencyConflictError,
     TurnInput,
     TurnResult,
+    TurnRollbackInput,
 )
 from .worlds import (
     ComposeWorldInput,
@@ -131,9 +132,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (RevisionConflictError, TurnIdempotencyConflictError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    async def play_rollback(run_id: str, payload: TurnRollbackInput) -> TurnResult:
+        try:
+            return await app.state.turn_coordinator.rollback(run_id, payload)
+        except RunNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (RevisionConflictError, TurnIdempotencyConflictError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/api/v2/runs/{run_id}/turns")
     async def create_turn(run_id: str, payload: TurnInput) -> JSONResponse:
         result = await play_turn(run_id, payload)
+        return JSONResponse(
+            status_code=201 if result.created else 200,
+            content=result.model_dump(mode="json"),
+        )
+
+    @app.post("/api/v2/runs/{run_id}/rollbacks")
+    async def rollback_turn(run_id: str, payload: TurnRollbackInput) -> JSONResponse:
+        result = await play_rollback(run_id, payload)
         return JSONResponse(
             status_code=201 if result.created else 200,
             content=result.model_dump(mode="json"),

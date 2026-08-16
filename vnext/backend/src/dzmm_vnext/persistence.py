@@ -63,6 +63,8 @@ turns = Table(
     Column("id", String(36), primary_key=True),
     Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False),
     Column("request_id", String(80), nullable=False),
+    Column("kind", String(20), nullable=False),
+    Column("rollback_target_id", String(36), ForeignKey("turns.id", ondelete="RESTRICT")),
     Column("sequence", Integer(), nullable=False),
     Column("player_input", String(), nullable=False),
     Column("narrative", String(), nullable=False),

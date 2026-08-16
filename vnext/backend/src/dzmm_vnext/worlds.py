@@ -195,6 +195,8 @@ class WorldComposer:
             turn_rows = await session.execute(
                 select(
                     turns.c.id,
+                    turns.c.kind,
+                    turns.c.rollback_target_id,
                     turns.c.sequence,
                     turns.c.player_input,
                     turns.c.narrative,

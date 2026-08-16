@@ -181,3 +181,59 @@ def test_three_turns_recover_after_refresh_and_sse_replays_events(migrated_clien
     )
     assert retry.status_code == 200
     assert retry.json()["state"]["revision"] == 1
+
+
+def test_rollback_creates_a_new_audit_turn_without_rewriting_history(migrated_client) -> None:
+    client, _ = migrated_client
+    created = client.post("/api/v2/worlds:compose", json=compose_payload("rollback-world")).json()
+    run_id = created["run_id"]
+    first = client.post(
+        f"/api/v2/runs/{run_id}/turns",
+        json={
+            "request_id": "rollback-turn-1",
+            "expected_revision": 0,
+            "player_input": "I walk to the lighthouse.",
+            "commands": [{"type": "move", "payload": {"location_id": "lighthouse"}}],
+        },
+    ).json()
+    assert first["kind"] == "turn"
+    second = client.post(
+        f"/api/v2/runs/{run_id}/turns",
+        json={
+            "request_id": "rollback-turn-2",
+            "expected_revision": 1,
+            "player_input": "I take a lantern.",
+            "commands": [
+                {"type": "inventory_change", "payload": {"item_id": "lantern", "delta": 1}}
+            ],
+        },
+    )
+    assert second.status_code == 201
+
+    rollback_payload = {
+        "request_id": "rollback-1",
+        "expected_revision": 2,
+        "target_turn_id": first["turn_id"],
+    }
+    rollback = client.post(f"/api/v2/runs/{run_id}/rollbacks", json=rollback_payload)
+    assert rollback.status_code == 201
+    assert rollback.json()["kind"] == "rollback"
+    assert rollback.json()["rollback_target_id"] == first["turn_id"]
+    assert rollback.json()["state"]["revision"] == 3
+    assert rollback.json()["state"]["location_id"] == "lighthouse"
+    assert rollback.json()["state"]["inventory"] == []
+
+    retry = client.post(f"/api/v2/runs/{run_id}/rollbacks", json=rollback_payload)
+    assert retry.status_code == 200
+    assert retry.json()["turn_id"] == rollback.json()["turn_id"]
+
+    recovered = client.get(f"/api/v2/runs/{run_id}").json()
+    assert recovered["state"] == rollback.json()["state"]
+    assert [(turn["sequence"], turn["kind"]) for turn in recovered["turns"]] == [
+        (1, "turn"),
+        (2, "turn"),
+        (3, "rollback"),
+    ]
+    assert recovered["turns"][1]["outcomes"] == [
+        {"type": "inventory_change", "item_id": "lantern", "delta": 1}
+    ]
