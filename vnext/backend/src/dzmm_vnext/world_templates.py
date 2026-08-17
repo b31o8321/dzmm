@@ -7,7 +7,7 @@ from typing import Any
 def fog_harbor_template() -> dict[str, Any]:
     """Return the native, deterministic sample for the story-and-relationship slice."""
     definition = {
-        "schema_version": 2,
+        "schema_version": 3,
         "name": "雾港",
         "lorebook": {
             "entries": [
@@ -25,13 +25,11 @@ def fog_harbor_template() -> dict[str, Any]:
                 "id": "lan",
                 "name": "岚",
                 "format": "native",
-                "relationship_dimensions": {"affection": 40, "trust": 0},
             },
             {
                 "id": "shen_yan",
                 "name": "沈砚",
                 "format": "native",
-                "relationship_dimensions": {"affection": 40, "trust": 0},
             },
         ],
         "locations": [
@@ -67,10 +65,28 @@ def fog_harbor_template() -> dict[str, Any]:
                 {"id": "tide-gate-opened", "default": False, "writers": ["choice:open-tide-gate"]},
                 {"id": "tide-gate-failed", "default": False, "writers": ["choice:miss-the-tide"]},
             ],
+            "relationships": [
+                {
+                    "id": "lan",
+                    "character_card_id": "lan",
+                    "dimensions": {
+                        "affection": {"initial": 40, "min": 0, "max": 100},
+                        "trust": {"initial": 0, "min": -100, "max": 100},
+                    },
+                },
+                {
+                    "id": "shen_yan",
+                    "character_card_id": "shen_yan",
+                    "dimensions": {
+                        "affection": {"initial": 40, "min": 0, "max": 100},
+                        "trust": {"initial": 0, "min": -100, "max": 100},
+                    },
+                },
+            ],
             "relationship_events": [
                 {
                     "id": "lan-rescued",
-                    "character_card_id": "lan",
+                    "relationship_id": "lan",
                     "deltas": {"affection": 5, "trust": 20},
                     "reason_key": "relation.lan.rescued",
                     "once_scope": "run",
@@ -78,7 +94,7 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
                 {
                     "id": "lan-truth",
-                    "character_card_id": "lan",
+                    "relationship_id": "lan",
                     "deltas": {"trust": 20},
                     "reason_key": "relation.lan.truth",
                     "once_scope": "run",
@@ -86,7 +102,7 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
                 {
                     "id": "shen-protected",
-                    "character_card_id": "shen_yan",
+                    "relationship_id": "shen_yan",
                     "deltas": {"affection": 8, "trust": 15},
                     "reason_key": "relation.shen.protected",
                     "once_scope": "run",
@@ -94,7 +110,7 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
                 {
                     "id": "shen-confession",
-                    "character_card_id": "shen_yan",
+                    "relationship_id": "shen_yan",
                     "deltas": {"affection": 10, "trust": 25},
                     "reason_key": "relation.shen.confession",
                     "once_scope": "run",
@@ -102,7 +118,7 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
                 {
                     "id": "lan-shared-testimony",
-                    "character_card_id": "lan",
+                    "relationship_id": "lan",
                     "deltas": {"trust": 40},
                     "reason_key": "relation.lan.shared_testimony",
                     "once_scope": "run",
@@ -110,7 +126,7 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
                 {
                     "id": "shen-shared-testimony",
-                    "character_card_id": "shen_yan",
+                    "relationship_id": "shen_yan",
                     "deltas": {"trust": 60},
                     "reason_key": "relation.shen.shared_testimony",
                     "once_scope": "run",

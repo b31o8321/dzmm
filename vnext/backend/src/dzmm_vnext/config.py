@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_DATA_DIR = Path.home() / ".dzmm-vnext"
+DEFAULT_DATA_DIR = Path.home() / ".dzmm-vnext-v3"
 
 
 @dataclass(frozen=True)

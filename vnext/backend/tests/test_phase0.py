@@ -15,7 +15,7 @@ from dzmm_vnext.main import create_app
 
 def test_contract_manifest_contains_every_vnext_contract() -> None:
     manifest = contract_manifest()
-    assert manifest["version"] == "2026-08-17-lorebook"
+    assert manifest["version"] == "2026-08-17-content-boundary"
     assert manifest["contracts"] == [
         "event_envelope.schema.json",
         "run_state.schema.json",
@@ -69,7 +69,7 @@ def test_local_desktop_origins_can_call_api_but_unrelated_origins_cannot(migrate
 
 def test_contract_validators_reject_incomplete_payloads() -> None:
     world = {
-        "schema_version": 2,
+        "schema_version": 3,
         "name": "Fog Harbor",
         "lorebook": {"entries": []},
         "character_cards": [],
@@ -79,7 +79,7 @@ def test_contract_validators_reject_incomplete_payloads() -> None:
         "events": [],
         "resources": [],
         "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
-        "story": {"chapters": [], "flags": [], "relationship_events": [], "routes": [], "endings": []},
+        "story": {"chapters": [], "flags": [], "relationships": [], "relationship_events": [], "routes": [], "endings": []},
     }
     contract_validator("world_definition.schema.json").validate(world)
 
@@ -89,7 +89,7 @@ def test_contract_validators_reject_incomplete_payloads() -> None:
         contract_validator("world_definition.schema.json").validate(legacy_world)
 
     with pytest.raises(ValidationError):
-        contract_validator("run_state.schema.json").validate({"schema_version": 2})
+        contract_validator("run_state.schema.json").validate({"schema_version": 3})
 
 
 def test_fresh_database_migration_records_vnext_baseline(tmp_path, monkeypatch) -> None:
@@ -104,5 +104,5 @@ def test_fresh_database_migration_records_vnext_baseline(tmp_path, monkeypatch) 
     assert rows == [
         ("api_version", "2"),
         ("app", "dzmm-next"),
-        ("contract_version", "2026-08-17-lorebook"),
+        ("contract_version", "2026-08-17-content-boundary"),
     ]

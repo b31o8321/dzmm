@@ -27,7 +27,7 @@
 5. 每阶段只能按 vNext 成熟度矩阵累积证据；旧项目的 88.1 成熟度和 Android CI 不能转移为 vNext 分数。
 6. 世界书（Lorebook / World Info）与角色卡（Character Card）采用生态通用概念和安全互通；它们是内容/上下文层，不能直接写 RunState。`WorldDefinition` 仅为内部契约术语。
 7. 世界书与角色卡不只是兼容导入格式，而是 vNext 的一级、可版本化内容资产。公开 API、UI 与存储 contract 固定采用 `lorebook` / `character_cards`；当前 `lore` 和“角色卡转建议主角”的实现仅为未完成的过渡状态，不能作为 Phase 2 完成证据。
-8. 角色卡是可移植内容，不承载本世界的关系数值或结局规则；规则集通过显式 `RelationshipDefinition → character_card_id` 引用角色卡。当前 schema v2 的 `relationship_dimensions` 位于卡内，是必须在下一阶段清除的边界缺陷；完成前不将现有雾港切片作为该内容建模的最终证据。
+8. 角色卡是可移植内容，不承载本世界的关系数值或结局规则；schema v3 的规则集通过显式 `RelationshipDefinition → character_card_id` 引用角色卡，relationship event 只引用 relationship ID。v2 卡内 `relationship_dimensions` 被拒绝；schema v3 数据目录独立于早期 preview，且不迁移或打开 v2 World/Run。
 
 ### 当前证据与风险
 
@@ -60,6 +60,8 @@
 - **叙事 command 权限收口（已评分，未过 gate）：** `d914ae6` 禁止含 `choices` capability 的 ruleset 走 raw `/turns` 或 `/turns:stream` 改状态；只有 `/choices` 才能把当前 choice 转为 Python planned commands。Android gameplay 同样拒绝 raw narrative stream，并增加受 pairing token 保护的 mobile choice endpoint。36 项后端测试、Ruff 均通过；取证 `phase6-choice-authority.json` 仅将状态裁决与 command 安全从 70 升至 **75**，当时平台矩阵为 **63.25 / 100**。
 - **PNG 角色卡与完整雾港结局（已评分，未过 gate）：** `10be976` 接受 SillyTavern 标准 PNG `chara` metadata（`tEXt` / `zTXt` / `iTXt`，16 MiB image、8 MiB metadata 上限），保留解出的 V3 原始 payload，并在创建页加入本地 PNG 导入入口。雾港原生模板此前虽有“隐藏结局”概念但实际不可达；现增加受限 `unite-witnesses` choice、固定 Flag/关系 event，并以当前模板确定性覆盖岚/沈砚好结局、普通、坏与隐藏结局，另覆盖 once/cooldown 拒绝零写入。隔离 Host + 本地浏览器实测隐藏路线并确认多条关系 reason 与结局页；Host 重启遗留的失效 Run 也会静默清理。`pytest -q` 为 42 passed，Ruff 与桌面 build 通过。取证 `vnext/eval/evidence/phase7-content-and-endings.json`：内容 60→65、剧情完整性 75→**80**、桌面 70→75，平台矩阵现为 **65.00 / 100**；其余 P0 仍未达 80，不可发布。该证据不把合成 PNG 测试当真实卡 filechooser E2E，也不把浏览器当打包 Mac 验收。
 - **安全 LAN gameplay Host（未计分）：** Mac Tauri Host 已有显式“局域网玩法”开关；它重启 sidecar 于 `127.0.0.1` / `0.0.0.0`，失败时恢复上一次监听。LAN 开启时，非 loopback 请求仅允许 `/api/v2/mobile/*`：世界、模型、Host 管理和能力发现均在 handler 前被拒绝；loopback 仍可批准/撤销配对。43 项后端测试（含远程来源的配对→mobile choice）与 Ruff、桌面 build、Rust format/check、PyInstaller 与 debug `.app`/DMG build 均通过；隔离 sidecar 实测非 loopback Host 路径 403、mobile pairing 200。证据为 `vnext/eval/evidence/phase9-lan-host-security-interim.json`。这不是打包 WebView 点击、Android UI/恢复、Wi-Fi 发现、断线 soak 或 Mac+Android 实机验收，Mobile 仍为 0，平台矩阵仍为 **65.00 / 100**。
+- **schema v3 内容/关系边界（未计分）：** `ddb8ac2` 后，当前实现把角色卡内 `relationship_dimensions` 移至 `story.relationships[]`，其中的 dimensions 独立声明 initial/min/max，relationship event 仅引用 relationship ID；Python 按定义边界 clamp，RunState 仍只存已应用 event 的结果。测试明确拒绝卡内关系字段与未知 relationship，并证明同一角色卡可在不同 WorldVersion 使用不同关系初值/边界；雾港四结局、回滚和 mobile choice 回归保持通过。fresh isolated DB 的 500 Turn 重开为 0.005s / 165475 bytes，证据为 `vnext/eval/evidence/phase16-schema-v3-reopen-500-interim.json`。本项替代 v2 contract 的内容建模证据，但没有真实模型、打包 WebView 或 Android 实机旅程，故不改变当前 **65.00 / 100** 的保守分数。
+- **主题系统（未计分）：** 桌面现在可在雾夜、纸页和琥珀间切换；选择保存在 `dzmm-next-theme`，刷新后恢复。1600×900 全页目测确认三套主题的创建页层级与浅色告警对比，Chrome 自动化确认三主题在 390×844 无横向溢出。`npm run build`、`cargo fmt --check` 与 `cargo check` 均通过；证据为 `vnext/eval/evidence/phase17-theme-interim.json`。这是 source-browser 主题验收，不替代打包 WebView 或成熟度加分。
 - **Android 原型只读审计（未计分）：** 未提交的 `vnext/mobile/` Flutter 原型可申请配对、读取 Run 和发送 TRPG raw stream，但尚未消费 narrative choice、章节/关系/结局投影或恢复 contract；`flutter analyze` / `flutter test` 均因模板测试引用不存在的 `MyApp` 而失败。当前 `adb devices` 与 Flutter 无 Android 或无线设备，不能构造实机 LAN 证据。为保留未知所有权的未提交文件，本轮没有改写或提交该目录；Mobile 仍为 0。
 
 ### 下一关

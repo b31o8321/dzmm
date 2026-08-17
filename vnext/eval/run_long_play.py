@@ -58,7 +58,7 @@ def main() -> None:
                     "request_id": "long-play-compose",
                     "model_profile_id": profile.json()["id"],
                     "world_definition": {
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "name": "Long-play Fog Harbor",
                         "lorebook": {"entries": []},
                         "character_cards": [],
@@ -74,6 +74,7 @@ def main() -> None:
                         "story": {
                             "chapters": [],
                             "flags": [],
+                            "relationships": [],
                             "relationship_events": [],
                             "routes": [],
                             "endings": [],

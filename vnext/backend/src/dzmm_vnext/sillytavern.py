@@ -76,7 +76,6 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
                 "id": _card_id(name),
                 "name": name,
                 "format": "sillytavern_v3",
-                "relationship_dimensions": {},
                 "mapped": {
                     **profile,
                     "character_book_entry_ids": [entry["id"] for entry in lorebook_entries],

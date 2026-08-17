@@ -1,4 +1,4 @@
-"""make lorebook and character cards the public content contract
+"""make interoperable lorebook and character cards the vNext content contract
 
 Revision ID: 0008_lorebook_content_contract
 Revises: 0007_narrative_ruleset_contract
@@ -16,7 +16,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(
-        "UPDATE schema_meta SET value = '2026-08-17-lorebook' "
+        "UPDATE schema_meta SET value = '2026-08-17-content-boundary' "
         "WHERE key = 'contract_version'"
     )
 

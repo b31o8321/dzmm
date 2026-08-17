@@ -35,7 +35,7 @@ def main() -> None:
                 json={
                     "request_id": "reopen-compose",
                     "world_definition": {
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "name": "Reopen Benchmark",
                         "lorebook": {"entries": []},
                         "character_cards": [],
@@ -51,6 +51,7 @@ def main() -> None:
                         "story": {
                             "chapters": [],
                             "flags": [],
+                            "relationships": [],
                             "relationship_events": [],
                             "routes": [],
                             "endings": [],

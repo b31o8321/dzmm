@@ -30,6 +30,7 @@ def validate_definition(definition: dict[str, Any]) -> None:
     story = definition["story"]
     _require_unique(story["chapters"], "chapter")
     _require_unique(story["flags"], "story flag")
+    _require_unique(story["relationships"], "relationship")
     _require_unique(story["relationship_events"], "relationship event")
     _require_unique(story["routes"], "route")
     _require_unique(story["endings"], "ending")
@@ -50,18 +51,22 @@ def validate_definition(definition: dict[str, Any]) -> None:
             raise NarrativeRuleError("story needs exactly one terminal chapter")
 
     card_ids = {item["id"] for item in definition["character_cards"]}
+    relationships = {item["id"]: item for item in story["relationships"]}
+    for relationship in relationships.values():
+        if relationship["character_card_id"] not in card_ids:
+            raise NarrativeRuleError("relationship references an unknown character card")
+        for dimension in relationship["dimensions"].values():
+            if not dimension["min"] <= dimension["initial"] <= dimension["max"]:
+                raise NarrativeRuleError("relationship dimension initial value is outside its bounds")
     for event in story["relationship_events"]:
-        if event["character_card_id"] not in card_ids:
-            raise NarrativeRuleError("relationship event references an unknown character card")
-        dimensions = next(
-            card["relationship_dimensions"]
-            for card in definition["character_cards"]
-            if card["id"] == event["character_card_id"]
-        )
+        relationship = relationships.get(event["relationship_id"])
+        if relationship is None:
+            raise NarrativeRuleError("relationship event references an unknown relationship")
+        dimensions = relationship["dimensions"]
         if not set(event["deltas"]) <= set(dimensions):
             raise NarrativeRuleError("relationship event changes an undefined dimension")
-    if story["relationship_events"] and "relationships" not in capabilities:
-        raise NarrativeRuleError("relationship events require relationships capability")
+    if (story["relationships"] or story["relationship_events"]) and "relationships" not in capabilities:
+        raise NarrativeRuleError("relationships require relationships capability")
     if story["routes"] and "routes" not in capabilities:
         raise NarrativeRuleError("routes require routes capability")
     if story["endings"] and "endings" not in capabilities:
@@ -88,7 +93,7 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
     story = definition["story"]
     chapters = sorted(story["chapters"], key=lambda chapter: chapter["order"])
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "revision": 0,
         "hero": hero,
         "ruleset": deepcopy(definition["ruleset"]),
@@ -104,9 +109,14 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
         "route": None,
         "flags": {flag["id"]: flag["default"] for flag in story["flags"]},
         "relationships": {
-            card["id"]: {"dimensions": deepcopy(card["relationship_dimensions"]), "applied_events": {}}
-            for card in definition["character_cards"]
-            if card["relationship_dimensions"]
+            relationship["id"]: {
+                "dimensions": {
+                    name: dimension["initial"]
+                    for name, dimension in relationship["dimensions"].items()
+                },
+                "applied_events": {},
+            }
+            for relationship in story["relationships"]
         },
         "ending": None,
     }
@@ -234,7 +244,10 @@ def _apply_relationship_event(
 ) -> dict[str, Any]:
     _require_capability(state, "relationships")
     event = next(item for item in definition["story"]["relationship_events"] if item["id"] == event_id)
-    relationship = state["relationships"].get(event["character_card_id"])
+    relationship_definition = next(
+        item for item in definition["story"]["relationships"] if item["id"] == event["relationship_id"]
+    )
+    relationship = state["relationships"].get(event["relationship_id"])
     if relationship is None:
         raise NarrativeRuleError("relationship state is unavailable for this character")
     previous = relationship["applied_events"].get(event_id)
@@ -247,14 +260,17 @@ def _apply_relationship_event(
         if previous["cooldown_until_revision"] is not None and state["revision"] < previous["cooldown_until_revision"]:
             raise NarrativeRuleError("relationship event is cooling down")
     for dimension, delta in event["deltas"].items():
-        relationship["dimensions"][dimension] = max(-100, min(100, relationship["dimensions"][dimension] + delta))
+        bounds = relationship_definition["dimensions"][dimension]
+        relationship["dimensions"][dimension] = max(
+            bounds["min"], min(bounds["max"], relationship["dimensions"][dimension] + delta)
+        )
     relationship["applied_events"][event_id] = {
         "turn_revision": state["revision"] + 1,
         "reason_key": event["reason_key"],
         "chapter_id": chapter_id,
         "cooldown_until_revision": state["revision"] + event["cooldown_turns"] + 1 if event["cooldown_turns"] else None,
     }
-    return {"type": "apply_relationship_event", "relationship_event_id": event_id, "character_card_id": event["character_card_id"], "deltas": event["deltas"], "reason_key": event["reason_key"], "cause": cause}
+    return {"type": "apply_relationship_event", "relationship_event_id": event_id, "relationship_id": event["relationship_id"], "character_card_id": relationship_definition["character_card_id"], "deltas": event["deltas"], "reason_key": event["reason_key"], "cause": cause}
 
 
 def _matches(condition: object, state: dict[str, Any]) -> bool:

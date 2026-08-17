@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dzmm.local/contracts/run-state/2026-08-17",
+  "$id": "https://dzmm.local/contracts/run-state/2026-08-17-content-boundary",
   "title": "RunState",
   "type": "object",
   "required": ["schema_version", "revision", "hero", "ruleset", "location_id", "inventory", "entities", "events", "chapter", "route", "flags", "relationships", "ending"],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"const": 3},
     "revision": {"type": "integer", "minimum": 0},
     "hero": {"type": "object"},
     "ruleset": {"type": "object", "required": ["id", "enabled_capabilities"], "properties": {"id": {"enum": ["trpg", "story_adventure", "relationship_drama", "hybrid"]}, "enabled_capabilities": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},

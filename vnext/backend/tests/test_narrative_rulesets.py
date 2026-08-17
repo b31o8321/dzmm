@@ -5,7 +5,7 @@ def fog_harbor_payload(request_id: str) -> dict:
     return {
         "request_id": request_id,
         "world_definition": {
-            "schema_version": 2,
+            "schema_version": 3,
             "name": "雾港",
             "lorebook": {
                 "entries": [
@@ -23,13 +23,11 @@ def fog_harbor_payload(request_id: str) -> dict:
                     "id": "lan",
                     "name": "岚",
                     "format": "native",
-                    "relationship_dimensions": {"affection": 40, "trust": 0},
                 },
                 {
                     "id": "shen_yan",
                     "name": "沈砚",
                     "format": "native",
-                    "relationship_dimensions": {"affection": 40, "trust": 0},
                 },
             ],
             "locations": [
@@ -60,11 +58,15 @@ def fog_harbor_payload(request_id: str) -> dict:
                     {"id": "tide-gate-opened", "default": False, "writers": ["choice:open-tide-gate"]},
                     {"id": "tide-gate-failed", "default": False, "writers": ["choice:miss-the-tide"]},
                 ],
+                "relationships": [
+                    {"id": "lan", "character_card_id": "lan", "dimensions": {"affection": {"initial": 40, "min": 0, "max": 100}, "trust": {"initial": 0, "min": -100, "max": 100}}},
+                    {"id": "shen_yan", "character_card_id": "shen_yan", "dimensions": {"affection": {"initial": 40, "min": 0, "max": 100}, "trust": {"initial": 0, "min": -100, "max": 100}}},
+                ],
                 "relationship_events": [
-                    {"id": "lan-rescued", "character_card_id": "lan", "deltas": {"affection": 5, "trust": 20}, "reason_key": "relation.lan.rescued", "once_scope": "run", "cooldown_turns": 0},
-                    {"id": "lan-truth", "character_card_id": "lan", "deltas": {"trust": 20}, "reason_key": "relation.lan.truth", "once_scope": "run", "cooldown_turns": 0},
-                    {"id": "shen-protected", "character_card_id": "shen_yan", "deltas": {"affection": 8, "trust": 15}, "reason_key": "relation.shen.protected", "once_scope": "run", "cooldown_turns": 0},
-                    {"id": "shen-confession", "character_card_id": "shen_yan", "deltas": {"affection": 10, "trust": 25}, "reason_key": "relation.shen.confession", "once_scope": "run", "cooldown_turns": 0},
+                    {"id": "lan-rescued", "relationship_id": "lan", "deltas": {"affection": 5, "trust": 20}, "reason_key": "relation.lan.rescued", "once_scope": "run", "cooldown_turns": 0},
+                    {"id": "lan-truth", "relationship_id": "lan", "deltas": {"trust": 20}, "reason_key": "relation.lan.truth", "once_scope": "run", "cooldown_turns": 0},
+                    {"id": "shen-protected", "relationship_id": "shen_yan", "deltas": {"affection": 8, "trust": 15}, "reason_key": "relation.shen.protected", "once_scope": "run", "cooldown_turns": 0},
+                    {"id": "shen-confession", "relationship_id": "shen_yan", "deltas": {"affection": 10, "trust": 25}, "reason_key": "relation.shen.confession", "once_scope": "run", "cooldown_turns": 0},
                 ],
                 "routes": [
                     {"id": "lan-route", "name": "岚路线"},
@@ -203,6 +205,49 @@ def test_narrative_definition_rejects_invalid_relationship_dimension(migrated_cl
 
     assert response.status_code == 422
     assert "undefined dimension" in response.json()["detail"]
+
+
+def test_narrative_definition_keeps_cards_portable_and_requires_known_relationship(migrated_client) -> None:
+    client, _ = migrated_client
+    card_payload = fog_harbor_payload("fog-card-boundary")
+    card_payload["world_definition"]["character_cards"][0]["relationship_dimensions"] = {"trust": 0}
+
+    card_response = client.post("/api/v2/worlds:compose", json=card_payload)
+
+    assert card_response.status_code == 422
+    assert "relationship_dimensions" in card_response.json()["detail"]
+
+    relationship_payload = fog_harbor_payload("fog-missing-relationship")
+    relationship_payload["world_definition"]["story"]["relationship_events"][0]["relationship_id"] = "missing"
+
+    relationship_response = client.post("/api/v2/worlds:compose", json=relationship_payload)
+
+    assert relationship_response.status_code == 422
+    assert "unknown relationship" in relationship_response.json()["detail"]
+
+
+def test_same_character_card_can_have_different_relationship_rules_per_world_version(migrated_client) -> None:
+    client, _ = migrated_client
+    bounded = fog_harbor_payload("fog-bounded-relationship")
+    bounded["world_definition"]["story"]["relationships"][0]["dimensions"]["trust"] = {
+        "initial": 10,
+        "min": -10,
+        "max": 10,
+    }
+    unbounded = fog_harbor_payload("fog-unbounded-relationship")
+    unbounded["world_definition"]["story"]["relationships"][0]["dimensions"]["trust"] = {
+        "initial": -20,
+        "min": -100,
+        "max": 100,
+    }
+
+    bounded_run = client.post("/api/v2/worlds:compose", json=bounded).json()
+    unbounded_run = client.post("/api/v2/worlds:compose", json=unbounded).json()
+    bounded_result = _choose(client, bounded_run["run_id"], 0, "fog-bounded-choice", "rescue-lan")
+    unbounded_result = _choose(client, unbounded_run["run_id"], 0, "fog-unbounded-choice", "rescue-lan")
+
+    assert bounded_result["state"]["relationships"]["lan"]["dimensions"]["trust"] == 10
+    assert unbounded_result["state"]["relationships"]["lan"]["dimensions"]["trust"] == 0
 
 
 def test_choice_endpoint_only_accepts_a_current_choice_and_is_idempotent(migrated_client) -> None:

@@ -1,6 +1,6 @@
 # DZMM vNext 叙事规则集：本地优先、状态驱动的互动叙事平台
 
-**状态：** Active — 当前 schema v2 的确定性雾港切片与 Mac 本地浏览器旅程已实现；ADR-004 已要求在下一阶段重构为内容/关系分离的 schema v3，之后重新取得切片证据；真实模型、打包桌面与 Android 验收待推进
+**状态：** Active — schema v3 已将角色卡与关系定义分离，并通过确定性雾港/回滚与 500 Turn 重开回归；打包 Mac WebView、真实模型、Android 和 LAN 实机验收待推进
 **日期：** 2026-08-17
 **范围：** 只扩展 vNext 的 `World → WorldVersion → Run → RunState → Turn` 聚合；不读取、迁移或兼容 v0.x。
 
@@ -181,7 +181,7 @@ WorldVersion，而不会把任何卡内文本误当状态规则。详细决策�
 
 ```json
 {
-  "schema_version": 2, "revision": 12,
+  "schema_version": 3, "revision": 12,
   "ruleset": {"id": "hybrid", "world_version_id": "wv_..."},
   "chapter": {"id": "ch2", "status": "active", "resolved_choice_ids": ["lan-testimony"]},
   "route": {"id": "lan_route", "status": "locked"},

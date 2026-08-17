@@ -2,7 +2,7 @@ def payload(request_id: str) -> dict:
     return {
         "request_id": request_id,
         "world_definition": {
-            "schema_version": 2,
+            "schema_version": 3,
             "name": "Fog Harbor",
             "lorebook": {"entries": []},
             "character_cards": [],
@@ -15,7 +15,7 @@ def payload(request_id: str) -> dict:
             "events": [],
             "resources": [],
             "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
-            "story": {"chapters": [], "flags": [], "relationship_events": [], "routes": [], "endings": []},
+            "story": {"chapters": [], "flags": [], "relationships": [], "relationship_events": [], "routes": [], "endings": []},
         },
         "hero": {"name": "Mira", "profile": {}},
     }

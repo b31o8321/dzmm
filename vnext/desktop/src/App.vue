@@ -40,6 +40,8 @@ type LorebookEntry = {
   source?: Record<string, unknown>
 }
 
+type Theme = 'fog' | 'paper' | 'amber'
+
 const worldName = ref('雾港')
 const heroName = ref('米拉')
 const experience = ref<'fog_harbor' | 'trpg'>('fog_harbor')
@@ -66,6 +68,8 @@ const lorebookDraft = ref<LorebookEntry[] | null>(null)
 const hostReady = computed(() => hostStatus.value === 'ready')
 const lanGameplayEnabled = ref(false)
 const lanGameplayAvailable = canControlLanGameplay()
+const themeKey = 'dzmm-next-theme'
+const theme = ref<Theme>('fog')
 
 const locationLabel = computed(() =>
   run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
@@ -85,6 +89,21 @@ const exportableCharacterCards = computed(() =>
 
 function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
+}
+
+function applyTheme(nextTheme: Theme) {
+  theme.value = nextTheme
+  document.documentElement.dataset.theme = nextTheme
+  localStorage.setItem(themeKey, nextTheme)
+}
+
+function restoreTheme() {
+  const storedTheme = localStorage.getItem(themeKey)
+  if (storedTheme === 'fog' || storedTheme === 'paper' || storedTheme === 'amber') {
+    applyTheme(storedTheme)
+  } else {
+    applyTheme('fog')
+  }
 }
 
 async function openWorldCenter(worldId?: string) {
@@ -338,7 +357,7 @@ async function createWorld() {
     const baseDefinition = template
       ? { ...template.world_definition, name: worldName.value }
       : {
-          schema_version: 2,
+          schema_version: 3,
           name: worldName.value,
           lorebook: { entries: [] },
           character_cards: [],
@@ -354,6 +373,7 @@ async function createWorld() {
           story: {
             chapters: [],
             flags: [],
+            relationships: [],
             relationship_events: [],
             routes: [],
             endings: [],
@@ -549,7 +569,10 @@ async function bootHost() {
   }
 }
 
-onMounted(() => void bootHost())
+onMounted(() => {
+  restoreTheme()
+  void bootHost()
+})
 </script>
 
 <template>
@@ -557,7 +580,16 @@ onMounted(() => void bootHost())
     <header class="masthead">
       <a class="brand" href="#" @click.prevent="() => void openWorldCenter()">DZMM <span>Next</span></a>
       <p>本地世界账本 · API v2</p>
-      <div class="host-dot" :class="hostStatus"><i></i> Mac Host {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '启动中' : '不可用' }}</div>
+      <div class="masthead-actions">
+        <label class="theme-control">主题
+          <select :value="theme" aria-label="界面主题" @change="applyTheme(($event.target as HTMLSelectElement).value as Theme)">
+            <option value="fog">雾夜</option>
+            <option value="paper">纸页</option>
+            <option value="amber">琥珀</option>
+          </select>
+        </label>
+        <div class="host-dot" :class="hostStatus"><i></i> Mac Host {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '启动中' : '不可用' }}</div>
+      </div>
     </header>
 
     <section class="route-strip" aria-label="跑团路径">

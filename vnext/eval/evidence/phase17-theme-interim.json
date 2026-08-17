@@ -1,0 +1,11 @@
+{
+  "phase": "schema-v3-theme-interim",
+  "environment": "macOS; source Vite at 127.0.0.1:5182; Chrome channel driven by Playwright; temporary vNext backend only for page boot",
+  "evidence": {
+    "themes": "The desktop header exposes 雾夜, 纸页, and 琥珀. All visual colors use semantic tokens so canvas, surface, input, selection, warning, success, and focus colors change together.",
+    "persistence": "Browser interaction selected each theme, confirmed html[data-theme] and dzmm-next-theme localStorage values, then reloaded and confirmed the selected theme restored.",
+    "responsive": "At 390x844 each of the three themes had document scrollWidth <= viewport width. Full-page 1600x900 visual inspection covered 雾夜, 纸页, and 琥珀 creation views.",
+    "verification": "npm run build passed; cargo fmt --check and cargo check passed."
+  },
+  "boundary": "This is source-browser visual evidence only. It does not prove the packaged Tauri WebView, Android UI, or a maturity-score increase."
+}

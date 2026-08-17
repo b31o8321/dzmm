@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import uvicorn
 from alembic import command
 from alembic.config import Config
 
+from . import CONTRACT_VERSION
 from .config import Settings
 from .main import create_app
 
@@ -28,8 +30,17 @@ def migration_config(root: Path | None = None) -> Config:
 
 
 def migrate() -> None:
-    Settings.from_env().ensure_layout()
+    settings = Settings.from_env()
+    settings.ensure_layout()
     command.upgrade(migration_config(), "head")
+    with sqlite3.connect(settings.database_path) as connection:
+        contract_version = connection.execute(
+            "SELECT value FROM schema_meta WHERE key = 'contract_version'"
+        ).fetchone()
+    if contract_version != (CONTRACT_VERSION,):
+        raise RuntimeError(
+            "this DZMM Next schema v3 sidecar will not open or migrate a previous preview data directory"
+        )
 
 
 def host_port() -> tuple[str, int]:

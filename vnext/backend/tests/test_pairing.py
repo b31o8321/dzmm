@@ -67,7 +67,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
         json={
             "request_id": "mobile-playable-run",
             "world_definition": {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "Mobile Run",
                 "lorebook": {"entries": []},
                 "character_cards": [],
@@ -80,7 +80,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
                 "events": [],
                 "resources": [],
                 "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
-                "story": {"chapters": [], "flags": [], "relationship_events": [], "routes": [], "endings": []},
+                "story": {"chapters": [], "flags": [], "relationships": [], "relationship_events": [], "routes": [], "endings": []},
             },
             "hero": {"name": "Mira", "profile": {}},
         },

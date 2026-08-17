@@ -1,8 +1,10 @@
 # DZMM Next Preview
 
 This is a clean product root for DZMM vNext. It intentionally has no import
-path to the legacy application and defaults to a separate `~/.dzmm-vnext/`
-data directory.
+path to the legacy application and defaults to a separate `~/.dzmm-vnext-v3/`
+data directory. Schema v3 intentionally starts fresh rather than opening or
+migrating preview schema-v2 worlds; the sidecar rejects an explicitly supplied
+previous-preview directory after its metadata check.
 
 Phase 0 provides the contracts, fresh database baseline, API v2 health check,
 and scorecard harness. It is not yet a playable game.

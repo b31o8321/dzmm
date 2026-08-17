@@ -19,6 +19,7 @@ fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     }
     app.path()
         .app_data_dir()
+        .map(|path| path.join("v3"))
         .map_err(|error| format!("app data directory: {error}"))
 }
 

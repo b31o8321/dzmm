@@ -10,7 +10,7 @@ def compose_payload(request_id: str) -> dict:
     return {
         "request_id": request_id,
         "world_definition": {
-            "schema_version": 2,
+            "schema_version": 3,
             "name": "Fog Harbor",
             "lorebook": {"entries": []},
             "character_cards": [],
@@ -26,6 +26,7 @@ def compose_payload(request_id: str) -> dict:
             "story": {
                 "chapters": [],
                 "flags": [],
+                "relationships": [],
                 "relationship_events": [],
                 "routes": [],
                 "endings": [],
@@ -49,7 +50,7 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
     assert first.status_code == 201
     created = first.json()
     assert created["state"] == {
-        "schema_version": 2,
+        "schema_version": 3,
         "revision": 0,
         "hero": {
             "id": created["hero_id"],
