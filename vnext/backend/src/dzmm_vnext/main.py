@@ -199,6 +199,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def mobile_session(authorization: str | None = Header(default=None)) -> dict[str, object]:
         return (await _mobile_device(app, authorization)).model_dump()
 
+    @app.get("/api/v2/mobile/runs")
+    async def list_mobile_runs(authorization: str | None = Header(default=None)) -> list[dict[str, object]]:
+        await _mobile_device(app, authorization)
+        return [
+            item.model_dump(mode="json") for item in await app.state.world_composer.list_mobile_runs()
+        ]
+
     @app.get("/api/v2/mobile/runs/{run_id}")
     async def get_mobile_run(
         run_id: str, authorization: str | None = Header(default=None)

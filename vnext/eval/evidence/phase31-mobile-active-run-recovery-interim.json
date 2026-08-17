@@ -1,0 +1,14 @@
+{
+  "phase": "mobile-active-run-recovery-interim",
+  "implementation": {
+    "gameplay_picker": "GET /api/v2/mobile/runs requires a paired bearer and returns only active run_id, world_name, hero_name, state_revision and updated_at, ordered by recent activity. Archived worlds are excluded.",
+    "mobile_recovery": "After a first successful pairing, Android fetches this picker, selects the most recent active Run and persists it. Returning users still restore their saved Run first; manual Run ID input remains a recovery fallback.",
+    "authority": "The new endpoint stays below /api/v2/mobile, requires the existing gameplay bearer and contains no WorldDefinition, lorebook, character-card payload, model profile or lifecycle management control. Choices remain server-planned and Python-applied."
+  },
+  "verification": {
+    "backend": "61 pytest cases and Ruff passed. Pairing coverage verifies bearer protection, active-run projection, omission of model/lorebook data and exclusion of an archived world.",
+    "mobile": "flutter analyze and 7 Flutter tests passed. The API client test verifies the paired /mobile/runs request and summary mapping; a new debug APK built and was installed to the attached Redmi.",
+    "desktop_package": "The current PyInstaller sidecar and CI=true Tauri debug app/DMG build passed after adding the mobile endpoint."
+  },
+  "boundary": "This improves the first-pairing and returning-player UX but is not physical Android discovery, approval, gameplay, conflict, revocation or restart proof. The matrix remains 66.25/100."
+}

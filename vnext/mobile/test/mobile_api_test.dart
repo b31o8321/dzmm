@@ -68,6 +68,43 @@ void main() {
     );
   });
 
+  test(
+    'lists gameplay run summaries without requesting authoring data',
+    () async {
+      late http.Request captured;
+      final api = MobileApi(
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode([
+                {
+                  'run_id': 'run-1',
+                  'world_name': '雾港',
+                  'hero_name': '米拉',
+                  'state_revision': 3,
+                  'updated_at': '2026-08-17T12:00:00',
+                },
+              ]),
+            ),
+            200,
+            headers: const {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      );
+
+      final runs = await api.listRuns(
+        host: 'http://192.168.31.241:8765',
+        token: 'secret-token',
+      );
+
+      expect(captured.url.path, '/api/v2/mobile/runs');
+      expect(captured.headers['authorization'], 'Bearer secret-token');
+      expect(runs.single.worldName, '雾港');
+      expect(runs.single.stateRevision, 3);
+    },
+  );
+
   test('rejects a public Host before sending a pairing request', () async {
     var requestCount = 0;
     final api = MobileApi(

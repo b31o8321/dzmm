@@ -12,7 +12,8 @@ without reconfiguring the phone.
 - Discover a LAN-enabled DZMM Host without entering an address in the normal
   first-pairing path.
 - Persist an approved phone's Host identity, bearer credential and last Run in
-  secure storage; restore it automatically on the next launch.
+  secure storage; after first pairing, select the most recently active gameplay
+  Run without asking the player to copy a Run ID.
 - Keep one identical Host contract for macOS and Windows.
 - Preserve the vNext authority model: Android submits only current gameplay
   choices; Python remains the only state judge.
@@ -34,8 +35,9 @@ without reconfiguring the phone.
 2. Android asks for nearby-Wi-Fi discovery permission once, finds `_dzmm._tcp`,
    and shows only private IPv4 candidates.
 3. The player selects a Host and requests pairing; the desktop user approves it
-   locally. Android exchanges the one-time approval code for a bearer token and
-   secure-saves Host URL, stable Host ID and last Run.
+   locally. Android exchanges the one-time approval code for a bearer token,
+   reads the limited active-Run picker and opens the most recent game. It then
+   secure-saves Host URL, stable Host ID and selected Run.
 4. A later Android launch first hydrates that stored Run. If the IP changed,
    mDNS finds the same Host ID, refreshes its address and retries. If the
    credential was revoked, the app clears it and presents a re-pair path.
@@ -55,6 +57,10 @@ without reconfiguring the phone.
   Android rejects malformed/public payloads and still requires host approval.
 - [ ] A successful approved pairing persists Host URL, Host ID, token and Run
   ID in secure storage; app restart restores the saved Run without retyping.
+- [ ] The paired-only active-Run picker contains only run ID, world name, hero
+  name, revision and update time; it never returns WorldDefinition, lorebook,
+  character-card payload, model data or lifecycle controls. With one or more
+  active Runs, first pairing opens the latest one without a manually copied ID.
 - [ ] A DHCP/IP change restores only through the previously paired Host ID;
   discovered unpaired Hosts require explicit user selection and approval.
 - [ ] Revocation yields 401, clears Android secure storage and never silently

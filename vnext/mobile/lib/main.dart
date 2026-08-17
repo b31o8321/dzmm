@@ -59,6 +59,7 @@ class _MobileHomeState extends State<MobileHome> {
   PairingRequest? _pairing;
   RunSnapshot? _run;
   List<DiscoveredHost> _hosts = const [];
+  List<MobileRunSummary> _availableRuns = const [];
   String _status = '正在查找同一局域网内已开启玩法的 DZMM Host。';
   bool _busy = false;
   bool _discovering = false;
@@ -84,7 +85,7 @@ class _MobileHomeState extends State<MobileHome> {
       _hostId = session.hostId;
       _runId.text = session.runId ?? '';
       _status = session.runId == null || session.runId!.isEmpty
-          ? '已恢复手机凭证。输入 Run ID 继续游戏。'
+          ? '已恢复手机凭证，正在查找可继续的游戏。'
           : '已恢复手机凭证，正在恢复上次游戏。';
     });
     if (session.runId != null && session.runId!.isNotEmpty) {
@@ -92,6 +93,8 @@ class _MobileHomeState extends State<MobileHome> {
       if (_run == null && mounted) {
         await _discoverHosts(restoreHostId: session.hostId);
       }
+    } else {
+      await _withBusy(() => _restoreLatestRun(silent: true));
     }
   }
 
@@ -118,7 +121,7 @@ class _MobileHomeState extends State<MobileHome> {
       }
       if (matching != null && _token != null) {
         _selectHost(matching, announce: false);
-        await _loadRun(silent: true);
+        await _withBusy(() => _restoreLatestRun(silent: true));
       } else if (mounted) {
         setState(() {
           _status = hosts.isEmpty
@@ -180,11 +183,34 @@ class _MobileHomeState extends State<MobileHome> {
       _token = credential.accessToken;
       _hostId = credential.hostId;
       _pairing = null;
-      _status = '配对完成。此设备只拥有 gameplay 权限。';
+      _status = '配对完成。正在打开最近的可玩游戏。';
     });
+    await _restoreLatestRun(silent: true);
   });
 
-  Future<void> _loadRun({bool silent = false}) => _withBusy(() async {
+  Future<void> _restoreLatestRun({bool silent = false}) async {
+    final token = _token;
+    if (token == null) throw const HostApiError(401, '请先完成手机配对。');
+    final runs = await widget.api.listRuns(host: _base, token: token);
+    if (!mounted) return;
+    setState(() => _availableRuns = runs);
+    if (runs.isEmpty) {
+      setState(() => _status = '桌面 Host 还没有可继续的游戏，请先在桌面端创建世界。');
+      return;
+    }
+    _runId.text = runs.first.runId;
+    await _loadRunCurrent(silent: silent);
+  }
+
+  Future<void> _selectRun(String runId) => _withBusy(() async {
+    _runId.text = runId;
+    await _loadRunCurrent(silent: true);
+  });
+
+  Future<void> _loadRun({bool silent = false}) =>
+      _withBusy(() => _loadRunCurrent(silent: silent));
+
+  Future<void> _loadRunCurrent({bool silent = false}) async {
     final token = _token;
     final runId = _runId.text.trim();
     if (token == null) throw const HostApiError(401, '请先完成手机配对。');
@@ -205,9 +231,9 @@ class _MobileHomeState extends State<MobileHome> {
     if (!mounted) return;
     setState(() {
       _run = run;
-      if (!silent) _status = '已从桌面 Host 恢复当前状态。';
+      _status = silent ? '已恢复最近的游戏。' : '已从桌面 Host 恢复当前状态。';
     });
-  });
+  }
 
   Future<void> _choose(Map<String, dynamic> choice) => _withBusy(() async {
     final token = _token;
@@ -245,6 +271,7 @@ class _MobileHomeState extends State<MobileHome> {
       _hostId = null;
       _pairing = null;
       _run = null;
+      _availableRuns = const [];
       _runId.clear();
       _status = '已清除本机凭证。桌面端的设备权限仍可由 Host 撤销。';
     });
@@ -327,7 +354,13 @@ class _MobileHomeState extends State<MobileHome> {
           _StatusCard(message: _status, busy: _busy),
           const SizedBox(height: 20),
           if (_token != null)
-            _RunEntryCard(runId: _runId, busy: _busy, onLoad: _loadRun),
+            _RunEntryCard(
+              runId: _runId,
+              runs: _availableRuns,
+              busy: _busy,
+              onLoad: _loadRun,
+              onSelect: _selectRun,
+            ),
           if (_run != null) ...[
             const SizedBox(height: 20),
             _GameView(run: _run!, busy: _busy, onChoose: _choose),
@@ -469,12 +502,16 @@ class _StatusCard extends StatelessWidget {
 class _RunEntryCard extends StatelessWidget {
   const _RunEntryCard({
     required this.runId,
+    required this.runs,
     required this.busy,
     required this.onLoad,
+    required this.onSelect,
   });
   final TextEditingController runId;
+  final List<MobileRunSummary> runs;
   final bool busy;
   final VoidCallback onLoad;
+  final ValueChanged<String> onSelect;
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
@@ -484,11 +521,24 @@ class _RunEntryCard extends StatelessWidget {
         children: [
           Text('继续一局', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
+          if (runs.isNotEmpty) ...[
+            ...runs.map(
+              (run) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.auto_stories_outlined),
+                title: Text(run.worldName),
+                subtitle: Text('${run.heroName} · 状态版本 ${run.stateRevision}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: busy ? null : () => onSelect(run.runId),
+              ),
+            ),
+            const Divider(),
+          ],
           TextField(
             controller: runId,
             enabled: !busy,
             autocorrect: false,
-            decoration: const InputDecoration(labelText: 'Run ID'),
+            decoration: const InputDecoration(labelText: 'Run ID（手动恢复）'),
           ),
           const SizedBox(height: 12),
           FilledButton.tonal(

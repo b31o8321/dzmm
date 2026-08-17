@@ -64,6 +64,28 @@ class RunSnapshot {
           .toList(growable: false);
 }
 
+class MobileRunSummary {
+  const MobileRunSummary({
+    required this.runId,
+    required this.worldName,
+    required this.heroName,
+    required this.stateRevision,
+  });
+
+  final String runId;
+  final String worldName;
+  final String heroName;
+  final int stateRevision;
+
+  factory MobileRunSummary.fromJson(Map<String, dynamic> json) =>
+      MobileRunSummary(
+        runId: json['run_id'] as String,
+        worldName: json['world_name'] as String,
+        heroName: json['hero_name'] as String,
+        stateRevision: json['state_revision'] as int,
+      );
+}
+
 class MobileApi {
   MobileApi({http.Client? client}) : _client = client ?? http.Client();
 
@@ -106,6 +128,19 @@ class MobileApi {
       headers: _auth(token),
     );
     return RunSnapshot(_map(response));
+  }
+
+  Future<List<MobileRunSummary>> listRuns({
+    required String host,
+    required String token,
+  }) async {
+    final response = await _client.get(
+      _uri(host, '/api/v2/mobile/runs'),
+      headers: _auth(token),
+    );
+    return _list(
+      response,
+    ).map(MobileRunSummary.fromJson).toList(growable: false);
   }
 
   Future<RunSnapshot> choose({
@@ -187,4 +222,31 @@ Map<String, dynamic> _map(http.Response response) {
     throw HostApiError(response.statusCode, '桌面 Host 返回了无法识别的响应。');
   }
   return Map<String, dynamic>.from(decoded);
+}
+
+List<Map<String, dynamic>> _list(http.Response response) {
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(response.body);
+  } on FormatException {
+    throw HostApiError(response.statusCode, '桌面 Host 返回了无法识别的响应。');
+  }
+  if (response.statusCode >= 400) {
+    final detail = decoded is Map ? decoded['detail']?.toString() : null;
+    throw HostApiError(
+      response.statusCode,
+      detail ?? 'Host 请求失败（${response.statusCode}）。',
+    );
+  }
+  if (decoded is! List) {
+    throw HostApiError(response.statusCode, '桌面 Host 返回了无法识别的响应。');
+  }
+  return decoded
+      .map((item) {
+        if (item is! Map) {
+          throw HostApiError(response.statusCode, '桌面 Host 返回了无法识别的响应。');
+        }
+        return Map<String, dynamic>.from(item);
+      })
+      .toList(growable: false);
 }

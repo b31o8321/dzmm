@@ -129,6 +129,19 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
     ).json()
     headers = {"authorization": f"Bearer {credential['access_token']}"}
     assert client.get(f"/api/v2/mobile/runs/{composed['run_id']}", headers=headers).status_code == 200
+    listed_runs = client.get("/api/v2/mobile/runs", headers=headers)
+    assert listed_runs.status_code == 200
+    assert listed_runs.json() == [
+        {
+            "run_id": composed["run_id"],
+            "world_name": "Mobile Run",
+            "hero_name": "Mira",
+            "state_revision": 0,
+            "updated_at": listed_runs.json()[0]["updated_at"],
+        }
+    ]
+    assert "model" not in listed_runs.text
+    assert "lorebook" not in listed_runs.text
     stream = client.post(
         f"/api/v2/mobile/runs/{composed['run_id']}/turns:stream",
         headers=headers,
@@ -141,6 +154,9 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
     )
     assert stream.status_code == 200
     assert "event: turn_completed" in stream.text
+
+    assert client.post(f"/api/v2/worlds/{composed['world_id']}:archive").status_code == 200
+    assert client.get("/api/v2/mobile/runs", headers=headers).json() == []
 
     story_payload = client.get("/api/v2/world-templates/fog-harbor").json()
     story_payload["request_id"] = "mobile-fog-harbor"
@@ -186,6 +202,7 @@ def test_mobile_pairing_rejects_missing_or_wrong_bearer_token(migrated_client) -
     client, _ = migrated_client
 
     assert client.get("/api/v2/mobile/session").status_code == 401
+    assert client.get("/api/v2/mobile/runs").status_code == 401
     assert client.get(
         "/api/v2/mobile/session", headers={"authorization": "Bearer incorrect"}
     ).status_code == 401

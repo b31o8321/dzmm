@@ -60,6 +60,16 @@ class RunSnapshot(BaseModel):
     turns: list[dict[str, Any]]
 
 
+class MobileRunSummary(BaseModel):
+    """A gameplay-only picker record; it deliberately contains no world definition or model data."""
+
+    run_id: str
+    world_name: str
+    hero_name: str
+    state_revision: int
+    updated_at: datetime
+
+
 class DomainValidationError(ValueError):
     pass
 
@@ -221,6 +231,35 @@ class WorldComposer:
                 available_choices=available_choices(run["state"], run["definition"]),
                 turns=[dict(row) for row in turn_rows.mappings()],
             )
+
+    async def list_mobile_runs(self) -> list[MobileRunSummary]:
+        """List active games for a paired phone without exposing authoring assets."""
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(
+                    runs.c.id,
+                    worlds.c.name.label("world_name"),
+                    heroes.c.name.label("hero_name"),
+                    runs.c.state_revision,
+                    runs.c.updated_at,
+                )
+                .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                .join(worlds, worlds.c.id == world_versions.c.world_id)
+                .join(heroes, heroes.c.id == runs.c.hero_id)
+                .where(runs.c.status == "active", worlds.c.status == "active")
+                .order_by(runs.c.updated_at.desc(), runs.c.id)
+            )
+            rows = result.mappings().all()
+        return [
+            MobileRunSummary(
+                run_id=row["id"],
+                world_name=row["world_name"],
+                hero_name=row["hero_name"],
+                state_revision=row["state_revision"],
+                updated_at=row["updated_at"],
+            )
+            for row in rows
+        ]
 
 
 def _run_presentation(definition: dict[str, Any]) -> dict[str, Any]:
