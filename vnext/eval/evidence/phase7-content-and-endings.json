@@ -1,0 +1,27 @@
+{
+  "matrix_version": "narrative-platform-v2",
+  "commit": "10be976",
+  "environment": "macOS; Python 3.13.3; fresh temporary DZMM_NEXT_DATA_DIR; FastAPI/uvicorn at 127.0.0.1:18765; Vite at 127.0.0.1:5182; local Chrome browser journey; no legacy database or API",
+  "evidence": {
+    "domain_lifecycle": "World/WorldVersion/Run aggregate and clean-slate lifecycle evidence are unchanged. This phase creates only fresh temporary worlds and does not claim a packaged lifecycle journey.",
+    "state_command_safety": "Narrative state still changes only through server-planned choices. Existing raw-turn rejection, revision, rollback and pairing coverage remains green; the added shared-testimony route resolves fixed Flag, route and relationship-event commands only.",
+    "narrative_integrity": "The native Fog Harbor template now has deterministic tests for both named good routes, normal, bad and hidden endings. The hidden route is reachable as rescue-lan -> unite-witnesses -> open-tide-gate; it needs the defined heard-the-bell Flag and both trust thresholds. Once-per-run and cooldown rejection tests prove failed relationship-event attempts leave revision/chapter unchanged. A fresh-browser journey displayed the hidden ending, both relationship values and every applied reason key.",
+    "content_authoring": "SillyTavern V3 JSON cards, World Info and their retained raw fields remain covered. The importer now accepts standard PNG chara metadata in tEXt, zTXt or iTXt chunks, enforces a one-source request and size bounds, and stores the decoded V3 payload as the existing character-card source payload. Tests cover compressed PNG import and invalid/ambiguous sources. The desktop composer exposes a local PNG file input. This is not yet a real-card filechooser E2E, editable authoring UI, or packaged round trip.",
+    "model_stream": "No new model claim: existing probe, malformed/empty/cancelled-stream and Huihui 14B evidence remains the applicable proof.",
+    "desktop_ux": "Fresh local browser verified create -> three choice actions -> hidden ending, with chapter/route/resources, multi-reason relationship ledger and ending title visible. A stale stored Run after Host restart is now silently cleared instead of shown as an alarming missing-run error. This remains a Vite/browser journey, not a packaged Tauri/WebView or keyboard/screen-reader acceptance.",
+    "mobile_recovery": "No vNext Android narrative UI or physical LAN proof exists; untracked mobile prototype remains untouched.",
+    "long_play_performance": "No new long-play claim: existing 50-turn real-model and 500-message reopen evidence remains the applicable proof.",
+    "engineering_release": "Fresh migration, 42 backend tests, Ruff and the desktop production build pass. No signed Mac/Android artifact or release checklist exists."
+  },
+  "scores": {
+    "domain_lifecycle": 65,
+    "state_command_safety": 75,
+    "narrative_integrity": 80,
+    "content_authoring": 65,
+    "model_stream": 75,
+    "desktop_ux": 75,
+    "mobile_recovery": 0,
+    "long_play_performance": 75,
+    "engineering_release": 60
+  }
+}
