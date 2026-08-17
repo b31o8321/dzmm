@@ -9,6 +9,7 @@
   },
   "runtime": {
     "cold_start": "The package resource sidecar reached /health in 1.996 seconds against a 20-second desktop-host readiness gate. The prior onefile build took about 35 seconds to listen on this machine.",
+    "tauri_host_boot": "Launching the actual Mac executable DZMM Next.app/Contents/MacOS/dzmm-next-desktop, rather than launching the sidecar directly, caused the WebView startup path to invoke the Tauri Host command and expose the isolated sidecar health endpoint in 0.841 seconds.",
     "health": "The package resource sidecar reported isolated storage, SQLite foreign keys enabled, current content-boundary contract metadata, and Fog Harbor WorldDefinition schema_version 3.",
     "journey": "Through the running package sidecar API with only a fresh temporary data directory: compose Fog Harbor -> rescue-lan -> lan-testimony -> open-tide-gate -> lan-dawn -> rollback to the first turn -> reopen. Reopen exactly matched the rollback state: revision 4, chapter ch2, and no ending.",
     "dmg_contents": "The mounted debug DMG contains the directory-form runtime at DZMM Next.app/Contents/Resources/backend-runtime/dzmm-next-backend/dzmm-next-backend."
