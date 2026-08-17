@@ -146,6 +146,21 @@ class ContentService:
             raise TypeError("character card has no source payload to export")
         return deepcopy(payload)
 
+    async def export_lorebook(self, world_version_id: str) -> dict[str, Any]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(world_versions.c.definition).where(world_versions.c.id == world_version_id)
+            )
+            definition = result.scalar_one_or_none()
+        if definition is None:
+            raise ContentNotFoundError("world version not found")
+        return {
+            "entries": {
+                str(index): _world_info_entry(entry)
+                for index, entry in enumerate(definition["lorebook"]["entries"])
+            }
+        }
+
 
 def _selection_result(selection: LorebookSelection) -> LorebookSelectionResult:
     return LorebookSelectionResult(
@@ -154,3 +169,17 @@ def _selection_result(selection: LorebookSelection) -> LorebookSelectionResult:
         excluded_ids=selection.excluded_ids,
         used_characters=selection.used_characters,
     )
+
+
+def _world_info_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    source = entry.get("source")
+    if isinstance(source, dict) and isinstance(source.get("sillytavern"), dict):
+        return deepcopy(source["sillytavern"])
+    return {
+        "id": entry["id"],
+        "comment": entry["title"],
+        "content": entry["body"],
+        "keys": entry.get("keywords", []),
+        "constant": entry["activation"] == "always",
+        "insertion_order": entry["priority"],
+    }

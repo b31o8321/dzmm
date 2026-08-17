@@ -274,6 +274,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except TypeError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
+    @app.get("/api/v2/world-versions/{world_version_id}/lorebook:export")
+    async def export_lorebook(world_version_id: str) -> dict[str, object]:
+        try:
+            return await app.state.content.export_lorebook(world_version_id)
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
     async def play_turn(run_id: str, payload: TurnInput) -> TurnResult:
         try:
             return await app.state.turn_coordinator.play(run_id, payload)

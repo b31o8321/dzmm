@@ -86,6 +86,16 @@ def test_world_info_selection_and_explicit_lorebook_promotion_create_new_version
     )
     assert selected.status_code == 200
     assert selected.json()["included_ids"] == ["world-info-weather", "world-info-law"]
+    exported = client.get(
+        f"/api/v2/world-versions/{created['world_version_id']}/lorebook:export"
+    )
+    assert exported.status_code == 200
+    assert exported.json()["entries"]["0"] == {
+        "id": "weather",
+        "keys": ["rain"],
+        "content": "Rain makes the harbor stones slick.",
+        "order": 10,
+    }
     legacy_path = client.post(
         f"/api/v2/world-versions/{created['world_version_id']}/lore:select",
         json={"player_input": "I walk through rain.", "character_budget": 100},
@@ -105,3 +115,28 @@ def test_world_info_selection_and_explicit_lorebook_promotion_create_new_version
     original_run = client.get(f"/api/v2/runs/{created['run_id']}")
     assert original_run.json()["world_version_id"] == created["world_version_id"]
     assert original_run.json()["world_version_id"] != promoted.json()["id"]
+
+
+def test_native_lorebook_exports_as_safe_world_info(migrated_client) -> None:
+    client, _ = migrated_client
+    template = client.get("/api/v2/world-templates/fog-harbor").json()
+    template["request_id"] = "native-lorebook-export"
+    created = client.post("/api/v2/worlds:compose", json=template).json()
+
+    exported = client.get(
+        f"/api/v2/world-versions/{created['world_version_id']}/lorebook:export"
+    )
+
+    assert exported.status_code == 200
+    assert exported.json() == {
+        "entries": {
+            "0": {
+                "id": "gray-tide",
+                "comment": "灰潮",
+                "content": "雾港的潮水会吞没失约者。",
+                "keys": [],
+                "constant": True,
+                "insertion_order": 90,
+            }
+        }
+    }
