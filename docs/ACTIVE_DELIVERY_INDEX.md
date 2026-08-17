@@ -48,6 +48,7 @@
 - **真实模型补充证据（已实现，未过 gate）：** `fecce45` 将模型提示收紧为“只描述 Python 已确认结果”，并注入 ruleset/章节/路线/关系等只读上下文；单测确认模型没有状态裁判权限。台式机 Huihui 14B 在隔离数据库完成 v2 50 回合 SSE（最小 0.334s、中位 0.802s、最大 6.646s、一次非提交重试，recovery 正确），并完成雾港岚路线的三次选择与好结局（三段非空真实叙事）。原始取证为 `phase5-real-model-v2-50-turns.json` 与 `phase5-real-model-fog-harbor.json`。平台矩阵现为 **61.75 / 100，所有 P0 仍未达到 80，不可发布。** 仍缺 v2 500 消息重开、打包 Tauri、Android/LAN 与 release evidence。
 - **v2 重开性能补充证据（已实现，未过 gate）：** `5d0b6e3` 使 benchmark 使用 schema v2；隔离 DB 中 500 条持久化 Turn 重开为 0.005s / 165475 bytes，revision 与完整历史都正确。平台矩阵现为 **62.25 / 100，所有 P0 仍未达到 80，不可发布。** 长局维度仍缺目标设备流式预算，不能上调到 80。
 - **内容资产 contract 落地（未计分）：** 已将 WorldDefinition/API/桌面导入统一切换为 `lorebook.entries` 与 `character_cards`；旧 `lore` schema 和 endpoint 被明确拒绝。SillyTavern V3 导入会持久保留完整卡 payload、映射可解释字段和卡内世界书条目引用；API 可导出原始 V3 卡，测试覆盖导入 → WorldVersion 固定 → 导出 round-trip 以及世界书选择/提升不改既有 Run。仍未完成 PNG metadata 文件输入、世界书导出、角色卡编辑界面与打包 Mac 旅程，因此内容互通与作者体验维度不加分。
+- **最新打包 sidecar / DMG 冒烟（未计分）：** `30f7aee` 重新 PyInstaller 打包后，最新 Tauri debug `.app` 以隔离数据目录启动，`/health` 报告 `2026-08-17-lorebook`；经该 `.app` 内 sidecar 完成雾港三次选择 → `lan-dawn` → 回滚 → 重开，恢复到第二章三项 choice。`CI=true npx tauri build --debug` 同时成功生成 DMG，挂载后确认 `.app` 和 sidecar 存在。原始摘要在 `vnext/eval/evidence/phase5-packaged-app-sidecar.json`。本次是 packaged sidecar API 证据，不是 WebView UI 验收；debug app 仅 ad-hoc 签名且不能通过 strict bundle verification，因此不得给 Desktop/Engineering 维度加分。
 
 ### 下一关
 

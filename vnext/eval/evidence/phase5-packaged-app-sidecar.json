@@ -1,0 +1,31 @@
+{
+  "commit": "30f7aee",
+  "environment": "macOS arm64; freshly rebuilt PyInstaller sidecar inside freshly rebuilt Tauri debug .app; isolated DZMM_NEXT_DATA_DIR; port 18766",
+  "health": {
+    "app": "dzmm-next",
+    "api_version": 2,
+    "contract_version": "2026-08-17-lorebook",
+    "storage": "isolated",
+    "foreign_keys": true
+  },
+  "packaged_sidecar_journey": {
+    "template": "Fog Harbor",
+    "choices": ["rescue-lan", "lan-testimony", "open-tide-gate"],
+    "ending": "lan-dawn",
+    "rollback_target": "first choice turn",
+    "reopened_chapter": "ch2",
+    "reopened_choices": ["lan-testimony", "shen-confession", "neutral-lead"],
+    "persisted_turns_after_rollback": 4
+  },
+  "dmg": {
+    "build_command": "CI=true npx tauri build --debug",
+    "path": "vnext/desktop/src-tauri/target/debug/bundle/dmg/DZMM Next_0.1.0_aarch64.dmg",
+    "mounted_app_size": "48M",
+    "mounted_app_and_sidecar_present": true
+  },
+  "limits": [
+    "Journey drove the packaged sidecar HTTP API, not Tauri WebView controls.",
+    "A plain local build can stall in create-dmg Finder prettification; CI=true produces the standard non-prettified DMG.",
+    "The debug bundle is ad-hoc at executable level and fails strict bundle signature verification; it is not signing/notarization or release evidence."
+  ]
+}
