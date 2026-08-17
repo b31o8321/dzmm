@@ -94,6 +94,20 @@ export type DiagnosticSnapshot = {
   }
 }
 
+export type PendingPairing = {
+  request_id: string
+  device_id: string
+  device_name: string
+  expires_at: string
+}
+
+export type MobileDevice = {
+  id: string
+  name: string
+  status: 'active'
+  capabilities: string[]
+}
+
 let apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
 
 export function setApiBase(base: string) {
@@ -201,6 +215,28 @@ export function getPurgeManifest(worldId: string) {
 
 export function getDiagnostics() {
   return request<DiagnosticSnapshot>('/diagnostics')
+}
+
+export function listPendingPairings() {
+  return request<PendingPairing[]>('/host/pairing-requests')
+}
+
+export function approvePairingRequest(requestId: string) {
+  return request<{ request_id: string; status: 'approved' }>(
+    `/host/pairing-requests/${requestId}:approve`,
+    { method: 'POST' },
+  )
+}
+
+export function listMobileDevices() {
+  return request<MobileDevice[]>('/host/mobile-devices')
+}
+
+export function revokeMobileDevice(deviceId: string) {
+  return request<{ device_id: string; status: 'revoked' }>(
+    `/host/mobile-devices/${deviceId}:revoke`,
+    { method: 'POST' },
+  )
 }
 
 export function purgeWorld(worldId: string, payload: { confirmation_token: string; world_name: string }) {

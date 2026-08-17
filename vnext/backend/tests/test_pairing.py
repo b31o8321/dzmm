@@ -36,6 +36,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
             "expires_at": request["expires_at"],
         }
     ]
+    assert client.get("/api/v2/host/mobile-devices").json() == []
 
     assert (
         client.post(f"/api/v2/host/pairing-requests/{request['request_id']}:approve").json()
@@ -61,6 +62,14 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
         "status": "active",
         "capabilities": ["gameplay"],
     }
+    assert client.get("/api/v2/host/mobile-devices").json() == [
+        {
+            "id": request["device_id"],
+            "name": "Norman's Android",
+            "status": "active",
+            "capabilities": ["gameplay"],
+        }
+    ]
 
     composed = client.post(
         "/api/v2/worlds:compose",
@@ -129,6 +138,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
 
     revoked = client.post(f"/api/v2/host/mobile-devices/{request['device_id']}:revoke")
     assert revoked.status_code == 200
+    assert client.get("/api/v2/host/mobile-devices").json() == []
     assert client.get(
         "/api/v2/mobile/session", headers={"authorization": f"Bearer {credential['access_token']}"}
     ).status_code == 401
@@ -157,6 +167,7 @@ def test_lan_host_only_exposes_mobile_gameplay_to_remote_clients(tmp_path, monke
     with TestClient(create_app(settings), client=("192.168.31.20", 50000)) as remote:
         assert remote.post("/api/v2/worlds:compose", json={}).status_code == 403
         assert remote.get("/api/v2/host/pairing-requests").status_code == 403
+        assert remote.get("/api/v2/host/mobile-devices").status_code == 403
         assert remote.post("/api/v2/model-profiles", json={}).status_code == 403
         assert remote.get("/api/v2/host/capabilities").status_code == 403
         request = remote.post(

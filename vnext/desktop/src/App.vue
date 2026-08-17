@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   archiveWorld,
+  approvePairingRequest,
   chooseTurn,
   composeWorld,
   createWorldVersion,
@@ -17,12 +18,17 @@ import {
   importSillyTavern,
   importSillyTavernPng,
   listWorlds,
+  listMobileDevices,
+  listPendingPairings,
   purgeWorld,
   rollbackTurn,
+  revokeMobileDevice,
   restoreWorld,
   setApiBase,
   type ComposedRun,
   type ImportedContent,
+  type MobileDevice,
+  type PendingPairing,
   type RunSnapshot,
   type Turn,
   type PurgeManifest,
@@ -69,6 +75,9 @@ const lorebookDraft = ref<LorebookEntry[] | null>(null)
 const hostReady = computed(() => hostStatus.value === 'ready')
 const lanGameplayEnabled = ref(false)
 const lanGameplayAvailable = canControlLanGameplay()
+const pairingPanelOpen = ref(false)
+const pendingPairings = ref<PendingPairing[]>([])
+const mobileDevices = ref<MobileDevice[]>([])
 const themeKey = 'dzmm-next-theme'
 const theme = ref<Theme>('fog')
 
@@ -562,6 +571,56 @@ async function toggleLanGameplay(event: Event) {
   }
 }
 
+async function refreshMobilePairings() {
+  if (!hostReady.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    const [pending, devices] = await Promise.all([listPendingPairings(), listMobileDevices()])
+    pendingPairings.value = pending
+    mobileDevices.value = devices
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法读取手机配对状态'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function openMobilePairings() {
+  pairingPanelOpen.value = !pairingPanelOpen.value
+  if (pairingPanelOpen.value) await refreshMobilePairings()
+}
+
+async function approveMobilePairing(requestId: string) {
+  busy.value = true
+  notice.value = ''
+  try {
+    await approvePairingRequest(requestId)
+    notice.value = '已批准该手机；请在手机端完成配对确认。'
+    const [pending, devices] = await Promise.all([listPendingPairings(), listMobileDevices()])
+    pendingPairings.value = pending
+    mobileDevices.value = devices
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法批准手机配对'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function revokePairedMobile(deviceId: string) {
+  busy.value = true
+  notice.value = ''
+  try {
+    await revokeMobileDevice(deviceId)
+    mobileDevices.value = await listMobileDevices()
+    notice.value = '已撤销该手机的 gameplay 访问权限。'
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法撤销手机配对'
+  } finally {
+    busy.value = false
+  }
+}
+
 async function bootHost() {
   hostStatus.value = 'starting'
   hostError.value = ''
@@ -620,6 +679,27 @@ onMounted(() => {
       <input :checked="lanGameplayEnabled" type="checkbox" :disabled="busy || !hostReady || !lanGameplayAvailable" @change="toggleLanGameplay" />
       <span>局域网玩法</span><small>{{ lanGameplayEnabled ? '已开启：仅已配对手机可访问 gameplay API' : '关闭：仅本机 Host' }}</small>
     </label>
+    <section v-if="lanGameplayEnabled" class="mobile-pairing" aria-label="手机配对">
+      <div>
+        <p class="eyebrow">Mobile gameplay</p>
+        <p>手机发起请求后，在此批准；配对仅授予当前 Run 的 gameplay 权限。</p>
+      </div>
+      <button class="minor-action" type="button" :disabled="busy || !hostReady" @click="openMobilePairings">
+        {{ pairingPanelOpen ? '收起手机配对' : '管理手机配对' }}
+      </button>
+      <div v-if="pairingPanelOpen" class="mobile-pairing-list">
+        <p v-if="!pendingPairings.length && !mobileDevices.length" class="empty">暂无手机请求。请先在手机 App 发起配对。</p>
+        <article v-for="pairing in pendingPairings" :key="pairing.request_id">
+          <div><b>{{ pairing.device_name }}</b><small>等待本机批准 · {{ new Date(pairing.expires_at).toLocaleTimeString() }} 前有效</small></div>
+          <button type="button" :disabled="busy" @click="approveMobilePairing(pairing.request_id)">批准</button>
+        </article>
+        <article v-for="device in mobileDevices" :key="device.id">
+          <div><b>{{ device.name }}</b><small>已配对 · {{ device.capabilities.join('、') }}</small></div>
+          <button class="danger-action" type="button" :disabled="busy" @click="revokePairedMobile(device.id)">撤销</button>
+        </article>
+        <button class="minor-action" type="button" :disabled="busy" @click="refreshMobilePairings">刷新配对状态</button>
+      </div>
+    </section>
 
     <section v-if="step === 'worlds'" class="scene world-center">
       <div class="world-center-heading">

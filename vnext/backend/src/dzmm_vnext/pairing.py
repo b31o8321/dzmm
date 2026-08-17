@@ -130,6 +130,24 @@ class PairingService:
             for row in rows
         ]
 
+    async def active(self) -> list[MobileDevice]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(mobile_devices)
+                .where(mobile_devices.c.status == "active")
+                .order_by(mobile_devices.c.created_at)
+            )
+            rows = result.mappings().all()
+        return [
+            MobileDevice(
+                id=row["id"],
+                name=row["name"],
+                status=row["status"],
+                capabilities=row["capabilities"],
+            )
+            for row in rows
+        ]
+
     async def approve(self, request_id: str) -> None:
         now = _now()
         async with self._session_factory() as session, session.begin():

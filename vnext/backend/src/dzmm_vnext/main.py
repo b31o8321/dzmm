@@ -131,6 +131,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _require_loopback_host(request)
         return [item.model_dump(mode="json") for item in await app.state.pairing.pending()]
 
+    @app.get("/api/v2/host/mobile-devices")
+    async def list_mobile_devices(request: Request) -> list[dict[str, object]]:
+        _require_loopback_host(request)
+        return [item.model_dump(mode="json") for item in await app.state.pairing.active()]
+
     @app.post("/api/v2/host/pairing-requests/{request_id}:approve")
     async def approve_pairing_request(request_id: str, request: Request) -> dict[str, str]:
         _require_loopback_host(request)
