@@ -120,3 +120,11 @@ export function importSillyTavern(content: object) {
     body: JSON.stringify({ content }),
   })
 }
+
+export function importSillyTavernPng(pngBase64: string) {
+  return request<ImportedContent>('/content/sillytavern:import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ png_base64: pngBase64 }),
+  })
+}

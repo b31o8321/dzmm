@@ -6,20 +6,27 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from jsonschema import ValidationError
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
 from .lore import LorebookSelection, select_lorebook
 from .persistence import world_versions, worlds
-from .sillytavern import ImportedContent, import_sillytavern
+from .sillytavern import ImportedContent, import_sillytavern, import_sillytavern_png
 
 
 class SillyTavernImportInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    content: dict[str, Any]
+    content: dict[str, Any] | None = None
+    png_base64: str | None = Field(default=None, min_length=1, max_length=24 * 1024 * 1024)
+
+    @model_validator(mode="after")
+    def require_exactly_one_source(self) -> SillyTavernImportInput:
+        if (self.content is None) == (self.png_base64 is None):
+            raise ValueError("provide exactly one of content or png_base64")
+        return self
 
 
 class LorebookSelectionInput(BaseModel):
@@ -59,7 +66,10 @@ class ContentService:
         self._session_factory = session_factory
 
     def import_sillytavern(self, payload: SillyTavernImportInput) -> ImportedContent:
-        return import_sillytavern(payload.content)
+        if payload.content is not None:
+            return import_sillytavern(payload.content)
+        assert payload.png_base64 is not None
+        return import_sillytavern_png(payload.png_base64)
 
     async def select_lorebook(
         self, world_version_id: str, payload: LorebookSelectionInput

@@ -8,6 +8,7 @@ import {
   getFogHarborTemplate,
   getRun,
   importSillyTavern,
+  importSillyTavernPng,
   rollbackTurn,
   setApiBase,
   type ComposedRun,
@@ -125,13 +126,49 @@ async function applySillyTavernImport() {
   }
 }
 
+async function applySillyTavernPng(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  notice.value = ''
+  try {
+    const encoded = await readFileAsBase64(file)
+    importedContent.value = await importSillyTavernPng(encoded)
+    if (importedContent.value.suggested_hero?.name) {
+      heroName.value = importedContent.value.suggested_hero.name
+    }
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法解析角色卡 PNG'
+  }
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('无法读取角色卡文件'))
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('无法读取角色卡文件'))
+        return
+      }
+      const encoded = result.split(',', 2)[1]
+      if (!encoded) {
+        reject(new Error('角色卡文件为空'))
+        return
+      }
+      resolve(encoded)
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 async function enterRun() {
   if (!composed.value) return
   localStorage.setItem(activeRunKey, composed.value.run_id)
   await recoverRun(composed.value.run_id)
 }
 
-async function recoverRun(runId: string) {
+async function recoverRun(runId: string, options: { silentIfMissing?: boolean } = {}) {
   busy.value = true
   notice.value = ''
   try {
@@ -139,6 +176,9 @@ async function recoverRun(runId: string) {
     step.value = 'play'
   } catch (error) {
     localStorage.removeItem(activeRunKey)
+    if (options.silentIfMissing && error instanceof Error && error.message === 'run not found') {
+      return
+    }
     notice.value = error instanceof Error ? error.message : '无法恢复上次跑团'
   } finally {
     busy.value = false
@@ -199,7 +239,7 @@ async function bootHost() {
     return
   }
   const activeRun = localStorage.getItem(activeRunKey)
-  if (activeRun) void recoverRun(activeRun)
+  if (activeRun) void recoverRun(activeRun, { silentIfMissing: true })
 }
 
 onMounted(() => void bootHost())
@@ -250,9 +290,12 @@ onMounted(() => void bootHost())
         </div>
         <details v-if="experience === 'trpg'" class="import-panel">
           <summary>导入 SillyTavern 内容（可选）</summary>
-          <p>支持 V3 角色卡与 World Info JSON，作为世界书和角色卡资产保存进这个世界。</p>
+          <p>支持 V3 角色卡 JSON/PNG 与 World Info JSON，作为世界书和角色卡资产保存进这个世界。</p>
           <textarea v-model="importJson" placeholder="粘贴 SillyTavern JSON…" rows="5"></textarea>
-          <button type="button" class="minor-action" @click="applySillyTavernImport">解析并应用</button>
+          <div class="import-actions">
+            <button type="button" class="minor-action" @click="applySillyTavernImport">解析 JSON 并应用</button>
+            <label class="file-import">导入角色卡 PNG<input type="file" accept="image/png,.png" @change="applySillyTavernPng" /></label>
+          </div>
           <p v-if="importedContent" class="import-result">
             已导入 {{ importedContent.lorebook.entries.length }} 条世界书条目、{{ importedContent.character_cards.length }} 张角色卡 · {{ importedContent.report.source_format }}
           </p>
@@ -289,14 +332,14 @@ onMounted(() => void bootHost())
           <article v-for="[characterId, relationship] in relationshipEntries" :key="characterId">
             <b>{{ characterId === 'lan' ? '岚' : '沈砚' }}</b>
             <span v-for="[dimension, value] in Object.entries(relationship.dimensions)" :key="dimension">{{ dimension === 'affection' ? '好感' : '信任' }} {{ value }}</span>
-            <small v-if="Object.values(relationship.applied_events)[0]">{{ Object.values(relationship.applied_events)[0].reason_key }}</small>
+            <small v-for="event in Object.values(relationship.applied_events)" :key="event.reason_key">{{ event.reason_key }}</small>
           </article>
         </section>
       </aside>
       <div class="chronicle" aria-live="polite">
         <section v-if="run.state.ending" class="ending-card" :class="run.state.ending.kind">
           <p class="eyebrow">{{ endingLabel }}</p>
-          <h2>{{ run.state.ending.id === 'lan-dawn' ? '灯塔之后是破晓' : run.state.ending.id === 'shen-low-tide' ? '潮退时仍有人等你' : run.state.ending.id === 'neutral-harbor' ? '雾港没有忘记你' : '潮水带走了名字' }}</h2>
+          <h2>{{ run.state.ending.id === 'bell-beyond-fog' ? '雾钟越过灰潮' : run.state.ending.id === 'lan-dawn' ? '灯塔之后是破晓' : run.state.ending.id === 'shen-low-tide' ? '潮退时仍有人等你' : run.state.ending.id === 'neutral-harbor' ? '雾港没有忘记你' : '潮水带走了名字' }}</h2>
           <p>结局已由世界规则锁定。你可以回看记录，或回滚到此前的选择之后。</p>
         </section>
         <p class="eyebrow">回合记录</p>

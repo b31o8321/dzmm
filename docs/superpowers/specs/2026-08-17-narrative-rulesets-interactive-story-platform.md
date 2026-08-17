@@ -81,11 +81,11 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 
 | 章节 | 玩家选择 / 引擎事件 | Python command 与确定性变化 |
 |---|---|---|
-| 第一章「潮雾抵港」 | 在灯塔救岚，或替沈砚藏起航图 | `choose_story_choice(rescue_lan)` → `set_story_flag(lan-rescued=true)`、`apply_relationship_event(lan-rescued)`：岚 `trust +20`、`affection +5`，once；或 `choose_story_choice(hide-chart)` → `set_story_flag(chart-stolen=true)`、`apply_relationship_event(shen-protected)`：沈砚 `trust +15`、`affection +8`，once。两条均可由 `grant_resource(fog-lantern)` 的已定义选择获得。 |
+| 第一章「潮雾抵港」 | 在灯塔救岚，或替沈砚藏起航图 | `choose_story_choice(rescue_lan)` → `set_story_flag(lan-rescued=true)`、`apply_relationship_event(lan-rescued)`：岚 `trust +20`、`affection +5`，once；或 `choose_story_choice(hide-chart)` → `set_story_flag(chart-recovered=true)`、`apply_relationship_event(shen-protected)`：沈砚 `trust +15`、`affection +8`，once。两条均由定义内的 `grant_resource(fog-lantern)` 获得关键资源。 |
 | 第一章结束 | 章节 exit 条件达成 | `advance_chapter(ch1-to-ch2)`：仅当第一章至少选择一项已 resolve；写入 `chapter_id=ch2`。 |
-| 第二章「沉船的证词」 | 选择将证词交给岚，或深入黑市帮助沈砚 | `choose_story_choice(lan-testimony)` → `set_story_flag(lan-kept-faith=true)` + `apply_relationship_event(lan-truth)`（岚信任 +20；须 `lan-rescued`）；`choose_story_choice(shen-confession)` → `set_story_flag(shen-confessed=true)` + `apply_relationship_event(shen-confession)`（沈砚信任 +25、好感 +10；须 `chart-stolen`）。在满足路线门槛时 `lock_route(lan_route)` 或 `lock_route(shen_route)`；若均不满足，`lock_route(neutral_route)`。 |
+| 第二章「沉船的证词」 | 将证词交给岚、帮助沈砚坦白，或让两人共同作证 | `choose_story_choice(lan-testimony)` → `set_story_flag(lan-kept-faith=true)` + `apply_relationship_event(lan-truth)`（岚信任 +20）；`choose_story_choice(shen-confession)` → `set_story_flag(shen-confessed=true)` + `apply_relationship_event(shen-confession)`（沈砚信任 +25、好感 +10）；`choose_story_choice(unite-witnesses)` → `set_story_flag(heard-the-bell=true)`、`lock_route(neutral_route)`、`apply_relationship_event(lan-shared-testimony)`（岚信任 +40）与 `apply_relationship_event(shen-shared-testimony)`（沈砚信任 +60）。每个 event 都是 once；不存在自由调值命令。 |
 | 第三章「潮门之夜」 | 用航图和雾灯开启潮门，或错失时机 | `resolve_story_event(open-tide-gate)`：前置 `chart-recovered=true`、持有 `fog-lantern`、路线未冲突；成功写 `tide-gate-opened=true`，失败只写已定义 `tide-gate-failed=true`，不让模型补判。 |
-| 结局 | Python 在 chapter 完成时评估，按 priority 只命中一个 | `evaluate_endings(ch3-complete)` → 优先 `lock_ending(bell-beyond-fog)`（隐藏：两人 trust 均 >=60、资源齐全、`heard-the-bell`）；其次 `lock_ending(lan-dawn)` / `lock_ending(shen-low-tide)`（好：对应路线 + 开门 + 关系阈值）；再 `lock_ending(neutral-harbor)`（普通：`tide-gate-opened`）；最后 `lock_ending(fog-drowned)`（坏：`tide-gate-failed`）。所有判断均由 Python 的稳定 priority 完成。 |
+| 结局 | Python 在 chapter 完成时评估，按 priority 只命中一个 | `evaluate_endings(ch3-complete)` → 优先 `lock_ending(bell-beyond-fog)`（隐藏：两人 trust 均 >=60、`heard-the-bell`）；其次 `lock_ending(lan-dawn)` / `lock_ending(shen-low-tide)`（好：对应路线 + 开门 + 关系阈值）；再 `lock_ending(neutral-harbor)`（普通：`tide-gate-opened`）；最后 `lock_ending(fog-drowned)`（坏：`tide-gate-failed`）。所有判断均由 Python 的稳定 priority 完成。 |
 
 模型可以在第一章提出“救岚似乎会让她愿意听你解释”的 `propose_intent`，或在 `lan-dawn` 已被锁定后叙述破晓；它不能发出 `trust +20` 或“现在进入好结局”的 command。若用户要求未定义的行动，Python 可接受为 `narrate_action`，但只允许产生未改变真实状态的叙事，或由预定义规则映射成候选选择/检定。
 
@@ -143,7 +143,7 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
   },
   "ending": {
     "id": "lan-dawn", "kind": "good", "priority": 100,
-    "when": {"all": ["chapter=ch3", "flag:tide-gate-opened", "route=lan_route", "relationship:lan.trust>=60", "relationship:lan.affection>=45"]},
+    "when": {"all": ["chapter=ch3", "flag:tide-gate-opened", "route=lan_route", "relationship:lan.trust>=40", "relationship:lan.affection>=45"]},
     "narrative_key": "ending.lan_dawn"
   }
 }

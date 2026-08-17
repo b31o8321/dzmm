@@ -1,4 +1,34 @@
+import base64
+import json
+import zlib
+
 from test_world_compose import compose_payload
+
+
+def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    return len(data).to_bytes(4, "big") + chunk_type + data + b"\0\0\0\0"
+
+
+def _v3_png_card(*, compressed: bool = False) -> str:
+    card = {
+        "spec": "chara_card_v3",
+        "spec_version": "3.0",
+        "data": {
+            "name": "岚",
+            "description": "港口守卫。",
+            "character_book": {"entries": []},
+            "extensions": {"kept": True},
+        },
+    }
+    encoded = base64.b64encode(json.dumps(card, ensure_ascii=False).encode())
+    if compressed:
+        metadata = b"chara\0\0" + zlib.compress(encoded)
+        chunk_type = b"zTXt"
+    else:
+        metadata = b"chara\0" + encoded
+        chunk_type = b"tEXt"
+    png = b"\x89PNG\r\n\x1a\n" + _png_chunk(chunk_type, metadata) + _png_chunk(b"IEND", b"")
+    return base64.b64encode(png).decode()
 
 
 def test_sillytavern_v3_card_import_persists_a_character_card_and_round_trips(migrated_client) -> None:
@@ -48,6 +78,37 @@ def test_sillytavern_v3_card_import_persists_a_character_card_and_round_trips(mi
     )
     assert exported.status_code == 200
     assert exported.json()["data"]["character_book"]["entries"][0]["extensions"] == {"vendor": "kept"}
+
+
+def test_sillytavern_v3_png_card_import_preserves_the_embedded_payload(migrated_client) -> None:
+    client, _ = migrated_client
+
+    response = client.post(
+        "/api/v2/content/sillytavern:import",
+        json={"png_base64": _v3_png_card(compressed=True)},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["report"]["source_format"] == "sillytavern_v3_png_character_card"
+    assert body["report"]["supported_fields"][0] == "PNG chara metadata"
+    assert body["suggested_hero"]["name"] == "岚"
+    assert body["character_cards"][0]["source_payload"]["data"]["extensions"] == {"kept": True}
+
+
+def test_sillytavern_png_import_rejects_invalid_or_ambiguous_sources(migrated_client) -> None:
+    client, _ = migrated_client
+
+    invalid = client.post("/api/v2/content/sillytavern:import", json={"png_base64": "not-base64"})
+    ambiguous = client.post(
+        "/api/v2/content/sillytavern:import",
+        json={"content": {"entries": {}}, "png_base64": _v3_png_card()},
+    )
+
+    assert invalid.status_code == 422
+    assert "valid base64" in invalid.json()["detail"]
+    assert ambiguous.status_code == 422
+    assert "exactly one" in str(ambiguous.json()["detail"])
 
 
 def test_world_info_selection_and_explicit_lorebook_promotion_create_new_version(migrated_client) -> None:

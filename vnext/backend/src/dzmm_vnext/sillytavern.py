@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import re
+import zlib
 from typing import Any
 
 from pydantic import BaseModel
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+MAX_PNG_BYTES = 16 * 1024 * 1024
+MAX_METADATA_BYTES = 8 * 1024 * 1024
 
 
 class ImportReport(BaseModel):
@@ -27,6 +35,25 @@ def import_sillytavern(payload: dict[str, Any]) -> ImportedContent:
     if isinstance(payload.get("entries"), (dict, list)):
         return _import_world_info(payload)
     raise ValueError("unsupported SillyTavern content: expected V3 card or World Info entries")
+
+
+def import_sillytavern_png(encoded_png: str) -> ImportedContent:
+    """Import standard `chara` PNG metadata without executing card content."""
+    try:
+        image = base64.b64decode(encoded_png, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("PNG payload is not valid base64") from error
+    if len(image) > MAX_PNG_BYTES:
+        raise ValueError("PNG payload exceeds 16 MiB import limit")
+    card = _decode_png_card(image)
+    imported = import_sillytavern(card)
+    report = imported.report.model_copy(
+        update={
+            "source_format": "sillytavern_v3_png_character_card",
+            "supported_fields": ["PNG chara metadata", *imported.report.supported_fields],
+        }
+    )
+    return imported.model_copy(update={"report": report})
 
 
 def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
@@ -145,3 +172,84 @@ def _unique_id(raw: str, used_ids: set[str]) -> str:
 
 def _card_id(name: str) -> str:
     return _unique_id(f"card-{name}", set())
+
+
+def _decode_png_card(image: bytes) -> dict[str, Any]:
+    if not image.startswith(PNG_SIGNATURE):
+        raise ValueError("character card must be a PNG file")
+    offset = len(PNG_SIGNATURE)
+    while offset < len(image):
+        if offset + 12 > len(image):
+            raise ValueError("PNG metadata is truncated")
+        length = int.from_bytes(image[offset : offset + 4], "big")
+        chunk_type = image[offset + 4 : offset + 8]
+        chunk_end = offset + 12 + length
+        if chunk_end > len(image):
+            raise ValueError("PNG metadata is truncated")
+        chunk = image[offset + 8 : offset + 8 + length]
+        offset = chunk_end
+        text = _png_text(chunk_type, chunk)
+        if text is None:
+            continue
+        keyword, value = text
+        if keyword.casefold() != "chara":
+            continue
+        try:
+            payload = json.loads(base64.b64decode(value, validate=True))
+        except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            raise ValueError("PNG chara metadata is not a valid base64 JSON card") from error
+        if not isinstance(payload, dict):
+            raise TypeError("PNG chara metadata must decode to a JSON object")
+        return payload
+    raise ValueError("PNG does not contain SillyTavern chara metadata")
+
+
+def _png_text(chunk_type: bytes, chunk: bytes) -> tuple[str, bytes] | None:
+    if chunk_type == b"tEXt":
+        return _split_png_text(chunk)
+    if chunk_type == b"zTXt":
+        keyword, payload = _split_png_text(chunk)
+        if not payload or payload[0] != 0:
+            raise ValueError("PNG zTXt metadata uses an unsupported compression method")
+        return keyword, _decompress_metadata(payload[1:])
+    if chunk_type != b"iTXt":
+        return None
+    parts = chunk.split(b"\0", 4)
+    if len(parts) != 5:
+        raise ValueError("PNG iTXt metadata is malformed")
+    keyword, compressed, compression_method, _language, translated_and_text = parts
+    translated_parts = translated_and_text.split(b"\0", 1)
+    if len(translated_parts) != 2:
+        raise ValueError("PNG iTXt metadata is malformed")
+    _translated_keyword, payload = translated_parts
+    if compressed == b"\0":
+        return _decode_keyword(keyword), payload
+    if compressed == b"\x01" and compression_method == b"\0":
+        return _decode_keyword(keyword), _decompress_metadata(payload)
+    raise ValueError("PNG iTXt metadata uses an unsupported compression method")
+
+
+def _split_png_text(chunk: bytes) -> tuple[str, bytes]:
+    parts = chunk.split(b"\0", 1)
+    if len(parts) != 2:
+        raise ValueError("PNG text metadata is malformed")
+    return _decode_keyword(parts[0]), parts[1]
+
+
+def _decode_keyword(value: bytes) -> str:
+    try:
+        return value.decode("latin-1")
+    except UnicodeDecodeError as error:
+        raise ValueError("PNG metadata keyword is invalid") from error
+
+
+def _decompress_metadata(value: bytes) -> bytes:
+    try:
+        decompressor = zlib.decompressobj()
+        result = decompressor.decompress(value, MAX_METADATA_BYTES + 1)
+        result += decompressor.flush(MAX_METADATA_BYTES + 1 - len(result))
+    except zlib.error as error:
+        raise ValueError("PNG compressed metadata is invalid") from error
+    if len(result) > MAX_METADATA_BYTES or decompressor.unconsumed_tail:
+        raise ValueError("PNG metadata exceeds 8 MiB import limit")
+    return result

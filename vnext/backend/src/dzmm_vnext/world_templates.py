@@ -63,6 +63,7 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
                 {"id": "lan-kept-faith", "default": False, "writers": ["choice:lan-testimony"]},
                 {"id": "shen-confessed", "default": False, "writers": ["choice:shen-confession"]},
+                {"id": "heard-the-bell", "default": False, "writers": ["choice:unite-witnesses"]},
                 {"id": "tide-gate-opened", "default": False, "writers": ["choice:open-tide-gate"]},
                 {"id": "tide-gate-failed", "default": False, "writers": ["choice:miss-the-tide"]},
             ],
@@ -96,6 +97,22 @@ def fog_harbor_template() -> dict[str, Any]:
                     "character_card_id": "shen_yan",
                     "deltas": {"affection": 10, "trust": 25},
                     "reason_key": "relation.shen.confession",
+                    "once_scope": "run",
+                    "cooldown_turns": 0,
+                },
+                {
+                    "id": "lan-shared-testimony",
+                    "character_card_id": "lan",
+                    "deltas": {"trust": 40},
+                    "reason_key": "relation.lan.shared_testimony",
+                    "once_scope": "run",
+                    "cooldown_turns": 0,
+                },
+                {
+                    "id": "shen-shared-testimony",
+                    "character_card_id": "shen_yan",
+                    "deltas": {"trust": 60},
+                    "reason_key": "relation.shen.shared_testimony",
                     "once_scope": "run",
                     "cooldown_turns": 0,
                 },
@@ -162,6 +179,22 @@ def fog_harbor_template() -> dict[str, Any]:
                             "label": "独自追查潮门",
                             "effects": [{"type": "set_route", "route_id": "neutral-route"}],
                         },
+                        {
+                            "id": "unite-witnesses",
+                            "label": "让岚与沈砚共同作证",
+                            "effects": [
+                                {"type": "set_story_flag", "flag_id": "heard-the-bell", "value": True},
+                                {"type": "set_route", "route_id": "neutral-route"},
+                                {
+                                    "type": "apply_relationship_event",
+                                    "relationship_event_id": "lan-shared-testimony",
+                                },
+                                {
+                                    "type": "apply_relationship_event",
+                                    "relationship_event_id": "shen-shared-testimony",
+                                },
+                            ],
+                        },
                     ],
                 },
                 {
@@ -184,6 +217,24 @@ def fog_harbor_template() -> dict[str, Any]:
                 },
             ],
             "endings": [
+                {
+                    "id": "bell-beyond-fog",
+                    "kind": "hidden",
+                    "priority": 120,
+                    "narrative_key": "ending.bell",
+                    "when": {
+                        "all": [
+                            {"flag": "tide-gate-opened", "equals": True},
+                            {"flag": "heard-the-bell", "equals": True},
+                            {"relationship": "lan", "dimension": "trust", "at_least": 60},
+                            {
+                                "relationship": "shen_yan",
+                                "dimension": "trust",
+                                "at_least": 60,
+                            },
+                        ]
+                    },
+                },
                 {
                     "id": "lan-dawn",
                     "kind": "good",

@@ -255,6 +255,61 @@ def test_fog_harbor_template_is_a_composable_hybrid_world(migrated_client) -> No
     assert composed.json()["state"]["chapter"]["id"] == "ch1"
 
 
+def test_fog_harbor_template_can_reach_its_hidden_ending(migrated_client) -> None:
+    client, _ = migrated_client
+    template = client.get("/api/v2/world-templates/fog-harbor").json()
+    template["request_id"] = "fog-template-hidden"
+    composed = client.post("/api/v2/worlds:compose", json=template).json()
+    run_id = composed["run_id"]
+
+    first = _choose(client, run_id, 0, "fog-hidden-1", "rescue-lan")
+    second = _choose(client, run_id, 1, "fog-hidden-2", "unite-witnesses")
+    final = _choose(client, run_id, 2, "fog-hidden-3", "open-tide-gate")
+
+    assert second["state"]["flags"]["heard-the-bell"] is True
+    assert second["state"]["route"] == {"id": "neutral-route", "status": "locked"}
+    assert second["state"]["relationships"]["lan"]["dimensions"]["trust"] == 60
+    assert second["state"]["relationships"]["shen_yan"]["dimensions"]["trust"] == 60
+    assert final["state"]["ending"] == {
+        "id": "bell-beyond-fog",
+        "kind": "hidden",
+        "narrative_key": "ending.bell",
+    }
+    assert first["state"]["ending"] is None
+
+
+def test_fog_harbor_template_reaches_route_and_fallback_endings(migrated_client) -> None:
+    client, _ = migrated_client
+    template = client.get("/api/v2/world-templates/fog-harbor").json()
+
+    lan = client.post("/api/v2/worlds:compose", json={**template, "request_id": "fog-template-lan"}).json()
+    _choose(client, lan["run_id"], 0, "fog-lan-1", "rescue-lan")
+    _choose(client, lan["run_id"], 1, "fog-lan-2", "lan-testimony")
+    lan_final = _choose(client, lan["run_id"], 2, "fog-lan-3", "open-tide-gate")
+
+    shen = client.post("/api/v2/worlds:compose", json={**template, "request_id": "fog-template-shen"}).json()
+    _choose(client, shen["run_id"], 0, "fog-shen-1", "hide-chart")
+    _choose(client, shen["run_id"], 1, "fog-shen-2", "shen-confession")
+    shen_final = _choose(client, shen["run_id"], 2, "fog-shen-3", "open-tide-gate")
+
+    neutral = client.post(
+        "/api/v2/worlds:compose", json={**template, "request_id": "fog-template-neutral"}
+    ).json()
+    _choose(client, neutral["run_id"], 0, "fog-neutral-1", "hide-chart")
+    _choose(client, neutral["run_id"], 1, "fog-neutral-2", "neutral-lead")
+    neutral_final = _choose(client, neutral["run_id"], 2, "fog-neutral-3", "open-tide-gate")
+
+    bad = client.post("/api/v2/worlds:compose", json={**template, "request_id": "fog-template-bad"}).json()
+    _choose(client, bad["run_id"], 0, "fog-bad-template-1", "hide-chart")
+    _choose(client, bad["run_id"], 1, "fog-bad-template-2", "neutral-lead")
+    bad_final = _choose(client, bad["run_id"], 2, "fog-bad-template-3", "miss-the-tide")
+
+    assert lan_final["state"]["ending"]["id"] == "lan-dawn"
+    assert shen_final["state"]["ending"]["id"] == "shen-low-tide"
+    assert neutral_final["state"]["ending"]["id"] == "neutral-harbor"
+    assert bad_final["state"]["ending"]["id"] == "fog-drowned"
+
+
 def test_relationship_once_event_rejects_the_whole_turn_without_state_write(migrated_client) -> None:
     client, _ = migrated_client
     payload = fog_harbor_payload("fog-once")
@@ -273,3 +328,33 @@ def test_relationship_once_event_rejects_the_whole_turn_without_state_write(migr
     assert state["revision"] == 1
     assert state["chapter"]["id"] == "ch2"
     assert state["relationships"]["lan"]["dimensions"] == {"affection": 45, "trust": 20}
+
+
+def test_relationship_cooldown_rejects_the_whole_turn_without_state_write(migrated_client) -> None:
+    client, _ = migrated_client
+    payload = fog_harbor_payload("fog-cooldown")
+    events = payload["world_definition"]["story"]["relationship_events"]
+    events[0]["once_scope"] = "none"
+    events[0]["cooldown_turns"] = 2
+    payload["world_definition"]["story"]["chapters"][1]["choices"][0]["effects"].append(
+        {"type": "apply_relationship_event", "relationship_event_id": "lan-rescued"}
+    )
+    composed = client.post("/api/v2/worlds:compose", json=payload).json()
+    run_id = composed["run_id"]
+    _choose(client, run_id, 0, "fog-cooldown-1", "rescue-lan")
+
+    cooling = client.post(
+        f"/api/v2/runs/{run_id}/choices",
+        json={
+            "request_id": "fog-cooldown-2",
+            "expected_revision": 1,
+            "player_input": "再要求岚相信我",
+            "choice_id": "lan-testimony",
+        },
+    )
+
+    assert cooling.status_code == 409
+    assert "cooling down" in cooling.json()["detail"]
+    state = client.get(f"/api/v2/runs/{run_id}").json()["state"]
+    assert state["revision"] == 1
+    assert state["chapter"]["id"] == "ch2"
