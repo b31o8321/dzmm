@@ -30,7 +30,8 @@ ROUTES = {
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
-    result.add_argument("--base-url", required=True, help="OpenAI-compatible /v1 root")
+    result.add_argument("--provider", choices=["ollama", "lm_studio", "openai_compat"], default="lm_studio")
+    result.add_argument("--base-url", required=True, help="Provider root; Ollama uses server root, others use /v1")
     result.add_argument("--model", required=True)
     result.add_argument("--evidence", type=Path, required=True)
     return result
@@ -50,7 +51,7 @@ def main() -> None:
                 "/api/v2/model-profiles",
                 json={
                     "name": "fog-harbor-matrix",
-                    "provider_type": "lm_studio",
+                    "provider_type": args.provider,
                     "base_url": args.base_url,
                     "model_name": args.model,
                 },
@@ -81,7 +82,10 @@ def main() -> None:
                         },
                     )
                     latencies.append(time.perf_counter() - started)
-                    response.raise_for_status()
+                    if response.is_error:
+                        raise RuntimeError(
+                            f"{route_name} choice {choice_id} failed: {response.status_code} {response.text}"
+                        )
                     turn = response.json()
                     if not turn["narrative"].strip():
                         raise RuntimeError(f"{route_name} choice {choice_id} committed without narrative")
@@ -115,7 +119,8 @@ def main() -> None:
                     "rollback": "restored ch2 with ending unlocked after persisted reopen",
                 }
     payload = {
-        "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real LM Studio provider",
+        "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real local provider",
+        "provider": args.provider,
         "model": args.model,
         "base_url": args.base_url,
         "routes": route_results,

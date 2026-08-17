@@ -143,6 +143,56 @@ def test_narrator_only_accepts_protocol_valid_content() -> None:
     assert narrative == "灯塔亮起。"
 
 
+def test_narrator_reports_a_provider_error_detail() -> None:
+    profile = ModelProfile(
+        id="profile-error-detail",
+        name="Ollama",
+        provider_type=ProviderType.OLLAMA,
+        base_url="http://localhost:11434",
+        model_name="sakura",
+    )
+    narrator = ModelNarrator(
+        httpx.MockTransport(lambda _: httpx.Response(500, json={"error": "model is overloaded"}))
+    )
+
+    with pytest.raises(NarrationError, match="HTTP 500: model is overloaded"):
+        asyncio.run(
+            narrator.narrate(
+                profile,
+                {"name": "Fog Harbor"},
+                {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
+                "I light the lamp.",
+                [],
+                [],
+            )
+        )
+
+
+def test_narrator_names_an_empty_connection_exception() -> None:
+    profile = ModelProfile(
+        id="profile-timeout-detail",
+        name="Ollama",
+        provider_type=ProviderType.OLLAMA,
+        base_url="http://localhost:11434",
+        model_name="sakura",
+    )
+    narrator = ModelNarrator(
+        httpx.MockTransport(lambda _: (_ for _ in ()).throw(httpx.ReadTimeout("")))
+    )
+
+    with pytest.raises(NarrationError, match="model connection failed: ReadTimeout:"):
+        asyncio.run(
+            narrator.narrate(
+                profile,
+                {"name": "Fog Harbor"},
+                {"hero": {"name": "Mira"}, "location_id": "lighthouse"},
+                "I light the lamp.",
+                [],
+                [],
+            )
+        )
+
+
 def test_narrator_describes_validated_narrative_state_without_granting_state_authority() -> None:
     seen: dict[str, object] = {}
 

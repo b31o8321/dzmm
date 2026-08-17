@@ -286,6 +286,43 @@ def test_choice_endpoint_only_accepts_a_current_choice_and_is_idempotent(migrate
     assert "not available" in unavailable.json()["detail"]
 
 
+def test_choice_maps_model_narration_failure_without_committing_state(migrated_client, monkeypatch) -> None:
+    client, _ = migrated_client
+
+    async def failing_narrate(*_args, **_kwargs):
+        from dzmm_vnext.model_profiles import NarrationError
+
+        raise NarrationError("model connection failed: timed out")
+
+    monkeypatch.setattr(client.app.state.turn_coordinator._narrator, "narrate", failing_narrate)
+    profile = client.post(
+        "/api/v2/model-profiles",
+        json={
+            "name": "failing narrator",
+            "provider_type": "ollama",
+            "base_url": "http://127.0.0.1:11434",
+            "model_name": "test-model",
+        },
+    )
+    payload = fog_harbor_payload("fog-choice-narration-failure")
+    payload["model_profile_id"] = profile.json()["id"]
+    composed = client.post("/api/v2/worlds:compose", json=payload).json()
+
+    response = client.post(
+        f"/api/v2/runs/{composed['run_id']}/choices",
+        json={
+            "request_id": "fog-choice-narration-failure-turn",
+            "expected_revision": 0,
+            "player_input": "救岚",
+            "choice_id": "rescue-lan",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "model connection failed: timed out"
+    assert client.get(f"/api/v2/runs/{composed['run_id']}").json()["state"]["revision"] == 0
+
+
 def test_fog_harbor_template_is_a_composable_hybrid_world(migrated_client) -> None:
     client, _ = migrated_client
     template = client.get("/api/v2/world-templates/fog-harbor")

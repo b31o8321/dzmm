@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .persistence import model_profiles
 
+NARRATION_TIMEOUT_SECONDS = 120.0
+
 
 class ProviderType(StrEnum):
     OLLAMA = "ollama"
@@ -137,12 +139,18 @@ class ModelNarrator:
         endpoint = _chat_endpoint(profile)
         body = _narration_body(profile, definition, state, player_input, outcomes, lore_entries)
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=30.0) as client:
+            async with httpx.AsyncClient(
+                transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
+            ) as client:
                 response = await client.post(endpoint, json=body)
         except httpx.HTTPError as error:
-            raise NarrationError(f"model connection failed: {error}") from error
+            raise NarrationError(
+                f"model connection failed: {type(error).__name__}: {error}"
+            ) from error
         if response.status_code != 200:
-            raise NarrationError(f"model returned HTTP {response.status_code}")
+            raise NarrationError(
+                f"model returned HTTP {response.status_code}: {_response_detail(response)}"
+            )
         try:
             content = _chat_content(profile.provider_type, response.json())
         except ValueError as error:
@@ -167,7 +175,9 @@ class ModelNarrator:
         )
         try:
             async with (
-                httpx.AsyncClient(transport=self._transport, timeout=30.0) as client,
+                httpx.AsyncClient(
+                    transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
+                ) as client,
                 client.stream("POST", endpoint, json=body) as response,
             ):
                 if response.status_code == 429:
@@ -185,7 +195,9 @@ class ModelNarrator:
         except NarrationError:
             raise
         except httpx.HTTPError as error:
-            raise NarrationError(f"model connection failed: {error}") from error
+            raise NarrationError(
+                f"model connection failed: {type(error).__name__}: {error}"
+            ) from error
 
 
 def _chat_endpoint(profile: ModelProfileInput) -> str:
@@ -217,6 +229,25 @@ def _chat_content(provider_type: ProviderType, payload: Any) -> str | None:
         return None
     message = choices[0].get("message")
     return message.get("content") if isinstance(message, dict) else None
+
+
+def _response_detail(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text.strip()[:300] or "empty response"
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            detail = error.get("message") or error.get("detail")
+            if isinstance(detail, str):
+                return detail[:300]
+        if isinstance(error, str):
+            return error[:300]
+        detail = payload.get("detail")
+        if isinstance(detail, str):
+            return detail[:300]
+    return "unstructured response"
 
 
 def _narration_body(
@@ -267,7 +298,7 @@ def _narration_body(
             "model": profile.model_name,
             "messages": messages,
             "stream": stream,
-            "options": {"num_predict": 220},
+            "options": {"num_predict": 96},
         }
     body: dict[str, Any] = {
         "model": profile.model_name,

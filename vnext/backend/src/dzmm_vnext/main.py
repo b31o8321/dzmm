@@ -359,6 +359,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await app.state.turn_coordinator.play_choice(run_id, payload)
         except RunNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except NarrationError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
         except (RevisionConflictError, TurnIdempotencyConflictError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
