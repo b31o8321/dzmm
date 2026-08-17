@@ -5,6 +5,7 @@ import {
   archiveWorld,
   chooseTurn,
   composeWorld,
+  createWorldVersion,
   createTurn,
   exportCharacterCard,
   exportLorebook,
@@ -29,6 +30,16 @@ import {
 } from './api'
 import { canControlLanGameplay, setLanGameplay, startHost } from './host'
 
+type LorebookEntry = {
+  id: string
+  title: string
+  body: string
+  activation: 'always' | 'keyword'
+  keywords?: string[]
+  priority: number
+  source?: Record<string, unknown>
+}
+
 const worldName = ref('雾港')
 const heroName = ref('米拉')
 const experience = ref<'fog_harbor' | 'trpg'>('fog_harbor')
@@ -51,6 +62,7 @@ const worlds = ref<WorldSummary[]>([])
 const selectedWorld = ref<WorldDetail | null>(null)
 const purgeManifest = ref<PurgeManifest | null>(null)
 const purgeName = ref('')
+const lorebookDraft = ref<LorebookEntry[] | null>(null)
 const hostReady = computed(() => hostStatus.value === 'ready')
 const lanGameplayEnabled = ref(false)
 const lanGameplayAvailable = canControlLanGameplay()
@@ -80,6 +92,7 @@ async function openWorldCenter(worldId?: string) {
   notice.value = ''
   purgeManifest.value = null
   purgeName.value = ''
+  lorebookDraft.value = null
   try {
     worlds.value = await listWorlds()
     const nextId = worldId ?? selectedWorld.value?.id ?? worlds.value[0]?.id
@@ -97,6 +110,7 @@ async function selectWorld(worldId: string) {
   notice.value = ''
   purgeManifest.value = null
   purgeName.value = ''
+  lorebookDraft.value = null
   try {
     selectedWorld.value = await getWorld(worldId)
   } catch (error) {
@@ -110,6 +124,7 @@ function startCreatingWorld() {
   notice.value = ''
   purgeManifest.value = null
   purgeName.value = ''
+  lorebookDraft.value = null
   composed.value = null
   run.value = null
   step.value = 'compose'
@@ -172,6 +187,48 @@ async function permanentlyPurgeSelectedWorld() {
     await openWorldCenter()
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '无法永久删除世界'
+  } finally {
+    busy.value = false
+  }
+}
+
+function beginLorebookEdit() {
+  if (!selectedWorld.value) return
+  const lorebook = selectedWorld.value.definition.lorebook as { entries: LorebookEntry[] }
+  lorebookDraft.value = JSON.parse(JSON.stringify(lorebook.entries)) as LorebookEntry[]
+  notice.value = ''
+}
+
+function addLorebookEntry() {
+  lorebookDraft.value?.push({
+    id: `custom-${crypto.randomUUID().slice(0, 8)}`,
+    title: '',
+    body: '',
+    activation: 'keyword',
+    keywords: [],
+    priority: 50,
+  })
+}
+
+function removeLorebookEntry(index: number) {
+  lorebookDraft.value?.splice(index, 1)
+}
+
+async function saveLorebookVersion() {
+  if (!selectedWorld.value || !lorebookDraft.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    const definition = JSON.parse(JSON.stringify(selectedWorld.value.definition)) as Record<string, unknown>
+    definition.lorebook = { entries: lorebookDraft.value }
+    selectedWorld.value = await createWorldVersion(selectedWorld.value.id, {
+      base_world_version_id: selectedWorld.value.latest_world_version_id,
+      definition,
+    })
+    worlds.value = await listWorlds()
+    lorebookDraft.value = null
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法保存新的世界版本'
   } finally {
     busy.value = false
   }
@@ -544,10 +601,29 @@ onMounted(() => void bootHost())
             <div><dt>角色卡</dt><dd>{{ selectedWorld.character_card_count }} 张</dd></div>
           </dl>
           <div class="world-actions">
+            <button v-if="selectedWorld.status === 'active'" class="minor-action" type="button" :disabled="busy" @click="beginLorebookEdit">编辑世界书</button>
             <button v-if="selectedWorld.status === 'active'" class="minor-action" type="button" :disabled="busy" @click="archiveSelectedWorld">归档世界</button>
             <button v-else class="minor-action" type="button" :disabled="busy" @click="restoreSelectedWorld">恢复世界</button>
             <button class="danger-action" type="button" :disabled="busy" @click="openPurgeConfirmation">永久删除…</button>
           </div>
+          <form v-if="lorebookDraft" class="lorebook-editor" @submit.prevent="saveLorebookVersion">
+            <div class="lorebook-editor-heading">
+              <div><p class="eyebrow">编辑世界书</p><p>保存会创建新的 WorldVersion；正在游玩的 Run 继续固定在旧版本。</p></div>
+              <button class="minor-action" type="button" :disabled="busy" @click="addLorebookEntry">添加条目</button>
+            </div>
+            <p v-if="!lorebookDraft.length" class="empty">还没有条目。添加一条受控的上下文知识，或直接保存空世界书。</p>
+            <article v-for="(entry, index) in lorebookDraft" :key="String(entry.id)" class="lorebook-entry-editor">
+              <label>标题<input v-model.trim="entry.title" required /></label>
+              <label>内容<textarea v-model="entry.body" required rows="3"></textarea></label>
+              <div class="lorebook-entry-controls">
+                <label>触发<select v-model="entry.activation"><option value="always">常驻</option><option value="keyword">关键词</option></select></label>
+                <label>优先级<input v-model.number="entry.priority" type="number" min="0" max="100" required /></label>
+                <button class="danger-action" type="button" :disabled="busy" @click="removeLorebookEntry(index)">移除</button>
+              </div>
+              <label v-if="entry.activation === 'keyword'">关键词（逗号分隔）<input :value="Array.isArray(entry.keywords) ? entry.keywords.join(', ') : ''" @input="entry.keywords = ($event.target as HTMLInputElement).value.split(',').map(word => word.trim()).filter(Boolean)" /></label>
+            </article>
+            <div class="world-actions"><button class="minor-action" type="button" :disabled="busy" @click="lorebookDraft = null">取消</button><button type="submit" :disabled="busy">保存为 v{{ selectedWorld.latest_version_number + 1 }}</button></div>
+          </form>
           <form v-if="purgeManifest" class="purge-confirmation" @submit.prevent="permanentlyPurgeSelectedWorld">
             <p>将永久删除 {{ purgeManifest.tables.world_versions }} 个版本、{{ purgeManifest.tables.runs }} 局和 {{ purgeManifest.tables.turns }} 条回合。输入 <b>{{ purgeManifest.world_name }}</b> 确认。</p>
             <label>世界名称<input v-model="purgeName" required :placeholder="purgeManifest.world_name" /></label>

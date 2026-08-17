@@ -1,0 +1,20 @@
+{
+  "commit": "working tree before commit",
+  "environment": "macOS; fresh temporary DZMM_NEXT_DATA_DIR; source FastAPI at loopback; Vite at 127.0.0.1:5182; Chromium at 1600x900; no legacy data or API",
+  "journey": [
+    "Create Fog Harbor v1 and enter World Center through normal UI controls.",
+    "Open the visible Lorebook editor, add a keyword-triggered entry with title, body, priority and keywords, then save as v2.",
+    "Verify the center reports v2 and two Lorebook entries. Read the original Run and verify it remains bound to the v1 WorldVersion id while the newly returned WorldVersion id differs."
+  ],
+  "result": {
+    "authoring": "Authors can add, remove and edit controlled Lorebook entries, including always/keyword activation and priority. Imported raw source fields survive the draft clone; newly authored entries are native constrained entries.",
+    "version_boundary": "Saving calls the append-version API with the displayed current base id. The visible copy explains that active Runs remain on the old version, and browser/API evidence confirmed this after an actual v1 -> v2 save.",
+    "visual": "The settled World Center and the focused dense editor were reviewed at 1600x900. No horizontal overflow or obscured field/action was found; the longer form intentionally scrolls vertically."
+  },
+  "verification": {
+    "backend": "The existing World Center lifecycle suite covers valid append, stale base rejection, archived-world rejection and original Run version fixation; the full backend suite remains 45 passed with Ruff passing.",
+    "desktop": "npm run build: passed.",
+    "browser": "Normal browser input created the v2 Lorebook version and verified old/new WorldVersion ids plus displayed entry counts."
+  },
+  "boundary": "The first visible editor is intentionally limited to the safe Lorebook layer. It does not edit Character Card payloads, relationship rules, chapters or endings; it is not a packaged Tauri/WebView journey and does not change the 65.00 maturity score."
+}

@@ -195,3 +195,14 @@ export function purgeWorld(worldId: string, payload: { confirmation_token: strin
     body: JSON.stringify(payload),
   })
 }
+
+export function createWorldVersion(
+  worldId: string,
+  payload: { base_world_version_id: string; definition: Record<string, unknown> },
+) {
+  return request<WorldDetail>(`/worlds/${worldId}/versions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
