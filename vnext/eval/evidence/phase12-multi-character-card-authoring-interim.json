@@ -1,0 +1,21 @@
+{
+  "commit": "working tree before commit",
+  "environment": "macOS; fresh temporary DZMM_NEXT_DATA_DIR; source FastAPI at loopback; Vite at 127.0.0.1:5182; Chromium at 1600x900 and 960x600; no legacy data or API",
+  "journey": [
+    "Import two independent V3 cards through the normal creation UI. The second import adds to, rather than replaces, the selected content assets.",
+    "Create Fog Harbor with two non-conflicting Chinese-name cards, verify the confirmation page labels native versus SillyTavern V3 cards, and download each imported card.",
+    "Attempt to create Fog Harbor with a V3 card named like the template relationship card. Verify creation is blocked with an explicit explanation that it would not automatically rewrite relationship rules."
+  ],
+  "result": {
+    "multiple_assets": "The importer reported two Lorebook entries and two Character Cards. The created WorldVersion showed the two native template cards plus the two SillyTavern V3 cards, and exposed one export action for each imported card.",
+    "non_ascii_ids": "Chinese card names produced stable different internal asset IDs, and therefore different download names. The backend test covers this without assuming pinyin or using a private user-facing name.",
+    "semantic_boundary": "A same-display-name external card is not silently attached to an existing relationship target. The UI rejects it before compose and tells the author to choose a non-conflicting card instead.",
+    "visual": "The dense four-card confirmation view was inspected at 1600x900 and at the Tauri minimum 960x600. It had no horizontal overflow; asset labels, export controls and first-turn action remained legible."
+  },
+  "verification": {
+    "backend": "pytest -q: 44 passed; ruff check src tests: passed.",
+    "desktop": "npm run build: passed.",
+    "browser": "Normal UI interactions covered two sequential imports, successful create, both downloads, and the same-name rejection path."
+  },
+  "boundary": "This is a creation-time multi-asset workflow only. It does not provide card editing, deliberate replacement/linking of a template relationship card, a persistent world center, packaged Tauri WebView proof, Android acceptance, or a maturity-score increase."
+}

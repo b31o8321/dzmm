@@ -62,24 +62,59 @@ function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
 }
 
+function duplicateAssetIds(existing: Array<Record<string, unknown>>, incoming: Array<Record<string, unknown>>) {
+  return incoming
+    .map((item) => item.id)
+    .filter((id): id is string => typeof id === 'string' && existing.some((item) => item.id === id))
+}
+
+function addImportedContent(next: ImportedContent) {
+  const current = importedContent.value
+  if (!current) {
+    importedContent.value = next
+    return
+  }
+  const duplicateLore = duplicateAssetIds(current.lorebook.entries, next.lorebook.entries)
+  const duplicateCards = duplicateAssetIds(current.character_cards, next.character_cards)
+  if (duplicateLore.length || duplicateCards.length) {
+    const descriptions = [
+      duplicateLore.length ? `世界书：${duplicateLore.join('、')}` : '',
+      duplicateCards.length ? `角色卡：${duplicateCards.join('、')}` : '',
+    ].filter(Boolean)
+    throw new Error(`导入内容与已选内容 ID 冲突（${descriptions.join('；')}），请移除重复卡或条目。`)
+  }
+  importedContent.value = {
+    suggested_hero: current.suggested_hero ?? next.suggested_hero,
+    lorebook: { entries: [...current.lorebook.entries, ...next.lorebook.entries] },
+    character_cards: [...current.character_cards, ...next.character_cards],
+    report: {
+      source_format: 'multiple_sillytavern_sources',
+      supported_fields: [...new Set([...current.report.supported_fields, ...next.report.supported_fields])],
+      preserved_fields: [...new Set([...current.report.preserved_fields, ...next.report.preserved_fields])],
+      ignored_fields: [...new Set([...current.report.ignored_fields, ...next.report.ignored_fields])],
+      warnings: [...current.report.warnings, ...next.report.warnings],
+    },
+  }
+}
+
 function attachImportedContent(definition: Record<string, unknown>) {
   if (!importedContent.value) return definition
   const lorebook = definition.lorebook as { entries: Array<Record<string, unknown>> }
   const characterCards = definition.character_cards as Array<Record<string, unknown>>
   const incomingLore = importedContent.value.lorebook.entries
   const incomingCards = importedContent.value.character_cards
-  const duplicateIds = (existing: Array<Record<string, unknown>>, incoming: Array<Record<string, unknown>>) =>
-    incoming
-      .map((item) => item.id)
-      .filter((id): id is string => typeof id === 'string' && existing.some((item) => item.id === id))
-  const duplicateLore = duplicateIds(lorebook.entries, incomingLore)
-  const duplicateCards = duplicateIds(characterCards, incomingCards)
-  if (duplicateLore.length || duplicateCards.length) {
+  const duplicateLore = duplicateAssetIds(lorebook.entries, incomingLore)
+  const duplicateCards = duplicateAssetIds(characterCards, incomingCards)
+  const duplicateCardNames = incomingCards
+    .map((card) => card.name)
+    .filter((name): name is string => typeof name === 'string' && characterCards.some((card) => card.name === name))
+  if (duplicateLore.length || duplicateCards.length || duplicateCardNames.length) {
     const descriptions = [
       duplicateLore.length ? `世界书：${duplicateLore.join('、')}` : '',
       duplicateCards.length ? `角色卡：${duplicateCards.join('、')}` : '',
+      duplicateCardNames.length ? `与世界模板同名的角色卡：${duplicateCardNames.join('、')}` : '',
     ].filter(Boolean)
-    throw new Error(`导入内容与世界模板 ID 冲突（${descriptions.join('；')}），请更换内容后再创建。`)
+    throw new Error(`导入内容不能直接覆盖世界模板（${descriptions.join('；')}）。同名卡不会自动改写关系规则，请更换内容后再创建。`)
   }
   return {
     ...definition,
@@ -193,9 +228,11 @@ async function applySillyTavernImport() {
   notice.value = ''
   try {
     const content = JSON.parse(importJson.value) as object
-    importedContent.value = await importSillyTavern(content)
-    if (importedContent.value.suggested_hero?.name) {
-      heroName.value = importedContent.value.suggested_hero.name
+    const parsed = await importSillyTavern(content)
+    const wasEmpty = importedContent.value === null
+    addImportedContent(parsed)
+    if (wasEmpty && parsed.suggested_hero?.name) {
+      heroName.value = parsed.suggested_hero.name
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '无法解析导入内容'
@@ -208,9 +245,11 @@ async function applySillyTavernPng(event: Event) {
   notice.value = ''
   try {
     const encoded = await readFileAsBase64(file)
-    importedContent.value = await importSillyTavernPng(encoded)
-    if (importedContent.value.suggested_hero?.name) {
-      heroName.value = importedContent.value.suggested_hero.name
+    const parsed = await importSillyTavernPng(encoded)
+    const wasEmpty = importedContent.value === null
+    addImportedContent(parsed)
+    if (wasEmpty && parsed.suggested_hero?.name) {
+      heroName.value = parsed.suggested_hero.name
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '无法解析角色卡 PNG'
@@ -417,7 +456,10 @@ onMounted(() => void bootHost())
         </div>
         <div>
           <span>角色卡 / Character Card</span>
-          <small>{{ createdContent.character_cards.length ? createdContent.character_cards.map(card => card.name).join('、') : '无' }}</small>
+          <small v-if="createdContent.character_cards.length" class="card-list">
+            <span v-for="card in createdContent.character_cards" :key="String(card.id)">{{ card.name }} · {{ card.format === 'sillytavern_v3' ? 'SillyTavern V3' : '原生' }}</span>
+          </small>
+          <small v-else>无</small>
           <button v-for="card in exportableCharacterCards" :key="String(card.id)" class="minor-action" type="button" :disabled="busy" @click="downloadCharacterCard(card)">导出 {{ card.name }} 角色卡</button>
         </div>
       </section>

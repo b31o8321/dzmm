@@ -96,6 +96,28 @@ def test_sillytavern_v3_png_card_import_preserves_the_embedded_payload(migrated_
     assert body["character_cards"][0]["source_payload"]["data"]["extensions"] == {"kept": True}
 
 
+def test_sillytavern_non_ascii_card_names_get_stable_distinct_asset_ids(migrated_client) -> None:
+    client, _ = migrated_client
+
+    ids = []
+    for name in ("岚", "沈砚"):
+        response = client.post(
+            "/api/v2/content/sillytavern:import",
+            json={
+                "content": {
+                    "spec": "chara_card_v3",
+                    "spec_version": "3.0",
+                    "data": {"name": name, "character_book": {"entries": []}},
+                }
+            },
+        )
+        assert response.status_code == 200
+        ids.append(response.json()["character_cards"][0]["id"])
+
+    assert ids[0] != ids[1]
+    assert all(card_id.startswith("card-") and card_id != "card-" for card_id in ids)
+
+
 def test_sillytavern_png_import_rejects_invalid_or_ambiguous_sources(migrated_client) -> None:
     client, _ = migrated_client
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 import re
 import zlib
@@ -171,7 +172,10 @@ def _unique_id(raw: str, used_ids: set[str]) -> str:
 
 
 def _card_id(name: str) -> str:
-    return _unique_id(f"card-{name}", set())
+    slug = re.sub(r"[^a-z0-9_-]+", "-", name.casefold()).strip("-")
+    if slug:
+        return _unique_id(f"card-{slug}", set())
+    return f"card-{hashlib.sha256(name.encode()).hexdigest()[:12]}"
 
 
 def _decode_png_card(image: bytes) -> dict[str, Any]:
