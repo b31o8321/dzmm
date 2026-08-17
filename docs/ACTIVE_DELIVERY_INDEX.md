@@ -49,6 +49,7 @@
 - **v2 重开性能补充证据（已实现，未过 gate）：** `5d0b6e3` 使 benchmark 使用 schema v2；隔离 DB 中 500 条持久化 Turn 重开为 0.005s / 165475 bytes，revision 与完整历史都正确。平台矩阵现为 **62.25 / 100，所有 P0 仍未达到 80，不可发布。** 长局维度仍缺目标设备流式预算，不能上调到 80。
 - **内容资产 contract 落地（未计分）：** 已将 WorldDefinition/API/桌面导入统一切换为 `lorebook.entries` 与 `character_cards`；旧 `lore` schema 和 endpoint 被明确拒绝。SillyTavern V3 导入会持久保留完整卡 payload、映射可解释字段和卡内世界书条目引用；API 可导出原始 V3 卡，测试覆盖导入 → WorldVersion 固定 → 导出 round-trip 以及世界书选择/提升不改既有 Run。仍未完成 PNG metadata 文件输入、世界书导出、角色卡编辑界面与打包 Mac 旅程，因此内容互通与作者体验维度不加分。
 - **最新打包 sidecar / DMG 冒烟（未计分）：** `30f7aee` 重新 PyInstaller 打包后，最新 Tauri debug `.app` 以隔离数据目录启动，`/health` 报告 `2026-08-17-lorebook`；经该 `.app` 内 sidecar 完成雾港三次选择 → `lan-dawn` → 回滚 → 重开，恢复到第二章三项 choice。`CI=true npx tauri build --debug` 同时成功生成 DMG，挂载后确认 `.app` 和 sidecar 存在。原始摘要在 `vnext/eval/evidence/phase5-packaged-app-sidecar.json`。本次是 packaged sidecar API 证据，不是 WebView UI 验收；debug app 仅 ad-hoc 签名且不能通过 strict bundle verification，因此不得给 Desktop/Engineering 维度加分。
+- **叙事 command 权限收口（已评分，未过 gate）：** `d914ae6` 禁止含 `choices` capability 的 ruleset 走 raw `/turns` 或 `/turns:stream` 改状态；只有 `/choices` 才能把当前 choice 转为 Python planned commands。Android gameplay 同样拒绝 raw narrative stream，并增加受 pairing token 保护的 mobile choice endpoint。36 项后端测试、Ruff 均通过；取证 `phase6-choice-authority.json` 仅将状态裁决与 command 安全从 70 升至 **75**，平台矩阵现为 **63.25 / 100**，所有 P0 仍未达到 80，不可发布。
 
 ### 下一关
 
