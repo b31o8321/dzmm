@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,11 @@ ENTRYPOINT = Path(__file__).with_name("sidecar_entry.py")
 
 def main() -> None:
     RUNTIME.mkdir(parents=True, exist_ok=True)
+    output = RUNTIME / "dzmm-next-backend"
+    if output.is_dir():
+        shutil.rmtree(output)
+    elif output.exists():
+        output.unlink()
     with tempfile.TemporaryDirectory(prefix="dzmm-next-pyinstaller-") as temp_dir:
         temporary = Path(temp_dir)
         subprocess.check_call(
@@ -26,7 +32,7 @@ def main() -> None:
                 "PyInstaller",
                 "--noconfirm",
                 "--clean",
-                "--onefile",
+                "--onedir",
                 "--name",
                 "dzmm-next-backend",
                 "--paths",

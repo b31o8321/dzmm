@@ -36,7 +36,10 @@ fn backend_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     } else {
         "dzmm-next-backend"
     };
-    Ok(resource_dir.join("backend-runtime").join(executable))
+    Ok(resource_dir
+        .join("backend-runtime")
+        .join("dzmm-next-backend")
+        .join(executable))
 }
 
 fn backend_port() -> String {

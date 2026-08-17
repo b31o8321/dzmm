@@ -1,0 +1,17 @@
+{
+  "phase": "schema-v3-packaged-sidecar-cold-start-interim",
+  "environment": "macOS arm64; fresh temporary DZMM_NEXT_DATA_DIR; freshly rebuilt PyInstaller onedir sidecar in a freshly rebuilt Tauri debug .app and DMG; loopback port 29850",
+  "build": {
+    "sidecar": "vnext/backend/.venv/bin/python ../packaging/build_backend.py passed",
+    "desktop": "CI=true npx tauri build --debug passed",
+    "app": "vnext/desktop/src-tauri/target/debug/bundle/macos/DZMM Next.app",
+    "dmg": "vnext/desktop/src-tauri/target/debug/bundle/dmg/DZMM Next_0.1.0_aarch64.dmg"
+  },
+  "runtime": {
+    "cold_start": "The package resource sidecar reached /health in 1.996 seconds against a 20-second desktop-host readiness gate. The prior onefile build took about 35 seconds to listen on this machine.",
+    "health": "The package resource sidecar reported isolated storage, SQLite foreign keys enabled, current content-boundary contract metadata, and Fog Harbor WorldDefinition schema_version 3.",
+    "journey": "Through the running package sidecar API with only a fresh temporary data directory: compose Fog Harbor -> rescue-lan -> lan-testimony -> open-tide-gate -> lan-dawn -> rollback to the first turn -> reopen. Reopen exactly matched the rollback state: revision 4, chapter ch2, and no ending.",
+    "dmg_contents": "The mounted debug DMG contains the directory-form runtime at DZMM Next.app/Contents/Resources/backend-runtime/dzmm-next-backend/dzmm-next-backend."
+  },
+  "boundary": "This confirms the current schema-v3 package sidecar, embedded migrations, cold-start budget and deterministic API lifecycle. It is not a packaged WebView click journey, accessibility acceptance, signed release artifact, real-model narration, Android acceptance, or physical Mac-plus-Android LAN acceptance; it does not increase the 65.00 maturity score."
+}
