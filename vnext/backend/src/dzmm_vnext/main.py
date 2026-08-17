@@ -25,6 +25,8 @@ from .lifecycle import (
     PurgeConfirmationError,
     WorldLifecycle,
     WorldNotFoundError,
+    WorldVersionConflictError,
+    WorldVersionInput,
     integrity_scan,
 )
 from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService, NarrationError
@@ -226,6 +228,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(error)) from error
         return {"world_id": world_id, "status": status}
 
+    @app.post("/api/v2/worlds/{world_id}:restore")
+    async def restore_world(world_id: str) -> dict[str, str]:
+        try:
+            status = await app.state.world_lifecycle.restore(world_id)
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"world_id": world_id, "status": status}
+
+    @app.get("/api/v2/worlds")
+    async def list_worlds() -> list[dict[str, object]]:
+        return [
+            world.model_dump(mode="json") for world in await app.state.world_lifecycle.list_worlds()
+        ]
+
+    @app.get("/api/v2/worlds/{world_id}")
+    async def get_world(world_id: str) -> dict[str, object]:
+        try:
+            return (await app.state.world_lifecycle.get_world(world_id)).model_dump(mode="json")
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/api/v2/worlds/{world_id}/versions")
+    async def create_world_version(
+        world_id: str, payload: WorldVersionInput
+    ) -> dict[str, object]:
+        try:
+            return (
+                await app.state.world_lifecycle.create_version(world_id, payload)
+            ).model_dump(mode="json")
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except WorldVersionConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
     @app.get("/api/v2/worlds/{world_id}/purge-manifest")
     async def world_purge_manifest(world_id: str) -> dict[str, object]:
         try:
@@ -237,7 +275,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def purge_world(world_id: str, payload: PurgeConfirmation) -> dict[str, object]:
         try:
             return (
-                await app.state.world_lifecycle.purge(world_id, payload.confirmation_token)
+                await app.state.world_lifecycle.purge(world_id, payload)
             ).model_dump(mode="json")
         except WorldNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error

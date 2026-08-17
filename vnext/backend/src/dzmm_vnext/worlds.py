@@ -158,16 +158,7 @@ class WorldComposer:
             )
 
     def _validate_definition(self, definition: dict[str, Any]) -> None:
-        try:
-            contract_validator("world_definition.schema.json").validate(definition)
-        except ValidationError as error:
-            raise DomainValidationError(f"invalid WorldDefinition: {error.message}") from error
-        try:
-            validate_definition(definition)
-        except NarrativeRuleError as error:
-            raise DomainValidationError(f"invalid narrative ruleset: {error}") from error
-        if len(definition["locations"]) < 2:
-            raise DomainValidationError("a playable vNext world needs at least two locations")
+        validate_world_definition(definition)
 
     async def _result_for_existing(
         self, session: AsyncSession, world_id: str, run_id: str
@@ -242,3 +233,16 @@ def _initial_state(
 def _fingerprint(payload: ComposeWorldInput) -> str:
     canonical = json.dumps(payload.model_dump(mode="json"), ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def validate_world_definition(definition: dict[str, Any]) -> None:
+    try:
+        contract_validator("world_definition.schema.json").validate(definition)
+    except ValidationError as error:
+        raise DomainValidationError(f"invalid WorldDefinition: {error.message}") from error
+    try:
+        validate_definition(definition)
+    except NarrativeRuleError as error:
+        raise DomainValidationError(f"invalid narrative ruleset: {error}") from error
+    if len(definition["locations"]) < 2:
+        raise DomainValidationError("a playable vNext world needs at least two locations")

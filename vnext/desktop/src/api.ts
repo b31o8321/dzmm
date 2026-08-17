@@ -58,6 +58,31 @@ export type ImportedContent = {
   }
 }
 
+export type WorldSummary = {
+  id: string
+  name: string
+  status: 'active' | 'archived'
+  latest_world_version_id: string
+  latest_version_number: number
+  world_version_count: number
+  run_count: number
+  lorebook_entry_count: number
+  character_card_count: number
+}
+
+export type WorldDetail = WorldSummary & {
+  definition: Record<string, unknown>
+}
+
+export type PurgeManifest = {
+  world_id: string
+  world_name: string
+  tables: Record<string, number>
+  file_paths: string[]
+  derived_indexes: string[]
+  confirmation_token: string
+}
+
 let apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
 
 export function setApiBase(base: string) {
@@ -137,4 +162,36 @@ export function exportCharacterCard(worldVersionId: string, characterCardId: str
   return request<Record<string, unknown>>(
     `/world-versions/${worldVersionId}/character-cards/${characterCardId}:export`,
   )
+}
+
+export function listWorlds() {
+  return request<WorldSummary[]>('/worlds')
+}
+
+export function getWorld(worldId: string) {
+  return request<WorldDetail>(`/worlds/${worldId}`)
+}
+
+export function archiveWorld(worldId: string) {
+  return request<{ world_id: string; status: 'archived' }>(`/worlds/${worldId}:archive`, {
+    method: 'POST',
+  })
+}
+
+export function restoreWorld(worldId: string) {
+  return request<{ world_id: string; status: 'active' }>(`/worlds/${worldId}:restore`, {
+    method: 'POST',
+  })
+}
+
+export function getPurgeManifest(worldId: string) {
+  return request<PurgeManifest>(`/worlds/${worldId}/purge-manifest`)
+}
+
+export function purgeWorld(worldId: string, payload: { confirmation_token: string; world_name: string }) {
+  return request<PurgeManifest>(`/worlds/${worldId}`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 }

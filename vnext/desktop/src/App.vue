@@ -2,21 +2,30 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  archiveWorld,
   chooseTurn,
   composeWorld,
   createTurn,
   exportCharacterCard,
   exportLorebook,
   getFogHarborTemplate,
+  getPurgeManifest,
   getRun,
+  getWorld,
   importSillyTavern,
   importSillyTavernPng,
+  listWorlds,
+  purgeWorld,
   rollbackTurn,
+  restoreWorld,
   setApiBase,
   type ComposedRun,
   type ImportedContent,
   type RunSnapshot,
   type Turn,
+  type PurgeManifest,
+  type WorldDetail,
+  type WorldSummary,
 } from './api'
 import { canControlLanGameplay, setLanGameplay, startHost } from './host'
 
@@ -25,7 +34,7 @@ const heroName = ref('米拉')
 const experience = ref<'fog_harbor' | 'trpg'>('fog_harbor')
 const harborName = ref('雾港码头')
 const lighthouseName = ref('旧灯塔')
-const step = ref<'compose' | 'confirm' | 'play'>('compose')
+const step = ref<'compose' | 'confirm' | 'play' | 'worlds'>('compose')
 const run = ref<RunSnapshot | null>(null)
 const composed = ref<ComposedRun | null>(null)
 const playerInput = ref('')
@@ -38,6 +47,10 @@ const importedContent = ref<ImportedContent | null>(null)
 const createdContent = ref<{ lorebook: { entries: Array<Record<string, unknown>> }; character_cards: Array<Record<string, unknown>> } | null>(null)
 const hostStatus = ref<'starting' | 'ready' | 'error'>('starting')
 const hostError = ref('')
+const worlds = ref<WorldSummary[]>([])
+const selectedWorld = ref<WorldDetail | null>(null)
+const purgeManifest = ref<PurgeManifest | null>(null)
+const purgeName = ref('')
 const hostReady = computed(() => hostStatus.value === 'ready')
 const lanGameplayEnabled = ref(false)
 const lanGameplayAvailable = canControlLanGameplay()
@@ -60,6 +73,108 @@ const exportableCharacterCards = computed(() =>
 
 function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
+}
+
+async function openWorldCenter(worldId?: string) {
+  busy.value = true
+  notice.value = ''
+  purgeManifest.value = null
+  purgeName.value = ''
+  try {
+    worlds.value = await listWorlds()
+    const nextId = worldId ?? selectedWorld.value?.id ?? worlds.value[0]?.id
+    selectedWorld.value = nextId ? await getWorld(nextId) : null
+    step.value = 'worlds'
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法读取世界中心'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function selectWorld(worldId: string) {
+  busy.value = true
+  notice.value = ''
+  purgeManifest.value = null
+  purgeName.value = ''
+  try {
+    selectedWorld.value = await getWorld(worldId)
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法读取这个世界'
+  } finally {
+    busy.value = false
+  }
+}
+
+function startCreatingWorld() {
+  notice.value = ''
+  purgeManifest.value = null
+  purgeName.value = ''
+  composed.value = null
+  run.value = null
+  step.value = 'compose'
+}
+
+async function archiveSelectedWorld() {
+  if (!selectedWorld.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await archiveWorld(selectedWorld.value.id)
+    await openWorldCenter(selectedWorld.value.id)
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法归档世界'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function restoreSelectedWorld() {
+  if (!selectedWorld.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await restoreWorld(selectedWorld.value.id)
+    await openWorldCenter(selectedWorld.value.id)
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法恢复世界'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function openPurgeConfirmation() {
+  if (!selectedWorld.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    purgeManifest.value = await getPurgeManifest(selectedWorld.value.id)
+    purgeName.value = ''
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法生成删除清单'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function permanentlyPurgeSelectedWorld() {
+  if (!selectedWorld.value || !purgeManifest.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await purgeWorld(selectedWorld.value.id, {
+      confirmation_token: purgeManifest.value.confirmation_token,
+      world_name: purgeName.value,
+    })
+    selectedWorld.value = null
+    purgeManifest.value = null
+    purgeName.value = ''
+    await openWorldCenter()
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法永久删除世界'
+  } finally {
+    busy.value = false
+  }
 }
 
 function duplicateAssetIds(existing: Array<Record<string, unknown>>, incoming: Array<Record<string, unknown>>) {
@@ -370,7 +485,11 @@ async function bootHost() {
     return
   }
   const activeRun = localStorage.getItem(activeRunKey)
-  if (activeRun) void recoverRun(activeRun, { silentIfMissing: true })
+  if (activeRun) {
+    void recoverRun(activeRun, { silentIfMissing: true })
+  } else {
+    void openWorldCenter()
+  }
 }
 
 onMounted(() => void bootHost())
@@ -379,13 +498,13 @@ onMounted(() => void bootHost())
 <template>
   <main class="shell">
     <header class="masthead">
-      <a class="brand" href="#" @click.prevent="step = 'compose'">DZMM <span>Next</span></a>
+      <a class="brand" href="#" @click.prevent="() => void openWorldCenter()">DZMM <span>Next</span></a>
       <p>本地世界账本 · API v2</p>
       <div class="host-dot" :class="hostStatus"><i></i> Mac Host {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '启动中' : '不可用' }}</div>
     </header>
 
     <section class="route-strip" aria-label="跑团路径">
-      <span :class="{ active: step === 'compose' }">世界</span><b>—</b>
+      <span :class="{ active: step === 'worlds' || step === 'compose' }">世界</span><b>—</b>
       <span :class="{ active: step === 'confirm' }">确认</span><b>—</b>
       <span :class="{ active: step === 'play' }">游玩</span>
     </section>
@@ -399,7 +518,46 @@ onMounted(() => void bootHost())
       <span>局域网玩法</span><small>{{ lanGameplayEnabled ? '已开启：仅已配对手机可访问 gameplay API' : '关闭：仅本机 Host' }}</small>
     </label>
 
-    <section v-if="step === 'compose'" class="scene compose-scene">
+    <section v-if="step === 'worlds'" class="scene world-center">
+      <div class="world-center-heading">
+        <div><p class="eyebrow">World Center</p><h1>世界是唯一根，<br />版本才会前进。</h1></div>
+        <button type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">新建世界</button>
+      </div>
+      <div v-if="!worlds.length" class="world-center-empty">
+        <h2>还没有世界</h2><p>从一个世界书、角色卡或雾港模板开始；确认后才会生成第一局。</p>
+        <button type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">创建第一个世界</button>
+      </div>
+      <div v-else class="world-center-grid">
+        <nav class="world-list" aria-label="世界列表">
+          <button v-for="world in worlds" :key="world.id" type="button" :class="{ selected: selectedWorld?.id === world.id }" :disabled="busy" @click="selectWorld(world.id)">
+            <b>{{ world.name }}</b><small>{{ world.status === 'active' ? '可游玩' : '已归档' }} · v{{ world.latest_version_number }} · {{ world.run_count }} 局</small>
+          </button>
+        </nav>
+        <aside v-if="selectedWorld" class="world-detail" aria-label="世界详情">
+          <p class="eyebrow">{{ selectedWorld.status === 'active' ? '可游玩' : '已归档' }}</p>
+          <h2>{{ selectedWorld.name }}</h2>
+          <p>当前版本 v{{ selectedWorld.latest_version_number }}。已有 Run 固定在各自创建时的版本，不会被新的作者编辑改写。</p>
+          <dl>
+            <div><dt>WorldVersion</dt><dd>{{ selectedWorld.world_version_count }}</dd></div>
+            <div><dt>Run</dt><dd>{{ selectedWorld.run_count }}</dd></div>
+            <div><dt>世界书</dt><dd>{{ selectedWorld.lorebook_entry_count }} 条</dd></div>
+            <div><dt>角色卡</dt><dd>{{ selectedWorld.character_card_count }} 张</dd></div>
+          </dl>
+          <div class="world-actions">
+            <button v-if="selectedWorld.status === 'active'" class="minor-action" type="button" :disabled="busy" @click="archiveSelectedWorld">归档世界</button>
+            <button v-else class="minor-action" type="button" :disabled="busy" @click="restoreSelectedWorld">恢复世界</button>
+            <button class="danger-action" type="button" :disabled="busy" @click="openPurgeConfirmation">永久删除…</button>
+          </div>
+          <form v-if="purgeManifest" class="purge-confirmation" @submit.prevent="permanentlyPurgeSelectedWorld">
+            <p>将永久删除 {{ purgeManifest.tables.world_versions }} 个版本、{{ purgeManifest.tables.runs }} 局和 {{ purgeManifest.tables.turns }} 条回合。输入 <b>{{ purgeManifest.world_name }}</b> 确认。</p>
+            <label>世界名称<input v-model="purgeName" required :placeholder="purgeManifest.world_name" /></label>
+            <button class="danger-action" type="submit" :disabled="busy || purgeName !== purgeManifest.world_name">永久删除这个世界</button>
+          </form>
+        </aside>
+      </div>
+    </section>
+
+    <section v-else-if="step === 'compose'" class="scene compose-scene">
       <div class="scene-copy">
         <p class="eyebrow">新建世界</p>
         <h1>先钉住地平线，<br />再迈出第一步。</h1>

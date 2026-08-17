@@ -68,13 +68,16 @@ def test_archive_manifest_purge_and_integrity_scan(migrated_client) -> None:
     stale = client.request(
         "DELETE",
         f"/api/v2/worlds/{world_id}",
-        json={"confirmation_token": "0" * 64},
+        json={"confirmation_token": "0" * 64, "world_name": manifest.json()["world_name"]},
     )
     assert stale.status_code == 409
     purged = client.request(
         "DELETE",
         f"/api/v2/worlds/{world_id}",
-        json={"confirmation_token": manifest.json()["confirmation_token"]},
+        json={
+            "confirmation_token": manifest.json()["confirmation_token"],
+            "world_name": manifest.json()["world_name"],
+        },
     )
     assert purged.status_code == 200
     assert client.get(f"/api/v2/runs/{run_id}").status_code == 404
@@ -89,3 +92,81 @@ def test_archive_manifest_purge_and_integrity_scan(migrated_client) -> None:
             "compose_requests_without_run": 0,
         },
     }
+
+
+def test_world_center_lists_restores_and_versions_without_mutating_existing_run(migrated_client) -> None:
+    client, _ = migrated_client
+    created = client.post("/api/v2/worlds:compose", json=payload("world-center-compose")).json()
+    world_id = created["world_id"]
+
+    worlds = client.get("/api/v2/worlds")
+    assert worlds.status_code == 200
+    assert worlds.json() == [
+        {
+            "id": world_id,
+            "name": "Fog Harbor",
+            "status": "active",
+            "latest_world_version_id": created["world_version_id"],
+            "latest_version_number": 1,
+            "world_version_count": 1,
+            "run_count": 1,
+            "lorebook_entry_count": 0,
+            "character_card_count": 0,
+        }
+    ]
+
+    original = client.get(f"/api/v2/worlds/{world_id}")
+    assert original.status_code == 200
+    revised_definition = deepcopy(original.json()["definition"])
+    revised_definition["name"] = "Fog Harbor Revised"
+    revised_definition["lorebook"]["entries"].append(
+        {
+            "id": "north-light",
+            "title": "North Light",
+            "body": "The north pier closes at midnight.",
+            "activation": "always",
+            "priority": 50,
+        }
+    )
+    versioned = client.post(
+        f"/api/v2/worlds/{world_id}/versions",
+        json={
+            "base_world_version_id": created["world_version_id"],
+            "definition": revised_definition,
+        },
+    )
+    assert versioned.status_code == 200
+    detail = versioned.json()
+    assert detail["name"] == "Fog Harbor Revised"
+    assert detail["latest_version_number"] == 2
+    assert detail["world_version_count"] == 2
+    assert detail["lorebook_entry_count"] == 1
+    assert client.get(f"/api/v2/runs/{created['run_id']}").json()["world_version_id"] == created[
+        "world_version_id"
+    ]
+
+    stale = client.post(
+        f"/api/v2/worlds/{world_id}/versions",
+        json={
+            "base_world_version_id": created["world_version_id"],
+            "definition": revised_definition,
+        },
+    )
+    assert stale.status_code == 409
+    assert "stale" in stale.json()["detail"]
+
+    assert client.post(f"/api/v2/worlds/{world_id}:archive").json()["status"] == "archived"
+    assert client.post(f"/api/v2/worlds/{world_id}/versions", json={
+        "base_world_version_id": detail["latest_world_version_id"],
+        "definition": revised_definition,
+    }).status_code == 409
+    assert client.post(f"/api/v2/worlds/{world_id}:restore").json()["status"] == "active"
+
+    manifest = client.get(f"/api/v2/worlds/{world_id}/purge-manifest").json()
+    wrong_name = client.request(
+        "DELETE",
+        f"/api/v2/worlds/{world_id}",
+        json={"confirmation_token": manifest["confirmation_token"], "world_name": "Fog Harbor"},
+    )
+    assert wrong_name.status_code == 409
+from copy import deepcopy
