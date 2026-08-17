@@ -115,6 +115,11 @@ export type MobileDevice = {
   capabilities: string[]
 }
 
+export type MobileHandoff = {
+  host_id: string
+  urls: string[]
+}
+
 export type ModelProfile = {
   id: string
   name: string
@@ -273,6 +278,10 @@ export function getDiagnostics() {
 
 export function listPendingPairings() {
   return request<PendingPairing[]>('/host/pairing-requests')
+}
+
+export function getMobileHandoff() {
+  return request<MobileHandoff>('/host/mobile-handoff')
 }
 
 export function approvePairingRequest(requestId: string) {

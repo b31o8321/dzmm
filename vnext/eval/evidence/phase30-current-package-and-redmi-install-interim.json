@@ -1,0 +1,11 @@
+{
+  "phase": "current-package-and-redmi-install-interim",
+  "environment": "macOS 26.3.1 arm64; fresh temporary packaged-sidecar data directory; Redmi 22041211AC on Android 14 connected through authorized USB debugging",
+  "verification": {
+    "backend": "61 pytest cases and Ruff passed on the current feature worktree.",
+    "mobile": "flutter analyze and all 6 Flutter tests passed. flutter build apk --debug succeeded and adb install -r updated local.dzmm.dzmm_next_mobile on the attached Redmi.",
+    "desktop": "Vue production build, cargo fmt --check, cargo check, PyInstaller sidecar and CI=true Tauri debug app/DMG build passed.",
+    "packaged_sidecar": "The current bundled macOS sidecar started against a fresh temporary data directory with LAN gameplay enabled, returned api_version 2 from /health, and returned a non-empty stable host_id plus one private LAN URL from loopback-only /api/v2/host/mobile-handoff."
+  },
+  "boundary": "The Redmi was still locked during this verification, so there is no physical mDNS discovery, QR scan, desktop approval, choice, conflict, revocation, restart or DHCP-recovery evidence. No Android or maturity-score increase is claimed; the matrix remains 66.25/100. Windows native build and physical Host acceptance remain required."
+}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import QRCode from 'qrcode'
 
 import {
   archiveWorld,
@@ -13,6 +14,7 @@ import {
   getDiagnostics,
   exportLorebook,
   getFogHarborTemplate,
+  getMobileHandoff,
   getPurgeManifest,
   getRun,
   getWorld,
@@ -33,6 +35,7 @@ import {
   type ComposedRun,
   type ImportedContent,
   type MobileDevice,
+  type MobileHandoff,
   type ModelProfile,
   type PendingPairing,
   type RunSnapshot,
@@ -84,6 +87,8 @@ const lanGameplayAvailable = canControlLanGameplay()
 const pairingPanelOpen = ref(false)
 const pendingPairings = ref<PendingPairing[]>([])
 const mobileDevices = ref<MobileDevice[]>([])
+const mobileHandoff = ref<MobileHandoff | null>(null)
+const mobilePairingQr = ref('')
 const themeKey = 'dzmm-next-theme'
 const theme = ref<Theme>('fog')
 const modelProfiles = ref<ModelProfile[]>([])
@@ -756,7 +761,7 @@ async function toggleLanGameplay(event: Event) {
   notice.value = ''
   try {
     const active = await setLanGameplay(enabled)
-    if (active === null) throw new Error('局域网开关仅在 Mac 应用内可用')
+    if (active === null) throw new Error('局域网开关仅在桌面应用内可用')
     lanGameplayEnabled.value = active
   } catch (error) {
     lanGameplayEnabled.value = !enabled
@@ -771,9 +776,13 @@ async function refreshMobilePairings() {
   busy.value = true
   notice.value = ''
   try {
-    const [pending, devices] = await Promise.all([listPendingPairings(), listMobileDevices()])
+    const [pending, devices, handoff] = await Promise.all([listPendingPairings(), listMobileDevices(), getMobileHandoff()])
     pendingPairings.value = pending
     mobileDevices.value = devices
+    mobileHandoff.value = handoff
+    mobilePairingQr.value = handoff.urls.length
+      ? await QRCode.toDataURL(`dzmm-next://pair?host=${encodeURIComponent(handoff.urls[0])}&host_id=${encodeURIComponent(handoff.host_id)}`, { margin: 1, width: 240 })
+      : ''
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '无法读取手机配对状态'
   } finally {
@@ -825,7 +834,7 @@ async function bootHost() {
     hostStatus.value = 'ready'
   } catch (error) {
     hostStatus.value = 'error'
-    hostError.value = error instanceof Error ? error.message : 'Mac Host 无法启动'
+    hostError.value = error instanceof Error ? error.message : '桌面 Host 无法启动'
     return
   }
   const activeRun = localStorage.getItem(activeRunKey)
@@ -856,7 +865,7 @@ onMounted(() => {
             <option value="amber">琥珀</option>
           </select>
         </label>
-        <div class="host-dot" :class="hostStatus"><i></i> Mac Host {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '启动中' : '不可用' }}</div>
+        <div class="host-dot" :class="hostStatus"><i></i> 桌面 Host {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '启动中' : '不可用' }}</div>
       </div>
     </header>
 
@@ -883,6 +892,11 @@ onMounted(() => {
         {{ pairingPanelOpen ? '收起手机配对' : '管理手机配对' }}
       </button>
       <div v-if="pairingPanelOpen" class="mobile-pairing-list">
+        <section v-if="mobilePairingQr" class="mobile-pairing-qr" aria-label="手机配对二维码">
+          <img :src="mobilePairingQr" alt="使用 DZMM Android App 扫描此配对二维码" />
+          <p>打开 Android App 的“扫描桌面配对码”后扫码；二维码不含 token，仍需在此批准。</p>
+        </section>
+        <p v-else-if="mobileHandoff && !mobileHandoff.urls.length" class="empty">未找到可用的局域网地址，请检查网络后刷新。</p>
         <p v-if="!pendingPairings.length && !mobileDevices.length" class="empty">暂无手机请求。请先在手机 App 发起配对。</p>
         <article v-for="pairing in pendingPairings" :key="pairing.request_id">
           <div><b>{{ pairing.device_name }}</b><small>等待本机批准 · {{ new Date(pairing.expires_at).toLocaleTimeString() }} 前有效</small></div>
@@ -1027,7 +1041,7 @@ onMounted(() => {
             已导入 {{ importedContent.lorebook.entries.length }} 条世界书条目、{{ importedContent.character_cards.length }} 张角色卡 · {{ importedContent.report.source_format }}
           </p>
         </details>
-        <button :disabled="busy || !hostReady">{{ busy ? '正在装订世界…' : hostReady ? '确认并创建世界' : '等待 Mac Host…' }}</button>
+        <button :disabled="busy || !hostReady">{{ busy ? '正在装订世界…' : hostReady ? '确认并创建世界' : '等待桌面 Host…' }}</button>
       </form>
     </section>
 

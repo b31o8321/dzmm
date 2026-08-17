@@ -1,0 +1,16 @@
+{
+  "phase": "local-discovery-host-parity-interim",
+  "environment": "macOS arm64; isolated packaged vNext sidecar on 0.0.0.0:29876; Android Flutter debug APK build",
+  "implementation": {
+    "host": "The explicit LAN gameplay toggle starts a listener before a best-effort _dzmm._tcp.local advertisement. The TXT record contains only stable non-secret host_id, api=v2, pairing=approval and capability=gameplay. Remote requests remain restricted to paired /api/v2/mobile/* endpoints.",
+    "mobile": "Android uses mDNS discovery for private IPv4 candidates and keeps manual private-address entry as a fallback. Approved pairing persists host URL, host_id, bearer token and last Run ID in secure storage; a later launch first hydrates the saved Host and otherwise looks up its saved host_id.",
+    "desktop_parity": "The existing Tauri sidecar lifecycle uses cfg!(windows) for the Windows executable. A Windows-native NSIS build command is now provided; it uses the same environment variables, API and LAN policy as macOS."
+  },
+  "verification": {
+    "backend": "61 pytest cases and Ruff passed. Tests cover safe mDNS metadata, private-address filtering, one-time approval, host_id credential delivery, LAN management rejection and deferring advertisement until the listener accepts a connection.",
+    "mobile": "dart format, flutter analyze and 4 Flutter tests passed. flutter build apk --debug produced the Android APK; the widget test renders a discovered Host without exposing management controls.",
+    "desktop": "Vue production build, cargo fmt --check, cargo check, PyInstaller onedir sidecar and CI=true Tauri debug app/DMG build passed.",
+    "packaged_mdns": "A fresh isolated packaged sidecar was started at 0.0.0.0:29876. macOS dns-sd resolved _dzmm._tcp to that port and observed only host_id/api/pairing/capability TXT values."
+  },
+  "boundary": "This is source, package and local-mDNS evidence only. It is not Android physical discovery/pairing/restart/DHCP evidence, Windows physical installer evidence, QR/subnet fallback evidence or a maturity-score increase. The matrix remains 66.25/100 until the specified real journeys are recorded."
+}

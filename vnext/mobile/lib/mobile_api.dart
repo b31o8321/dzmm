@@ -29,15 +29,21 @@ class PairingRequest {
 }
 
 class MobileCredential {
-  const MobileCredential({required this.deviceId, required this.accessToken});
+  const MobileCredential({
+    required this.deviceId,
+    required this.accessToken,
+    required this.hostId,
+  });
 
   final String deviceId;
   final String accessToken;
+  final String hostId;
 
   factory MobileCredential.fromJson(Map<String, dynamic> json) =>
       MobileCredential(
         deviceId: json['device_id'] as String,
         accessToken: json['access_token'] as String,
+        hostId: json['host_id'] as String,
       );
 }
 
@@ -127,51 +133,58 @@ class MobileApi {
   Map<String, String> _auth(String token) => {'authorization': 'Bearer $token'};
 
   Uri _uri(String host, String path) {
-    final normalized = host.trim().replaceFirst(RegExp(r'/$'), '');
-    final uri = Uri.tryParse(normalized);
-    if (uri == null ||
-        !uri.hasAuthority ||
-        (uri.scheme != 'http' && uri.scheme != 'https')) {
-      throw const HostApiError(0, 'Mac Host 地址必须是 http:// 或 https:// 地址。');
-    }
-    if (!_isLocalHost(uri.host)) {
-      throw const HostApiError(0, 'Mac Host 必须是局域网或回环地址。');
-    }
+    final normalized = localHostUri(
+      host,
+    ).toString().replaceFirst(RegExp(r'/$'), '');
     return Uri.parse('$normalized$path');
   }
+}
 
-  bool _isLocalHost(String host) {
-    if (host == 'localhost') return true;
-    final address = InternetAddress.tryParse(host);
-    if (address == null) return false;
-    if (address.isLoopback || address.isLinkLocal) return true;
-    final bytes = address.rawAddress;
-    if (bytes.length != 4) return false;
-    final first = bytes[0];
-    final second = bytes[1];
-    return first == 10 ||
-        (first == 172 && second >= 16 && second <= 31) ||
-        (first == 192 && second == 168) ||
-        (first == 100 && second >= 64 && second <= 127);
+Uri localHostUri(String host) {
+  final normalized = host.trim().replaceFirst(RegExp(r'/$'), '');
+  final uri = Uri.tryParse(normalized);
+  if (uri == null ||
+      !uri.hasAuthority ||
+      (uri.scheme != 'http' && uri.scheme != 'https')) {
+    throw const HostApiError(0, '桌面 Host 地址必须是 http:// 或 https:// 地址。');
   }
+  if (!_isLocalHost(uri.host)) {
+    throw const HostApiError(0, '桌面 Host 必须是局域网或回环地址。');
+  }
+  return uri;
+}
 
-  Map<String, dynamic> _map(http.Response response) {
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } on FormatException {
-      throw HostApiError(response.statusCode, 'Mac Host 返回了无法识别的响应。');
-    }
-    if (response.statusCode >= 400) {
-      final detail = decoded is Map ? decoded['detail']?.toString() : null;
-      throw HostApiError(
-        response.statusCode,
-        detail ?? 'Host 请求失败（${response.statusCode}）。',
-      );
-    }
-    if (decoded is! Map) {
-      throw HostApiError(response.statusCode, 'Mac Host 返回了无法识别的响应。');
-    }
-    return Map<String, dynamic>.from(decoded);
+bool _isLocalHost(String host) {
+  if (host == 'localhost') return true;
+  final address = InternetAddress.tryParse(host);
+  if (address == null) return false;
+  if (address.isLoopback || address.isLinkLocal) return true;
+  final bytes = address.rawAddress;
+  if (bytes.length != 4) return false;
+  final first = bytes[0];
+  final second = bytes[1];
+  return first == 10 ||
+      (first == 172 && second >= 16 && second <= 31) ||
+      (first == 192 && second == 168) ||
+      (first == 100 && second >= 64 && second <= 127);
+}
+
+Map<String, dynamic> _map(http.Response response) {
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(response.body);
+  } on FormatException {
+    throw HostApiError(response.statusCode, '桌面 Host 返回了无法识别的响应。');
   }
+  if (response.statusCode >= 400) {
+    final detail = decoded is Map ? decoded['detail']?.toString() : null;
+    throw HostApiError(
+      response.statusCode,
+      detail ?? 'Host 请求失败（${response.statusCode}）。',
+    );
+  }
+  if (decoded is! Map) {
+    throw HostApiError(response.statusCode, '桌面 Host 返回了无法识别的响应。');
+  }
+  return Map<String, dynamic>.from(decoded);
 }

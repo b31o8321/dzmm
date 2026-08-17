@@ -46,6 +46,7 @@ class MobileCredential(BaseModel):
     device_id: str
     access_token: str
     capabilities: list[str]
+    host_id: str
 
 
 class MobileDevice(BaseModel):
@@ -68,8 +69,9 @@ def _digest(value: str) -> str:
 
 
 class PairingService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], host_id: str) -> None:
         self._session_factory = session_factory
+        self._host_id = host_id
 
     async def request(self, payload: PairingRequestInput) -> PairingRequestCreated:
         now = _now()
@@ -187,7 +189,10 @@ class PairingService:
             )
             await session.execute(delete(pairing_requests).where(pairing_requests.c.id == request_id))
         return MobileCredential(
-            device_id=row["device_id"], access_token=token, capabilities=row["capabilities"]
+            device_id=row["device_id"],
+            access_token=token,
+            capabilities=row["capabilities"],
+            host_id=self._host_id,
         )
 
     async def authenticate(self, token: str) -> MobileDevice:

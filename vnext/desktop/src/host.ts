@@ -15,7 +15,7 @@ async function waitForHealth(origin: string): Promise<void> {
     }
     await new Promise((resolve) => window.setTimeout(resolve, 250))
   }
-  throw new Error('Mac Host 未能在 20 秒内就绪，请检查端口和诊断日志。')
+  throw new Error('桌面 Host 未能在 20 秒内就绪，请检查端口和诊断日志。')
 }
 
 export async function startHost(): Promise<string | null> {
@@ -33,7 +33,7 @@ export function canControlLanGameplay(): boolean {
 export async function setLanGameplay(enabled: boolean): Promise<boolean | null> {
   if (!isTauri()) return null
   const active = await invoke<boolean>('set_lan_gameplay', { enabled })
-  if (hostOrigin === null) throw new Error('Mac Host 尚未就绪')
+  if (hostOrigin === null) throw new Error('桌面 Host 尚未就绪')
   await waitForHealth(hostOrigin)
   return active
 }

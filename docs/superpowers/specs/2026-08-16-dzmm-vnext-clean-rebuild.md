@@ -2,7 +2,7 @@
 
 ## Product thesis
 
-DZMM vNext 是一个本地优先、状态驱动的互动叙事平台：玩家在 Mac 建立可审阅的世界与角色，在桌面或 Android 继续同一局；Python 是规则和状态的唯一裁判，模型只负责叙事与受限意图。TRPG 是重要规则集，但不是唯一玩法；它消费酒馆生态的世界书与角色卡内容，但不成为酒馆式通用 prompt 工作台。
+DZMM vNext 是一个本地优先、状态驱动的互动叙事平台：玩家在 macOS 或 Windows 桌面应用建立可审阅的世界与角色，在同一桌面 Host 或 Android 继续同一局；Python 是规则和状态的唯一裁判，模型只负责叙事与受限意图。TRPG 是重要规则集，但不是唯一玩法；它消费酒馆生态的世界书与角色卡内容，但不成为酒馆式通用 prompt 工作台。
 
 > 叙事规则集、章节/关系/结局 contract、雾港首个垂直切片与更新后的成熟度矩阵，以
 > [2026-08-17 Narrative Rulesets 规格](2026-08-17-narrative-rulesets-interactive-story-platform.md)
@@ -23,7 +23,7 @@ DZMM vNext 是一个本地优先、状态驱动的互动叙事平台：玩家在
 2. **一个运行态。** 一局 Run 只读取固定 WorldVersion，所有可变地点/NPC/事件/物品/角色状态存于 versioned RunState。
 3. **一个回合真相。** Turn command 被 Python 验证和应用；模型流式叙事无法直接改状态；失败、断线、重试都最多提交一次。
 4. **一个内容边界。** Lorebook 可以通过关键词/常驻/优先级参与上下文，原始 ST 字段可保留；只有确认提升才成为结构实体。
-5. **一个主机。** Mac 保存模型、世界和 Run；Android 配对后仅能游玩、恢复和查看允许状态。
+5. **一个主机。** macOS 或 Windows 桌面应用保存模型、世界和 Run；Android 配对后仅能游玩、恢复和查看允许状态。
 6. **一个退出路径。** World 可归档或永久删除；删除影响由 manifest 预览，SQL、文件和索引无孤儿。
 
 ## Canonical architecture
@@ -39,7 +39,7 @@ Run (world_version_id, hero, model profile)
   ├─ RunState (revisioned JSON: all mutable gameplay facts)
   └─ Turn[] (input, narrative, validated commands, before/after revisions, diagnostics)
 
-Mac host
+Desktop Host (macOS / Windows)
   ├─ ModelProfile (protocol + probe)
   ├─ Python engine + TurnCoordinator
   └─ API v2 / pairing / SSE resume
@@ -64,7 +64,7 @@ All vNext dimensions start at **0**. No legacy score, old CI result, mock, sourc
 | Creation & content interoperability | 15 | 80 | One wizard journey; ST V3 card + World Info import report; Lore promotion and export round-trip pass. |
 | Model & stream robustness | 10 | 80 | Ollama, LM Studio and OpenAI-compatible probes; malformed 200, empty stream, 429 and cancellation handled. |
 | Desktop UX & accessibility | 10 | 80 | Create/play/archive/recover on packaged desktop; keyboard and screen-reader primary flow reviewed. |
-| Mac host & Android recovery | 10 | 80 | QR/PIN/manual pair, revoke, SSE resume, Wi-Fi/Mac restart and concurrent submission on physical devices. |
+| Desktop Host & Android recovery | 10 | 80 | QR/PIN/manual pair, revoke, SSE resume, Wi-Fi/Host restart and concurrent submission on physical devices; macOS and Windows run the same physical acceptance matrix. |
 | Long-play performance | 10 | 80 | 50-turn run, 500-message reopen and target-device streaming budgets measured; no state corruption. |
 | Engineering & release readiness | 10 | 80 | Fresh-db migrations, contract/e2e suite, signed RC artifacts, diagnostics export and release checklist pass. |
 | **Total** | **100** | **all P0 >=80** | **weighted score >=85, no open P0 defect** |
@@ -84,7 +84,7 @@ Each gate records command output, environment, artifact/commit, score delta and 
 AI 世界创作是 Creation & content、Game loop、Model robustness 与 Desktop UX 的交叉能力，
 但不是新的存档维度。它的草案必须无持久化地经过 schema v3 与 narrative validator，并由用户
 通过既有原子 compose 确认。首个雾港复杂度切片需要覆盖生成、编辑、取消、模型失败、空/非法
-输出、重复确认、三回合结局、回滚、角色卡 V3 与 World Info 导出；只有真实模型和打包 Mac
+输出、重复确认、三回合结局、回滚、角色卡 V3 与 World Info 导出；只有真实模型和打包桌面
 旅程取证才能增加相应维度分数。Android gameplay-only 权限、长局和签名 RC 门槛不因此降低。
 
 ## Delivery Plan
@@ -140,7 +140,7 @@ AI 世界创作是 Creation & content、Game loop、Model robustness 与 Desktop
 - Rebuild remote control plane on API v2: capability discovery, mDNS/subnet/manual, QR/PIN approval, token revoke and allowlist.
 - Implement Flutter session/run hydration, state/choice view, stream/reconnect/gap recovery and accessibility semantics.
 - Perform physical Android + two-router + mDNS-blocked + DHCP-change matrix.
-- Produce signed Android RC and packaged Mac host; run real-model 30-turn Android journey and physical 100-turn disconnect soak.
+- Produce signed Android RC and packaged macOS/Windows Hosts; run real-model 30-turn Android journey and physical 100-turn disconnect soak.
 
 **Gate:** Matrix **>=85**, every P0 >=80, no P0 defect. This is the only release gate.
 

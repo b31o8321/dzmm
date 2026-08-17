@@ -36,7 +36,7 @@ World ──> WorldVersion ──> Run ──> Turn[]
 - `RunState` 是唯一的可变游戏状态，Python engine 接收已验证 command 后更新它；LLM 永不直写数据库。
 - `Turn` 同时记录 request id、玩家输入、叙事、command、state revision 与诊断，成为回滚与恢复的唯一审计单位。
 - Lorebook 是 WorldDefinition 的受限条目集，按明确 activation 选择上下文；只有用户显式“提升”为实体才改变结构世界。
-- Mac host 与 Android 走新的 `api_version=2` capability contract；Android 不管理模型、世界、密钥或删除操作。
+- macOS/Windows 桌面 Host 与 Android 走新的 `api_version=2` capability contract；Android 不管理模型、世界、密钥或删除操作。
 
 ## Options considered
 

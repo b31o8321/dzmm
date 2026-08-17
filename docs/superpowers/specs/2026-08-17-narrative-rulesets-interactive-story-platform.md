@@ -1,12 +1,12 @@
 # DZMM vNext 叙事规则集：本地优先、状态驱动的互动叙事平台
 
-**状态：** Active — schema v3 已将角色卡与关系定义分离，并通过确定性雾港/回滚与 500 Turn 重开回归；打包 Mac WebView、真实模型、Android 和 LAN 实机验收待推进
+**状态：** Active — schema v3 已将角色卡与关系定义分离，并通过确定性雾港/回滚与 500 Turn 重开回归；打包桌面 WebView、真实模型、Android 和 LAN 实机验收待推进
 **日期：** 2026-08-17
 **范围：** 只扩展 vNext 的 `World → WorldVersion → Run → RunState → Turn` 聚合；不读取、迁移或兼容 v0.x。
 
 ## 1. 产品定位与问题
 
-DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 是其中一个重要玩法，而不是产品边界。玩家在 Mac 创建、导入和管理一个版本化世界，在 Mac 或已配对 Android 上游玩同一个固定版本的 Run；Python 是所有真实状态的唯一裁判，LLM 只负责叙事与受限意图提议。
+DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 是其中一个重要玩法，而不是产品边界。玩家在 macOS 或 Windows 桌面 Host 创建、导入和管理一个版本化世界，并在同一桌面 Host 或已配对 Android 上游玩同一个固定版本的 Run；Python 是所有真实状态的唯一裁判，LLM 只负责叙事与受限意图提议。
 
 目前的 vNext 聚合已经解决“一个世界、一个版本、一个运行态”的所有权问题，但其规则 contract 只覆盖地点、物品、事件和骰子，无法清晰表达章节、选择、角色路线、关系维度和多结局。若另建“剧情存档”或“恋爱模式存档”，会重新引入两套创建、删除、回滚和手机恢复语义。本规格以一套 `RunState` 和一条审计 Turn 链解决三类体验。
 
@@ -16,7 +16,7 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 2. 玩家可完成“剧情冒险 + 多维关系 + 多结局”的完整本地闭环，且刷新、断线、回滚后状态仍可信。
 3. 将**世界书（Lorebook）**与**角色卡（Character Card）**作为一等内容概念和互通入口，优先采用 SillyTavern 社区可理解的字段/格式，而不是用 DZMM 私有术语替代它们。
 4. 任何 Flag、章节、路线、关系、资源、事件和结局变化都由 Python 通过受限 command 验证、应用、记录与回滚。
-5. Android 保持 gameplay-only；Mac 保持世界、规则集、模型、配对和生命周期管理权。
+5. Android 保持 gameplay-only；macOS/Windows 桌面 Host 保持世界、规则集、模型、配对和生命周期管理权。
 
 ### 非目标
 
@@ -47,7 +47,7 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 
 这不是仅增加导入器的兼容功能，而是 vNext 的**内容模型决策**：世界书和角色卡是 DZMM
 直接拥有、编辑、版本化和导出的一级资产；不能在产品中另称为“Lore”“人物模板”或“知识实体”。
-内部实现可以有模块名，但稳定 API、存储 contract、导入报告、Mac UI 与 Android 只读投影都使用
+内部实现可以有模块名，但稳定 API、存储 contract、导入报告、桌面 UI 与 Android 只读投影都使用
 `lorebook` / `character_cards` 及其中文名称。`WorldDefinition` 仍只是承载这些内容资产与规则定义的
 内部 aggregate document，不是一个面向用户的替代概念。
 
@@ -262,10 +262,10 @@ stateDiagram-v2
 | 聚合、版本与生命周期 | 15 | 80 | WorldVersion 固定 ruleset；compose/archive/purge/rollback 临时 DB 覆盖，零孤儿。 | 打包桌面反复 create/edit-version/play/archive/recover，含失败注入。 |
 | 状态裁决与 command 安全 | 20 | 80 | 非法 LLM/client command、任意关系调值、非法 Flag/跳章/结局均 fail-closed；审计与回滚测试。 | 真实模型长局中命令与 revision 100% 可重放，故障/断线无半回合。 |
 | 剧情、关系与结局完整性 | 15 | 80 | 雾港 3 章、2 路线、好/坏/隐藏 ending 的 deterministic E2E；once/cooldown/reason/阈值覆盖。 | Huihui 14B 至少 30 回合、覆盖每个 ending 与回滚分支的人工可玩验收。 |
-| 内容互通与作者体验 | 10 | 80 | ST V3 卡 + World Info 导入/报告/保留未知字段；世界书提升为实体产生新 version。 | Mac 打包应用完成导入→编辑→导出 round-trip，用户能在 3 分钟开始雾港。 |
+| 内容互通与作者体验 | 10 | 80 | ST V3 卡 + World Info 导入/报告/保留未知字段；世界书提升为实体产生新 version。 | 打包桌面应用完成导入→编辑→导出 round-trip，用户能在 3 分钟开始雾港。 |
 | 模型与流鲁棒性 | 10 | 80 | Ollama、LM Studio/OpenAI 兼容探针，HTTP 200 error、空流、429、取消均不提交。 | Huihui 14B 多次故事/关系回合，意图拒绝与叙事降级可解释。 |
-| 桌面 UX 与无障碍 | 10 | 80 | 打包 Mac 完成创建→选择→关系变化→结局→回滚→刷新；键盘主路径。 | 屏幕阅读与截图评审覆盖空态、失败、锁结局、恢复，零 P0 旅程缺陷。 |
-| Android gameplay 恢复 | 10 | 80 | 真实 Android 在 LAN 完成配对、Run recovery、选择/状态/结局、SSE 断线恢复。 | 两个网络环境、Mac 重启、撤销、冲突提交和 30 回合 Huihui 实机旅程通过。 |
+| 桌面 UX 与无障碍 | 10 | 80 | 打包桌面应用完成创建→选择→关系变化→结局→回滚→刷新；键盘主路径。 | 屏幕阅读与截图评审覆盖空态、失败、锁结局、恢复，零 P0 旅程缺陷。 |
+| Android gameplay 恢复 | 10 | 80 | 真实 Android 在 LAN 完成配对、Run recovery、选择/状态/结局、SSE 断线恢复。 | 两个网络环境、Host 重启、撤销、冲突提交和 30 回合 Huihui 实机旅程通过；macOS 与 Windows Host 均取证。 |
 | 长局性能 | 5 | 80 | 50 回合/500 消息重开及剧情状态大小预算，状态无损。 | 100 回合混合模式断线 soak，目标设备流式与恢复预算达标。 |
 | 工程与发布 | 5 | 80 | fresh DB migration、contract/后端/前端测试、诊断导出通过。 | 签名 Mac/Android RC、发布清单、P0 缺陷为零。 |
 | **总计** | **100** | **每个 P0 >=80** | — | **加权 >=85，且无 P0 defect** |
@@ -276,7 +276,7 @@ stateDiagram-v2
 |---|---|---|
 | 0. Contract freeze | ADR-003/004 批准；`WorldDefinition` / `RunState` / `TurnCommand` schema v3；世界书、角色卡、显式关系定义的雾港 fixture；scorecard 改版。 | schema lint、有限谓词/command 白名单与“内容不含运行规则”设计评审通过；不改 legacy。 |
 | 1. 最小可玩垂直切片 | 受限 `hybrid`（仅剧情冒险 + 关系能力）的雾港：3 章、两路线、多维关系、once/cooldown、好/坏 ending、回滚；Mac 最小 UI。 | 确定性 E2E 覆盖四种路线结果、非法写入拒绝、刷新/回滚正确；角色卡与 RelationshipDefinition 的职责分离；相关三维各 >=65。 |
-| 2. 内容边界重构与真实模型作者闭环 | 将 schema v2 的卡内 `relationship_dimensions` 迁为 schema v3 的显式 `RelationshipDefinition`；模型仅提意图的 adapter、叙事 prompt、**世界书和角色卡作为持久内容资产**的导入/编辑/导出、结局页和审计 UI；清除对外 `lore`/“建议主角”替代语义。 | Huihui 14B 30 回合含一次回滚；同卡可在两个 WorldVersion 有不同关系规则；导入 V3 JSON/PNG 或 World Info → 保留报告 → 创建世界 → 开局 → 结局 → 导出 round-trip 的 packaged Mac 证据；相关 P0 >=80。 |
+| 2. 内容边界重构与真实模型作者闭环 | 将 schema v2 的卡内 `relationship_dimensions` 迁为 schema v3 的显式 `RelationshipDefinition`；模型仅提意图的 adapter、叙事 prompt、**世界书和角色卡作为持久内容资产**的导入/编辑/导出、结局页和审计 UI；清除对外 `lore`/“建议主角”替代语义。 | Huihui 14B 30 回合含一次回滚；同卡可在两个 WorldVersion 有不同关系规则；导入 V3 JSON/PNG 或 World Info → 保留报告 → 创建世界 → 开局 → 结局 → 导出 round-trip 的 packaged desktop 证据；相关 P0 >=80。 |
 | 3. TRPG 规则集接入 | 将既有骰子、资源、地点、事件、战斗 command 迁入同一 v3 白名单；`trpg` 不携带剧情特有字段。 | TRPG regression、同 aggregate rollback、规则集越权拒绝。 |
 | 4. Hybrid | 声明式 capability 组合、TRPG 检定影响章节/关系的预定义桥接规则、冲突检测和可视化。 | 50 回合 hybrid 实跑、交叉条件/ending/replay E2E；不出现第二存档模型。 |
 | 5. Android 与 RC | gameplay-only 的章节/选择/关系/结局体验、LAN/断线/撤销实机矩阵、长局性能与打包。 | 矩阵总分 >=85、所有 P0 >=80、无 P0 defect。 |

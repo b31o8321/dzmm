@@ -48,7 +48,7 @@ schema 与 narrative semantic validation。格式围栏和缺失 schema version 
 - 新端点只属于 API v2 / loopback Mac authoring surface；移动端不获得创作权限。
 - 生成和编辑的候选必须是当前 schema v3，不提供 v2 或 legacy adapter。
 - `WorldComposer` 无需知道 AI；它只校验并原子 compose 用户最终确认的 payload。
-- 成熟度矩阵新增 AI 创作验收证据，但当前分数不变，直到真实模型和打包 Mac journey 通过。
+- 成熟度矩阵新增 AI 创作验收证据，但当前分数不变，直到真实模型和打包桌面 journey 通过。
 
 ## Action items
 

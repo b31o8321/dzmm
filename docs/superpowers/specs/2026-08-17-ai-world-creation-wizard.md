@@ -2,7 +2,7 @@
 
 **状态：** Approved for the first vertical slice  
 **日期：** 2026-08-17  
-**范围：** vNext API v2、Mac 创作向导、schema v3；不读取旧版数据或 API。
+**范围：** vNext API v2、桌面（macOS/Windows）创作向导、schema v3；不读取旧版数据或 API。
 
 ## 问题与目标
 
@@ -10,7 +10,7 @@
 题材想法安全地得到可玩的世界。目标是把本地模型变成**创作草案员**：用户填写题材、基调、
 核心冲突、主角偏好和可选角色偏好，获得可审阅的剧情冒险、关系叙事或 hybrid 草案。
 
-成功不是模型“自动开局”，而是用户能在 Mac 上完成：一键草案 → 审阅/编辑 → 明确确认 →
+成功不是模型“自动开局”，而是用户能在桌面应用上完成：一键草案 → 审阅/编辑 → 明确确认 →
 原子创建 → 三个 Python choice 回合 → 可见结局 → 回滚。首个验收以雾港同等复杂度为下限。
 
 ## 产品范围
@@ -32,7 +32,7 @@
 6. 剧情草案至少具备 3 章、每章可选 choices、Flag、显式 RelationshipDefinition、固定
    relationship events、routes 和多种 EndingDefinition。choices 的 effect 只能是 schema
    白名单中的 Python 预定义 effect；不存在 `commands`、脚本、正则或 Python 字段。
-7. Mac 向导展示 brief、章节、角色卡/关系、世界书与 endings，并提供受校验的 JSON 编辑区。
+7. 桌面向导展示 brief、章节、角色卡/关系、世界书与 endings，并提供受校验的 JSON 编辑区。
    用户按“验证编辑”后才可启用“确认并创建世界”；确认仍调用现有
    `POST /api/v2/worlds:compose`，使用每次确认稳定的 request ID。
 8. 空输出、模型/网络失败、无法解析 JSON、schema/语义无效、用户取消、编辑后无效和重复确认
@@ -88,7 +88,7 @@ World → WorldVersion → Run → RunState → Turn[]
 
 | 矩阵维度 | 80 分所需新增证据 | 85 分所需新增证据 |
 |---|---|---|
-| Creation & content interoperability | 打包 Mac：真实本地模型生成 → 审阅编辑 → schema validate → compose；角色卡 V3 与 World Info 导出 round-trip；生成/取消/无效/重复确认测试 | 至少两种题材的重复旅程，真实卡 file chooser 与导出再导入无信息丢失 |
+| Creation & content interoperability | 打包桌面应用：真实本地模型生成 → 审阅编辑 → schema validate → compose；角色卡 V3 与 World Info 导出 round-trip；生成/取消/无效/重复确认测试 | 至少两种题材的重复旅程，真实卡 file chooser 与导出再导入无信息丢失 |
 | Game loop & rule truth / state command safety | 生成草案三 choice、结局和回滚；证明模型响应不含可执行 command 且 Python 产生实际 effects | 真实模型降级/重试与回滚重放下，所有生成世界仍无越权状态写入 |
 | Model & stream robustness | 真实配置模型的空/非 JSON/schema 无效响应均以非持久化错误恢复 | Huihui 14B 多次生成、取消/超时恢复与模型协议矩阵复验 |
 | Desktop UX & accessibility | 打包 Tauri 中键盘完成创作、审阅、编辑、确认、游玩、回滚；屏幕阅读器标签检查 | 重复目标机旅程无 P0 发现 |

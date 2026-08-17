@@ -90,5 +90,5 @@ WorldVersion
 1. [ ] 将 schema、fixture、引擎和 API 中角色卡内的关系字段迁入 `story.relationships[]`，并拒绝旧字段。
 2. [ ] 为“同一张卡在两个 WorldVersion 的不同关系配置”“关系 event 引用不存在 target”“LLM/客户端
       直接写 relationship state”增加 contract 和 engine tests。
-3. [ ] 在世界中心补角色卡编辑、引用面板和导入/导出兼容报告；用打包 Mac 完成一次真实 PNG round-trip。
+3. [ ] 在世界中心补角色卡编辑、引用面板和导入/导出兼容报告；用打包桌面应用完成一次真实 PNG round-trip。
 4. [ ] 以 schema v3 重新取得雾港的四类结局、回滚、重开和真实模型证据；再进入 TRPG/hybrid 扩展。

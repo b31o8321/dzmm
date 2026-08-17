@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -27,6 +28,8 @@ from .content import (
 )
 from .contracts import contract_manifest
 from .db import create_engine
+from .discovery import HostAdvertisement, lan_host_urls
+from .host_identity import load_host_id
 from .lifecycle import (
     PurgeConfirmation,
     PurgeConfirmationError,
@@ -80,10 +83,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.model_prober = ModelProber()
         app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
         app.state.content = ContentService(app.state.sessions)
-        app.state.pairing = PairingService(app.state.sessions)
+        app.state.host_id = load_host_id(resolved_settings.data_dir)
+        app.state.pairing = PairingService(app.state.sessions, app.state.host_id)
+        app.state.host_advertisement = HostAdvertisement()
+        advertisement_task = None
+        if (
+            resolved_settings.allow_lan_gameplay
+            and resolved_settings.advertise_lan_host
+            and resolved_settings.host == "0.0.0.0"
+        ):
+            advertisement_task = asyncio.create_task(
+                _advertise_after_listener(
+                    app.state.host_advertisement,
+                    host_id=app.state.host_id,
+                    port=resolved_settings.port,
+                )
+            )
         try:
             yield
         finally:
+            if advertisement_task is not None:
+                advertisement_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await advertisement_task
+            await app.state.host_advertisement.stop()
             await app.state.engine.dispose()
 
     app = FastAPI(title="DZMM Next Preview", version="0.1.0", lifespan=lifespan)
@@ -128,6 +151,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "capabilities": ["gameplay"],
                 "lan_gameplay_enabled": resolved_settings.allow_lan_gameplay,
             },
+        }
+
+    @app.get("/api/v2/host/mobile-handoff")
+    async def mobile_handoff(request: Request) -> dict[str, object]:
+        _require_loopback_host(request)
+        if not resolved_settings.allow_lan_gameplay:
+            raise HTTPException(status_code=409, detail="LAN gameplay is disabled")
+        return {
+            "host_id": app.state.host_id,
+            "urls": lan_host_urls(resolved_settings.port),
         }
 
     @app.post("/api/v2/mobile/pairing-requests")
@@ -456,6 +489,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 app = create_app()
+
+
+async def _advertise_after_listener(
+    advertisement: HostAdvertisement, *, host_id: str, port: int
+) -> None:
+    """Do not make the Host discoverable until Uvicorn has bound its listener."""
+    for _ in range(100):
+        try:
+            _, writer = await asyncio.open_connection("127.0.0.1", port)
+        except OSError:
+            await asyncio.sleep(0.05)
+            continue
+        writer.close()
+        with suppress(OSError):
+            await writer.wait_closed()
+        await advertisement.start(host_id=host_id, port=port)
+        return
 
 
 def _sse(event_id: int, event_type: str, payload: dict[str, Any]) -> str:

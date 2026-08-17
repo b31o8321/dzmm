@@ -1,11 +1,42 @@
+import socket
+import sys
 from pathlib import Path
+from types import ModuleType
+from typing import ClassVar
 
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 
 from dzmm_vnext.config import Settings
+from dzmm_vnext.discovery import HostAdvertisement, _is_private_lan_ipv4
 from dzmm_vnext.main import create_app
+
+
+class FakeServiceInfo:
+    def __init__(self, service_type, name, **kwargs):
+        self.service_type = service_type
+        self.name = name
+        self.kwargs = kwargs
+
+
+class FakeAsyncZeroconf:
+    instances: ClassVar[list["FakeAsyncZeroconf"]] = []
+
+    def __init__(self):
+        self.registered = []
+        self.unregistered = []
+        self.closed = False
+        self.instances.append(self)
+
+    async def async_register_service(self, info):
+        self.registered.append(info)
+
+    async def async_unregister_service(self, info):
+        self.unregistered.append(info)
+
+    async def async_close(self):
+        self.closed = True
 
 
 def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
@@ -18,6 +49,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
         "capabilities": ["gameplay"],
         "lan_gameplay_enabled": False,
     }
+    assert client.get("/api/v2/host/mobile-handoff").status_code == 409
 
     created = client.post(
         "/api/v2/mobile/pairing-requests", json={"device_name": "Norman's Android"}
@@ -50,6 +82,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
     credential = completed.json()
     assert credential["device_id"] == request["device_id"]
     assert credential["capabilities"] == ["gameplay"]
+    assert credential["host_id"]
     assert "access_token" in credential
 
     session = client.get(
@@ -162,7 +195,8 @@ def test_lan_host_only_exposes_mobile_gameplay_to_remote_clients(tmp_path, monke
     data_dir = tmp_path / "dzmm-vnext"
     monkeypatch.setenv("DZMM_NEXT_DATA_DIR", str(data_dir))
     command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
-    settings = Settings(data_dir=data_dir, allow_lan_gameplay=True)
+    settings = Settings(data_dir=data_dir, allow_lan_gameplay=True, advertise_lan_host=False)
+    monkeypatch.setattr("dzmm_vnext.main.lan_host_urls", lambda port: [f"http://192.168.31.241:{port}"])
 
     with TestClient(create_app(settings), client=("192.168.31.20", 50000)) as remote:
         assert remote.post("/api/v2/worlds:compose", json={}).status_code == 403
@@ -170,6 +204,7 @@ def test_lan_host_only_exposes_mobile_gameplay_to_remote_clients(tmp_path, monke
         assert remote.get("/api/v2/host/mobile-devices").status_code == 403
         assert remote.post("/api/v2/model-profiles", json={}).status_code == 403
         assert remote.get("/api/v2/host/capabilities").status_code == 403
+        assert remote.get("/api/v2/host/mobile-handoff").status_code == 403
         request = remote.post(
             "/api/v2/mobile/pairing-requests", json={"device_name": "Norman's Android"}
         )
@@ -180,6 +215,10 @@ def test_lan_host_only_exposes_mobile_gameplay_to_remote_clients(tmp_path, monke
         capabilities = host.get("/api/v2/host/capabilities")
         assert capabilities.status_code == 200
         assert capabilities.json()["mobile"]["lan_gameplay_enabled"] is True
+        handoff = host.get("/api/v2/host/mobile-handoff")
+        assert handoff.status_code == 200
+        assert handoff.json()["urls"] == ["http://192.168.31.241:8765"]
+        assert handoff.json()["host_id"]
         assert host.get("/api/v2/host/pairing-requests").status_code == 200
         assert host.post(
             f"/api/v2/host/pairing-requests/{pairing['request_id']}:approve"
@@ -212,3 +251,91 @@ def test_lan_host_only_exposes_mobile_gameplay_to_remote_clients(tmp_path, monke
         )
         assert chosen.status_code == 201
         assert chosen.json()["state"]["chapter"]["id"] == "ch2"
+
+
+def test_mdns_advertisement_contains_only_safe_host_metadata(monkeypatch) -> None:
+    fake_zeroconf = ModuleType("zeroconf")
+    fake_zeroconf_asyncio = ModuleType("zeroconf.asyncio")
+    fake_zeroconf.ServiceInfo = FakeServiceInfo
+    fake_zeroconf_asyncio.AsyncZeroconf = FakeAsyncZeroconf
+    monkeypatch.setitem(sys.modules, "zeroconf", fake_zeroconf)
+    monkeypatch.setitem(sys.modules, "zeroconf.asyncio", fake_zeroconf_asyncio)
+    monkeypatch.setattr(
+        "dzmm_vnext.discovery._lan_ipv4_addresses",
+        lambda: [socket.inet_aton("192.168.31.241")],
+    )
+    FakeAsyncZeroconf.instances.clear()
+
+    async def exercise() -> None:
+        advertisement = HostAdvertisement()
+        assert await advertisement.start(host_id="host-123", port=28765)
+        zeroconf = FakeAsyncZeroconf.instances[0]
+        info = zeroconf.registered[0]
+        assert info.service_type == "_dzmm._tcp.local."
+        assert info.kwargs["port"] == 28765
+        assert info.kwargs["properties"] == {
+            "host_id": "host-123",
+            "api": "v2",
+            "pairing": "approval",
+            "capability": "gameplay",
+        }
+        await advertisement.stop()
+        assert zeroconf.unregistered == [info]
+        assert zeroconf.closed
+
+    import asyncio
+
+    asyncio.run(exercise())
+
+
+def test_mdns_advertisement_accepts_only_private_lan_ipv4() -> None:
+    assert _is_private_lan_ipv4("192.168.31.241")
+    assert _is_private_lan_ipv4("10.0.0.9")
+    assert not _is_private_lan_ipv4("100.64.0.1")
+    assert not _is_private_lan_ipv4("127.0.0.1")
+    assert not _is_private_lan_ipv4("8.8.8.8")
+
+
+def test_lan_host_advertises_only_after_its_listener_is_healthy(monkeypatch) -> None:
+    calls = []
+
+    class FakeAdvertisement:
+        async def start(self, **kwargs):
+            calls.append(("start", kwargs))
+            return True
+
+        async def stop(self):
+            calls.append(("stop", {}))
+
+    class FakeWriter:
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    attempts = 0
+
+    async def fake_open_connection(host, port):
+        nonlocal attempts
+        attempts += 1
+        assert (host, port) == ("127.0.0.1", 28765)
+        if attempts == 1:
+            raise ConnectionRefusedError
+        return None, FakeWriter()
+
+    monkeypatch.setattr("dzmm_vnext.main.asyncio.open_connection", fake_open_connection)
+
+    async def exercise() -> None:
+        from dzmm_vnext.main import _advertise_after_listener
+
+        await _advertise_after_listener(FakeAdvertisement(), host_id="host-123", port=28765)
+
+    import asyncio
+
+    asyncio.run(exercise())
+
+    assert attempts == 2
+    assert calls[0][0] == "start"
+    assert calls[0][1]["port"] == 28765
+    assert calls[0][1]["host_id"] == "host-123"

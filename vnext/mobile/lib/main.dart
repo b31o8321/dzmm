@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'host_discovery.dart';
 import 'mobile_api.dart';
+import 'qr_pairing.dart';
 import 'session_store.dart';
 
 void main() => runApp(const DzmmMobileApp());
 
 class DzmmMobileApp extends StatelessWidget {
-  const DzmmMobileApp({super.key, this.api, this.sessionStore});
+  const DzmmMobileApp({super.key, this.api, this.sessionStore, this.discovery});
 
   final MobileApi? api;
   final SessionStore? sessionStore;
+  final HostDiscovery? discovery;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -26,15 +29,22 @@ class DzmmMobileApp extends StatelessWidget {
     home: MobileHome(
       api: api ?? MobileApi(),
       sessionStore: sessionStore ?? const SecureSessionStore(),
+      discovery: discovery ?? const NsdHostDiscovery(),
     ),
   );
 }
 
 class MobileHome extends StatefulWidget {
-  const MobileHome({required this.api, required this.sessionStore, super.key});
+  const MobileHome({
+    required this.api,
+    required this.sessionStore,
+    required this.discovery,
+    super.key,
+  });
 
   final MobileApi api;
   final SessionStore sessionStore;
+  final HostDiscovery discovery;
 
   @override
   State<MobileHome> createState() => _MobileHomeState();
@@ -45,10 +55,13 @@ class _MobileHomeState extends State<MobileHome> {
   final _name = TextEditingController(text: 'Android Player');
   final _runId = TextEditingController();
   String? _token;
+  String? _hostId;
   PairingRequest? _pairing;
   RunSnapshot? _run;
-  String _status = '输入 Mac 的局域网地址后申请配对。';
+  List<DiscoveredHost> _hosts = const [];
+  String _status = '正在查找同一局域网内已开启玩法的 DZMM Host。';
   bool _busy = false;
+  bool _discovering = false;
 
   @override
   void initState() {
@@ -58,10 +71,17 @@ class _MobileHomeState extends State<MobileHome> {
 
   Future<void> _restoreSession() async {
     final session = await widget.sessionStore.read();
-    if (!mounted || session == null) return;
+    if (!mounted) {
+      return;
+    }
+    if (session == null) {
+      await _discoverHosts();
+      return;
+    }
     setState(() {
       _host.text = session.host;
       _token = session.token;
+      _hostId = session.hostId;
       _runId.text = session.runId ?? '';
       _status = session.runId == null || session.runId!.isEmpty
           ? '已恢复手机凭证。输入 Run ID 继续游戏。'
@@ -69,7 +89,60 @@ class _MobileHomeState extends State<MobileHome> {
     });
     if (session.runId != null && session.runId!.isNotEmpty) {
       await _loadRun(silent: true);
+      if (_run == null && mounted) {
+        await _discoverHosts(restoreHostId: session.hostId);
+      }
     }
+  }
+
+  Future<void> _discoverHosts({String? restoreHostId}) async {
+    if (_discovering) return;
+    setState(() {
+      _discovering = true;
+      _status = '正在查找局域网中的 DZMM Host…';
+    });
+    final hosts = <DiscoveredHost>[];
+    try {
+      await for (final host in widget.discovery.discover()) {
+        if (!hosts.any((item) => item.url == host.url)) hosts.add(host);
+        if (mounted) setState(() => _hosts = List.unmodifiable(hosts));
+      }
+      DiscoveredHost? matching;
+      if (restoreHostId != null) {
+        for (final host in hosts) {
+          if (host.hostId == restoreHostId) {
+            matching = host;
+            break;
+          }
+        }
+      }
+      if (matching != null && _token != null) {
+        _selectHost(matching, announce: false);
+        await _loadRun(silent: true);
+      } else if (mounted) {
+        setState(() {
+          _status = hosts.isEmpty
+              ? '未发现 Host。请确认桌面端已开启“局域网玩法”，或手动填写地址。'
+              : '已发现 ${hosts.length} 个 DZMM Host。选择一个后申请配对。';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _discovering = false);
+    }
+  }
+
+  void _selectHost(DiscoveredHost candidate, {bool announce = true}) {
+    setState(() {
+      _host.text = candidate.url;
+      if (announce) _status = '已选择 ${candidate.name}。';
+    });
+  }
+
+  Future<void> _scanPairingCode() async {
+    final candidate = await Navigator.of(context).push<DiscoveredHost>(
+      MaterialPageRoute(builder: (_) => const QrPairingPage()),
+    );
+    if (candidate != null && mounted) _selectHost(candidate);
   }
 
   String get _base => _host.text.trim().replaceFirst(RegExp(r'/$'), '');
@@ -84,7 +157,7 @@ class _MobileHomeState extends State<MobileHome> {
     if (!mounted) return;
     setState(() {
       _pairing = pairing;
-      _status = '请求已发送。请在 Mac 的“管理手机配对”中批准此设备，再回来完成配对。';
+      _status = '请求已发送。请在桌面端“管理手机配对”中批准此设备，再回来完成配对。';
     });
   });
 
@@ -96,11 +169,16 @@ class _MobileHomeState extends State<MobileHome> {
       request: pairing,
     );
     await widget.sessionStore.save(
-      StoredSession(host: _base, token: credential.accessToken),
+      StoredSession(
+        host: _base,
+        token: credential.accessToken,
+        hostId: credential.hostId,
+      ),
     );
     if (!mounted) return;
     setState(() {
       _token = credential.accessToken;
+      _hostId = credential.hostId;
       _pairing = null;
       _status = '配对完成。此设备只拥有 gameplay 权限。';
     });
@@ -117,12 +195,17 @@ class _MobileHomeState extends State<MobileHome> {
       runId: runId,
     );
     await widget.sessionStore.save(
-      StoredSession(host: _base, token: token, runId: run.runId),
+      StoredSession(
+        host: _base,
+        token: token,
+        runId: run.runId,
+        hostId: _hostId,
+      ),
     );
     if (!mounted) return;
     setState(() {
       _run = run;
-      if (!silent) _status = '已从 Mac Host 恢复当前状态。';
+      if (!silent) _status = '已从桌面 Host 恢复当前状态。';
     });
   });
 
@@ -140,12 +223,17 @@ class _MobileHomeState extends State<MobileHome> {
       requestId: 'android-${DateTime.now().microsecondsSinceEpoch}',
     );
     await widget.sessionStore.save(
-      StoredSession(host: _base, token: token, runId: selected.runId),
+      StoredSession(
+        host: _base,
+        token: token,
+        runId: selected.runId,
+        hostId: _hostId,
+      ),
     );
     if (!mounted) return;
     setState(() {
       _run = selected;
-      _status = 'Mac Host 已结算这个选择并返回新的状态版本。';
+      _status = '桌面 Host 已结算这个选择并返回新的状态版本。';
     });
   });
 
@@ -154,10 +242,11 @@ class _MobileHomeState extends State<MobileHome> {
     if (!mounted) return;
     setState(() {
       _token = null;
+      _hostId = null;
       _pairing = null;
       _run = null;
       _runId.clear();
-      _status = '已清除本机凭证。Mac 上的设备权限仍可由 Host 撤销。';
+      _status = '已清除本机凭证。桌面端的设备权限仍可由 Host 撤销。';
     });
   });
 
@@ -172,18 +261,18 @@ class _MobileHomeState extends State<MobileHome> {
           setState(() {
             _token = null;
             _run = null;
-            _status = '手机凭证已失效或被 Mac 撤销，请重新配对。';
+            _status = '手机凭证已失效或被桌面端撤销，请重新配对。';
           });
         }
       } else if (error.isConflict) {
         if (mounted) {
-          setState(() => _status = '状态已在其他设备变化。请点击“恢复当前 Run”获取 Mac 的最新版本。');
+          setState(() => _status = '状态已在其他设备变化。请点击“恢复当前 Run”获取桌面端的最新版本。');
         }
       } else if (mounted) {
         setState(() => _status = error.detail);
       }
     } catch (_) {
-      if (mounted) setState(() => _status = '无法连接 Mac Host，请检查局域网地址和 Host 开关。');
+      if (mounted) setState(() => _status = '无法连接桌面 Host，请检查局域网地址和 Host 开关。');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -215,18 +304,22 @@ class _MobileHomeState extends State<MobileHome> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         children: [
           Text(
-            '你的故事，只在这台 Mac Host 上继续。',
+            '你的故事，只在这台桌面 Host 上继续。',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
-          const Text('手机只能读取和提交当前 Run 的受限玩法选择；世界、模型和删除操作只在 Mac 上管理。'),
+          const Text('手机只能读取和提交当前 Run 的受限玩法选择；世界、模型和删除操作只在桌面端管理。'),
           const SizedBox(height: 20),
           _ConnectionCard(
             host: _host,
             name: _name,
-            busy: _busy,
+            busy: _busy || _discovering,
             paired: _token != null,
             pairingPending: _pairing != null,
+            hosts: _hosts,
+            onDiscover: _discoverHosts,
+            onHostSelected: _selectHost,
+            onScanCode: _scanPairingCode,
             onRequestPairing: _requestPairing,
             onCompletePairing: _completePairing,
           ),
@@ -252,6 +345,10 @@ class _ConnectionCard extends StatelessWidget {
     required this.busy,
     required this.paired,
     required this.pairingPending,
+    required this.hosts,
+    required this.onDiscover,
+    required this.onHostSelected,
+    required this.onScanCode,
     required this.onRequestPairing,
     required this.onCompletePairing,
   });
@@ -260,6 +357,10 @@ class _ConnectionCard extends StatelessWidget {
   final bool busy;
   final bool paired;
   final bool pairingPending;
+  final List<DiscoveredHost> hosts;
+  final VoidCallback onDiscover;
+  final ValueChanged<DiscoveredHost> onHostSelected;
+  final VoidCallback onScanCode;
   final VoidCallback onRequestPairing;
   final VoidCallback onCompletePairing;
   @override
@@ -269,9 +370,33 @@ class _ConnectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('连接 Mac Host', style: Theme.of(context).textTheme.titleLarge),
+          Text('连接桌面 Host', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
-          const Text('在 Mac 开启“局域网玩法”后，输入例如 http://192.168.x.x:8765 的地址。'),
+          const Text('会自动发现已开启“局域网玩法”的桌面 Host；发现失败时仍可手动填写。'),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: busy ? null : onDiscover,
+            icon: const Icon(Icons.radar_outlined),
+            label: const Text('重新查找局域网 Host'),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: busy ? null : onScanCode,
+            icon: const Icon(Icons.qr_code_scanner_outlined),
+            label: const Text('扫描桌面配对码'),
+          ),
+          if (hosts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...hosts.map(
+              (candidate) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.computer_outlined),
+                title: Text(candidate.name),
+                subtitle: Text(candidate.url),
+                onTap: paired || busy ? null : () => onHostSelected(candidate),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           TextField(
             controller: host,
@@ -279,7 +404,7 @@ class _ConnectionCard extends StatelessWidget {
             keyboardType: TextInputType.url,
             autocorrect: false,
             decoration: const InputDecoration(
-              labelText: 'Mac Host 地址',
+              labelText: '桌面 Host 地址',
               hintText: 'http://192.168.x.x:8765',
             ),
           ),
@@ -295,7 +420,7 @@ class _ConnectionCard extends StatelessWidget {
           else if (pairingPending)
             FilledButton.tonal(
               onPressed: busy ? null : onCompletePairing,
-              child: const Text('Mac 已批准，完成配对'),
+              child: const Text('桌面端已批准，完成配对'),
             )
           else
             FilledButton(
@@ -426,7 +551,7 @@ class _GameView extends StatelessWidget {
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('这个 Run 没有可提交的手机选择，请在 Mac 上继续。'),
+              child: Text('这个 Run 没有可提交的手机选择，请在桌面端继续。'),
             ),
           ),
         const SizedBox(height: 16),
@@ -514,7 +639,7 @@ class _EndingCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text('${ending['kind']} · ${ending['id']}'),
           const SizedBox(height: 6),
-          const Text('结局由 Mac Host 的 Python 规则裁定。要改写路径，请在 Mac 上回滚。'),
+          const Text('结局由桌面 Host 的 Python 规则裁定。要改写路径，请在桌面端回滚。'),
         ],
       ),
     ),
