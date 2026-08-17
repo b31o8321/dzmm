@@ -1,0 +1,15 @@
+{
+  "phase": "android-gameplay-client-interim",
+  "environment": "Flutter stable 3.44.0; Redmi 22041211AC on Android 14 connected by authorized USB debugging; Redmi WLAN 192.168.31.208/24 and Mac WLAN 192.168.31.241/24",
+  "implementation": {
+    "mobile_authority": "The Flutter client pairs through the vNext mobile API, stores only the bearer token and selected Run ID in platform secure storage, reads the server-projected RunSnapshot and submits only a current choice ID plus expected revision to /api/v2/mobile/runs/{id}/choices. It has no model, World, Lorebook, archive, purge or arbitrary command UI.",
+    "gameplay_ui": "The app presents pairing/re-pairing, manual Host and Run entry, chapter/route/relationship reasons/ending/turn history, current choices, conflict hydration guidance and revoked-token recovery guidance.",
+    "network": "Android deliberately allows cleartext HTTP for the user-selected local Mac Host because vNext LAN Host is authenticated HTTP today. The app documents that untrusted endpoints are out of scope."
+  },
+  "verification": {
+    "static": "dart format, flutter analyze and three Flutter tests passed. The mobile API test asserts that gameplay calls the mobile /choices endpoint with bearer token and expected revision, and preserves a 409 conflict.",
+    "build": "flutter build apk --debug produced build/app/outputs/flutter-apk/app-debug.apk (146 MiB).",
+    "physical_device": "ADB recognizes the Redmi as an authorized device. The first adb install was stopped by the phone with INSTALL_FAILED_USER_RESTRICTED, so the APK is not yet installed and no pairing/LAN/recovery claim is made."
+  },
+  "boundary": "This is a source/build readiness milestone only. It does not satisfy Android recovery scoring until the phone permits USB installation and the complete Mac approval, pairing, choice, conflict, revocation, Wi-Fi/Mac-restart and recovery matrix has passed."
+}

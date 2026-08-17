@@ -85,6 +85,7 @@ const locationLabel = computed(() =>
   run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
 )
 const activeChapter = computed(() => run.value?.state.chapter)
+const activeRunId = computed(() => run.value?.run_id ?? '')
 const relationshipEntries = computed(() => Object.entries(run.value?.state.relationships ?? {}))
 const endingLabel = computed(() => {
   const ending = run.value?.state.ending
@@ -872,6 +873,11 @@ onMounted(() => {
         <label>目的地<select v-model="destination"><option value="harbor">{{ harborName }}</option><option value="lighthouse">{{ lighthouseName }}</option></select></label>
         <button :disabled="busy || !hostReady || !playerInput.trim()">{{ busy ? '正在结算回合…' : '执行回合' }}</button>
       </form>
+      <section v-if="lanGameplayEnabled && activeRunId" class="mobile-run-handoff" aria-label="手机继续此局">
+        <p class="eyebrow">手机继续此局</p>
+        <p>配对后在 Android App 输入这个 Run ID。手机只能提交当前可选行动，不能修改世界或规则。</p>
+        <code>{{ activeRunId }}</code>
+      </section>
     </section>
   </main>
 </template>
