@@ -1,3 +1,13 @@
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+
+from dzmm_vnext.config import Settings
+from dzmm_vnext.main import create_app
+
+
 def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
     client, _ = migrated_client
 
@@ -6,6 +16,7 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
     assert capabilities.json()["mobile"] == {
         "pairing": "pin_approval",
         "capabilities": ["gameplay"],
+        "lan_gameplay_enabled": False,
     }
 
     created = client.post(
@@ -135,3 +146,58 @@ def test_mobile_pairing_rejects_missing_or_wrong_bearer_token(migrated_client) -
     assert client.get(
         "/api/v2/mobile/session", headers={"authorization": "Bearer incorrect"}
     ).status_code == 401
+
+
+def test_lan_host_only_exposes_mobile_gameplay_to_remote_clients(tmp_path, monkeypatch) -> None:
+    data_dir = tmp_path / "dzmm-vnext"
+    monkeypatch.setenv("DZMM_NEXT_DATA_DIR", str(data_dir))
+    command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
+    settings = Settings(data_dir=data_dir, allow_lan_gameplay=True)
+
+    with TestClient(create_app(settings), client=("192.168.31.20", 50000)) as remote:
+        assert remote.post("/api/v2/worlds:compose", json={}).status_code == 403
+        assert remote.get("/api/v2/host/pairing-requests").status_code == 403
+        assert remote.post("/api/v2/model-profiles", json={}).status_code == 403
+        assert remote.get("/api/v2/host/capabilities").status_code == 403
+        request = remote.post(
+            "/api/v2/mobile/pairing-requests", json={"device_name": "Norman's Android"}
+        )
+        assert request.status_code == 200
+        pairing = request.json()
+
+    with TestClient(create_app(settings)) as host:
+        capabilities = host.get("/api/v2/host/capabilities")
+        assert capabilities.status_code == 200
+        assert capabilities.json()["mobile"]["lan_gameplay_enabled"] is True
+        assert host.get("/api/v2/host/pairing-requests").status_code == 200
+        assert host.post(
+            f"/api/v2/host/pairing-requests/{pairing['request_id']}:approve"
+        ).status_code == 200
+        composed = host.post(
+            "/api/v2/worlds:compose",
+            json={**host.get("/api/v2/world-templates/fog-harbor").json(), "request_id": "lan-run"},
+        )
+        assert composed.status_code == 201
+        run_id = composed.json()["run_id"]
+
+    with TestClient(create_app(settings), client=("192.168.31.20", 50000)) as remote:
+        completed = remote.post(
+            f"/api/v2/mobile/pairing-requests/{pairing['request_id']}:complete",
+            json={"approval_code": pairing["approval_code"]},
+        )
+        assert completed.status_code == 200
+        headers = {"authorization": f"Bearer {completed.json()['access_token']}"}
+        assert remote.get("/api/v2/mobile/session", headers=headers).status_code == 200
+        assert remote.get(f"/api/v2/mobile/runs/{run_id}", headers=headers).status_code == 200
+        chosen = remote.post(
+            f"/api/v2/mobile/runs/{run_id}/choices",
+            headers=headers,
+            json={
+                "request_id": "lan-choice",
+                "expected_revision": 0,
+                "player_input": "救岚",
+                "choice_id": "rescue-lan",
+            },
+        )
+        assert chosen.status_code == 201
+        assert chosen.json()["state"]["chapter"]["id"] == "ch2"

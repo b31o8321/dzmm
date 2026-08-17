@@ -83,6 +83,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["authorization", "content-type"],
     )
 
+    @app.middleware("http")
+    async def restrict_lan_to_mobile_gameplay(request: Request, call_next):
+        if (
+            resolved_settings.allow_lan_gameplay
+            and not _is_loopback(request)
+            and not request.url.path.startswith("/api/v2/mobile/")
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "LAN Host only exposes paired mobile gameplay endpoints"},
+            )
+        return await call_next(request)
+
     @app.get("/health")
     async def health() -> dict[str, object]:
         async with app.state.engine.connect() as connection:
@@ -99,7 +112,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def host_capabilities() -> dict[str, object]:
         return {
             "api_version": API_VERSION,
-            "mobile": {"pairing": "pin_approval", "capabilities": ["gameplay"]},
+            "mobile": {
+                "pairing": "pin_approval",
+                "capabilities": ["gameplay"],
+                "lan_gameplay_enabled": resolved_settings.allow_lan_gameplay,
+            },
         }
 
     @app.post("/api/v2/mobile/pairing-requests")
@@ -369,9 +386,13 @@ def _sse(event_id: int, event_type: str, payload: dict[str, Any]) -> str:
 
 
 def _require_loopback_host(request: Request) -> None:
-    client = request.client.host if request.client else ""
-    if client not in {"127.0.0.1", "::1", "testclient"}:
+    if not _is_loopback(request):
         raise HTTPException(status_code=403, detail="host control requires a loopback connection")
+
+
+def _is_loopback(request: Request) -> bool:
+    client = request.client.host if request.client else ""
+    return client in {"127.0.0.1", "::1", "testclient"}
 
 
 def _bearer_token(authorization: str | None) -> str:

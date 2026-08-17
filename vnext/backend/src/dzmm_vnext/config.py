@@ -10,6 +10,7 @@ DEFAULT_DATA_DIR = Path.home() / ".dzmm-vnext"
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path
+    allow_lan_gameplay: bool = False
 
     @property
     def database_path(self) -> Path:
@@ -26,7 +27,10 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         value = os.environ.get("DZMM_NEXT_DATA_DIR")
-        return cls(data_dir=Path(value).expanduser() if value else DEFAULT_DATA_DIR)
+        return cls(
+            data_dir=Path(value).expanduser() if value else DEFAULT_DATA_DIR,
+            allow_lan_gameplay=os.environ.get("DZMM_NEXT_LAN_GAMEPLAY") == "1",
+        )
 
     def ensure_layout(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)

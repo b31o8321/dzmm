@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
 const healthTimeoutMs = 20_000
+let hostOrigin: string | null = null
 
 async function waitForHealth(origin: string): Promise<void> {
   const deadline = Date.now() + healthTimeoutMs
@@ -21,5 +22,18 @@ export async function startHost(): Promise<string | null> {
   if (!isTauri()) return null
   const origin = await invoke<string>('start_backend')
   await waitForHealth(origin)
+  hostOrigin = origin
   return `${origin}/api/v2`
+}
+
+export function canControlLanGameplay(): boolean {
+  return isTauri()
+}
+
+export async function setLanGameplay(enabled: boolean): Promise<boolean | null> {
+  if (!isTauri()) return null
+  const active = await invoke<boolean>('set_lan_gameplay', { enabled })
+  if (hostOrigin === null) throw new Error('Mac Host 尚未就绪')
+  await waitForHealth(hostOrigin)
+  return active
 }

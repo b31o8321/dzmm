@@ -16,7 +16,7 @@ import {
   type RunSnapshot,
   type Turn,
 } from './api'
-import { startHost } from './host'
+import { canControlLanGameplay, setLanGameplay, startHost } from './host'
 
 const worldName = ref('雾港')
 const heroName = ref('米拉')
@@ -36,6 +36,8 @@ const importedContent = ref<ImportedContent | null>(null)
 const hostStatus = ref<'starting' | 'ready' | 'error'>('starting')
 const hostError = ref('')
 const hostReady = computed(() => hostStatus.value === 'ready')
+const lanGameplayEnabled = ref(false)
+const lanGameplayAvailable = canControlLanGameplay()
 
 const locationLabel = computed(() =>
   run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
@@ -226,6 +228,22 @@ async function rollback(turn: Turn) {
   }
 }
 
+async function toggleLanGameplay(event: Event) {
+  const enabled = (event.target as HTMLInputElement).checked
+  busy.value = true
+  notice.value = ''
+  try {
+    const active = await setLanGameplay(enabled)
+    if (active === null) throw new Error('局域网开关仅在 Mac 应用内可用')
+    lanGameplayEnabled.value = active
+  } catch (error) {
+    lanGameplayEnabled.value = !enabled
+    notice.value = error instanceof Error ? error.message : '无法切换局域网玩法'
+  } finally {
+    busy.value = false
+  }
+}
+
 async function bootHost() {
   hostStatus.value = 'starting'
   hostError.value = ''
@@ -263,6 +281,10 @@ onMounted(() => void bootHost())
     <p v-if="hostError" class="notice" role="alert">
       {{ hostError }} <button class="minor-action" type="button" @click="bootHost">重试 Host</button>
     </p>
+    <label class="lan-control" :class="{ unavailable: !lanGameplayAvailable }">
+      <input :checked="lanGameplayEnabled" type="checkbox" :disabled="busy || !hostReady || !lanGameplayAvailable" @change="toggleLanGameplay" />
+      <span>局域网玩法</span><small>{{ lanGameplayEnabled ? '已开启：仅已配对手机可访问 gameplay API' : '关闭：仅本机 Host' }}</small>
+    </label>
 
     <section v-if="step === 'compose'" class="scene compose-scene">
       <div class="scene-copy">
