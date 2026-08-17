@@ -128,3 +128,13 @@ export function importSillyTavernPng(pngBase64: string) {
     body: JSON.stringify({ png_base64: pngBase64 }),
   })
 }
+
+export function exportLorebook(worldVersionId: string) {
+  return request<Record<string, unknown>>(`/world-versions/${worldVersionId}/lorebook:export`)
+}
+
+export function exportCharacterCard(worldVersionId: string, characterCardId: string) {
+  return request<Record<string, unknown>>(
+    `/world-versions/${worldVersionId}/character-cards/${characterCardId}:export`,
+  )
+}

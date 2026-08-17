@@ -5,6 +5,8 @@ import {
   chooseTurn,
   composeWorld,
   createTurn,
+  exportCharacterCard,
+  exportLorebook,
   getFogHarborTemplate,
   getRun,
   importSillyTavern,
@@ -33,6 +35,7 @@ const notice = ref('')
 const activeRunKey = 'dzmm-next-active-run'
 const importJson = ref('')
 const importedContent = ref<ImportedContent | null>(null)
+const createdContent = ref<{ lorebook: { entries: Array<Record<string, unknown>> }; character_cards: Array<Record<string, unknown>> } | null>(null)
 const hostStatus = ref<'starting' | 'ready' | 'error'>('starting')
 const hostError = ref('')
 const hostReady = computed(() => hostStatus.value === 'ready')
@@ -49,6 +52,11 @@ const endingLabel = computed(() => {
   if (!ending) return ''
   return { good: '好结局', normal: '普通结局', bad: '坏结局', hidden: '隐藏结局' }[ending.kind]
 })
+const exportableCharacterCards = computed(() =>
+  (createdContent.value?.character_cards ?? []).filter((card) =>
+    typeof card.id === 'string' && typeof card.source_payload === 'object' && card.source_payload !== null,
+  ),
+)
 
 function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
@@ -77,6 +85,41 @@ function attachImportedContent(definition: Record<string, unknown>) {
     ...definition,
     lorebook: { ...lorebook, entries: [...lorebook.entries, ...incomingLore] },
     character_cards: [...characterCards, ...incomingCards],
+  }
+}
+
+function downloadJson(filename: string, payload: Record<string, unknown>) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+async function downloadLorebook() {
+  if (!composed.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    downloadJson(`${worldName.value}-world-info.json`, await exportLorebook(composed.value.world_version_id))
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法导出世界书'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function downloadCharacterCard(card: Record<string, unknown>) {
+  if (!composed.value || typeof card.id !== 'string') return
+  busy.value = true
+  notice.value = ''
+  try {
+    downloadJson(`${card.id}.json`, await exportCharacterCard(composed.value.world_version_id, card.id))
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法导出角色卡'
+  } finally {
+    busy.value = false
   }
 }
 
@@ -115,6 +158,10 @@ async function createWorld() {
       world_definition: worldDefinition,
       hero: template ? { ...template.hero, name: heroName.value } : { name: heroName.value, profile: {} },
     })
+    createdContent.value = {
+      lorebook: worldDefinition.lorebook as { entries: Array<Record<string, unknown>> },
+      character_cards: worldDefinition.character_cards as Array<Record<string, unknown>>,
+    }
     step.value = 'confirm'
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '无法创建世界'
@@ -361,6 +408,19 @@ onMounted(() => void bootHost())
         <div><dt>World version</dt><dd>{{ composed.world_version_id.slice(0, 8) }}</dd></div>
         <div><dt>Run</dt><dd>{{ composed.run_id.slice(0, 8) }}</dd></div>
       </dl>
+      <section v-if="createdContent" class="content-assets" aria-label="世界内容资产">
+        <p class="eyebrow">内容资产</p>
+        <div>
+          <span>世界书 / World Info</span>
+          <small>{{ createdContent.lorebook.entries.length }} 条条目</small>
+          <button class="minor-action" type="button" :disabled="busy" @click="downloadLorebook">导出世界书</button>
+        </div>
+        <div>
+          <span>角色卡 / Character Card</span>
+          <small>{{ createdContent.character_cards.length ? createdContent.character_cards.map(card => card.name).join('、') : '无' }}</small>
+          <button v-for="card in exportableCharacterCards" :key="String(card.id)" class="minor-action" type="button" :disabled="busy" @click="downloadCharacterCard(card)">导出 {{ card.name }} 角色卡</button>
+        </div>
+      </section>
       <button :disabled="busy || !hostReady" @click="enterRun">进入第一回合</button>
     </section>
 
