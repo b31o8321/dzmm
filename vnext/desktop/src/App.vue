@@ -54,18 +54,44 @@ function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
 }
 
+function attachImportedContent(definition: Record<string, unknown>) {
+  if (!importedContent.value) return definition
+  const lorebook = definition.lorebook as { entries: Array<Record<string, unknown>> }
+  const characterCards = definition.character_cards as Array<Record<string, unknown>>
+  const incomingLore = importedContent.value.lorebook.entries
+  const incomingCards = importedContent.value.character_cards
+  const duplicateIds = (existing: Array<Record<string, unknown>>, incoming: Array<Record<string, unknown>>) =>
+    incoming
+      .map((item) => item.id)
+      .filter((id): id is string => typeof id === 'string' && existing.some((item) => item.id === id))
+  const duplicateLore = duplicateIds(lorebook.entries, incomingLore)
+  const duplicateCards = duplicateIds(characterCards, incomingCards)
+  if (duplicateLore.length || duplicateCards.length) {
+    const descriptions = [
+      duplicateLore.length ? `世界书：${duplicateLore.join('、')}` : '',
+      duplicateCards.length ? `角色卡：${duplicateCards.join('、')}` : '',
+    ].filter(Boolean)
+    throw new Error(`导入内容与世界模板 ID 冲突（${descriptions.join('；')}），请更换内容后再创建。`)
+  }
+  return {
+    ...definition,
+    lorebook: { ...lorebook, entries: [...lorebook.entries, ...incomingLore] },
+    character_cards: [...characterCards, ...incomingCards],
+  }
+}
+
 async function createWorld() {
   busy.value = true
   notice.value = ''
   try {
     const template = experience.value === 'fog_harbor' ? await getFogHarborTemplate() : null
-    const worldDefinition = template
+    const baseDefinition = template
       ? { ...template.world_definition, name: worldName.value }
       : {
           schema_version: 2,
           name: worldName.value,
-          lorebook: importedContent.value?.lorebook ?? { entries: [] },
-          character_cards: importedContent.value?.character_cards ?? [],
+          lorebook: { entries: [] },
+          character_cards: [],
           locations: [
             { id: 'harbor', name: harborName.value },
             { id: 'lighthouse', name: lighthouseName.value },
@@ -83,6 +109,7 @@ async function createWorld() {
             endings: [],
           },
         }
+    const worldDefinition = attachImportedContent(baseDefinition)
     composed.value = await composeWorld({
       request_id: requestId('compose'),
       world_definition: worldDefinition,
@@ -310,9 +337,9 @@ onMounted(() => void bootHost())
           <label>起点<input v-model.trim="harborName" required /></label>
           <label>远点<input v-model.trim="lighthouseName" required /></label>
         </div>
-        <details v-if="experience === 'trpg'" class="import-panel">
+        <details class="import-panel">
           <summary>导入 SillyTavern 内容（可选）</summary>
-          <p>支持 V3 角色卡 JSON/PNG 与 World Info JSON，作为世界书和角色卡资产保存进这个世界。</p>
+          <p>支持 V3 角色卡 JSON/PNG 与 World Info JSON。无论选择哪种玩法，它们都会作为世界书和角色卡资产固定在新 WorldVersion 中。</p>
           <textarea v-model="importJson" placeholder="粘贴 SillyTavern JSON…" rows="5"></textarea>
           <div class="import-actions">
             <button type="button" class="minor-action" @click="applySillyTavernImport">解析 JSON 并应用</button>
