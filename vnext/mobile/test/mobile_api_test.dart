@@ -67,4 +67,21 @@ void main() {
       ),
     );
   });
+
+  test('rejects a public Host before sending a pairing request', () async {
+    var requestCount = 0;
+    final api = MobileApi(
+      client: MockClient((_) async {
+        requestCount += 1;
+        return http.Response('{}', 200);
+      }),
+    );
+
+    expect(
+      api.requestPairing(host: 'https://example.com', deviceName: 'Android'),
+      throwsA(isA<HostApiError>()),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(requestCount, 0);
+  });
 }

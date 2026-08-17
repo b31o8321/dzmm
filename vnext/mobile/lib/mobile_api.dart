@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -133,7 +134,25 @@ class MobileApi {
         (uri.scheme != 'http' && uri.scheme != 'https')) {
       throw const HostApiError(0, 'Mac Host 地址必须是 http:// 或 https:// 地址。');
     }
+    if (!_isLocalHost(uri.host)) {
+      throw const HostApiError(0, 'Mac Host 必须是局域网或回环地址。');
+    }
     return Uri.parse('$normalized$path');
+  }
+
+  bool _isLocalHost(String host) {
+    if (host == 'localhost') return true;
+    final address = InternetAddress.tryParse(host);
+    if (address == null) return false;
+    if (address.isLoopback || address.isLinkLocal) return true;
+    final bytes = address.rawAddress;
+    if (bytes.length != 4) return false;
+    final first = bytes[0];
+    final second = bytes[1];
+    return first == 10 ||
+        (first == 172 && second >= 16 && second <= 31) ||
+        (first == 192 && second == 168) ||
+        (first == 100 && second >= 64 && second <= 127);
   }
 
   Map<String, dynamic> _map(http.Response response) {
