@@ -1,0 +1,22 @@
+{
+  "commit": "bce4488",
+  "environment": "macOS arm64; freshly rebuilt PyInstaller sidecar inside a freshly rebuilt Tauri debug .app and DMG; isolated DZMM_NEXT_DATA_DIR; port 18766",
+  "build": {
+    "sidecar": "vnext/backend/.venv/bin/python ../packaging/build_backend.py passed",
+    "tauri": "CI=true npx tauri build --debug passed",
+    "app": "src-tauri/target/debug/bundle/macos/DZMM Next.app",
+    "dmg": "src-tauri/target/debug/bundle/dmg/DZMM Next_0.1.0_aarch64.dmg"
+  },
+  "runtime": {
+    "health": "packaged app launched its resource sidecar; /health reported app=dzmm-next, api_version=2, isolated storage and foreign_keys=true",
+    "journey": "via the running packaged sidecar HTTP API: compose native Fog Harbor -> rescue-lan -> unite-witnesses -> open-tide-gate -> bell-beyond-fog -> rollback to first turn -> reopen",
+    "reopened_state": {
+      "revision": 4,
+      "chapter": "ch2",
+      "ending": null,
+      "available_choice_ids": ["lan-testimony", "shen-confession", "neutral-lead", "unite-witnesses"]
+    },
+    "dmg_contents": "mounted debug DMG contains DZMM Next.app/Contents/Resources/backend-runtime/dzmm-next-backend"
+  },
+  "boundary": "This proves the current packaged startup, embedded migrations and sidecar API journey. It does not prove interaction through the packaged WebView, keyboard/screen-reader behavior, a signed release artifact, real-model narration or Android/LAN acceptance. codesign --verify --deep --strict failed for this debug bundle."
+}
