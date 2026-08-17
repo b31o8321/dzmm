@@ -15,7 +15,7 @@ vNext 已采用 `World → WorldVersion → Run → RunState → Turn[]` 作为�
 1. 在既有、不可变的 `WorldVersion.definition` 中加入受限的 `ruleset`、章节、选择、关系事件、Flag 与 ending definitions；不创建 Story、Route、Relationship 等新的存档根或 API 生命周期。
 2. `Run` 创建时固定 `world_version_id` 与 `ruleset_id`。所有可变章节、路线、Flags、关系、资源、TRPG 状态和 ending 都写入唯一 revisioned `RunState`；所有改变都有一个审计 `Turn`。
 3. `TurnCommand` 只能由 Python 验证/生成并以白名单应用。LLM 只产生无写权限的 `NarrativeIntent`；玩家仅提交动作或当前可选 choice，不能提交任意 command payload。
-4. 使用用户和互通层通用术语：**世界书（Lorebook / World Info）**、**角色卡（Character Card）**。它们是 DZMM 的一级、可版本化内容资产，而非一次性导入结果或 DZMM 私有概念的别名。`WorldDefinition` 是内部 JSON contract 名称；世界书是上下文知识层，角色卡是内容输入，二者不直接写 RunState。公开 contract、UI 和导入/导出报告采用 `lorebook` / `character_cards`；不冻结 `lore`、`人物模板` 等中间术语。
+4. 使用用户和互通层通用术语：**世界书（Lorebook / World Info）**、**角色卡（Character Card）**。它们是 DZMM 的一级、可版本化内容资产，而非一次性导入结果或 DZMM 私有概念的别名。`WorldDefinition` 是内部 JSON contract 名称；世界书是上下文知识层，角色卡是可移植角色内容，二者不直接写 RunState。公开 contract、UI 和导入/导出报告采用 `lorebook` / `character_cards`；不冻结 `lore`、`人物模板` 等中间术语。关系维度、初值和路线资格属于规则集内显式的 `RelationshipDefinition`，以稳定 ID 引用角色卡，详见 ADR-004。
 5. `hybrid` 是显式 capability 组合，不是“所有 command 默认开放”。规则集只允许其 definition 声明的 command、状态字段和跨域桥接。
 
 ```text

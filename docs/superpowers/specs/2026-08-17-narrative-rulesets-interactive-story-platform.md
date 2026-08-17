@@ -1,6 +1,6 @@
 # DZMM vNext 叙事规则集：本地优先、状态驱动的互动叙事平台
 
-**状态：** Active — Phase 0 contract v2、确定性雾港切片与 Mac 本地浏览器旅程已实现；真实模型、打包桌面与 Android 验收待推进
+**状态：** Active — 当前 schema v2 的确定性雾港切片与 Mac 本地浏览器旅程已实现；ADR-004 已要求在下一阶段重构为内容/关系分离的 schema v3，之后重新取得切片证据；真实模型、打包桌面与 Android 验收待推进
 **日期：** 2026-08-17
 **范围：** 只扩展 vNext 的 `World → WorldVersion → Run → RunState → Turn` 聚合；不读取、迁移或兼容 v0.x。
 
@@ -51,11 +51,17 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 `lorebook` / `character_cards` 及其中文名称。`WorldDefinition` 仍只是承载这些内容资产与规则定义的
 内部 aggregate document，不是一个面向用户的替代概念。
 
+角色卡与叙事规则必须进一步分层：**角色卡描述“这个人是谁”，关系定义描述“在这个世界中玩家与
+这个人的关系如何被裁决”。** 因此 `CharacterCard` 不能持有好感/信任初值、关系维度、路线资格或
+结局条件。规则集以 `RelationshipDefinition.character_card_id` 显式引用一张卡，关系事件再引用
+relationship ID；RunState 只存 Python 已应用事件的结果。这使相同的外部角色卡能被安全地用于多个
+WorldVersion，而不会把任何卡内文本误当状态规则。详细决策见 ADR-004。
+
 | 层级 | 正式概念与命名 | 必须做到 | 明确不做 |
 |---|---|---|---|
 | 内容资产 | `lorebook.entries[]` / 世界书条目 | 可创建、编辑、版本化、导入、导出；保留来源与未映射字段 | 将条目当作可执行 prompt、正则或状态脚本 |
-| 内容资产 | `character_cards[]` / 角色卡 | 保留 V3 原始 payload 与映射字段；角色卡可被世界引用、导入、导出 | 将卡内自然语言直接当作关系、Flag 或结局真相 |
-| 运行规则 | `ruleset`、章节、relationship events、ending definitions | 作者显式把内容事实提升为结构化规则后，Python 才可裁决 | 以角色卡或世界书隐式写入 RunState |
+| 内容资产 | `character_cards[]` / 角色卡 | 保留 V3 原始 payload 与映射字段；角色卡可被世界引用、导入、导出 | 将卡内自然语言或关系数值当作 Flag/结局真相 |
+| 运行规则 | `ruleset`、`RelationshipDefinition`、章节、relationship events、ending definitions | 作者显式将卡引用与关系规则绑定后，Python 才可裁决 | 以角色卡或世界书隐式写入 RunState |
 | 运行状态 | `RunState` | 只保存已由 command 验证的可变事实 | 与内容资产共享可变数值或生命周期 |
 
 因此，当前实现中的 `lore`、`LoreSelection`、`/content/lore-*` 仅可作为一次性开发中的
@@ -97,12 +103,12 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "name": "雾港",
   "lorebook": {
     "entries": [{"id": "fog-custom", "title": "灰潮", "body": "...", "activation": "always", "priority": 90, "source": {"format": "world-info"}, "preserved_source": {"...": "raw World Info entry"}}]
   },
-  "character_cards": [{"id": "lan", "format": "sillytavern_v3", "display_name": "岚", "source_payload": {"...": "preserved"}, "mapped": {"description": "...", "personality": "...", "character_book_entry_ids": ["fog-custom"]}}],
+  "character_cards": [{"id": "lan-card", "format": "sillytavern_v3", "display_name": "岚", "source_payload": {"...": "preserved"}, "mapped": {"description": "...", "personality": "...", "character_book_entry_ids": ["fog-custom"]}}],
   "ruleset": {
     "id": "hybrid",
     "enabled_capabilities": ["chapters", "choices", "relationships", "endings"],
@@ -111,7 +117,8 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
   "story": {
     "chapters": ["...Chapter"],
     "flags": ["...StoryFlag definition"],
-    "relationship_rules": ["...RelationshipEvent definition"],
+    "relationships": [{"id": "lan", "character_card_id": "lan-card", "dimensions": {"affection": {"initial": 40, "min": 0, "max": 100}, "trust": {"initial": 0, "min": -100, "max": 100}}}],
+    "relationship_events": ["...RelationshipEvent definition"],
     "endings": ["...EndingDefinition"]
   },
   "locations": [], "factions": [], "npcs": [], "events": []
@@ -123,8 +130,8 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 `character_cards[].mapped` 是为搜索、预览、可访问 UI 和可控上下文选择而保存的可解释投影；
 `source_payload`/`preserved_source` 用于保真导出，二者都不能被当作可执行配置。角色卡与
 世界书的“引用”是 definition 内的稳定 ID 引用，不能靠名字或模型推断绑定。作者想让某个
-卡中人物成为可结交角色时，必须显式创建 relationship definition（引用 card ID）；这同样会
-生成一个新 WorldVersion。
+卡中人物成为可结交角色时，必须显式创建 `RelationshipDefinition`（引用 card ID，并声明
+维度初值、边界和可见性）；这同样会生成一个新 WorldVersion。角色卡自身没有关系维度。
 
 ### 4.2 Chapter、StoryFlag 与 EndingDefinition
 
@@ -168,7 +175,7 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 }
 ```
 
-每个 relationship event 在 WorldDefinition 中声明 target、维度范围、变化量、原因 key、一次性 scope（`run` / `chapter` / `none`）、冷却回合、前置 Flag/资源/章节和可见性。`RelationshipState` 只记录由已应用事件得出的当前值及防重复 ledger；不能接受 `{"affection": 999}` 形式的通用写入。
+每个 `RelationshipDefinition` 在 WorldDefinition 中声明目标角色卡、维度初值/范围、可见性与路线资格；每个 relationship event 只引用 relationship ID，并声明固定变化量、原因 key、一次性 scope（`run` / `chapter` / `none`）、冷却回合和前置 Flag/资源/章节。`RelationshipState` 只记录由已应用事件得出的当前值及防重复 ledger；不能接受 `{"affection": 999}` 形式的通用写入。
 
 ### 4.4 RunState、TurnCommand 与 NarrativeIntent
 
@@ -267,10 +274,10 @@ stateDiagram-v2
 
 | 阶段 | 交付物 | 退出门槛 |
 |---|---|---|
-| 0. Contract freeze | ADR 批准；`WorldDefinition` / `RunState` / `TurnCommand` v2 schema；雾港 fixture；scorecard 改版。 | schema lint、有限谓词/command 白名单设计评审通过；不改 legacy。 |
-| 1. 最小可玩垂直切片 | 受限 `hybrid`（仅剧情冒险 + 关系能力）的雾港：3 章、两路线、多维关系、once/cooldown、好/坏 ending、回滚；Mac 最小 UI。 | 确定性 E2E 覆盖四种路线结果、非法写入拒绝、刷新/回滚正确；相关三维各 >=65。 |
-| 2. 真实模型与作者闭环 | 模型仅提意图的 adapter、叙事 prompt、**世界书和角色卡作为持久内容资产**的导入/编辑/导出、结局页和审计 UI；清除对外 `lore`/“建议主角”替代语义。 | Huihui 14B 30 回合含一次回滚；导入 V3 JSON/PNG 或 World Info → 保留报告 → 创建世界 → 开局 → 结局 → 导出 round-trip 的 packaged Mac 证据；相关 P0 >=80。 |
-| 3. TRPG 规则集接入 | 将既有骰子、资源、地点、事件、战斗 command 迁入同一 v2 白名单；`trpg` 不携带剧情特有字段。 | TRPG regression、同 aggregate rollback、规则集越权拒绝。 |
+| 0. Contract freeze | ADR-003/004 批准；`WorldDefinition` / `RunState` / `TurnCommand` schema v3；世界书、角色卡、显式关系定义的雾港 fixture；scorecard 改版。 | schema lint、有限谓词/command 白名单与“内容不含运行规则”设计评审通过；不改 legacy。 |
+| 1. 最小可玩垂直切片 | 受限 `hybrid`（仅剧情冒险 + 关系能力）的雾港：3 章、两路线、多维关系、once/cooldown、好/坏 ending、回滚；Mac 最小 UI。 | 确定性 E2E 覆盖四种路线结果、非法写入拒绝、刷新/回滚正确；角色卡与 RelationshipDefinition 的职责分离；相关三维各 >=65。 |
+| 2. 内容边界重构与真实模型作者闭环 | 将 schema v2 的卡内 `relationship_dimensions` 迁为 schema v3 的显式 `RelationshipDefinition`；模型仅提意图的 adapter、叙事 prompt、**世界书和角色卡作为持久内容资产**的导入/编辑/导出、结局页和审计 UI；清除对外 `lore`/“建议主角”替代语义。 | Huihui 14B 30 回合含一次回滚；同卡可在两个 WorldVersion 有不同关系规则；导入 V3 JSON/PNG 或 World Info → 保留报告 → 创建世界 → 开局 → 结局 → 导出 round-trip 的 packaged Mac 证据；相关 P0 >=80。 |
+| 3. TRPG 规则集接入 | 将既有骰子、资源、地点、事件、战斗 command 迁入同一 v3 白名单；`trpg` 不携带剧情特有字段。 | TRPG regression、同 aggregate rollback、规则集越权拒绝。 |
 | 4. Hybrid | 声明式 capability 组合、TRPG 检定影响章节/关系的预定义桥接规则、冲突检测和可视化。 | 50 回合 hybrid 实跑、交叉条件/ending/replay E2E；不出现第二存档模型。 |
 | 5. Android 与 RC | gameplay-only 的章节/选择/关系/结局体验、LAN/断线/撤销实机矩阵、长局性能与打包。 | 矩阵总分 >=85、所有 P0 >=80、无 P0 defect。 |
 

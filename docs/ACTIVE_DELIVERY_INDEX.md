@@ -15,6 +15,7 @@
 - [vNext 规格、评分矩阵与分阶段实施计划](superpowers/specs/2026-08-16-dzmm-vnext-clean-rebuild.md)
 - [叙事规则集：互动叙事平台规格、雾港示例、矩阵与 Plan](superpowers/specs/2026-08-17-narrative-rulesets-interactive-story-platform.md)
 - [ADR-003：在版本化世界聚合上扩展叙事规则集](adr/ADR-003-narrative-rulesets-on-versioned-world-aggregate.md)
+- [ADR-004：世界书与角色卡的互通内容边界](adr/ADR-004-interoperable-lorebook-and-character-card-boundary.md)
 - [世界中心交互原型](prototypes/2026-08-16-world-center-prototype.html)
 
 ### 已确认决策
@@ -26,6 +27,7 @@
 5. 每阶段只能按 vNext 成熟度矩阵累积证据；旧项目的 88.1 成熟度和 Android CI 不能转移为 vNext 分数。
 6. 世界书（Lorebook / World Info）与角色卡（Character Card）采用生态通用概念和安全互通；它们是内容/上下文层，不能直接写 RunState。`WorldDefinition` 仅为内部契约术语。
 7. 世界书与角色卡不只是兼容导入格式，而是 vNext 的一级、可版本化内容资产。公开 API、UI 与存储 contract 固定采用 `lorebook` / `character_cards`；当前 `lore` 和“角色卡转建议主角”的实现仅为未完成的过渡状态，不能作为 Phase 2 完成证据。
+8. 角色卡是可移植内容，不承载本世界的关系数值或结局规则；规则集通过显式 `RelationshipDefinition → character_card_id` 引用角色卡。当前 schema v2 的 `relationship_dimensions` 位于卡内，是必须在下一阶段清除的边界缺陷；完成前不将现有雾港切片作为该内容建模的最终证据。
 
 ### 当前证据与风险
 
@@ -44,7 +46,7 @@
 - **Mobile control-plane 基础（未计分）：** `4ccd8c9` 增加 API v2 独立配对请求、loopback host 批准、一次性 token 交付、token 哈希校验与撤销；mobile bearer 只能读 Run 和提交 gameplay SSE，不能触及世界/模型管理。28 项后端测试覆盖批准、使用、撤销和流式回合。尚无 Flutter 客户端、LAN 发现或实体设备证据，因此 Mobile 仍为 0。
 - **当前 vNext 矩阵：58.0 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase4-performance-interim.json`：Domain 60、Game Loop 75、Content 60、Model 65、Desktop 60、Mobile 0、Long-play 75、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、目标设备性能和发布证据；不以局部真实模型成功推断这些维度完成。
 - **叙事规则集评审（未计分）：** `ADR-003` 与 2026-08-17 规格提出在相同 WorldVersion/Run/RunState/Turn aggregate 内加入 `trpg`、`story_adventure`、`relationship_drama`、`hybrid`。现有 **58.0/100** 是前序 TRPG 矩阵的实现基线，不因文档增加分数，也不能与新的平台矩阵横向比较；Phase 0 contract freeze 后，scorecard 必须按新矩阵重新取证。
-- **叙事规则集 Phase 0 / Mac 确定性切片（已实现，未过 gate）：** `2ba5d57` 将 contract 升为 2026-08-17 / schema v2，`WorldDefinition` 固化 ruleset、角色卡关系维度、章节/Flag/路线/ending definitions；唯一 `RunState` 保存关系 reason/once ledger、章节和锁定结局。`bb81a16` 增加雾港 native template、current-choice projection 和服务端 planned-choice endpoint；桌面页面仅发送 choice ID，不拼章节/结局 command。临时 DB 浏览器完成 create → 三次选择 → 好结局 → 回滚至第一回合后 → 刷新并恢复第二章选择；关系原因和 locked ending 均可见，控制台零错误。迁移 `0007_narrative_ruleset_contract` 仅更新 vNext contract metadata，不读取 legacy。平台矩阵取证在 `vnext/eval/evidence/phase5-narrative-vertical-slice.json`：**56.75 / 100，所有 P0 仍未达到 80，不可发布。** 该数值刻意不复用 v2 未覆盖的旧 TRPG 长局/Android 分数。
+- **叙事规则集 Phase 0 / Mac 确定性切片（已实现，未过 gate，contract 已被 ADR-004 取代）：** `2ba5d57` 将 contract 升为 2026-08-17 / schema v2，`WorldDefinition` 固化 ruleset、章节/Flag/路线/ending definitions；唯一 `RunState` 保存关系 reason/once ledger、章节和锁定结局。`bb81a16` 增加雾港 native template、current-choice projection 和服务端 planned-choice endpoint；桌面页面仅发送 choice ID，不拼章节/结局 command。临时 DB 浏览器完成 create → 三次选择 → 好结局 → 回滚至第一回合后 → 刷新并恢复第二章选择；关系原因和 locked ending 均可见，控制台零错误。迁移 `0007_narrative_ruleset_contract` 仅更新 vNext contract metadata，不读取 legacy。该 v2 切片把 `relationship_dimensions` 放在角色卡内；ADR-004 要求先移至显式 `RelationshipDefinition` 的 schema v3 后重取相同证据，故不能将其作为最终内容建模完成证据。平台矩阵取证在 `vnext/eval/evidence/phase5-narrative-vertical-slice.json`：**56.75 / 100，所有 P0 仍未达到 80，不可发布。** 该数值刻意不复用 v2 未覆盖的旧 TRPG 长局/Android 分数。
 - **真实模型补充证据（已实现，未过 gate）：** `fecce45` 将模型提示收紧为“只描述 Python 已确认结果”，并注入 ruleset/章节/路线/关系等只读上下文；单测确认模型没有状态裁判权限。台式机 Huihui 14B 在隔离数据库完成 v2 50 回合 SSE（最小 0.334s、中位 0.802s、最大 6.646s、一次非提交重试，recovery 正确），并完成雾港岚路线的三次选择与好结局（三段非空真实叙事）。原始取证为 `phase5-real-model-v2-50-turns.json` 与 `phase5-real-model-fog-harbor.json`。平台矩阵现为 **61.75 / 100，所有 P0 仍未达到 80，不可发布。** 仍缺 v2 500 消息重开、打包 Tauri、Android/LAN 与 release evidence。
 - **v2 重开性能补充证据（已实现，未过 gate）：** `5d0b6e3` 使 benchmark 使用 schema v2；隔离 DB 中 500 条持久化 Turn 重开为 0.005s / 165475 bytes，revision 与完整历史都正确。平台矩阵现为 **62.25 / 100，所有 P0 仍未达到 80，不可发布。** 长局维度仍缺目标设备流式预算，不能上调到 80。
 - **内容资产 contract 落地（未计分）：** 已将 WorldDefinition/API/桌面导入统一切换为 `lorebook.entries` 与 `character_cards`；旧 `lore` schema 和 endpoint 被明确拒绝。SillyTavern V3 导入会持久保留完整卡 payload、映射可解释字段和卡内世界书条目引用；API 可导出原始 V3 卡，也可通过 `GET /api/v2/world-versions/{id}/lorebook:export` 导出 World Info：导入条目原样回传 escrow 的原始对象，DZMM 原生条目则映射到安全的 World Info 字段。测试覆盖卡的导入 → WorldVersion 固定 → 导出 round-trip、World Info 保真导出、原生世界书安全导出，以及世界书选择/提升不改既有 Run。仍未完成 PNG metadata 文件输入、角色卡编辑界面与打包 Mac 作者旅程，因此内容互通与作者体验维度不加分。
