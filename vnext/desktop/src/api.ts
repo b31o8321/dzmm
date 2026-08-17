@@ -83,6 +83,17 @@ export type PurgeManifest = {
   confirmation_token: string
 }
 
+export type DiagnosticSnapshot = {
+  app: string
+  api_version: number
+  contract: { version: string; contracts: string[] }
+  storage: 'isolated'
+  database: {
+    aggregate_counts: Record<string, number>
+    integrity: { clean: boolean; orphans: Record<string, number> }
+  }
+}
+
 let apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
 
 export function setApiBase(base: string) {
@@ -186,6 +197,10 @@ export function restoreWorld(worldId: string) {
 
 export function getPurgeManifest(worldId: string) {
   return request<PurgeManifest>(`/worlds/${worldId}/purge-manifest`)
+}
+
+export function getDiagnostics() {
+  return request<DiagnosticSnapshot>('/diagnostics')
 }
 
 export function purgeWorld(worldId: string, payload: { confirmation_token: string; world_name: string }) {

@@ -8,6 +8,7 @@ import {
   createWorldVersion,
   createTurn,
   exportCharacterCard,
+  getDiagnostics,
   exportLorebook,
   getFogHarborTemplate,
   getPurgeManifest,
@@ -349,6 +350,18 @@ async function downloadCharacterCard(card: Record<string, unknown>) {
   }
 }
 
+async function downloadDiagnostics() {
+  busy.value = true
+  notice.value = ''
+  try {
+    downloadJson('dzmm-next-diagnostics.json', await getDiagnostics())
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法导出诊断信息'
+  } finally {
+    busy.value = false
+  }
+}
+
 async function createWorld() {
   busy.value = true
   notice.value = ''
@@ -581,6 +594,7 @@ onMounted(() => {
       <a class="brand" href="#" @click.prevent="() => void openWorldCenter()">DZMM <span>Next</span></a>
       <p>本地世界账本 · API v2</p>
       <div class="masthead-actions">
+        <button class="minor-action" type="button" :disabled="busy || !hostReady" @click="downloadDiagnostics">导出诊断</button>
         <label class="theme-control">主题
           <select :value="theme" aria-label="界面主题" @change="applyTheme(($event.target as HTMLSelectElement).value as Theme)">
             <option value="fog">雾夜</option>

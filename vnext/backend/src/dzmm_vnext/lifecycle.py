@@ -10,7 +10,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .persistence import compose_requests, heroes, runs, turns, world_versions, worlds
+from .persistence import (
+    compose_requests,
+    heroes,
+    mobile_devices,
+    model_profiles,
+    pairing_requests,
+    runs,
+    turns,
+    world_versions,
+    worlds,
+)
 from .worlds import validate_world_definition
 
 
@@ -256,5 +266,26 @@ async def integrity_scan(session_factory: async_sessionmaker[AsyncSession]) -> d
         return {name: (await session.execute(statement)).scalar_one() for name, statement in checks.items()}
 
 
+async def diagnostic_snapshot(session_factory: async_sessionmaker[AsyncSession]) -> dict[str, object]:
+    """Return aggregate-only support data without exposing player content or configuration."""
+    async with session_factory() as session:
+        counts = {
+            "worlds": await _table_count(session, worlds),
+            "world_versions": await _table_count(session, world_versions),
+            "heroes": await _table_count(session, heroes),
+            "runs": await _table_count(session, runs),
+            "turns": await _table_count(session, turns),
+            "model_profiles": await _table_count(session, model_profiles),
+            "mobile_devices": await _table_count(session, mobile_devices),
+            "pairing_requests": await _table_count(session, pairing_requests),
+        }
+    orphans = await integrity_scan(session_factory)
+    return {"aggregate_counts": counts, "integrity": {"clean": not any(orphans.values()), "orphans": orphans}}
+
+
 async def _count(session: AsyncSession, column: Any, where: Any) -> int:
     return (await session.execute(select(func.count(column)).where(where))).scalar_one()
+
+
+async def _table_count(session: AsyncSession, table: Any) -> int:
+    return (await session.execute(select(func.count()).select_from(table))).scalar_one()

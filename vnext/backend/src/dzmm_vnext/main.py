@@ -27,6 +27,7 @@ from .lifecycle import (
     WorldNotFoundError,
     WorldVersionConflictError,
     WorldVersionInput,
+    diagnostic_snapshot,
     integrity_scan,
 )
 from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService, NarrationError
@@ -286,6 +287,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_integrity() -> dict[str, object]:
         orphans = await integrity_scan(app.state.sessions)
         return {"orphans": orphans, "clean": not any(orphans.values())}
+
+    @app.get("/api/v2/diagnostics")
+    async def get_diagnostics() -> dict[str, object]:
+        return {
+            "app": APP_NAME,
+            "api_version": API_VERSION,
+            "contract": app.state.contracts,
+            "storage": "isolated",
+            "database": await diagnostic_snapshot(app.state.sessions),
+        }
 
     @app.post("/api/v2/content/sillytavern:import")
     async def import_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:

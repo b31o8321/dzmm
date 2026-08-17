@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -43,6 +44,42 @@ def test_health_uses_isolated_fresh_data_directory(tmp_path) -> None:
         "storage": "isolated",
         "foreign_keys": True,
     }
+
+
+def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> None:
+    client, _ = migrated_client
+    response = client.get("/api/v2/diagnostics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["app"] == "dzmm-next"
+    assert payload["storage"] == "isolated"
+    assert payload["database"] == {
+        "aggregate_counts": {
+            "worlds": 0,
+            "world_versions": 0,
+            "heroes": 0,
+            "runs": 0,
+            "turns": 0,
+            "model_profiles": 0,
+            "mobile_devices": 0,
+            "pairing_requests": 0,
+        },
+        "integrity": {
+            "clean": True,
+            "orphans": {
+                "world_versions_without_world": 0,
+                "runs_without_world_version": 0,
+                "runs_without_hero": 0,
+                "turns_without_run": 0,
+                "compose_requests_without_world": 0,
+                "compose_requests_without_run": 0,
+            },
+        },
+    }
+    serialized = json.dumps(payload)
+    for forbidden in ("data_dir", "base_url", "token_hash", "narrative", "player_input"):
+        assert forbidden not in serialized
 
 
 def test_local_desktop_origins_can_call_api_but_unrelated_origins_cannot(migrated_client) -> None:
