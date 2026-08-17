@@ -10,6 +10,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import API_VERSION, APP_NAME
+from .ai_world_drafts import (
+    AIWorldDraftGenerationError,
+    AIWorldDraftInput,
+    AIWorldDraftReviewInput,
+    AIWorldDraftService,
+    validate_world_draft,
+)
 from .config import Settings
 from .content import (
     ContentNotFoundError,
@@ -69,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.world_composer = WorldComposer(app.state.sessions)
         app.state.turn_coordinator = TurnCoordinator(app.state.sessions)
         app.state.model_profiles = ModelProfileService(app.state.sessions)
+        app.state.ai_world_drafts = AIWorldDraftService(app.state.model_profiles)
         app.state.model_prober = ModelProber()
         app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
         app.state.content = ContentService(app.state.sessions)
@@ -214,6 +222,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status_code=201 if result.created else 200,
             content=result.model_dump(mode="json"),
         )
+
+    @app.post("/api/v2/ai-world-drafts:generate")
+    async def generate_ai_world_draft(payload: AIWorldDraftInput) -> dict[str, object]:
+        try:
+            return (await app.state.ai_world_drafts.generate(payload)).model_dump(mode="json")
+        except AIWorldDraftGenerationError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+    @app.post("/api/v2/ai-world-drafts:validate")
+    async def validate_ai_world_draft(payload: AIWorldDraftReviewInput) -> dict[str, object]:
+        return validate_world_draft(payload.world_definition, payload.hero).model_dump(mode="json")
 
     @app.get("/api/v2/world-templates/fog-harbor")
     async def get_fog_harbor_template() -> dict[str, object]:
@@ -421,6 +440,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return JSONResponse(status_code=201, content=profile.model_dump(mode="json"))
+
+    @app.get("/api/v2/model-profiles")
+    async def list_model_profiles() -> list[dict[str, object]]:
+        return [item.model_dump(mode="json") for item in await app.state.model_profiles.list()]
 
     @app.post("/api/v2/model-profiles/{profile_id}:probe")
     async def probe_model_profile(profile_id: str) -> dict[str, object]:

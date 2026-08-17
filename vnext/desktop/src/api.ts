@@ -36,6 +36,13 @@ export type Turn = {
 export type RunSnapshot = {
   run_id: string
   state: RunState
+  presentation: {
+    world_name: string
+    locations: Record<string, string>
+    relationships: Record<string, string>
+    chapters: Record<string, string>
+    routes: Record<string, string>
+  }
   turns: Turn[]
   available_choices: Array<{ id: string; label: string }>
 }
@@ -108,6 +115,25 @@ export type MobileDevice = {
   capabilities: string[]
 }
 
+export type ModelProfile = {
+  id: string
+  name: string
+  provider_type: 'ollama' | 'lm_studio' | 'openai_compat'
+  base_url: string
+  model_name: string
+}
+
+export type DraftIssue = { path: string; message: string }
+
+export type AIWorldDraft = {
+  valid: boolean
+  summary: string | null
+  world_definition: Record<string, unknown> | null
+  hero: { name: string; profile: Record<string, unknown> } | null
+  repairs: string[]
+  issues: DraftIssue[]
+}
+
 let apiBase = import.meta.env.VITE_API_BASE ?? '/api/v2'
 
 export function setApiBase(base: string) {
@@ -125,6 +151,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function composeWorld(payload: object) {
   return request<ComposedRun>('/worlds:compose', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listModelProfiles() {
+  return request<ModelProfile[]>('/model-profiles')
+}
+
+export function createModelProfile(payload: Omit<ModelProfile, 'id'>) {
+  return request<ModelProfile>('/model-profiles', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function generateAIWorldDraft(payload: object) {
+  return request<AIWorldDraft>('/ai-world-drafts:generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function validateAIWorldDraft(payload: object) {
+  return request<AIWorldDraft>('/ai-world-drafts:validate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),

@@ -152,9 +152,11 @@ class ContentService:
         if card is None:
             raise ContentNotFoundError("character card not found")
         payload = card.get("source_payload")
-        if not isinstance(payload, dict):
-            raise TypeError("character card has no source payload to export")
-        return deepcopy(payload)
+        if isinstance(payload, dict):
+            return deepcopy(payload)
+        if card.get("format") == "native":
+            return _native_character_card_to_v3(card)
+        raise TypeError("character card has no source payload to export")
 
     async def export_lorebook(self, world_version_id: str) -> dict[str, Any]:
         async with self._session_factory() as session:
@@ -193,3 +195,28 @@ def _world_info_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "constant": entry["activation"] == "always",
         "insertion_order": entry["priority"],
     }
+
+
+def _native_character_card_to_v3(card: dict[str, Any]) -> dict[str, Any]:
+    mapped = card.get("mapped") if isinstance(card.get("mapped"), dict) else {}
+    name = card.get("name")
+    if not isinstance(name, str) or not name:
+        raise TypeError("native character card has no name")
+    return {
+        "spec": "chara_card_v3",
+        "spec_version": "3.0",
+        "data": {
+            "name": name,
+            "description": _mapped_text(mapped, "description"),
+            "personality": _mapped_text(mapped, "personality"),
+            "scenario": _mapped_text(mapped, "scenario"),
+            "first_mes": _mapped_text(mapped, "first_mes"),
+            "mes_example": _mapped_text(mapped, "mes_example"),
+            "character_book": {"entries": []},
+        },
+    }
+
+
+def _mapped_text(mapped: dict[str, Any], key: str) -> str:
+    value = mapped.get(key)
+    return value if isinstance(value, str) else ""

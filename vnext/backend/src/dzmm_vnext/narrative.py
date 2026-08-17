@@ -10,7 +10,7 @@ class NarrativeRuleError(ValueError):
 
 _CAPABILITIES_BY_RULESET = {
     "trpg": {"trpg", "resources"},
-    "story_adventure": {"chapters", "choices", "endings", "resources"},
+    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
     "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
     "hybrid": {"trpg", "chapters", "choices", "relationships", "routes", "endings", "resources"},
 }

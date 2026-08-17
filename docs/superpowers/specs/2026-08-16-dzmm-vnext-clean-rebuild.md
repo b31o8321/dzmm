@@ -79,6 +79,14 @@ All vNext dimensions start at **0**. No legacy score, old CI result, mock, sourc
 
 Each gate records command output, environment, artifact/commit, score delta and remaining gap in `docs/ACTIVE_DELIVERY_INDEX.md`. A dimension never receives a higher score by inference from another dimension.
 
+### AI 世界创作向导证据边界
+
+AI 世界创作是 Creation & content、Game loop、Model robustness 与 Desktop UX 的交叉能力，
+但不是新的存档维度。它的草案必须无持久化地经过 schema v3 与 narrative validator，并由用户
+通过既有原子 compose 确认。首个雾港复杂度切片需要覆盖生成、编辑、取消、模型失败、空/非法
+输出、重复确认、三回合结局、回滚、角色卡 V3 与 World Info 导出；只有真实模型和打包 Mac
+旅程取证才能增加相应维度分数。Android gameplay-only 权限、长局和签名 RC 门槛不因此降低。
+
 ## Delivery Plan
 
 ### Phase 0 — contracts and score harness

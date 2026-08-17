@@ -90,6 +90,21 @@ class ModelProfileService:
             model_name=row["model_name"],
         )
 
+    async def list(self) -> list[ModelProfile]:
+        async with self._session_factory() as session:
+            result = await session.execute(select(model_profiles).order_by(model_profiles.c.created_at))
+            rows = result.mappings().all()
+        return [
+            ModelProfile(
+                id=row["id"],
+                name=row["name"],
+                provider_type=row["provider_type"],
+                base_url=row["base_url"],
+                model_name=row["model_name"],
+            )
+            for row in rows
+        ]
+
 
 class ModelProber:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
@@ -198,6 +213,37 @@ class ModelNarrator:
             raise NarrationError(
                 f"model connection failed: {type(error).__name__}: {error}"
             ) from error
+
+
+class ModelDraftGenerator:
+    """Calls a configured local provider for non-persistent creative source material."""
+
+    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self._transport = transport
+
+    async def generate(self, profile: ModelProfile, prompt: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        endpoint = _chat_endpoint(profile)
+        body = _draft_body(profile, prompt)
+        try:
+            async with httpx.AsyncClient(
+                transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
+            ) as client:
+                response = await client.post(endpoint, json=body)
+        except httpx.HTTPError as error:
+            raise NarrationError(
+                f"model connection failed: {type(error).__name__}: {error}"
+            ) from error
+        if response.status_code != 200:
+            raise NarrationError(
+                f"model returned HTTP {response.status_code}: {_response_detail(response)}"
+            )
+        try:
+            content = _chat_content(profile.provider_type, response.json())
+        except ValueError as error:
+            raise NarrationError("model returned non-JSON response") from error
+        if not isinstance(content, str) or not content.strip():
+            raise NarrationError("model returned no draft content")
+        return _draft_json(content)
 
 
 def _chat_endpoint(profile: ModelProfileInput) -> str:
@@ -309,6 +355,55 @@ def _narration_body(
     if profile.provider_type is ProviderType.LM_STUDIO and "qwen" in profile.model_name.lower():
         body["chat_template_kwargs"] = {"enable_thinking": False}
     return body
+
+
+def _draft_body(profile: ModelProfile, prompt: dict[str, Any]) -> dict[str, Any]:
+    messages = [
+        {"role": "system", "content": prompt["system"]},
+        {
+            "role": "user",
+            "content": "/no_think\n" + json.dumps(
+                {"brief": prompt["brief"], "first_slice": prompt["first_slice"]}, ensure_ascii=False
+            ),
+        },
+    ]
+    if profile.provider_type is ProviderType.OLLAMA:
+        return {
+            "model": profile.model_name,
+            "messages": messages,
+            "stream": False,
+            "format": "json",
+            "options": {"num_predict": 1800},
+        }
+    body: dict[str, Any] = {
+        "model": profile.model_name,
+        "messages": messages,
+        "stream": False,
+        "max_tokens": 2400,
+    }
+    if profile.provider_type is ProviderType.OPENAI_COMPAT:
+        body["response_format"] = {"type": "json_object"}
+    if profile.provider_type is ProviderType.LM_STUDIO and "qwen" in profile.model_name.lower():
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    return body
+
+
+def _draft_json(content: str) -> tuple[dict[str, Any], list[str]]:
+    value = content.strip()
+    repairs: list[str] = []
+    if "</think>" in value:
+        value = value.split("</think>", maxsplit=1)[1].strip()
+        repairs.append("removed model thinking wrapper")
+    if value.startswith("```") and value.endswith("```"):
+        value = value.split("\n", maxsplit=1)[1].rsplit("```", maxsplit=1)[0].strip()
+        repairs.append("removed Markdown code fence")
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise NarrationError(f"model draft is not a single JSON object: {error.msg}") from error
+    if not isinstance(payload, dict):
+        raise NarrationError("model draft must be a JSON object")
+    return payload, repairs
 
 
 def _clean_narrative(content: str | None) -> str | None:

@@ -55,6 +55,7 @@ class RunSnapshot(BaseModel):
     world_version_id: str
     hero_id: str
     state: dict[str, Any]
+    presentation: dict[str, Any]
     available_choices: list[dict[str, str]]
     turns: list[dict[str, Any]]
 
@@ -216,9 +217,25 @@ class WorldComposer:
                 world_version_id=run["world_version_id"],
                 hero_id=run["hero_id"],
                 state=run["state"],
+                presentation=_run_presentation(run["definition"]),
                 available_choices=available_choices(run["state"], run["definition"]),
                 turns=[dict(row) for row in turn_rows.mappings()],
             )
+
+
+def _run_presentation(definition: dict[str, Any]) -> dict[str, Any]:
+    cards = {item["id"]: item["name"] for item in definition["character_cards"]}
+    relationship_names = {
+        relationship["id"]: cards[relationship["character_card_id"]]
+        for relationship in definition["story"]["relationships"]
+    }
+    return {
+        "world_name": definition["name"],
+        "locations": {item["id"]: item["name"] for item in definition["locations"]},
+        "relationships": relationship_names,
+        "chapters": {item["id"]: item["title"] for item in definition["story"]["chapters"]},
+        "routes": {item["id"]: item["name"] for item in definition["story"]["routes"]},
+    }
 
 
 def _initial_state(

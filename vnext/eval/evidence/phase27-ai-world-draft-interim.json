@@ -1,0 +1,27 @@
+{
+  "phase": "ai-world-draft-vertical-slice-interim",
+  "matrix_version": "narrative-platform-v2",
+  "commit_context": "feature/dzmm-vnext working tree after AI world-draft boundary implementation; isolated temporary DZMM_NEXT_DATA_DIR only",
+  "environment": "macOS arm64; FastAPI on 127.0.0.1:28865; LM Studio http://192.168.31.169:1234/v1; huihui-ai_qwen3-14b-abliterated",
+  "implementation": {
+    "authority": "The model may return only world name, summary, hero name/origin, two character descriptions, locations and lore text. Python maps that source to a fixed schema-v3 three-chapter/choice/Flag/relationship-event/route/ending skeleton, validates it, and the only write remains worlds:compose.",
+    "draft_lifecycle": "AIWorldDraft is an API response only. It has no table, no draft id and no persisted state; cancellation has zero aggregate writes.",
+    "content": "Generated cards are native character_cards with controlled mapped fields and export as chara_card_v3. Generated lore is lorebook content and uses the existing World Info exporter."
+  },
+  "verification": {
+    "contract_tests": "56 backend tests and Ruff passed. Added coverage proves generation has zero World/WorldVersion/Hero/Run/compose-request rows before confirmation, rejects unknown source fields including commands, handles model failure and invalid review edits without a write, projects all three requested rulesets, reaches a Python good ending after three choices, rolls back, and makes a native generated card export as V3.",
+    "real_huihui_generation": {
+      "result": "valid",
+      "world_name": "潮门之隙",
+      "hero": "沈星澜",
+      "chapter_count": 3,
+      "character_card_count": 2,
+      "relationship_count": 2,
+      "ending_count": 5,
+      "issues": []
+    },
+    "real_huihui_confirmed_play": "A second real Huihui draft was explicitly confirmed through worlds:compose, then three real narrated choice turns reached lan-dawn. A rollback to the first turn produced revision 4, active ch2 and ending=null. The isolated integrity scan reported every orphan class as zero."
+    ,"source_browser_review": "A local Vite browser connected to the isolated Host selected the Huihui profile and generated a real valid draft. The review page exposed the summary plus editable WorldDefinition/Hero fields. Changing hero.name immediately disabled confirmation until the edited JSON was revalidated; a valid revalidation restored confirmation and showed the schema-v3/narrative success alert. Cancelling returned to World Center with the explicit zero-write notice and no additional World/Run. A previous source-browser pass explicitly confirmed a valid draft and showed the generated World Info count and both native generated cards with V3 export actions."
+  },
+  "boundary": "This is API plus real-model evidence, not a packaged Mac review/edit keyboard/screen-reader journey or a real card export/import UI round trip. It therefore records no maturity score delta. Android gameplay-only scope and all release gates remain unchanged."
+}

@@ -6,6 +6,7 @@ import {
   approvePairingRequest,
   chooseTurn,
   composeWorld,
+  createModelProfile,
   createWorldVersion,
   createTurn,
   exportCharacterCard,
@@ -15,19 +16,24 @@ import {
   getPurgeManifest,
   getRun,
   getWorld,
+  generateAIWorldDraft,
   importSillyTavern,
   importSillyTavernPng,
   listWorlds,
   listMobileDevices,
+  listModelProfiles,
   listPendingPairings,
   purgeWorld,
   rollbackTurn,
   revokeMobileDevice,
   restoreWorld,
   setApiBase,
+  validateAIWorldDraft,
+  type AIWorldDraft,
   type ComposedRun,
   type ImportedContent,
   type MobileDevice,
+  type ModelProfile,
   type PendingPairing,
   type RunSnapshot,
   type Turn,
@@ -54,7 +60,7 @@ const heroName = ref('米拉')
 const experience = ref<'fog_harbor' | 'trpg'>('fog_harbor')
 const harborName = ref('雾港码头')
 const lighthouseName = ref('旧灯塔')
-const step = ref<'compose' | 'confirm' | 'play' | 'worlds'>('compose')
+const step = ref<'compose' | 'ai-compose' | 'ai-review' | 'confirm' | 'play' | 'worlds'>('compose')
 const run = ref<RunSnapshot | null>(null)
 const composed = ref<ComposedRun | null>(null)
 const playerInput = ref('')
@@ -80,11 +86,30 @@ const pendingPairings = ref<PendingPairing[]>([])
 const mobileDevices = ref<MobileDevice[]>([])
 const themeKey = 'dzmm-next-theme'
 const theme = ref<Theme>('fog')
+const modelProfiles = ref<ModelProfile[]>([])
+const aiModelProfileId = ref('')
+const aiRuleset = ref<'story_adventure' | 'relationship_drama' | 'hybrid'>('hybrid')
+const aiGenre = ref('潮汐悬疑恋爱冒险')
+const aiTone = ref('温柔、危险')
+const aiCoreConflict = ref('失踪的航图正在重开不该开启的潮门。')
+const aiHeroPreference = ref('一位会做艰难选择的年轻领航员')
+const aiCharacterPreferences = ref('学者，守夜人')
+const aiDraft = ref<AIWorldDraft | null>(null)
+const aiDraftDefinitionJson = ref('')
+const aiDraftHeroJson = ref('')
+const aiComposeRequestId = ref('')
+const aiDraftNeedsValidation = ref(false)
+const modelSetupOpen = ref(false)
+const modelProfileDraft = ref<Omit<ModelProfile, 'id'>>({
+  name: '本地 Huihui 14B',
+  provider_type: 'lm_studio',
+  base_url: 'http://192.168.31.169:1234/v1',
+  model_name: 'huihui-ai_qwen3-14b-abliterated',
+})
 
-const locationLabel = computed(() =>
-  run.value?.state.location_id === 'lighthouse' ? lighthouseName.value : harborName.value,
-)
+const locationLabel = computed(() => run.value?.presentation.locations[run.value.state.location_id] ?? harborName.value)
 const activeChapter = computed(() => run.value?.state.chapter)
+const activeChapterTitle = computed(() => activeChapter.value ? run.value?.presentation.chapters[activeChapter.value.id] : '')
 const activeRunId = computed(() => run.value?.run_id ?? '')
 const relationshipEntries = computed(() => Object.entries(run.value?.state.relationships ?? {}))
 const endingLabel = computed(() => {
@@ -92,9 +117,20 @@ const endingLabel = computed(() => {
   if (!ending) return ''
   return { good: '好结局', normal: '普通结局', bad: '坏结局', hidden: '隐藏结局' }[ending.kind]
 })
+function relationshipName(relationshipId: string) {
+  return run.value?.presentation.relationships[relationshipId] ?? relationshipId
+}
+
+function routeName(routeId: string) {
+  return run.value?.presentation.routes[routeId] ?? routeId
+}
+
+function relationshipDimensionName(dimension: string) {
+  return { affection: '好感', trust: '信任' }[dimension] ?? dimension
+}
 const exportableCharacterCards = computed(() =>
   (createdContent.value?.character_cards ?? []).filter((card) =>
-    typeof card.id === 'string' && typeof card.source_payload === 'object' && card.source_payload !== null,
+    typeof card.id === 'string' && (card.format === 'native' || (typeof card.source_payload === 'object' && card.source_payload !== null)),
   ),
 )
 
@@ -158,6 +194,164 @@ function startCreatingWorld() {
   composed.value = null
   run.value = null
   step.value = 'compose'
+}
+
+async function startCreatingAIWorld() {
+  notice.value = ''
+  composed.value = null
+  run.value = null
+  aiDraft.value = null
+  aiDraftDefinitionJson.value = ''
+  aiDraftHeroJson.value = ''
+  aiComposeRequestId.value = ''
+  aiDraftNeedsValidation.value = false
+  busy.value = true
+  try {
+    modelProfiles.value = await listModelProfiles()
+    if (!aiModelProfileId.value && modelProfiles.value[0]) aiModelProfileId.value = modelProfiles.value[0].id
+    step.value = 'ai-compose'
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法读取本地模型档案'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function saveModelProfile() {
+  busy.value = true
+  notice.value = ''
+  try {
+    const profile = await createModelProfile(modelProfileDraft.value)
+    modelProfiles.value = await listModelProfiles()
+    aiModelProfileId.value = profile.id
+    modelSetupOpen.value = false
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法保存模型档案'
+  } finally {
+    busy.value = false
+  }
+}
+
+function draftIssueText(draft: AIWorldDraft) {
+  return draft.issues.map((issue) => `${issue.path || '草案'}：${issue.message}`).join('；')
+}
+
+async function generateDraft() {
+  if (!aiModelProfileId.value) {
+    notice.value = '请先选择或保存一个本地模型档案。'
+    return
+  }
+  busy.value = true
+  notice.value = ''
+  try {
+    const draft = await generateAIWorldDraft({
+      model_profile_id: aiModelProfileId.value,
+      ruleset: aiRuleset.value,
+      genre: aiGenre.value,
+      tone: aiTone.value,
+      core_conflict: aiCoreConflict.value,
+      hero_preference: aiHeroPreference.value,
+      character_preferences: aiCharacterPreferences.value.split('，').flatMap((value) => value.split(',')).map((value) => value.trim()).filter(Boolean),
+    })
+    aiDraft.value = draft
+    if (!draft.valid || !draft.world_definition || !draft.hero) {
+      notice.value = `模型草案未通过校验：${draftIssueText(draft)}`
+      return
+    }
+    aiDraftDefinitionJson.value = JSON.stringify(draft.world_definition, null, 2)
+    aiDraftHeroJson.value = JSON.stringify(draft.hero, null, 2)
+    aiDraftNeedsValidation.value = false
+    aiComposeRequestId.value = requestId('ai-compose')
+    worldName.value = String(draft.world_definition.name ?? '未命名世界')
+    heroName.value = draft.hero.name
+    step.value = 'ai-review'
+  } catch (error) {
+    notice.value = error instanceof Error ? `生成未创建世界：${error.message}` : '模型生成失败，未创建世界。'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function validateDraftEdits() {
+  busy.value = true
+  notice.value = ''
+  try {
+    const draft = await validateAIWorldDraft({
+      world_definition: JSON.parse(aiDraftDefinitionJson.value) as Record<string, unknown>,
+      hero: JSON.parse(aiDraftHeroJson.value) as Record<string, unknown>,
+    })
+    aiDraft.value = draft
+    if (!draft.valid || !draft.world_definition || !draft.hero) {
+      notice.value = `编辑后的草案未通过校验：${draftIssueText(draft)}`
+      return
+    }
+    aiDraftDefinitionJson.value = JSON.stringify(draft.world_definition, null, 2)
+    aiDraftHeroJson.value = JSON.stringify(draft.hero, null, 2)
+    aiDraftNeedsValidation.value = false
+    worldName.value = String(draft.world_definition.name ?? worldName.value)
+    heroName.value = draft.hero.name
+    notice.value = '草案已通过 schema v3 与叙事规则校验；仍需明确确认才会创建世界。'
+  } catch (error) {
+    notice.value = error instanceof Error ? `编辑内容不是有效 JSON：${error.message}` : '编辑内容不是有效 JSON。'
+  } finally {
+    busy.value = false
+  }
+}
+
+function markDraftEditsDirty() {
+  aiDraftNeedsValidation.value = true
+}
+
+function cancelDraft() {
+  aiDraft.value = null
+  aiDraftDefinitionJson.value = ''
+  aiDraftHeroJson.value = ''
+  aiComposeRequestId.value = ''
+  aiDraftNeedsValidation.value = false
+  notice.value = '已丢弃未确认草案；没有创建任何世界或存档。'
+  step.value = 'worlds'
+}
+
+async function composeAIWorldDraft() {
+  const draft = aiDraft.value
+  if (
+    !draft?.valid ||
+    !draft.world_definition ||
+    !draft.hero ||
+    !aiComposeRequestId.value ||
+    aiDraftNeedsValidation.value
+  ) {
+    notice.value = '请先验证通过草案，再确认创建。'
+    return
+  }
+  busy.value = true
+  notice.value = ''
+  try {
+    composed.value = await composeWorld({
+      request_id: aiComposeRequestId.value,
+      model_profile_id: aiModelProfileId.value,
+      world_definition: draft.world_definition,
+      hero: draft.hero,
+    })
+    worldName.value = String(draft.world_definition.name ?? worldName.value)
+    heroName.value = draft.hero.name
+    const locations = draft.world_definition.locations
+    if (Array.isArray(locations)) {
+      const harbor = locations.find((location) => location && typeof location === 'object' && (location as { id?: unknown }).id === 'harbor') as { name?: unknown } | undefined
+      const lighthouse = locations.find((location) => location && typeof location === 'object' && (location as { id?: unknown }).id === 'lighthouse') as { name?: unknown } | undefined
+      if (typeof harbor?.name === 'string') harborName.value = harbor.name
+      if (typeof lighthouse?.name === 'string') lighthouseName.value = lighthouse.name
+    }
+    createdContent.value = {
+      lorebook: draft.world_definition.lorebook as { entries: Array<Record<string, unknown>> },
+      character_cards: draft.world_definition.character_cards as Array<Record<string, unknown>>,
+    }
+    step.value = 'confirm'
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '无法确认创建世界'
+  } finally {
+    busy.value = false
+  }
 }
 
 async function archiveSelectedWorld() {
@@ -667,8 +861,8 @@ onMounted(() => {
     </header>
 
     <section class="route-strip" aria-label="跑团路径">
-      <span :class="{ active: step === 'worlds' || step === 'compose' }">世界</span><b>—</b>
-      <span :class="{ active: step === 'confirm' }">确认</span><b>—</b>
+      <span :class="{ active: step === 'worlds' || step === 'compose' || step === 'ai-compose' }">世界</span><b>—</b>
+      <span :class="{ active: step === 'ai-review' || step === 'confirm' }">确认</span><b>—</b>
       <span :class="{ active: step === 'play' }">游玩</span>
     </section>
 
@@ -705,11 +899,11 @@ onMounted(() => {
     <section v-if="step === 'worlds'" class="scene world-center">
       <div class="world-center-heading">
         <div><p class="eyebrow">World Center</p><h1>世界是唯一根，<br />版本才会前进。</h1></div>
-        <button type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">新建世界</button>
+        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button></div>
       </div>
       <div v-if="!worlds.length" class="world-center-empty">
         <h2>还没有世界</h2><p>从一个世界书、角色卡或雾港模板开始；确认后才会生成第一局。</p>
-        <button type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">创建第一个世界</button>
+        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">让 AI 起草世界</button></div>
       </div>
       <div v-else class="world-center-grid">
         <nav class="world-list" aria-label="世界列表">
@@ -760,6 +954,43 @@ onMounted(() => {
       </div>
     </section>
 
+    <section v-else-if="step === 'ai-compose'" class="scene compose-scene ai-compose-scene">
+      <div class="scene-copy">
+        <p class="eyebrow">AI World Draft</p>
+        <h1>先让灵感成形，<br />再由你签字。</h1>
+        <p>模型只返回未持久化的创作素材；Python 会投影为受限的 schema v3 草案。确认前，不会创建世界、Run 或任何状态。</p>
+      </div>
+      <form class="ledger-card" @submit.prevent="generateDraft">
+        <div class="model-draft-heading"><label>本地模型档案<select v-model="aiModelProfileId" required><option value="" disabled>选择已配置模型</option><option v-for="profile in modelProfiles" :key="profile.id" :value="profile.id">{{ profile.name }} · {{ profile.model_name }}</option></select></label><button class="minor-action" type="button" :disabled="busy" @click="modelSetupOpen = !modelSetupOpen">{{ modelSetupOpen ? '收起配置' : '配置本地模型' }}</button></div>
+        <fieldset v-if="modelSetupOpen" class="model-profile-editor">
+          <legend>新建模型档案</legend>
+          <label>名称<input v-model.trim="modelProfileDraft.name" required maxlength="120" /></label>
+          <label>协议<select v-model="modelProfileDraft.provider_type"><option value="lm_studio">LM Studio / OpenAI</option><option value="openai_compat">OpenAI-compatible</option><option value="ollama">Ollama</option></select></label>
+          <label>Base URL<input v-model.trim="modelProfileDraft.base_url" required /></label>
+          <label>模型名<input v-model.trim="modelProfileDraft.model_name" required /></label>
+          <button class="minor-action" type="button" :disabled="busy" @click="saveModelProfile">保存并选择</button>
+        </fieldset>
+        <fieldset class="experience-picker"><legend>要创作哪种体验？</legend><label :class="{ selected: aiRuleset === 'story_adventure' }"><input v-model="aiRuleset" type="radio" value="story_adventure" /><span><b>剧情冒险</b><small>章节、选择、路线与结局</small></span></label><label :class="{ selected: aiRuleset === 'relationship_drama' }"><input v-model="aiRuleset" type="radio" value="relationship_drama" /><span><b>关系叙事</b><small>好感、信任、角色路线与结局</small></span></label><label :class="{ selected: aiRuleset === 'hybrid' }"><input v-model="aiRuleset" type="radio" value="hybrid" /><span><b>混合世界</b><small>剧情、关系与 TRPG 能力并存</small></span></label></fieldset>
+        <label>题材<input v-model.trim="aiGenre" required maxlength="240" /></label>
+        <label>基调<input v-model.trim="aiTone" required maxlength="240" /></label>
+        <label>核心冲突<textarea v-model.trim="aiCoreConflict" required rows="3" maxlength="600"></textarea></label>
+        <label>主角偏好<textarea v-model.trim="aiHeroPreference" required rows="2" maxlength="400"></textarea></label>
+        <label>角色偏好（可选，逗号分隔）<input v-model.trim="aiCharacterPreferences" maxlength="400" /></label>
+        <button :disabled="busy || !hostReady || !aiModelProfileId">{{ busy ? '正在起草…' : '生成待审阅草案' }}</button>
+      </form>
+    </section>
+
+    <section v-else-if="step === 'ai-review' && aiDraft" class="scene ai-review-scene">
+      <div class="scene-copy"><p class="eyebrow">Review before commit</p><h1>世界仍未存在。<br />由你决定是否落笔。</h1><p>{{ aiDraft.summary }}</p><p v-if="aiDraft.repairs.length" class="repair-note">确定性格式修复：{{ aiDraft.repairs.join('；') }}</p></div>
+      <form class="ledger-card ai-review-card" @submit.prevent="composeAIWorldDraft">
+        <p class="draft-safe-note">模型没有创建任何 World、Run 或状态。编辑后必须重新校验；确认只会调用现有的原子 compose。</p>
+        <label>WorldDefinition（schema v3）<textarea v-model="aiDraftDefinitionJson" rows="18" spellcheck="false" aria-label="可编辑的 WorldDefinition 草案" @input="markDraftEditsDirty"></textarea></label>
+        <label>主角草案<textarea v-model="aiDraftHeroJson" rows="5" spellcheck="false" aria-label="可编辑的主角草案" @input="markDraftEditsDirty"></textarea></label>
+        <ul v-if="aiDraft.issues.length" class="draft-issues"><li v-for="issue in aiDraft.issues" :key="`${issue.path}-${issue.message}`">{{ issue.path }}：{{ issue.message }}</li></ul>
+        <div class="world-actions"><button class="minor-action" type="button" :disabled="busy" @click="validateDraftEdits">验证编辑</button><button class="minor-action" type="button" :disabled="busy" @click="cancelDraft">取消并丢弃</button><button type="submit" :disabled="busy || !aiDraft.valid || aiDraftNeedsValidation">确认并创建世界</button></div>
+      </form>
+    </section>
+
     <section v-else-if="step === 'compose'" class="scene compose-scene">
       <div class="scene-copy">
         <p class="eyebrow">新建世界</p>
@@ -803,7 +1034,7 @@ onMounted(() => {
     <section v-else-if="step === 'confirm' && composed" class="scene confirmation">
       <p class="eyebrow">世界已装订</p>
       <h1>{{ worldName }}</h1>
-      <p>版本 1 已固定。{{ heroName }} 从 {{ experience === 'fog_harbor' ? '雾港码头' : harborName }} 出发；之后的状态只属于这一次 Run。</p>
+      <p>版本 1 已固定。{{ heroName }} 从 {{ harborName }} 出发；之后的状态只属于这一次 Run。</p>
       <dl>
         <div><dt>World version</dt><dd>{{ composed.world_version_id.slice(0, 8) }}</dd></div>
         <div><dt>Run</dt><dd>{{ composed.run_id.slice(0, 8) }}</dd></div>
@@ -831,19 +1062,19 @@ onMounted(() => {
       <aside class="run-state">
         <p class="eyebrow">{{ activeChapter ? '当前章节' : '当前坐标' }}</p>
         <p v-if="activeChapter" class="chapter-mark">{{ activeChapter.id.toUpperCase() }}</p>
-        <h2 v-if="activeChapter">{{ activeChapter.id === 'ch1' ? '潮雾抵港' : activeChapter.id === 'ch2' ? '沉船的证词' : '潮门之夜' }}</h2>
+        <h2 v-if="activeChapter">{{ activeChapterTitle }}</h2>
         <h2>{{ locationLabel }}</h2>
         <dl>
           <div><dt>角色</dt><dd>{{ run.state.hero.name }}</dd></div>
           <div><dt>状态版本</dt><dd>{{ run.state.revision }}</dd></div>
-          <div v-if="run.state.route"><dt>路线</dt><dd>{{ run.state.route.id === 'lan-route' ? '岚' : run.state.route.id === 'shen-route' ? '沈砚' : '中立' }}</dd></div>
+          <div v-if="run.state.route"><dt>路线</dt><dd>{{ routeName(run.state.route.id) }}</dd></div>
           <div><dt>物品</dt><dd>{{ run.state.inventory.length ? run.state.inventory.map(i => `${i.id} ×${i.quantity}`).join('，') : '无' }}</dd></div>
         </dl>
         <section v-if="relationshipEntries.length" class="relationship-ledger" aria-label="关系状态">
           <p class="eyebrow">关系账本</p>
           <article v-for="[characterId, relationship] in relationshipEntries" :key="characterId">
-            <b>{{ characterId === 'lan' ? '岚' : '沈砚' }}</b>
-            <span v-for="[dimension, value] in Object.entries(relationship.dimensions)" :key="dimension">{{ dimension === 'affection' ? '好感' : '信任' }} {{ value }}</span>
+            <b>{{ relationshipName(characterId) }}</b>
+            <span v-for="[dimension, value] in Object.entries(relationship.dimensions)" :key="dimension">{{ relationshipDimensionName(dimension) }} {{ value }}</span>
             <small v-for="event in Object.values(relationship.applied_events)" :key="event.reason_key">{{ event.reason_key }}</small>
           </article>
         </section>
@@ -851,7 +1082,7 @@ onMounted(() => {
       <div class="chronicle" aria-live="polite">
         <section v-if="run.state.ending" class="ending-card" :class="run.state.ending.kind">
           <p class="eyebrow">{{ endingLabel }}</p>
-          <h2>{{ run.state.ending.id === 'bell-beyond-fog' ? '雾钟越过灰潮' : run.state.ending.id === 'lan-dawn' ? '灯塔之后是破晓' : run.state.ending.id === 'shen-low-tide' ? '潮退时仍有人等你' : run.state.ending.id === 'neutral-harbor' ? '雾港没有忘记你' : '潮水带走了名字' }}</h2>
+          <h2>{{ run.state.ending.narrative_key }}</h2>
           <p>结局已由世界规则锁定。你可以回看记录，或回滚到此前的选择之后。</p>
         </section>
         <p class="eyebrow">回合记录</p>

@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from dzmm_vnext.model_profiles import (
+    ModelDraftGenerator,
     ModelNarrator,
     ModelProber,
     ModelProfile,
@@ -280,6 +281,41 @@ def test_narrator_streams_openai_deltas_only_after_protocol_completion() -> None
     narrator = ModelNarrator(httpx.MockTransport(lambda _: httpx.Response(200, content=response)))
 
     assert asyncio.run(collect_stream(narrator, profile)) == ["灯塔", "亮起。"]
+
+
+def test_draft_generator_uses_lm_studio_text_json_with_a_restricted_prompt() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": '{"world_name":"雾港","summary":"潮门","hero":{"name":"米拉","origin":"水手"},"locations":["码头","灯塔"],"characters":[],"lore":[]}'}}
+                ]
+            },
+        )
+
+    profile = ModelProfile(
+        id="profile-draft",
+        name="LM Studio",
+        provider_type=ProviderType.LM_STUDIO,
+        base_url="http://desktop.local:1234/v1",
+        model_name="huihui-ai_qwen3-14b-abliterated",
+    )
+    payload, repairs = asyncio.run(
+        ModelDraftGenerator(httpx.MockTransport(handler)).generate(
+            profile, {"system": "JSON only; no command.", "brief": {"genre": "mystery"}, "first_slice": "three chapters"}
+        )
+    )
+
+    assert payload["world_name"] == "雾港"
+    assert repairs == []
+    body = seen["body"]
+    assert "response_format" not in body
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
+    assert body["messages"][0]["content"] == "JSON only; no command."
 
 
 def test_narrator_rejects_empty_malformed_and_rate_limited_streams() -> None:

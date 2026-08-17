@@ -16,6 +16,8 @@
 - [叙事规则集：互动叙事平台规格、雾港示例、矩阵与 Plan](superpowers/specs/2026-08-17-narrative-rulesets-interactive-story-platform.md)
 - [ADR-003：在版本化世界聚合上扩展叙事规则集](adr/ADR-003-narrative-rulesets-on-versioned-world-aggregate.md)
 - [ADR-004：世界书与角色卡的互通内容边界](adr/ADR-004-interoperable-lorebook-and-character-card-boundary.md)
+- [AI 世界创作向导规格](superpowers/specs/2026-08-17-ai-world-creation-wizard.md)
+- [ADR-005：AI 世界草案边界](adr/ADR-005-ai-world-draft-boundary.md)
 - [世界中心交互原型](prototypes/2026-08-16-world-center-prototype.html)
 
 ### 已确认决策
@@ -28,6 +30,13 @@
 6. 世界书（Lorebook / World Info）与角色卡（Character Card）采用生态通用概念和安全互通；它们是内容/上下文层，不能直接写 RunState。`WorldDefinition` 仅为内部契约术语。
 7. 世界书与角色卡不只是兼容导入格式，而是 vNext 的一级、可版本化内容资产。公开 API、UI 与存储 contract 固定采用 `lorebook` / `character_cards`；当前 `lore` 和“角色卡转建议主角”的实现仅为未完成的过渡状态，不能作为 Phase 2 完成证据。
 8. 角色卡是可移植内容，不承载本世界的关系数值或结局规则；schema v3 的规则集通过显式 `RelationshipDefinition → character_card_id` 引用角色卡，relationship event 只引用 relationship ID。v2 卡内 `relationship_dimensions` 被拒绝；schema v3 数据目录独立于早期 preview，且不迁移或打开 v2 World/Run。
+9. AI 世界创作是无持久化的、schema v3 受限 `WorldDraft`：模型只能生成候选，Mac 用户审阅/编辑后仍通过现有原子 compose 创建唯一 World 聚合；草案、模型或 Android 都没有直接状态写入权。
+
+### AI 世界创作向导（进行中，未计分）
+
+- `AIWorldDraft` 仅接受模型生成的世界名、主角、地点、两位角色和世界书素材；Python 将这些素材投影到雾港同等复杂度的三章/选择/Flag/关系/路线/ending schema v3 骨架，再做 contract 与 narrative 校验。
+- 草案不会写入数据库；模型失败、空/非 JSON 内容、未知字段或编辑后的非法 schema 都必须在确认前返回解释性错误。确认复用 `WorldComposer.compose` 的原子性与 request-id 幂等性。
+- 当前已完成 mock/contract 测试、source desktop build 与隔离环境 Huihui 14B 的真实生成→明确 compose→三 choice→结局→回滚 API 垂直切片（`vnext/eval/evidence/phase27-ai-world-draft-interim.json`）；尚无打包 Mac creator UI、键盘/读屏旅程或真实导出再导入，因而分数不变。详情见 `ADR-005` 与 AI 世界创作向导规格。
 
 ### 当前证据与风险
 
