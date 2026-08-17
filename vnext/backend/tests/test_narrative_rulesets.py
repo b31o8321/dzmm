@@ -117,14 +117,14 @@ def fog_harbor_payload(request_id: str) -> dict:
     }
 
 
-def _turn(client, run_id: str, revision: int, request_id: str, *commands: dict) -> dict:
+def _choose(client, run_id: str, revision: int, request_id: str, choice_id: str) -> dict:
     response = client.post(
-        f"/api/v2/runs/{run_id}/turns",
+        f"/api/v2/runs/{run_id}/choices",
         json={
             "request_id": request_id,
             "expected_revision": revision,
             "player_input": "继续雾港故事",
-            "commands": list(commands),
+            "choice_id": choice_id,
         },
     )
     assert response.status_code == 201, response.json()
@@ -138,23 +138,23 @@ def test_fog_harbor_good_ending_is_audited_and_recoverable(migrated_client) -> N
     assert composed["state"]["chapter"] == {"id": "ch1", "status": "active", "resolved_choice_ids": []}
     assert composed["state"]["relationships"]["lan"]["dimensions"] == {"affection": 40, "trust": 0}
 
-    first = _turn(client, run_id, 0, "fog-1", {"type": "choose_story_choice", "payload": {"choice_id": "rescue-lan"}}, {"type": "advance_chapter", "payload": {}})
+    first = _choose(client, run_id, 0, "fog-1", "rescue-lan")
     assert first["state"]["chapter"]["id"] == "ch2"
     assert first["state"]["flags"]["lan-rescued"] is True
     assert first["state"]["inventory"] == [{"id": "fog-lantern", "quantity": 1}]
     assert first["state"]["relationships"]["lan"]["dimensions"] == {"affection": 45, "trust": 20}
     assert {outcome["type"] for outcome in first["outcomes"]} >= {"choose_story_choice", "set_story_flag", "grant_resource", "apply_relationship_event", "advance_chapter"}
 
-    second = _turn(client, run_id, 1, "fog-2", {"type": "choose_story_choice", "payload": {"choice_id": "lan-testimony"}}, {"type": "advance_chapter", "payload": {}})
+    second = _choose(client, run_id, 1, "fog-2", "lan-testimony")
     assert second["state"]["chapter"]["id"] == "ch3"
     assert second["state"]["route"] == {"id": "lan-route", "status": "locked"}
     assert second["state"]["relationships"]["lan"]["dimensions"]["trust"] == 40
 
-    third = _turn(client, run_id, 2, "fog-3", {"type": "choose_story_choice", "payload": {"choice_id": "open-tide-gate"}}, {"type": "advance_chapter", "payload": {}}, {"type": "evaluate_endings", "payload": {}})
+    third = _choose(client, run_id, 2, "fog-3", "open-tide-gate")
     assert third["state"]["ending"] == {"id": "lan-dawn", "kind": "good", "narrative_key": "ending.lan_dawn"}
     locked = client.post(f"/api/v2/runs/{run_id}/turns", json={"request_id": "fog-locked", "expected_revision": 3, "player_input": "再向前一步", "commands": [{"type": "narrate", "payload": {}}]})
     assert locked.status_code == 409
-    assert "read-only" in locked.json()["detail"]
+    assert "choices endpoint" in locked.json()["detail"]
 
     rollback = client.post(f"/api/v2/runs/{run_id}/rollbacks", json={"request_id": "fog-rollback", "expected_revision": 3, "target_turn_id": first["turn_id"]})
     assert rollback.status_code == 201
@@ -172,12 +172,25 @@ def test_fog_harbor_rejects_unavailable_or_direct_state_changes_and_locks_bad_en
 
     invalid = client.post(f"/api/v2/runs/{run_id}/turns", json={"request_id": "fog-invalid", "expected_revision": 0, "player_input": "我直接刷好感", "commands": [{"type": "set_story_flag", "payload": {"flag_id": "lan-rescued", "value": True}}]})
     assert invalid.status_code == 409
-    assert "invalid TurnCommand" in invalid.json()["detail"]
+    assert "choices endpoint" in invalid.json()["detail"]
+    assert client.get(f"/api/v2/runs/{run_id}").json()["state"]["revision"] == 0
+    streamed = client.post(
+        f"/api/v2/runs/{run_id}/turns:stream",
+        json={
+            "request_id": "fog-stream-invalid",
+            "expected_revision": 0,
+            "player_input": "我直接刷好感",
+            "commands": [{"type": "set_story_flag", "payload": {"flag_id": "lan-rescued", "value": True}}],
+        },
+    )
+    assert streamed.status_code == 200
+    assert "event: turn_failed" in streamed.text
+    assert "choices endpoint" in streamed.text
     assert client.get(f"/api/v2/runs/{run_id}").json()["state"]["revision"] == 0
 
-    _turn(client, run_id, 0, "fog-bad-1", {"type": "choose_story_choice", "payload": {"choice_id": "hide-chart"}}, {"type": "advance_chapter", "payload": {}})
-    _turn(client, run_id, 1, "fog-bad-2", {"type": "choose_story_choice", "payload": {"choice_id": "neutral-lead"}}, {"type": "advance_chapter", "payload": {}})
-    final = _turn(client, run_id, 2, "fog-bad-3", {"type": "choose_story_choice", "payload": {"choice_id": "miss-the-tide"}}, {"type": "advance_chapter", "payload": {}}, {"type": "evaluate_endings", "payload": {}})
+    _choose(client, run_id, 0, "fog-bad-1", "hide-chart")
+    _choose(client, run_id, 1, "fog-bad-2", "neutral-lead")
+    final = _choose(client, run_id, 2, "fog-bad-3", "miss-the-tide")
     assert final["state"]["ending"] == {"id": "fog-drowned", "kind": "bad", "narrative_key": "ending.fog_drowned"}
 
 
@@ -250,9 +263,9 @@ def test_relationship_once_event_rejects_the_whole_turn_without_state_write(migr
     )
     composed = client.post("/api/v2/worlds:compose", json=payload).json()
     run_id = composed["run_id"]
-    _turn(client, run_id, 0, "fog-once-1", {"type": "choose_story_choice", "payload": {"choice_id": "rescue-lan"}}, {"type": "advance_chapter", "payload": {}})
+    _choose(client, run_id, 0, "fog-once-1", "rescue-lan")
 
-    repeated = client.post(f"/api/v2/runs/{run_id}/turns", json={"request_id": "fog-once-2", "expected_revision": 1, "player_input": "再次要求岚相信我", "commands": [{"type": "choose_story_choice", "payload": {"choice_id": "lan-testimony"}}]})
+    repeated = client.post(f"/api/v2/runs/{run_id}/choices", json={"request_id": "fog-once-2", "expected_revision": 1, "player_input": "再次要求岚相信我", "choice_id": "lan-testimony"})
 
     assert repeated.status_code == 409
     assert "once per run" in repeated.json()["detail"]

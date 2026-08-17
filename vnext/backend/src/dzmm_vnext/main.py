@@ -157,6 +157,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
+    @app.post("/api/v2/mobile/runs/{run_id}/choices")
+    async def choose_mobile_turn(
+        run_id: str, payload: ChoiceTurnInput, authorization: str | None = Header(default=None)
+    ) -> JSONResponse:
+        await _mobile_device(app, authorization)
+        result = await play_choice(run_id, payload)
+        return JSONResponse(
+            status_code=201 if result.created else 200,
+            content=result.model_dump(mode="json"),
+        )
+
     @app.post("/api/v2/host/mobile-devices/{device_id}:revoke")
     async def revoke_mobile_device(device_id: str, request: Request) -> dict[str, str]:
         _require_loopback_host(request)

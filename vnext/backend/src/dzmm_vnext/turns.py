@@ -86,7 +86,9 @@ class TurnCoordinator:
         self._session_factory = session_factory
         self._narrator = narrator or ModelNarrator()
 
-    async def play(self, run_id: str, payload: TurnInput) -> TurnResult:
+    async def play(
+        self, run_id: str, payload: TurnInput, *, planned_choice: bool = False
+    ) -> TurnResult:
         async with self._session_factory() as session, session.begin():
             existing = await session.execute(
                 select(turns).where(
@@ -130,6 +132,10 @@ class TurnCoordinator:
             if payload.expected_revision != run["state_revision"]:
                 raise RevisionConflictError(
                     f"expected revision {payload.expected_revision}, current revision is {run['state_revision']}"
+                )
+            if not planned_choice and _requires_choice_planner(run["definition"]):
+                raise RevisionConflictError(
+                    "narrative rulesets accept state changes only through the choices endpoint"
                 )
 
             state = deepcopy(run["state"])
@@ -250,6 +256,7 @@ class TurnCoordinator:
                 player_input=payload.player_input,
                 commands=commands,
             ),
+            planned_choice=True,
         )
 
     async def stream(self, run_id: str, payload: TurnInput) -> AsyncIterator[tuple[str, dict[str, Any]]]:
@@ -308,6 +315,12 @@ class TurnCoordinator:
             yield "turn_failed", {
                 "category": "state",
                 "detail": f"expected revision {payload.expected_revision}, current revision is {run['state_revision']}",
+            }
+            return
+        if _requires_choice_planner(run["definition"]):
+            yield "turn_failed", {
+                "category": "command",
+                "detail": "narrative rulesets accept state changes only through the choices endpoint",
             }
             return
 
@@ -583,6 +596,11 @@ class TurnCoordinator:
             outcomes,
             lore_entries,
         )
+
+
+def _requires_choice_planner(definition: dict[str, Any]) -> bool:
+    return "choices" in definition["ruleset"]["enabled_capabilities"]
+
 
 def _apply_commands(
     state: dict[str, Any], definition: dict[str, Any], commands: list[dict[str, Any]]

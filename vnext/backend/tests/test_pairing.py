@@ -89,6 +89,33 @@ def test_mobile_pairing_is_approved_once_and_revocable(migrated_client) -> None:
     assert stream.status_code == 200
     assert "event: turn_completed" in stream.text
 
+    story_payload = client.get("/api/v2/world-templates/fog-harbor").json()
+    story_payload["request_id"] = "mobile-fog-harbor"
+    story_run = client.post("/api/v2/worlds:compose", json=story_payload).json()
+    blocked_story_stream = client.post(
+        f"/api/v2/mobile/runs/{story_run['run_id']}/turns:stream",
+        headers=headers,
+        json={
+            "request_id": "mobile-story-raw",
+            "expected_revision": 0,
+            "player_input": "我直接改变剧情",
+            "commands": [{"type": "set_story_flag", "payload": {"flag_id": "lan-rescued", "value": True}}],
+        },
+    )
+    assert "choices endpoint" in blocked_story_stream.text
+    story_choice = client.post(
+        f"/api/v2/mobile/runs/{story_run['run_id']}/choices",
+        headers=headers,
+        json={
+            "request_id": "mobile-story-choice",
+            "expected_revision": 0,
+            "player_input": "救岚",
+            "choice_id": "rescue-lan",
+        },
+    )
+    assert story_choice.status_code == 201
+    assert story_choice.json()["state"]["chapter"]["id"] == "ch2"
+
     revoked = client.post(f"/api/v2/host/mobile-devices/{request['device_id']}:revoke")
     assert revoked.status_code == 200
     assert client.get(
