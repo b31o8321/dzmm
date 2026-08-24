@@ -225,6 +225,9 @@ Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android
 本机 Qwen 7B 已从新世界创建开始完成 10 回合并正式结局；Android 长正文操作区修复为正文内部滚动、选项固定在底部，并提高 Ollama 生成预算、清理 Qwen Markdown/选择元话术。玩家评分暂为 93/100。不同题材世界、Android release/真机和 Windows 原生安装仍未通过；若后续两轮评分无提升，停止本 Goal。
 证据见 `vnext/eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
 
+phase135–136 尝试不同题材和复核发布 gate，但没有取得可复核的新玩家分值；连续两轮保持 93，按退出机制停止本 Goal。后续需在可控输入环境、Android release/真机和 Windows 原生环境补齐证据后再开启新 Goal。
+证据见 `vnext/eval/evidence/phase135-genre-and-release-gate-review.json`、`vnext/eval/evidence/phase136-no-score-exit-review.json`。
+
 ## 当前玩家矩阵（实现后暂定）
 
 | 玩家维度 | 满分 | 当前贡献 | 主要缺口 |

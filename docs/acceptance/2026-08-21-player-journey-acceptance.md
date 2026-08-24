@@ -287,6 +287,14 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 
 证据：`vnext/eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
 
+## Phase 135–136：去模板化与 Goal 退出
+
+- [x] 尝试从创建向导启动不同题材世界；由于模拟器 adb 无法可靠替换多行文本，未将失败尝试计为通过。
+- [x] 复核 Android release/真机和 Windows 原生安装门槛；当前仍只有 Android debug 模拟器和 macOS 包证据。
+- [x] Phase 135、136 连续两轮玩家评分保持 93；按退出机制停止继续改动。
+
+证据：`vnext/eval/evidence/phase135-genre-and-release-gate-review.json`、`vnext/eval/evidence/phase136-no-score-exit-review.json`。
+
 ## 评分规则
 
 以下六项分别评分；任何一项 P0 未通过时，总可玩性封顶 30 分：
