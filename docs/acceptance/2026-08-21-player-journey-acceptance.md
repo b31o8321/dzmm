@@ -258,6 +258,12 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端全量 132 项测试、Ruff、Flutter 24 项/analyze、APK 构建通过；APK SHA-256 为 `e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad`，已安装至 `emulator-5554`。
 - [ ] 新世界使用响应的本机 Qwen 完成长局人工验收；若连续两轮玩家评分没有明显提升，按 Goal 退出机制停止继续改动。
 
+## Phase 131：AI 世界长局扩展
+
+- [x] AI 世界的三章 compact story 扩为十章，第三至第九章提供地点追查和 NPC 询问桥接选择，第十章才进入终局；桌面和 Android embedded 共用 helper。
+- [x] 最新 APK 在本地模拟器从新世界创建开始验收，第三回合仍显示“线索推进 2”和下一步选项，没有提前结束；玩家评分 91→92。
+- [ ] 仍需用稳定模型完成完整 10–30 回合，并完成不同题材和三端安装包的回归；若连续两轮评分不变，按 Goal 退出。
+
 证据：`vnext/eval/evidence/phase129-player-experience-goal.json`。
 
 ## 评分规则

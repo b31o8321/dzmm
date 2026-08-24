@@ -138,7 +138,9 @@ def test_ai_draft_is_ephemeral_then_composes_and_reaches_a_python_ending(migrate
     assert body["repairs"] == ["removed Markdown code fence"]
     assert body["world_definition"]["schema_version"] == 3
     assert body["world_definition"]["ruleset"]["id"] == "hybrid"
-    assert len(body["world_definition"]["story"]["chapters"]) == 3
+    chapters = body["world_definition"]["story"]["chapters"]
+    assert len(chapters) == 10
+    assert chapters[-1]["next_chapter_id"] is None
     assert len(body["world_definition"]["story"]["relationships"]) == 2
     assert "command" not in str(generator.prompts[0]).lower()
     assert table_counts(database) == {
@@ -159,7 +161,19 @@ def test_ai_draft_is_ephemeral_then_composes_and_reaches_a_python_ending(migrate
     assert created.status_code == 201
     run_id = created.json()["run_id"]
 
-    for revision, choice_id in enumerate(("rescue-lan", "lan-testimony", "open-tide-gate")):
+    choice_ids = [
+        "rescue-lan",
+        "lan-testimony",
+        "investigate-3",
+        "ask-4",
+        "investigate-5",
+        "ask-6",
+        "investigate-7",
+        "ask-8",
+        "investigate-9",
+        "open-tide-gate",
+    ]
+    for revision, choice_id in enumerate(choice_ids):
         chosen = client.post(
             f"/api/v2/runs/{run_id}/choices",
             json={

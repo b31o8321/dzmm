@@ -1,0 +1,66 @@
+{
+  "phase": 131,
+  "title": "AI 新世界长局边界：10 章扩展与 Android 内嵌运行时验收",
+  "date": "2026-08-24",
+  "scope": [
+    "修复 AI 世界只生成三章、玩家三回合即进入结局的可玩性阻断",
+    "让桌面 AI 草案和 Android embedded 安全映射共用同一长局扩展 helper",
+    "在本地模拟器中从新世界创建开始，验证第三回合仍有新的调查/询问选项",
+    "确认长局扩展不改变离线固定雾港示例的兼容边界"
+  ],
+  "implementation": {
+    "shared_helper": "vnext/backend/src/dzmm_vnext/generated_world_repair.py:extend_story_for_long_run",
+    "desktop_path": "vnext/backend/src/dzmm_vnext/ai_world_drafts.py",
+    "embedded_path": "vnext/backend/src/dzmm_vnext/generated_world_repair.py",
+    "behavior": "AI 生成的三章 compact story 被扩为 ch1-ch10；ch3-ch9 提供地点追查/NPC 询问桥接选择，ch10 才是终局；Python 仍拥有 effects 和结局裁判。"
+  },
+  "player_rounds": [
+    {
+      "round": 1,
+      "focus": "新 APK 与响应模型重建",
+      "evidence": [
+        "/tmp/dzmm-goal131-draft3c.png",
+        "/tmp/dzmm-goal131-draft3-bottom.png",
+        "/tmp/dzmm-goal131-new-world-created.png"
+      ],
+      "observation": "最新 APK 中从创建入口重试后生成了与输入一致的月影港/潮汐之塔、林墨/苏晚晴/老渔夫/海妖莉娅等素材；首次 Qwen 草案不足时显示不可创建并允许重试，没有创建半成品。",
+      "score": {"previous": 91, "current": 91, "delta": 0}
+    },
+    {
+      "round": 2,
+      "focus": "新 Run 前三回合的长局边界",
+      "evidence": [
+        "/tmp/dzmm-goal131-newrun-turn1.png",
+        "/tmp/dzmm-goal131-newrun-options1.png",
+        "/tmp/dzmm-goal131-newrun-turn2.png",
+        "/tmp/dzmm-goal131-newrun-turn3.png"
+      ],
+      "observation": "第三回合完成后仍停留在‘线索推进 2’，底部继续提供‘在潮汐之塔追查新线索’和‘向苏晚晴询问进展’，没有像 phase130 一样三回合即进入正式结局；正文继续引用当前世界角色、地点和海妖对话。",
+      "score": {"previous": 91, "current": 92, "delta": 1}
+    }
+  ],
+  "verification": {
+    "emulator": "dzmm-ux-api36 / emulator-5554",
+    "adb_reverse": "tcp:11434 -> host Ollama",
+    "model": "qwen2.5:7b",
+    "apk_sha256": "a562753214a13ccccd60b8e31cf7e8865524bfe5b8623d06423859b056e318f8",
+    "apk_installed": true,
+    "backend_tests": "132 passed",
+    "ruff": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "24 passed",
+    "code_quality": "shared helper removes duplicate desktop/embedded long-run logic"
+  },
+  "score": {
+    "previous": 91,
+    "current": 92,
+    "reason": "三回合提前结局这一项玩家阻断已解除，并在新世界 Android 旅程中看到第三回合仍可继续；因尚未完成完整 10–30 回合和跨平台安装回归，只增加 1 分。"
+  },
+  "remaining_gates": [
+    "用更稳定的 Qwen 配置完成 10–30 回合完整长局，观察桥接选择是否产生足够叙事变化而非重复填充",
+    "用至少一个不同题材新世界验证去模板化和事件/NPC因果",
+    "补齐 macOS、Windows、Android 安装包的冷启动、重启、恢复证据",
+    "继续明确 Legacy 旧版存档只读/导出策略；当前 Next 不自动迁移旧版数据库"
+  ],
+  "stop_rule": "本轮玩家评分 91→92，暂不触发连续两轮无提升退出；若后续两轮真实玩家体验均无明显提升，则停止 Goal。"
+}

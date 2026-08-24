@@ -6,6 +6,57 @@ from typing import Any
 from .world_templates import fog_harbor_template
 
 
+def extend_story_for_long_run(
+    definition: dict[str, Any],
+    world_name: str,
+    locations: list[str],
+    character_names: list[str],
+) -> bool:
+    """Extend the compact three-chapter AI skeleton into a playable campaign."""
+
+    story = definition.get("story")
+    chapters = story.get("chapters") if isinstance(story, dict) else None
+    if (
+        not isinstance(chapters, list)
+        or len(chapters) != 3
+        or len(locations) < 2
+        or not character_names
+    ):
+        return False
+    terminal = deepcopy(chapters.pop())
+    terminal["id"] = "ch10"
+    terminal["order"] = 10
+    terminal["next_chapter_id"] = None
+    terminal["title"] = f"{locations[1]}的最终决断"
+    terminal["choices"][0]["label"] = f"在{locations[1]}完成关键行动"
+    terminal["choices"][1]["label"] = "暂缓行动，等待下一次潮汐"
+    for order in range(3, 10):
+        location = locations[(order - 1) % len(locations)]
+        character = character_names[(order - 3) % len(character_names)]
+        chapters.append(
+            {
+                "id": f"ch{order}",
+                "title": f"{world_name}·线索推进 {order - 2}",
+                "order": order,
+                "next_chapter_id": f"ch{order + 1}",
+                "choices": [
+                    {
+                        "id": f"investigate-{order}",
+                        "label": f"在{location}追查新线索",
+                        "effects": [],
+                    },
+                    {
+                        "id": f"ask-{order}",
+                        "label": f"向{character}询问进展",
+                        "effects": [],
+                    },
+                ],
+            }
+        )
+    chapters.append(terminal)
+    return True
+
+
 def repair_generated_definition(definition: Any) -> tuple[dict[str, Any], list[str]]:
     """Fill only chapter/link metadata derivable from the model's own draft."""
 
@@ -209,6 +260,13 @@ def _rename_story_surface(definition: dict[str, Any]) -> bool:
                 if choices[index].get("label") != label:
                     choices[index]["label"] = label
                     changed = True
+    if extend_story_for_long_run(
+        definition,
+        str(definition.get("name", "世界")),
+        location_names,
+        character_names,
+    ):
+        changed = True
     return changed
 
 

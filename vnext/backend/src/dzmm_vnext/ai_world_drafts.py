@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from .contracts import contract_validator
+from .generated_world_repair import extend_story_for_long_run
 from .model_profiles import ModelDraftGenerator, ModelProfileService, NarrationError
 from .narrative import NarrativeRuleError, validate_definition
 from .operation_control import OperationRegistry
@@ -475,6 +476,12 @@ def _rename_story_surface(
     chapters[2]["title"] = f"{locations[1]}的决断"
     chapters[2]["choices"][0]["label"] = f"在{locations[1]}完成关键行动"
     chapters[2]["choices"][1]["label"] = "暂缓行动"
+    extend_story_for_long_run(
+        definition,
+        world_name,
+        locations,
+        [character.name for character in characters],
+    )
 
 
 def _pydantic_issues(error: PydanticValidationError, prefix: str = "") -> list[DraftIssue]:

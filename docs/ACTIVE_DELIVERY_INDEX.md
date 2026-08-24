@@ -203,6 +203,7 @@ phase128 处理本轮玩家反馈的整组 P0/P1：世界详情新增永久删�
 
 phase129 按玩家体验 Goal 连续做了三轮可感知改进：当前回合先显示主要结果并把其他变化收进可展开入口；叙事请求增加最近行动、未完成剧情线、活动事件和按关键词触发的世界书分层记忆；Android“当前状态”集中展示地点、路线、物品、人物关系和线索；NPC 主动联系时紧凑当前卡仍保留“正在等待回应”和下一步提示。真实模拟器截图、回合状态面板和 NPC StoryBeat 契约均有证据；后端 132 项测试、Ruff、Flutter analyze/24 项测试、APK 构建通过，最新 APK SHA-256 为 `e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad`，已安装至 `emulator-5554`。玩家体验评分由 87 提升至 90（+3）；本轮未触发连续两轮无提升，后续若新世界真实体验连续两轮不加分则停止 Goal。证据见 `vnext/eval/evidence/phase129-player-experience-goal.json`。
 phase130 以本地 `dzmm-ux-api36` 模拟器和本机 `qwen2.5:7b` 从创建新世界开始验收：修复 Android 保存模型后的 `setState` 异步回调 P0，并以 commit `699b325` 推送；模型 Probe 最终返回“可用 · protocol response contains content”。新世界草案/开场/前两回合中，地点、角色、NPC 主动联系、线索、路线锁定和下一步选项保持可理解因果；第三回合显示模型截断边界但未写入半回合，随后世界详情与正式好结局页可回顾 3 回合、关键行动、关系/物品，并成功从同一世界创建新 Run。Flutter analyze 和 24 项测试通过，APK SHA-256 为 `bc4600db200c5357d13eb7e03c3ee5535582a265d7991f32d0362a792819b92f`。玩家评分 90→91（+1）；10–30 回合长局、不同题材去模板化和三端安装证据仍未通过。证据见 `vnext/eval/evidence/phase130-new-world-qwen7b-longrun-replay.json`。
+phase131 修复 AI 世界三章即结束的长局阻断：桌面 AI 草案与 Android embedded 安全映射共用 `extend_story_for_long_run`，三章 compact story 扩为 `ch1`–`ch10`，中间章节只提供地点追查/NPC 询问桥接选项，最后一章才允许结局；离线固定雾港模板保持兼容。后端 132 项测试、Ruff、Flutter 24 项/analyze 通过；最新 APK SHA-256 为 `a562753214a13ccccd60b8e31cf7e8865524bfe5b8623d06423859b056e318f8`，已安装模拟器。新世界真实 Android 验收第三回合仍显示“线索推进 2”和两个下一步选项，玩家评分 91→92（+1）；完整 10–30 回合、不同题材和三端安装包证据仍待完成。证据见 `vnext/eval/evidence/phase131-ai-world-long-run-extension.json`。
 
 ### Portable bundle slice
 
