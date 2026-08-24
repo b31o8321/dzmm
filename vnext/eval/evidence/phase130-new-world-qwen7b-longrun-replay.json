@@ -1,0 +1,74 @@
+{
+  "phase": 130,
+  "title": "新世界 Qwen 7B 玩家验收：创建、因果回合、正式结局与重玩",
+  "date": "2026-08-24",
+  "scope": [
+    "从空的 Next 数据开始配置本机 qwen2.5:7b，并验证保存模型后的首次进入路径",
+    "从创建世界开始，用本机 Qwen 7B 生成并确认一个新世界",
+    "验证地点、角色/NPC、事件、选项、结果和 NPC 主动联系之间的玩家可理解因果",
+    "验证模型截断时不写入半个回合、正式结局回顾和同一世界新 Run"
+  ],
+  "player_rounds": [
+    {
+      "round": 1,
+      "focus": "首次模型设置和模型 Probe",
+      "evidence": [
+        "/tmp/dzmm-goal130-models.png",
+        "/tmp/dzmm-goal130-probe2.png",
+        "vnext/mobile/lib/pages/models_page.dart"
+      ],
+      "observation": "首次保存 qwen2.5:7b 时发现并修复了 Flutter setState 异步回调错误；重新安装后模型档案可见，测试连接在等待期间显示阶段/耗时，最终返回“可用 · protocol response contains content”。",
+      "score": {"previous": 90, "current": 90, "delta": 0}
+    },
+    {
+      "round": 2,
+      "focus": "从零创建新世界和前两回合因果",
+      "evidence": [
+        "/tmp/dzmm-goal130-generating.png",
+        "/tmp/dzmm-goal130-draft2.png",
+        "/tmp/dzmm-goal130-review-bottom.png",
+        "/tmp/dzmm-goal130-world-created.png",
+        "/tmp/dzmm-goal130-turn1-current.png",
+        "/tmp/dzmm-goal130-turn1-options.png",
+        "/tmp/dzmm-goal130-turn2-result.png"
+      ],
+      "observation": "新草案明确列出月影港、暗礁岛、林若兮/墨寒/老渔夫/迷雾商人、势力和事件；开场与创建输入一致。第一回合获得关键线索并出现老渔夫主动联系，第二回合选择交付证词后显示林若兮路线锁定，并给出暗礁岛行动/暂缓行动的下一步。",
+      "score": {"previous": 90, "current": 91, "delta": 1}
+    },
+    {
+      "round": 3,
+      "focus": "模型截断恢复、正式结束与重玩",
+      "evidence": [
+        "/tmp/dzmm-goal130-turn3-loading2.png",
+        "/tmp/dzmm-goal130-worlddetail.png",
+        "/tmp/dzmm-goal130-completed-play.png",
+        "/tmp/dzmm-goal130-completed-bottom.png",
+        "/tmp/dzmm-goal130-newrun.png",
+        "/tmp/dzmm-goal130-newrun-started.png"
+      ],
+      "observation": "第三回合等待阶段可见；Qwen 输出被判定为 truncated 时没有出现半个回合写入，世界详情仍显示可恢复的已完成旅程。正式好结局页显示共 3 回合、最终路线、关键行动、物品和 NPC 关系，可回到世界并从同一世界开始新旅程；新 Run 进入新的开场与建议选项。",
+      "score": {"previous": 91, "current": 91, "delta": 0}
+    }
+  ],
+  "verification": {
+    "emulator": "dzmm-ux-api36 / emulator-5554",
+    "adb_reverse": "tcp:11434 -> host Ollama",
+    "model": "qwen2.5:7b",
+    "apk_sha256": "bc4600db200c5357d13eb7e03c3ee5535582a265d7991f32d0362a792819b92f",
+    "apk_installed": true,
+    "flutter_analyze": "passed",
+    "flutter_tests": "24 passed",
+    "fix_commit": "699b325"
+  },
+  "score": {
+    "previous": 90,
+    "current": 91,
+    "reason": "新世界入口、素材映射、前两回合因果、NPC 主动联系、正式结局和同世界重玩均得到真实模拟器证据；模型截断仍暴露了长局稳定性缺口，因此只加 1 分，不把 3 回合结束当作 10–30 回合长局通过。"
+  },
+  "remaining_gates": [
+    "需要响应更稳定的 Qwen 配置完成 10–30 回合长局，确认不会过早结束或长期停在截断恢复",
+    "需要至少一个不同题材的新世界复测，排除模型沿用熟悉角色名的倾向",
+    "Windows/macOS 安装包和 Android 真机仍没有完整安装、重启、恢复证据"
+  ],
+  "stop_rule": "本轮出现一次玩家分提升（90→91），暂不因连续两轮无提升停止；若后续真实新世界验收连续两轮评分不变，停止 Goal。"
+}

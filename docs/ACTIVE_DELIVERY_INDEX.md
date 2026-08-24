@@ -202,6 +202,7 @@ phase127 在同一条玩家路径上继续收口：Android AI 世界草案确认
 phase128 处理本轮玩家反馈的整组 P0/P1：世界详情新增永久删除入口，删除会级联旅程、回合和历史并要求二次确认；Android 操作阶段改为单行横向滚动；草案审阅只显示玩家可理解的素材摘要和可玩性结论，不再暴露 `mechanics`/`canonical` 等修复路径，不可玩草案阻止创建。安全世界映射清理雾港 lorebook、雾灯和旧章节文本，叙事上下文改为当前世界的生成实体；离线模板则明确标注为固定雾港示例。Android 游玩页把历史、当前新内容和选项拆成独立阅读区域，长正文可展开全文；当前卡片的折叠阈值进一步收紧后，模拟器截图已同时看到长文摘要和底部选项。后端 129 项测试、Ruff、Flutter 24 项/analyze、桌面 32 项/构建通过；最新 Android debug APK SHA-256 为 `cff89639321830fd338072fec48e33fd42ad50689226a0edadb32fc19ca338b1`。本地 `dzmm-ux-api36` 已安装并打开该 APK；PC-qwen3-direct 本轮在 120 秒内无返回，界面正确保留单行等待状态且未写入半成品，离线模板草案审阅流程正常。玩家评分暂不变，交由用户用响应的 Qwen 配置人工验收新世界叙事关联性和长历史滚动。证据见 `vnext/eval/evidence/phase128-player-feedback-world-integrity-and-mobile-reading.json`。
 
 phase129 按玩家体验 Goal 连续做了三轮可感知改进：当前回合先显示主要结果并把其他变化收进可展开入口；叙事请求增加最近行动、未完成剧情线、活动事件和按关键词触发的世界书分层记忆；Android“当前状态”集中展示地点、路线、物品、人物关系和线索；NPC 主动联系时紧凑当前卡仍保留“正在等待回应”和下一步提示。真实模拟器截图、回合状态面板和 NPC StoryBeat 契约均有证据；后端 132 项测试、Ruff、Flutter analyze/24 项测试、APK 构建通过，最新 APK SHA-256 为 `e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad`，已安装至 `emulator-5554`。玩家体验评分由 87 提升至 90（+3）；本轮未触发连续两轮无提升，后续若新世界真实体验连续两轮不加分则停止 Goal。证据见 `vnext/eval/evidence/phase129-player-experience-goal.json`。
+phase130 以本地 `dzmm-ux-api36` 模拟器和本机 `qwen2.5:7b` 从创建新世界开始验收：修复 Android 保存模型后的 `setState` 异步回调 P0，并以 commit `699b325` 推送；模型 Probe 最终返回“可用 · protocol response contains content”。新世界草案/开场/前两回合中，地点、角色、NPC 主动联系、线索、路线锁定和下一步选项保持可理解因果；第三回合显示模型截断边界但未写入半回合，随后世界详情与正式好结局页可回顾 3 回合、关键行动、关系/物品，并成功从同一世界创建新 Run。Flutter analyze 和 24 项测试通过，APK SHA-256 为 `bc4600db200c5357d13eb7e03c3ee5535582a265d7991f32d0362a792819b92f`。玩家评分 90→91（+1）；10–30 回合长局、不同题材去模板化和三端安装证据仍未通过。证据见 `vnext/eval/evidence/phase130-new-world-qwen7b-longrun-replay.json`。
 
 ### Portable bundle slice
 
@@ -226,7 +227,7 @@ Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android
 | LLM 反馈和失败恢复 | 15 | 14 | 阶段、耗时、取消、零写入、重试、因果结果和缺少结构化选项的恢复已验证；安装包恢复和真实流式待验收 |
 | 正式结局与重玩 | 15 | 14 | 正式结局、回顾、回 World、新 Run 已在本地模拟器验证；三端安装包待验收 |
 | 三端一致性与安装证据 | 10 | 7 | macOS 包和 Android 本地模拟器已验证；Windows 包和跨端旅程缺证据 |
-| **玩家可玩性（暂定）** | **100** | **90** | **仍有发布阻断，不能宣称完成；新世界 Qwen 长局一致性仍待人工复测** |
+| **玩家可玩性（暂定）** | **100** | **91** | **仍有发布阻断，不能宣称完成；10–30 回合新世界长局、不同题材去模板化和三端安装证据仍待复测** |
 
 工程能力继续由测试、lint、构建、状态回读、portable 和打包证据单独记录，不与玩家分数平均。
 
