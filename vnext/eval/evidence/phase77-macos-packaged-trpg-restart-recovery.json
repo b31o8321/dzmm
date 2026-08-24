@@ -1,0 +1,23 @@
+{
+  "phase": 77,
+  "name": "macos-packaged-trpg-restart-recovery",
+  "date": "2026-08-21",
+  "status": "packaged-host-verified",
+  "scope": "This is an installed-package Host/API persistence check, not a replacement for macOS WebView, Windows, or Android physical-device UI acceptance.",
+  "journey": {
+    "package": "DZMM Next.app rebuilt after phase 76",
+    "ruleset": "minimal valid trpg definition; narrative fog-harbor ruleset was intentionally not used for free-action turns",
+    "turns": 30,
+    "revision_before_exit": 30,
+    "revision_after_relaunch": 30,
+    "turn_count_after_relaunch": 30,
+    "reopened_after_restart": true,
+    "result": "pass"
+  },
+  "boundary_check": "A narrative ruleset free-action request returned the explicit 409 choice-endpoint error; the valid trpg ruleset accepted free narrate turns. The player-facing choice/free-action capability boundary is therefore enforced by Python rather than inferred by the UI.",
+  "remaining": [
+    "macOS packaged WebView UI A-F and accessibility pass",
+    "Windows native package and WebView journey",
+    "Android physical-device journey and recovery"
+  ]
+}

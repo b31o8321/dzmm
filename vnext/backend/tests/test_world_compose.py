@@ -62,6 +62,26 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
         "inventory": [],
         "entities": {},
         "events": {},
+        "location_state": {
+            "harbor": {
+                "known": True,
+                "visited_turns": [0],
+                "last_visited_turn": 0,
+                "scene_state": {},
+            },
+            "lighthouse": {
+                "known": False,
+                "visited_turns": [],
+                "last_visited_turn": None,
+                "scene_state": {},
+            },
+        },
+        "npc_state": {},
+        "faction_state": {},
+        "campaign_state": None,
+        "active_events": [],
+        "plot_threads": [],
+        "pending_interactions": [],
         "chapter": None,
         "route": None,
         "flags": {},
@@ -87,6 +107,58 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
     assert recovered.status_code == 200
     assert recovered.json()["state"] == created["state"]
     assert recovered.json()["turns"] == []
+    assert recovered.json()["story_beats"][0]["kind"] == "opening"
+
+
+def test_existing_world_can_start_idempotent_new_run_with_persisted_opening(migrated_client) -> None:
+    client, _ = migrated_client
+    created = client.post(
+        "/api/v2/worlds:compose", json=compose_payload("compose-for-new-run")
+    ).json()
+    payload = {
+        "request_id": "start-second-run",
+        "world_version_id": created["world_version_id"],
+        "hero": {"name": "Nora", "profile": {"origin": "surveyor"}},
+    }
+
+    first = client.post(f"/api/v2/worlds/{created['world_id']}/runs", json=payload)
+    replay = client.post(f"/api/v2/worlds/{created['world_id']}/runs", json=payload)
+
+    assert first.status_code == 201
+    assert replay.status_code == 200
+    assert replay.json()["run_id"] == first.json()["run_id"]
+    assert first.json()["run_id"] != created["run_id"]
+    assert "Nora" in first.json()["opening"]["narrative"]
+    snapshot = client.get(f"/api/v2/runs/{first.json()['run_id']}").json()
+    assert snapshot["state"]["revision"] == 0
+    assert snapshot["turns"] == []
+    assert snapshot["story_beats"][0]["sequence"] == 0
+    assert {
+        key: value
+        for key, value in snapshot["story_beats"][0].items()
+        if key not in {"id", "sequence"}
+    } == first.json()["opening"]
+
+
+def test_new_run_rejects_archived_world_without_partial_write(migrated_client) -> None:
+    client, database = migrated_client
+    created = client.post(
+        "/api/v2/worlds:compose", json=compose_payload("compose-before-archive")
+    ).json()
+    client.post(f"/api/v2/worlds/{created['world_id']}:archive")
+
+    response = client.post(
+        f"/api/v2/worlds/{created['world_id']}/runs",
+        json={
+            "request_id": "blocked-new-run",
+            "hero": {"name": "Never Created", "profile": {}},
+        },
+    )
+
+    assert response.status_code == 422
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM run_create_requests").fetchone()[0] == 0
 
 
 def test_compose_rejects_reused_request_id_with_different_input(migrated_client) -> None:

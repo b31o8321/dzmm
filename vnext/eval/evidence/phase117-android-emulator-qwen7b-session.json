@@ -1,0 +1,24 @@
+{
+  "phase": "phase117-android-emulator-qwen7b-session",
+  "date": "2026-08-21",
+  "status": "ready-for-manual-player-feedback",
+  "emulator": {
+    "avd": "dzmm-ux-api36",
+    "device": "emulator-5554",
+    "model": "sdk_gphone64_arm64",
+    "boot_completed": true
+  },
+  "app": {
+    "package": "local.dzmm.dzmm_next_mobile",
+    "apk_sha256": "1b108e7bcfbd77d1e879f45b08d092d76b83ae4cd58fac15dd32a15312624dfe",
+    "install": "adb install -r succeeded"
+  },
+  "model": {
+    "provider": "ollama",
+    "model_name": "qwen2.5:7b",
+    "base_url": "http://10.0.2.2:11434",
+    "transport": "adb reverse tcp:11434 tcp:11434",
+    "probe": "可用 · protocol response contains content"
+  },
+  "manual_boundary": "Existing emulator worlds and runs were preserved; the app is left on the World list for player feedback. Full A-F and 30-turn evidence is not claimed."
+}

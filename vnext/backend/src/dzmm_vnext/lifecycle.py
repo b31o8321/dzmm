@@ -13,10 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from .persistence import (
     compose_requests,
     heroes,
-    mobile_devices,
+    lifecycle_audit_events,
     model_profiles,
-    pairing_requests,
+    run_create_requests,
     runs,
+    story_beats,
     turns,
     world_versions,
     worlds,
@@ -57,10 +58,32 @@ class WorldSummary(BaseModel):
     run_count: int
     lorebook_entry_count: int
     character_card_count: int
+    latest_run_id: str | None
+
+
+class RunSummary(BaseModel):
+    id: str
+    world_version_id: str
+    hero_id: str
+    hero_name: str
+    status: str
+    revision: int
+    model_profile_id: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class WorldDetail(WorldSummary):
     definition: dict[str, Any]
+    runs: list[RunSummary]
+
+
+class LifecycleAuditEvent(BaseModel):
+    id: str
+    action: str
+    world_id: str
+    snapshot: dict[str, Any]
+    created_at: datetime
 
 
 class WorldNotFoundError(ValueError):
@@ -81,24 +104,40 @@ class WorldLifecycle:
 
     async def archive(self, world_id: str) -> str:
         async with self._session_factory() as session, session.begin():
-            result = await session.execute(select(worlds.c.status).where(worlds.c.id == world_id))
-            status = result.scalar_one_or_none()
-            if status is None:
+            result = await session.execute(
+                select(worlds.c.name, worlds.c.status).where(worlds.c.id == world_id)
+            )
+            world = result.mappings().one_or_none()
+            if world is None:
                 raise WorldNotFoundError("world not found")
-            if status == "archived":
-                return status
+            if world["status"] == "archived":
+                return world["status"]
             await session.execute(worlds.update().where(worlds.c.id == world_id).values(status="archived"))
+            await self._record_audit(
+                session,
+                action="archive",
+                world_id=world_id,
+                snapshot={"world_name": world["name"], "before_status": "active", "after_status": "archived"},
+            )
             return "archived"
 
     async def restore(self, world_id: str) -> str:
         async with self._session_factory() as session, session.begin():
-            result = await session.execute(select(worlds.c.status).where(worlds.c.id == world_id))
-            status = result.scalar_one_or_none()
-            if status is None:
+            result = await session.execute(
+                select(worlds.c.name, worlds.c.status).where(worlds.c.id == world_id)
+            )
+            world = result.mappings().one_or_none()
+            if world is None:
                 raise WorldNotFoundError("world not found")
-            if status == "active":
-                return status
+            if world["status"] == "active":
+                return world["status"]
             await session.execute(worlds.update().where(worlds.c.id == world_id).values(status="active"))
+            await self._record_audit(
+                session,
+                action="restore",
+                world_id=world_id,
+                snapshot={"world_name": world["name"], "before_status": "archived", "after_status": "active"},
+            )
             return "active"
 
     async def list_worlds(self) -> list[WorldSummary]:
@@ -109,7 +148,11 @@ class WorldLifecycle:
     async def get_world(self, world_id: str) -> WorldDetail:
         async with self._session_factory() as session:
             summary, definition = await self._summary_and_definition(session, world_id)
-            return WorldDetail(**summary.model_dump(), definition=definition)
+            return WorldDetail(
+                **summary.model_dump(),
+                definition=definition,
+                runs=await self._runs(session, world_id),
+            )
 
     async def create_version(
         self, world_id: str, payload: WorldVersionInput
@@ -136,7 +179,11 @@ class WorldLifecycle:
                 worlds.update().where(worlds.c.id == world_id).values(name=payload.definition["name"])
             )
             summary, definition = await self._summary_and_definition(session, world_id)
-            return WorldDetail(**summary.model_dump(), definition=definition)
+            return WorldDetail(
+                **summary.model_dump(),
+                definition=definition,
+                runs=await self._runs(session, world_id),
+            )
 
     async def manifest(self, world_id: str) -> PurgeManifest:
         async with self._session_factory() as session:
@@ -149,16 +196,53 @@ class WorldLifecycle:
                 raise PurgeConfirmationError("purge confirmation token is stale or invalid")
             if manifest.world_name != confirmation.world_name:
                 raise PurgeConfirmationError("purge confirmation world name does not match")
-            version_ids = select(world_versions.c.id).where(world_versions.c.world_id == world_id)
-            hero_result = await session.execute(
-                select(runs.c.hero_id).where(runs.c.world_version_id.in_(version_ids))
+            await self._record_audit(
+                session,
+                action="purge",
+                world_id=world_id,
+                snapshot={"world_name": manifest.world_name, "tables": manifest.tables},
             )
-            hero_ids = list(hero_result.scalars())
-            await session.execute(delete(runs).where(runs.c.world_version_id.in_(version_ids)))
-            if hero_ids:
-                await session.execute(delete(heroes).where(heroes.c.id.in_(hero_ids)))
-            await session.execute(delete(worlds).where(worlds.c.id == world_id))
+            await self._delete_world(session, world_id)
             return manifest
+
+    async def audit_events(self, world_id: str) -> list[LifecycleAuditEvent]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(lifecycle_audit_events)
+                .where(lifecycle_audit_events.c.world_id == world_id)
+                .order_by(lifecycle_audit_events.c.created_at, lifecycle_audit_events.c.id)
+            )
+            rows = result.mappings().all()
+        return [LifecycleAuditEvent(**row) for row in rows]
+
+    async def _record_audit(
+        self,
+        session: AsyncSession,
+        *,
+        action: str,
+        world_id: str,
+        snapshot: dict[str, Any],
+    ) -> None:
+        await session.execute(
+            insert(lifecycle_audit_events).values(
+                id=str(uuid4()),
+                action=action,
+                world_id=world_id,
+                snapshot=snapshot,
+                created_at=datetime.now(UTC).replace(tzinfo=None),
+            )
+        )
+
+    async def _delete_world(self, session: AsyncSession, world_id: str) -> None:
+        version_ids = select(world_versions.c.id).where(world_versions.c.world_id == world_id)
+        hero_result = await session.execute(
+            select(runs.c.hero_id).where(runs.c.world_version_id.in_(version_ids))
+        )
+        hero_ids = list(hero_result.scalars())
+        await session.execute(delete(runs).where(runs.c.world_version_id.in_(version_ids)))
+        if hero_ids:
+            await session.execute(delete(heroes).where(heroes.c.id.in_(hero_ids)))
+        await session.execute(delete(worlds).where(worlds.c.id == world_id))
 
     async def _manifest(self, session: AsyncSession, world_id: str) -> PurgeManifest:
         world = await session.execute(select(worlds.c.name).where(worlds.c.id == world_id))
@@ -172,11 +256,19 @@ class WorldLifecycle:
             "world_versions": await _count(session, world_versions.c.id, world_versions.c.world_id == world_id),
             "runs": await _count(session, runs.c.id, runs.c.world_version_id.in_(version_ids)),
             "turns": await _count(session, turns.c.id, turns.c.run_id.in_(run_ids)),
+            "story_beats": await _count(
+                session, story_beats.c.id, story_beats.c.run_id.in_(run_ids)
+            ),
             "heroes": await _count(session, runs.c.hero_id, runs.c.world_version_id.in_(version_ids)),
             "compose_requests": await _count(
                 session,
                 compose_requests.c.request_id,
                 compose_requests.c.world_id == world_id,
+            ),
+            "run_create_requests": await _count(
+                session,
+                run_create_requests.c.request_id,
+                run_create_requests.c.world_id == world_id,
             ),
         }
         token = hashlib.sha256(
@@ -211,6 +303,12 @@ class WorldLifecycle:
         )
         version_ids = select(world_versions.c.id).where(world_versions.c.world_id == world_id)
         run_count = await _count(session, runs.c.id, runs.c.world_version_id.in_(version_ids))
+        latest_run = await session.execute(
+            select(runs.c.id)
+            .where(runs.c.world_version_id.in_(version_ids))
+            .order_by(runs.c.updated_at.desc(), runs.c.id.desc())
+            .limit(1)
+        )
         definition = latest["definition"]
         return WorldSummary(
             id=world_id,
@@ -222,7 +320,28 @@ class WorldLifecycle:
             run_count=run_count,
             lorebook_entry_count=len(definition["lorebook"]["entries"]),
             character_card_count=len(definition["character_cards"]),
+            latest_run_id=latest_run.scalar_one_or_none(),
         )
+
+    async def _runs(self, session: AsyncSession, world_id: str) -> list[RunSummary]:
+        result = await session.execute(
+            select(
+                runs.c.id,
+                runs.c.world_version_id,
+                runs.c.hero_id,
+                heroes.c.name.label("hero_name"),
+                runs.c.status,
+                runs.c.state_revision.label("revision"),
+                runs.c.model_profile_id,
+                runs.c.created_at,
+                runs.c.updated_at,
+            )
+            .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+            .join(heroes, heroes.c.id == runs.c.hero_id)
+            .where(world_versions.c.world_id == world_id)
+            .order_by(runs.c.updated_at.desc(), runs.c.id.desc())
+        )
+        return [RunSummary(**row) for row in result.mappings()]
 
     async def _latest_version(self, session: AsyncSession, world_id: str):
         result = await session.execute(
@@ -256,11 +375,20 @@ async def integrity_scan(session_factory: async_sessionmaker[AsyncSession]) -> d
             "turns_without_run": select(func.count())
             .select_from(turns.outerjoin(runs))
             .where(runs.c.id.is_(None)),
+            "story_beats_without_run": select(func.count())
+            .select_from(story_beats.outerjoin(runs))
+            .where(runs.c.id.is_(None)),
             "compose_requests_without_world": select(func.count())
             .select_from(compose_requests.outerjoin(worlds))
             .where(worlds.c.id.is_(None)),
             "compose_requests_without_run": select(func.count())
             .select_from(compose_requests.outerjoin(runs))
+            .where(runs.c.id.is_(None)),
+            "run_create_requests_without_world": select(func.count())
+            .select_from(run_create_requests.outerjoin(worlds))
+            .where(worlds.c.id.is_(None)),
+            "run_create_requests_without_run": select(func.count())
+            .select_from(run_create_requests.outerjoin(runs))
             .where(runs.c.id.is_(None)),
         }
         return {name: (await session.execute(statement)).scalar_one() for name, statement in checks.items()}
@@ -275,9 +403,8 @@ async def diagnostic_snapshot(session_factory: async_sessionmaker[AsyncSession])
             "heroes": await _table_count(session, heroes),
             "runs": await _table_count(session, runs),
             "turns": await _table_count(session, turns),
+            "story_beats": await _table_count(session, story_beats),
             "model_profiles": await _table_count(session, model_profiles),
-            "mobile_devices": await _table_count(session, mobile_devices),
-            "pairing_requests": await _table_count(session, pairing_requests),
         }
     orphans = await integrity_scan(session_factory)
     return {"aggregate_counts": counts, "integrity": {"clean": not any(orphans.values()), "orphans": orphans}}

@@ -5,9 +5,8 @@ Revises: 0003_model_profiles
 Create Date: 2026-08-16
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0004_run_model_profile"
 down_revision = "0003_model_profiles"

@@ -1,0 +1,47 @@
+{
+  "phase": "phase61-android-portable-roundtrip",
+  "captured_at": "2026-08-20",
+  "status": "verified-android-emulator-run-export-and-clone",
+  "counted_in_current_matrix": true,
+  "device": {
+    "serial": "emulator-5554",
+    "avd": "dzmm-ux-api36",
+    "android_api": 36,
+    "apk_sha256": "00b386d577b0d71be400885f050ffa7cc74655ba4ed1bc770858066e9aef6d44"
+  },
+  "journey": [
+    "Opened Settings > 数据携带 and exported the active 30-turn Run through the Android system save picker to Downloads.",
+    "The UI confirmed that import creates a new Run ID and does not overwrite the source.",
+    "Opened the Android system picker, selected the exported JSON, and imported it through the embedded Python clone_run path.",
+    "The app returned to Play on the cloned Run; the cloned UI displayed revision 30 and the same persisted turn history."
+  ],
+  "portable_readback": {
+    "download_file": "/sdcard/Download/dzmm-run-bfd87a5a-bad4-46f2-a43e-29661e406f14.json",
+    "source_run_id": "bfd87a5a-bad4-46f2-a43e-29661e406f14",
+    "cloned_run_id": "c1ed283d-71c5-48f3-b55d-7925a6e7e580",
+    "source_and_clone_ids_distinct": true,
+    "worlds": 2,
+    "world_versions": 2,
+    "heroes": 2,
+    "runs": 2,
+    "turns": 60,
+    "source_revision": 30,
+    "clone_revision": 30
+  },
+  "screenshots": [
+    "screens/phase61-android-portable/01-settings.png",
+    "screens/phase61-android-portable/02-export-picker.png",
+    "screens/phase61-android-portable/03-exported-notice.png",
+    "screens/phase61-android-portable/04-import-picker.png",
+    "screens/phase61-android-portable/05-clone-reopened.png"
+  ],
+  "limits": [
+    "This proves Android Run export/clone; desktop-to-Android and Android-to-desktop round-trip remain open.",
+    "Corrupt bundle zero-write and model credential exclusion remain covered by backend tests, not this device journey."
+  ],
+  "maturity": {
+    "content_interop": {"before": 68, "after": 78},
+    "android_local_host": {"before": 76, "after": 80},
+    "overall": {"before": 67, "after": 70}
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "phase": "phase106",
+  "date": "2026-08-21",
+  "status": "macos-packaged-webview-window-gate-failed",
+  "environment": {
+    "os": "macOS 26.3.1 (25D771280a)",
+    "arch": "arm64",
+    "tauri": "2.10.3",
+    "tao": "0.34.8",
+    "wry": "0.54.4",
+    "artifact_sha256": "2f37ac3441f12e4fcf98879bad3290f082c8dbc2182c5b958d60d56645340230"
+  },
+  "observations": [
+    "The release app was launched first from the build bundle and then directly from the read-only mounted DMG, with isolated data and port 18766.",
+    "In both runs the packaged sidecar listened on 127.0.0.1:18766 and returned a valid local-only health response.",
+    "The dzmm-next-desktop process stayed alive, but System Events reported zero windows and CoreGraphics had no DZMM window to capture; activating the bundle identifier did not change that state.",
+    "Temporary diagnostics confirmed that setup found the configured main WebView; explicitly creating a second diagnostic WebView also produced no WindowServer window. The diagnostic code was removed.",
+    "The DMG app and sidecar were quit cleanly after the check, the image was detached, and no process remained on the isolated port."
+  ],
+  "separate_fix": {
+    "problem": "Vite selected IPv6 localhost while tauri.conf waited on 127.0.0.1:5182, so tauri dev never launched the desktop binary.",
+    "change": "vite.config now binds 127.0.0.1 explicitly and uses strictPort; tauri dev progressed to the native DevCommand after the change."
+  },
+  "assessment": [
+    "This is a P0 package-player-entry failure on the current macOS machine; a healthy Host is not acceptance evidence for a visible app.",
+    "A Tauri upstream report describes a similar macOS 26 GUI lifecycle failure, but it uses newer Tauri/tao and macOS versions, so the shared root cause is an inference rather than confirmed.",
+    "A later isolated dependency experiment is recorded separately in phase107; phase106 itself intentionally left the product dependency versions unchanged."
+  ],
+  "related_upstream": "https://github.com/tauri-apps/tauri/issues/15517",
+  "not_proven": [
+    "Whether the same DMG opens a native window on macOS 14 or 15.",
+    "Whether a future Tauri/tao release resolves macOS 26.3.1.",
+    "Windows native and Android physical-device package journeys remain unrun."
+  ]
+}

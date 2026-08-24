@@ -1,0 +1,28 @@
+{
+  "phase": "phase65-pc-qwen3-json-schema-gate",
+  "captured_at": "2026-08-20",
+  "status": "verified-pc-qwen3-direct-json-schema-validation-gate",
+  "counted_in_current_matrix": true,
+  "provider": {
+    "provider_type": "lm_studio",
+    "base_url": "http://192.168.31.169:1234/v1",
+    "model_name": "huihui-ai_qwen3-14b-abliterated",
+    "response_format": "json_schema (strict)"
+  },
+  "journey": [
+    "The PC LM Studio endpoint was reachable and advertised the qwen3 14B model.",
+    "The first request exposed an HTTP 400 caused by non-JSON model output; the adapter now requests LM Studio json_schema output.",
+    "A subsequent request returned parseable JSON in 17.8 seconds.",
+    "Strict JSON syntax still contained semantic/type mismatches; Python WorldDefinition validation rejected the draft and returned a repairable validation result; no World or Run was created."
+  ],
+  "readback": {
+    "worlds": 0,
+    "runs": 0,
+    "state_mutation": false,
+    "validation_issue": "invalid WorldDefinition: 'character_card_id'"
+  },
+  "limits": [
+    "The model output still omitted or mistyped several canonical narrative fields, so this is not a successful arbitrary-world compose.",
+    "The next step is richer schema guidance or a user-visible repair/edit loop; Python remains the final state judge."
+  ]
+}

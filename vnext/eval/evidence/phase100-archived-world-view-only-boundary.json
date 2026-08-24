@@ -1,0 +1,25 @@
+{
+  "phase": "phase100",
+  "date": "2026-08-21",
+  "status": "archived-world-view-only-boundary-verified",
+  "player_behavior": [
+    "After a World is archived, desktop and Android keep existing Runs visible for review but disable Continue and New Run actions instead of letting the player enter a server-rejected path.",
+    "Restoring the World remains the explicit action that re-enables both continuing and starting independent Runs."
+  ],
+  "automated_checks": {
+    "flutter_tests": "17 passed",
+    "flutter_analyze": "passed",
+    "desktop_tests": "17 passed across 6 files",
+    "desktop_build": "passed",
+    "cargo_check": "passed",
+    "git_diff_check": "passed",
+    "package_sha256": {
+      "android_debug_apk": "aac0727774590f34a3db5065e627ec2ad4dc5c732f8b422b9dee9e5f9f08b452",
+      "macos_arm64_dmg": "030bd966f2147fcddc9d3bda7f2366bf1f420ce6f389b8fe1b0a2a90568c20ca"
+    }
+  },
+  "not_proven": [
+    "The archived-world behavior is not yet verified through the packaged macOS WebView, Windows package or an Android physical device.",
+    "Android physical-device and Windows release acceptance remain blocked by the environment."
+  ]
+}

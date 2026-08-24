@@ -1,0 +1,28 @@
+{
+  "phase": "phase105",
+  "date": "2026-08-21",
+  "status": "player-model-timeout-feedback-aligned",
+  "player_behavior": [
+    "Desktop narration, desktop streaming turns, world drafting and Android embedded model calls have an explicit 120-second request boundary; model probes keep their shorter 10-second boundary.",
+    "Timeout feedback now tells the player how long the model was given, that no result was written, and to wait for model loading, retry, or choose a faster model.",
+    "Connection failures tell the player to check the model service, complete address and device reachability without leaking httpx, urllib or Python exception names.",
+    "The Android MethodChannel adapter removes the CoreRuntimeError class prefix before any runtime error reaches a player surface."
+  ],
+  "automated_checks": {
+    "backend_full_tests": "112 passed; Ruff passed",
+    "flutter_tests": "19 passed",
+    "flutter_analyze": "passed",
+    "desktop_tests": "27 passed across 11 files",
+    "desktop_build": "passed",
+    "cargo_check": "passed",
+    "git_diff_check": "passed",
+    "packaged_macos_sidecar_health": "passed on isolated data and port 18765 (local storage, 127.0.0.1 host)",
+    "android_debug_apk_sha256": "cb3355cb2845392dc88739968eed836412d625a6b9ffc11ef6f1f5d71e11c404",
+    "macos_arm64_dmg_sha256": "2f37ac3441f12e4fcf98879bad3290f082c8dbc2182c5b958d60d56645340230"
+  },
+  "not_proven": [
+    "The rebuilt Android APK cannot be installed because adb devices is empty.",
+    "Windows native packaging and the rebuilt macOS packaged WebView A-F journey remain unrun.",
+    "A real provider was not deliberately held beyond 120 seconds; deterministic transport tests prove the timeout mapping and package builds prove inclusion."
+  ]
+}

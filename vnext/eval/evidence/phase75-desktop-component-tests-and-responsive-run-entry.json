@@ -1,0 +1,49 @@
+{
+  "phase": 75,
+  "name": "desktop-component-tests-and-responsive-run-entry",
+  "date": "2026-08-21",
+  "status": "component-browser-and-package-verified",
+  "changes": {
+    "component_boundary": "WorldRunLauncher now owns the player-facing continue/latest Run, existing Run list, and independent new Run form; archive, purge and lorebook authoring remain in App orchestration.",
+    "component_tests": [
+      "OperationStatus: slow-model elapsed state, stages and cancellation boundary",
+      "PlayScene: opening narrative/dialogue/guidance/state feedback/choice and formal ending actions",
+      "WorldRunLauncher: continue existing Run and open an independent new Run form"
+    ],
+    "responsive_fix": "At <=720px, choice-deck now resets to grid column 1 instead of creating an implicit second column that compressed Run state."
+  },
+  "verification": {
+    "desktop_component_tests": "3 files, 6 tests passed",
+    "desktop_build": "vue-tsc and Vite production build passed",
+    "real_browser": {
+      "data": "fresh isolated migrated backend on port 8877",
+      "flow": [
+        "empty World Center",
+        "manual fog-harbor World creation",
+        "first Run opening with narrative, dialogue, objective, guidance and choices",
+        "return to World Center",
+        "continue/latest and existing Run entry visible",
+        "new Run form opened, hero changed to Nora, second independent Run created",
+        "second Run opened with the new hero and a complete opening"
+      ],
+      "responsive": {
+        "viewport": "720x800",
+        "before": "play-scene computed columns were 102px 562px because choice-deck forced implicit column 2",
+        "after": "play-scene computed one 692px column; Run state width 692px; no horizontal overflow"
+      },
+      "console_errors_or_warnings": 0
+    },
+    "macos_bundle": "DZMM Next.app and DMG rebuilt after the extraction and responsive fix",
+    "macos_packaged_host": "isolated launch on port 18771 passed /health with app=dzmm-next and storage=local"
+  },
+  "score": {
+    "player_readiness": 78,
+    "code_quality": 84,
+    "release_threshold": 85,
+    "remaining": [
+      "Split AI draft, portable and lifecycle orchestration from desktop App.vue.",
+      "Split Turn/World/portable responsibilities from embedded core_runtime.py.",
+      "Run complete current-package A-F, 30-turn and restart recovery on macOS, Windows and Android hardware."
+    ]
+  }
+}

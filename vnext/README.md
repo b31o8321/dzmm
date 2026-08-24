@@ -13,8 +13,9 @@ and scorecard harness. It is not yet a playable game.
 
 - `backend/`: FastAPI host, fresh schema and Alembic migrations.
 - `contracts/`: versioned JSON Schemas shared by clients and server.
-- `desktop/`: future Tauri/Vue authoring and host-control shell.
-- `mobile/`: future Flutter gameplay-only client.
+- `desktop/`: Tauri/Vue Local Host shell for macOS and Windows.
+- `mobile/`: Flutter Android Local Host. It owns app-private SQLite and calls the shared Python
+  core and selected model provider directly; it never requires a PC Host.
 - `eval/`: evidence-first maturity scorecard.
 - `packaging/`: vNext-only release assembly.
 

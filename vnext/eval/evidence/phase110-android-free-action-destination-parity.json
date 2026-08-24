@@ -1,0 +1,21 @@
+{
+  "phase": "phase110",
+  "date": "2026-08-21",
+  "status": "android-free-action-destination-parity",
+  "player_change": [
+    "Android free-action play now exposes the same destination choice as desktop when the current World has multiple locations.",
+    "The selected destination is sent through the shared narrative command boundary as a Python-validated move command before narrate; the Android UI no longer silently loses location changes that desktop submits.",
+    "Runs without multiple locations keep the simpler free-action input and do not invent a destination control."
+  ],
+  "automated_checks": {
+    "flutter_analyze": "passed",
+    "flutter_tests": "20 passed",
+    "android_free_action_command_test": "passed",
+    "android_debug_apk_sha256": "78f9af6c4678aaeb31e83a050898ad03d590764b57ca030b06e59a2c541f5a72",
+    "git_diff_check": "passed"
+  },
+  "not_proven": [
+    "The rebuilt APK cannot be installed for physical Android A-F because adb devices is empty.",
+    "Windows and macOS packaged visual journeys remain unproven."
+  ]
+}

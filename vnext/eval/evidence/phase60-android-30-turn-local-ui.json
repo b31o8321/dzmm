@@ -1,0 +1,42 @@
+{
+  "phase": "phase60-android-30-turn-local-ui",
+  "captured_at": "2026-08-20",
+  "status": "verified-android-emulator-30-turn-local-ui-and-reopen",
+  "counted_in_current_matrix": true,
+  "device": {
+    "serial": "emulator-5554",
+    "avd": "dzmm-ux-api36",
+    "android_api": 36,
+    "apk_sha256": "00b386d577b0d71be400885f050ffa7cc74655ba4ed1bc770858066e9aef6d44"
+  },
+  "journey": [
+    "Started from a clean Android app database, used the local template draft, reviewed the schema result, and explicitly confirmed creation.",
+    "Entered the Play page and submitted 30 user-visible actions through the new action composer; each call used the Python-owned play_turn path with an allowlisted narrate command.",
+    "The UI displayed state revision 30 and the SQLite readback contained exactly 30 local_turns.",
+    "Force-stopped and reopened the app, re-entered the Run, and the UI again displayed revision 30 with persisted turn history."
+  ],
+  "sqlite_readback": {
+    "database": "run-as local.dzmm.dzmm_next_mobile files/dzmm.db",
+    "worlds": 1,
+    "world_versions": 1,
+    "heroes": 1,
+    "runs": 1,
+    "turns": 30,
+    "run_revision_after_reopen": 30,
+    "ending_after_reopen": null
+  },
+  "screenshots": [
+    "screens/phase60-android-30-turns/01-play-input.png",
+    "screens/phase60-android-30-turns/02-revision-30.png",
+    "screens/phase60-android-30-turns/03-reopen-revision-30.png"
+  ],
+  "limits": [
+    "This is a deterministic local narrate journey and does not prove 30 model-generated turns.",
+    "Portable export/import/clone and provider cancellation remain open on Android."
+  ],
+  "maturity": {
+    "android_local_host": {"before": 68, "after": 76},
+    "long_play_and_recovery": {"before": 80, "after": 84},
+    "overall": {"before": 63, "after": 67}
+  }
+}

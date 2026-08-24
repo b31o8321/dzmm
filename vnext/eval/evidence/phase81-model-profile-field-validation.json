@@ -1,0 +1,27 @@
+{
+  "phase": 81,
+  "name": "model-profile-field-validation",
+  "date": "2026-08-21",
+  "status": "cross-platform-form-validation-verified",
+  "scope": "First-time model setup now explains missing required values in the field where the player needs to act; the local host remains the final validator.",
+  "changes": [
+    "desktop useModelProfiles exposes a reusable validateModelProfileDraft helper and field error state",
+    "desktop settings and AI inline model forms render the same Chinese field guidance and aria-invalid state",
+    "Android ModelsPage blocks an empty save before the MethodChannel call and renders the same field guidance",
+    "editing a field clears its Android validation message"
+  ],
+  "verification": {
+    "desktop_tests": "5 files, 11 tests passed",
+    "desktop_build": "vue-tsc and Vite production build passed",
+    "macos_tauri_package": "rebuilt; DMG sha256 e764e6a32104f4bb692d736ab65331840123b31ea9192ea1de93d07b0152906e",
+    "macos_packaged_host_health": "passed on isolated port 18780 with app=dzmm-next, storage=local, host=127.0.0.1",
+    "flutter_analyze": "passed",
+    "flutter_tests": "11 passed",
+    "android_debug_apk": "built successfully; sha256 8e486ae108fe324797a3a8f1c44c4bec075263a0d8c78462358f50344fc95de7"
+  },
+  "remaining": [
+    "Model probe failure/timeout field and device acceptance on Android",
+    "Windows native package and macOS WebView first-setup acceptance",
+    "Physical Android device is still unavailable (adb devices is empty)"
+  ]
+}

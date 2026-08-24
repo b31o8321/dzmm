@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DZMM vNext cross-platform experience contract",
+  "description": "Stable user-facing operations and recovery states. Renderers remain platform-native; every operation is applied by the local Python host.",
+  "type": "object",
+  "required": ["version", "navigation", "operations", "operation_stages", "ui_states", "themes", "model_provider_presets"],
+  "properties": {
+    "version": { "const": "2026-08-21-player-journey" },
+    "navigation": {
+      "const": ["worlds", "create", "play", "models", "settings"]
+    },
+    "operations": {
+      "const": [
+        "list_worlds", "get_world", "archive_world", "restore_world", "delete_world", "create_run", "world_template", "list_model_profiles", "create_model_profile",
+        "update_model_profile", "set_default_model_profile", "delete_model_profile",
+        "probe_model_profile", "generate_ai_world_draft", "validate_ai_world_draft",
+        "compose_world", "get_run", "choose", "play_turn", "cancel_operation", "rollback",
+        "export_world", "import_world", "export_run", "clone_run"
+      ]
+    },
+    "operation_stages": {
+      "const": ["preparing", "connecting", "generating", "applying", "completed", "failed", "cancelled", "restored"]
+    },
+    "ui_states": {
+      "const": ["loading", "empty", "success", "validation_error", "provider_error", "conflict", "cancelled", "restored"]
+    },
+    "themes": { "const": ["fog", "paper", "amber"] },
+    "model_provider_presets": {
+      "const": {
+        "ollama": "http://127.0.0.1:11434",
+        "lm_studio": "http://127.0.0.1:1234/v1",
+        "openai_compat": ""
+      }
+    }
+  },
+  "additionalProperties": false
+}

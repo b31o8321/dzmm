@@ -1,0 +1,29 @@
+{
+  "phase": "phase101",
+  "date": "2026-08-21",
+  "status": "interrupted-run-recovery-marker-verified",
+  "player_behavior": [
+    "Android persists only a boolean pending Run-operation marker; it never stores narrative output, request payloads or credentials in the session record.",
+    "On restart, Android clears the marker, returns directly to the remembered Run and explains that the interrupted operation did not write a partial turn.",
+    "Desktop uses a tested localStorage marker for choice, free-action and rollback operations; a clean boot consumes it and shows the same player-facing recovery explanation.",
+    "A completed, failed or accepted-cancelled operation clears its marker, so the recovery notice is not repeated on normal re-entry."
+  ],
+  "automated_checks": {
+    "flutter_tests": "18 passed",
+    "flutter_analyze": "passed",
+    "desktop_tests": "19 passed across 7 files",
+    "desktop_build": "passed",
+    "cargo_check": "passed",
+    "backend_tests": "107 passed earlier in this delivery cycle",
+    "backend_ruff": "passed earlier in this delivery cycle",
+    "git_diff_check": "passed",
+    "package_sha256": {
+      "android_debug_apk": "2996dc9bb5ef3fc91c28eec49e0517bc18d6a0e68f07542a45ea718c798d44a5",
+      "macos_arm64_dmg": "4b007a9aab62ac80f6154341f4e2204a8eed26f9359fca80b5e87b1689a619c1"
+    }
+  },
+  "not_proven": [
+    "Physical Android force-stop/reopen and packaged macOS WebView restart remain unrun in this environment.",
+    "Windows native package and its restart journey remain unavailable locally."
+  ]
+}

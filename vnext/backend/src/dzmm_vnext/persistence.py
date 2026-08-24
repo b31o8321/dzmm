@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -57,6 +58,18 @@ runs = Table(
     Column("updated_at", DateTime(), nullable=False),
 )
 
+story_beats = Table(
+    "story_beats",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False),
+    Column("kind", String(20), nullable=False),
+    Column("sequence", Integer(), nullable=False),
+    Column("content", JSON(), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+    UniqueConstraint("run_id", "sequence", name="uq_story_beats_run_sequence"),
+)
+
 turns = Table(
     "turns",
     metadata,
@@ -88,6 +101,16 @@ compose_requests = Table(
     Column("created_at", DateTime(), nullable=False),
 )
 
+run_create_requests = Table(
+    "run_create_requests",
+    metadata,
+    Column("request_id", String(80), primary_key=True),
+    Column("fingerprint", String(64), nullable=False),
+    Column("world_id", String(36), ForeignKey("worlds.id", ondelete="CASCADE"), nullable=False),
+    Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+)
+
 model_profiles = Table(
     "model_profiles",
     metadata,
@@ -96,28 +119,17 @@ model_profiles = Table(
     Column("provider_type", String(30), nullable=False),
     Column("base_url", String(500), nullable=False),
     Column("model_name", String(200), nullable=False),
+    Column("api_key_ref", String(120)),
+    Column("is_default", Boolean(), nullable=False, default=False),
     Column("created_at", DateTime(), nullable=False),
 )
 
-mobile_devices = Table(
-    "mobile_devices",
+lifecycle_audit_events = Table(
+    "lifecycle_audit_events",
     metadata,
     Column("id", String(36), primary_key=True),
-    Column("name", String(120), nullable=False),
-    Column("status", String(20), nullable=False),
-    Column("token_hash", String(64), nullable=True),
-    Column("capabilities", JSON(), nullable=False),
-    Column("created_at", DateTime(), nullable=False),
-    Column("updated_at", DateTime(), nullable=False),
-)
-
-pairing_requests = Table(
-    "pairing_requests",
-    metadata,
-    Column("id", String(36), primary_key=True),
-    Column("device_id", String(36), ForeignKey("mobile_devices.id", ondelete="CASCADE"), nullable=False),
-    Column("code_hash", String(64), nullable=False),
-    Column("status", String(20), nullable=False),
-    Column("expires_at", DateTime(), nullable=False),
+    Column("action", String(20), nullable=False),
+    Column("world_id", String(36), nullable=False),
+    Column("snapshot", JSON(), nullable=False),
     Column("created_at", DateTime(), nullable=False),
 )

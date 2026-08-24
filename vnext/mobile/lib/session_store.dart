@@ -1,64 +1,61 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-class StoredSession {
-  const StoredSession({
-    required this.host,
-    required this.token,
+class LocalSession {
+  const LocalSession({
     this.runId,
-    this.hostId,
+    this.modelProfileId,
+    this.pendingRunOperation = false,
   });
 
-  final String host;
-  final String token;
   final String? runId;
-  final String? hostId;
+  final String? modelProfileId;
+  final bool pendingRunOperation;
 }
 
 abstract class SessionStore {
-  Future<StoredSession?> read();
-  Future<void> save(StoredSession session);
-  Future<void> clear();
+  Future<LocalSession> read();
+  Future<void> save(LocalSession session);
+  Future<String?> readTheme();
+  Future<void> saveTheme(String theme);
 }
 
 class SecureSessionStore implements SessionStore {
   const SecureSessionStore([this._storage = const FlutterSecureStorage()]);
 
-  static const _hostKey = 'host_url';
-  static const _tokenKey = 'mobile_token';
-  static const _runKey = 'mobile_run_id';
-  static const _hostIdKey = 'mobile_host_id';
+  static const _runKey = 'active_run_id';
+  static const _modelProfileKey = 'default_model_profile_id';
+  static const _pendingRunKey = 'pending_run_operation';
+  static const _themeKey = 'theme';
 
   final FlutterSecureStorage _storage;
 
   @override
-  Future<StoredSession?> read() async {
-    final host = await _storage.read(key: _hostKey);
-    final token = await _storage.read(key: _tokenKey);
-    if (host == null || token == null) return null;
-    return StoredSession(
-      host: host,
-      token: token,
-      runId: await _storage.read(key: _runKey),
-      hostId: await _storage.read(key: _hostIdKey),
-    );
-  }
+  Future<LocalSession> read() async => LocalSession(
+    runId: await _storage.read(key: _runKey),
+    modelProfileId: await _storage.read(key: _modelProfileKey),
+    pendingRunOperation: await _storage.read(key: _pendingRunKey) == '1',
+  );
 
   @override
-  Future<void> save(StoredSession session) async {
-    await _storage.write(key: _hostKey, value: session.host);
-    await _storage.write(key: _tokenKey, value: session.token);
-    if (session.runId == null || session.runId!.isEmpty) {
-      await _storage.delete(key: _runKey);
+  Future<void> save(LocalSession session) async {
+    await _writeOrDelete(_runKey, session.runId);
+    await _writeOrDelete(_modelProfileKey, session.modelProfileId);
+    if (session.pendingRunOperation) {
+      await _storage.write(key: _pendingRunKey, value: '1');
     } else {
-      await _storage.write(key: _runKey, value: session.runId);
-    }
-    if (session.hostId == null || session.hostId!.isEmpty) {
-      await _storage.delete(key: _hostIdKey);
-    } else {
-      await _storage.write(key: _hostIdKey, value: session.hostId);
+      await _storage.delete(key: _pendingRunKey);
     }
   }
 
   @override
-  Future<void> clear() => _storage.deleteAll();
+  Future<String?> readTheme() => _storage.read(key: _themeKey);
+
+  @override
+  Future<void> saveTheme(String theme) =>
+      _storage.write(key: _themeKey, value: theme);
+
+  Future<void> _writeOrDelete(String key, String? value) {
+    if (value == null || value.isEmpty) return _storage.delete(key: key);
+    return _storage.write(key: key, value: value);
+  }
 }

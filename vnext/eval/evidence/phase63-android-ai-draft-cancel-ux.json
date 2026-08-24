@@ -1,0 +1,26 @@
+{
+  "phase": "phase63-android-ai-draft-cancel-ux",
+  "captured_at": "2026-08-20",
+  "status": "verified-flutter-widget-cancellation-and-no-compose",
+  "counted_in_current_matrix": true,
+  "build": {
+    "apk_sha256": "9300d379a43ba4efc344c3ee83112ab23a06765fd38d9254cbb83dc19d7ffb93",
+    "commands": [
+      "flutter analyze",
+      "flutter test",
+      "flutter build apk --debug"
+    ]
+  },
+  "journey": [
+    "Started the AI world creator with a delayed model adapter.",
+    "Edited the structured world and hero name fields; the action is required to call Python validateDraft before confirmation.",
+    "Pressed 取消起草 while the model request was pending.",
+    "Delivered a late valid draft result; the UI ignored it and displayed that no World, Run, or real state was created.",
+    "The fake port recorded zero compose calls."
+  ],
+  "test": "vnext/mobile/test/widget_test.dart :: cancelling an AI draft ignores the model result and does not compose",
+  "limits": [
+    "This verifies the UI cancellation contract with a deterministic delayed adapter; a real provider timeout/cancel screenshot is still open.",
+    "The underlying HTTP request is bounded by the Python runtime timeout; cancellation prevents applying the late result but does not interrupt an already-running provider request."
+  ]
+}

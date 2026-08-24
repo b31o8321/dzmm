@@ -1,0 +1,41 @@
+{
+  "phase": "phase52-live-host-30-choice-matrix-interim",
+  "captured_at": "2026-08-18",
+  "status": "verified-live-host-model-matrix-not-android-ui-matrix",
+  "scope": "10 isolated short Runs, each composed and advanced through 3 authoritative choices over the live FastAPI Host",
+  "host": "http://127.0.0.1:28767",
+  "database": "/tmp/dzmm-vnext-ux.IYb2pB/dzmm-next.db",
+  "model_profile": {
+    "name": "OllamaUX2",
+    "id": "3a8ee873-993c-432c-aaf0-9a72fdb81ca4",
+    "provider_type": "ollama",
+    "base_url": "http://127.0.0.1:11434",
+    "model_name": "qwen2.5:7b"
+  },
+  "per_run": {
+    "create": "POST /api/v2/worlds:compose",
+    "choices": ["rescue-lan", "lan-testimony", "open-tide-gate"],
+    "expected_terminal_state": {"state_revision": 3, "ending": "lan-dawn"}
+  },
+  "runs": [
+    "1f1015ab-f0f6-4a7e-bea7-8be40448fe81",
+    "9fe3c444-95c9-4f1c-ba2a-de5aca0d1a90",
+    "bf681918-0587-4c19-9d3d-30c45c33103b",
+    "6e574ddd-d877-4555-9795-ac1a7e2e9fbf",
+    "bd7a54d5-0914-4acc-96c3-0afb239579b4",
+    "26ed29b7-06ae-45c0-ba00-b711ddd1419e",
+    "64f6ef3b-21b4-4f2f-a3c6-f36631d22463",
+    "f46f2ae0-5fa2-4e8a-8bfe-a4d0ebade7c6",
+    "0f9ed012-ba01-4e84-9add-1d7a51b23f15",
+    "da741c62-d329-4e08-9040-16ae1ffea995"
+  ],
+  "sqlite_readback": {
+    "query": "select id, state_revision, json_extract(state, '$.ending.id') as ending from runs where id in (...) order by created_at;",
+    "result": "All 10 listed Run IDs have state_revision=3 and ending=lan-dawn."
+  },
+  "limits": [
+    "This proves the live Host, model profile, atomic compose and authoritative state path over 30 committed choices.",
+    "It is not 10 Android touch journeys and must not increase Android UX maturity by itself.",
+    "It does not substitute for the packaged Mac WebView journey or Windows Host evidence."
+  ]
+}

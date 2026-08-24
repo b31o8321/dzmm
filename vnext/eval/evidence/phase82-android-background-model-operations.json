@@ -1,0 +1,27 @@
+{
+  "phase": "phase82",
+  "date": "2026-08-21",
+  "status": "contract-and-build-verified",
+  "scope": "Android model generation, draft validation, and model probing execute through the native background operation executor so Flutter can render the shared Loading stages without blocking the UI thread.",
+  "changes": [
+    "MainActivity backgroundOperations includes choose, play_turn, generate_ai_world_draft, validate_ai_world_draft, and probe_model_profile.",
+    "Experience Contract test locks the Android model-operation background boundary."
+  ],
+  "verification": {
+    "backend_contract_tests": "4 passed",
+    "backend_full_tests": "90 passed, 1 warning",
+    "backend_ruff": "clean",
+    "flutter_analyze": "clean",
+    "flutter_tests": "11 passed",
+    "android_apk": {
+      "variant": "debug",
+      "sha256": "953ec6a94330ab09bd22d19e1aa206e6379d5553487b236c9ed361c10ea552ee",
+      "path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk"
+    }
+  },
+  "remaining_gates": [
+    "Android physical-device A-F journey and slow-model observation",
+    "Windows native package journey",
+    "macOS packaged WebView A-F journey"
+  ]
+}

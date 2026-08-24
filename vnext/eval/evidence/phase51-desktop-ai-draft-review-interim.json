@@ -1,0 +1,57 @@
+{
+  "phase": "phase51-desktop-ai-draft-review-interim",
+  "captured_at": "2026-08-18",
+  "status": "historical-superseded",
+  "counted_in_current_matrix": false,
+  "superseded_by": ["phase55-macos-packaged-full-journey", "phase57-shared-core-android-build-smoke"],
+  "scope": "historical desktop Web and paired Android emulator journey; it does not prove the current Local Host architecture",
+  "implementation": [
+    "AI draft review defaults to editable structured world, hero, location, character-card and lorebook fields",
+    "Schema v3 JSON remains available only in an advanced disclosure",
+    "Any structured or advanced edit gates compose until Host validation succeeds",
+    "Invalid advanced JSON shows a field label, repair guidance and a restore-previous-valid-draft action",
+    "A failed validation retains the advanced editor and restore action when a Host-validated snapshot exists",
+    "Restore replaces the transient edit with the last Host-validated snapshot and does not create a World"
+  ],
+  "journey": {
+    "host": "http://127.0.0.1:28767",
+    "model": "OllamaUX2 / ollama / http://127.0.0.1:11434 / qwen2.5:7b",
+    "model_failure_recovery": "The initially selected obsolete Android profile at http://10.0.2.2:11434 failed with ConnectError; switching the complete model profile to OllamaUX2 generated a valid draft.",
+    "draft": "Generated hybrid draft 潮汐之钥 / 艾登 with 3 chapters, 2 relationship definitions, 3 routes and 5 endings.",
+    "edit_recovery": "Advanced WorldDefinition was made invalid; validate displayed the Chinese field help and disabled compose. The rebuilt Android APK retained its editor and restore action, then restore returned the Host-validated draft and re-enabled compose without creating a World or Run.",
+    "play": ["援手莉亚", "把证词交给莉亚", "点亮雾灯"],
+    "ending": "Python locked lan-dawn as a good ending at revision 3.",
+    "rollback_and_reentry": "Rollback to turn 1 produced revision 4 / ch2 / ending null; browser refresh restored the same Run snapshot and available choices."
+  },
+  "authority": {
+    "database": "/tmp/dzmm-vnext-ux.IYb2pB/dzmm-next.db",
+    "world": "380894f2-5843-4290-99af-055daf7d79a7",
+    "world_version": "a25cd840-34b5-48bd-9486-2ffcccfb375f",
+    "run": "8649b71d-4a99-4442-b63e-569771d017c7",
+    "sqlite": "Run state_revision=4 and state has ch2 active, lan-rescued/chart-recovered flags, trust=20 and ending=null. Persisted turns are choice revisions 0→1, 1→2, 2→3 plus rollback 3→4."
+  },
+  "visual": {
+    "desktop_viewport": {"width": 1600, "height": 900, "horizontal_overflow": false},
+    "captures": ["Browser in-session screenshot: structured review", "Browser in-session screenshot: desktop rollback/re-entry at 1600x900"]
+  },
+  "android_emulator": {
+    "device": "dzmm-ux-api36 / emulator-5554",
+    "install": "debug APK built and installed from the active worktree",
+    "journey": "Existing paired emulator session selected the Host-verified OllamaUX2 profile, generated a real draft, edited the structured world-name field, observed compose lock, revalidated with Host and composed a new Run. It then selected 援手苏洛然 → 把证词交给苏洛然 → 点亮雾灯, reached lan-dawn good ending, confirmed a Host rollback to turn 1, force-stopped/reopened the app and recovered the same Run.",
+    "created_run": "1950333f-76fb-4389-8b39-186bc2e496c0 / 林澜 / revision 4 / ch2 / ending null after rollback",
+    "screenshots": []
+  },
+  "verification": ["npm run build passed after the review change", "Host /health passed", "No browser console warning or error observed during the journey"],
+  "maturity": {
+    "overall_platform": {"before": 66.25, "after": 66.25, "reason": "This closes the source-Web draft-review gap but not packaged Mac, Android, 30-interaction or Windows P0 evidence."},
+    "mac_pc_creation_and_play_ux": {"before": 68, "after": 68},
+    "android_local_host": {"before": 0, "after": 0}
+  },
+  "android_invalid_json_recovery_recheck": {
+    "apk": "debug APK rebuilt from the active worktree and installed to emulator-5554",
+    "model": "OllamaUX2 / ollama / http://127.0.0.1:11434 / qwen2.5:7b",
+    "interaction": "Inserted an illegal token into WorldDefinition JSON, validated to the Chinese error state, observed the disabled compose button and retained restore action, then selected restore and observed compose re-enabled.",
+    "sqlite_before_after": "13 worlds / 13 runs -> 13 worlds / 13 runs"
+  },
+  "remaining": ["Android Local Host device/emulator full journey", "Windows Local Host packaged evidence"]
+}

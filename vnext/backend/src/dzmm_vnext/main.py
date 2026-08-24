@@ -1,69 +1,64 @@
 from __future__ import annotations
 
-import asyncio
-from contextlib import asynccontextmanager, suppress
+import json
+from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import API_VERSION, APP_NAME
-from .ai_world_drafts import (
+from .config import Settings
+from .contracts import contract_manifest
+from .core import (
     AIWorldDraftGenerationError,
     AIWorldDraftInput,
     AIWorldDraftReviewInput,
     AIWorldDraftService,
-    validate_world_draft,
-)
-from .config import Settings
-from .content import (
+    ChoiceTurnInput,
+    ComposeWorldInput,
     ContentNotFoundError,
     ContentService,
+    CreateRunInput,
+    DomainValidationError,
+    IdempotencyConflictError,
     LorebookPromotionInput,
     LorebookSelectionInput,
-    SillyTavernImportInput,
-)
-from .contracts import contract_manifest
-from .db import create_engine
-from .discovery import HostAdvertisement, lan_host_urls
-from .host_identity import load_host_id
-from .lifecycle import (
+    ModelProber,
+    ModelProfileConflictError,
+    ModelProfileInput,
+    ModelProfileService,
+    NarrationError,
+    PortableBundleError,
+    PortableImportInput,
+    PortableRunCloneInput,
+    PortableService,
     PurgeConfirmation,
     PurgeConfirmationError,
+    RevisionConflictError,
+    RunModelProfileConflictError,
+    RunModelProfileInput,
+    RunNotFoundError,
+    SillyTavernImportInput,
+    TurnCoordinator,
+    TurnIdempotencyConflictError,
+    TurnInput,
+    TurnResult,
+    TurnRollbackInput,
+    WorldComposer,
     WorldLifecycle,
     WorldNotFoundError,
     WorldVersionConflictError,
     WorldVersionInput,
     diagnostic_snapshot,
     integrity_scan,
+    validate_world_draft,
 )
-from .model_profiles import ModelProber, ModelProfileInput, ModelProfileService, NarrationError
-from .pairing import (
-    PairingCompletionInput,
-    PairingError,
-    PairingRequestInput,
-    PairingService,
-)
-from .turns import (
-    ChoiceTurnInput,
-    RevisionConflictError,
-    RunNotFoundError,
-    TurnCoordinator,
-    TurnIdempotencyConflictError,
-    TurnInput,
-    TurnResult,
-    TurnRollbackInput,
-)
+from .db import create_engine
 from .world_templates import fog_harbor_template
-from .worlds import (
-    ComposeWorldInput,
-    DomainValidationError,
-    IdempotencyConflictError,
-    WorldComposer,
-)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -77,58 +72,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = create_engine(resolved_settings)
         app.state.sessions = async_sessionmaker(app.state.engine, expire_on_commit=False)
         app.state.world_composer = WorldComposer(app.state.sessions)
+        app.state.portable = PortableService(app.state.sessions, app.state.world_composer)
         app.state.turn_coordinator = TurnCoordinator(app.state.sessions)
         app.state.model_profiles = ModelProfileService(app.state.sessions)
         app.state.ai_world_drafts = AIWorldDraftService(app.state.model_profiles)
         app.state.model_prober = ModelProber()
         app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
         app.state.content = ContentService(app.state.sessions)
-        app.state.host_id = load_host_id(resolved_settings.data_dir)
-        app.state.pairing = PairingService(app.state.sessions, app.state.host_id)
-        app.state.host_advertisement = HostAdvertisement()
-        advertisement_task = None
-        if (
-            resolved_settings.allow_lan_gameplay
-            and resolved_settings.advertise_lan_host
-            and resolved_settings.host == "0.0.0.0"
-        ):
-            advertisement_task = asyncio.create_task(
-                _advertise_after_listener(
-                    app.state.host_advertisement,
-                    host_id=app.state.host_id,
-                    port=resolved_settings.port,
-                )
-            )
         try:
             yield
         finally:
-            if advertisement_task is not None:
-                advertisement_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await advertisement_task
-            await app.state.host_advertisement.stop()
             await app.state.engine.dispose()
 
-    app = FastAPI(title="DZMM Next Preview", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="DZMM Next Local Host", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"^(http://(127\.0\.0\.1|localhost):\d+|https://tauri\.localhost)$",
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["authorization", "content-type"],
+        allow_origin_regex=(
+            r"^(http://(127\.0\.0\.1|localhost):\d+|"
+            r"https?://tauri\.localhost|tauri://localhost)$"
+        ),
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["content-type"],
     )
-
-    @app.middleware("http")
-    async def restrict_lan_to_mobile_gameplay(request: Request, call_next):
-        if (
-            resolved_settings.allow_lan_gameplay
-            and not _is_loopback(request)
-            and not request.url.path.startswith("/api/v2/mobile/")
-        ):
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "LAN Host only exposes paired mobile gameplay endpoints"},
-            )
-        return await call_next(request)
 
     @app.get("/health")
     async def health() -> dict[str, object]:
@@ -138,122 +103,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "app": APP_NAME,
             "api_version": API_VERSION,
             "contract": app.state.contracts,
-            "storage": "isolated",
+            "storage": "local",
+            "host": "127.0.0.1",
             "foreign_keys": bool(foreign_keys),
         }
-
-    @app.get("/api/v2/host/capabilities")
-    async def host_capabilities() -> dict[str, object]:
-        return {
-            "api_version": API_VERSION,
-            "mobile": {
-                "pairing": "pin_approval",
-                "capabilities": ["gameplay"],
-                "lan_gameplay_enabled": resolved_settings.allow_lan_gameplay,
-            },
-        }
-
-    @app.get("/api/v2/host/mobile-handoff")
-    async def mobile_handoff(request: Request) -> dict[str, object]:
-        _require_loopback_host(request)
-        if not resolved_settings.allow_lan_gameplay:
-            raise HTTPException(status_code=409, detail="LAN gameplay is disabled")
-        return {
-            "host_id": app.state.host_id,
-            "urls": lan_host_urls(resolved_settings.port),
-        }
-
-    @app.post("/api/v2/mobile/pairing-requests")
-    async def create_pairing_request(payload: PairingRequestInput) -> dict[str, object]:
-        return (await app.state.pairing.request(payload)).model_dump(mode="json")
-
-    @app.get("/api/v2/host/pairing-requests")
-    async def list_pairing_requests(request: Request) -> list[dict[str, object]]:
-        _require_loopback_host(request)
-        return [item.model_dump(mode="json") for item in await app.state.pairing.pending()]
-
-    @app.get("/api/v2/host/mobile-devices")
-    async def list_mobile_devices(request: Request) -> list[dict[str, object]]:
-        _require_loopback_host(request)
-        return [item.model_dump(mode="json") for item in await app.state.pairing.active()]
-
-    @app.post("/api/v2/host/pairing-requests/{request_id}:approve")
-    async def approve_pairing_request(request_id: str, request: Request) -> dict[str, str]:
-        _require_loopback_host(request)
-        try:
-            await app.state.pairing.approve(request_id)
-        except PairingError as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
-        return {"request_id": request_id, "status": "approved"}
-
-    @app.post("/api/v2/mobile/pairing-requests/{request_id}:complete")
-    async def complete_pairing_request(
-        request_id: str, payload: PairingCompletionInput
-    ) -> dict[str, object]:
-        try:
-            return (await app.state.pairing.complete(request_id, payload)).model_dump()
-        except PairingError as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
-
-    @app.get("/api/v2/mobile/session")
-    async def mobile_session(authorization: str | None = Header(default=None)) -> dict[str, object]:
-        return (await _mobile_device(app, authorization)).model_dump()
-
-    @app.get("/api/v2/mobile/runs")
-    async def list_mobile_runs(authorization: str | None = Header(default=None)) -> list[dict[str, object]]:
-        await _mobile_device(app, authorization)
-        return [
-            item.model_dump(mode="json") for item in await app.state.world_composer.list_mobile_runs()
-        ]
-
-    @app.get("/api/v2/mobile/runs/{run_id}")
-    async def get_mobile_run(
-        run_id: str, authorization: str | None = Header(default=None)
-    ) -> dict[str, object]:
-        await _mobile_device(app, authorization)
-        snapshot = await app.state.world_composer.load_run(run_id)
-        if snapshot is None:
-            raise HTTPException(status_code=404, detail="run not found")
-        return snapshot.model_dump(mode="json")
-
-    @app.post("/api/v2/mobile/runs/{run_id}/turns:stream")
-    async def stream_mobile_turn(
-        run_id: str, payload: TurnInput, authorization: str | None = Header(default=None)
-    ) -> StreamingResponse:
-        await _mobile_device(app, authorization)
-
-        async def events():
-            event_id = 1
-            async for event_type, event_payload in app.state.turn_coordinator.stream(run_id, payload):
-                yield _sse(event_id, event_type, event_payload)
-                event_id += 1
-
-        return StreamingResponse(events(), media_type="text/event-stream")
-
-    @app.post("/api/v2/mobile/runs/{run_id}/choices")
-    async def choose_mobile_turn(
-        run_id: str, payload: ChoiceTurnInput, authorization: str | None = Header(default=None)
-    ) -> JSONResponse:
-        await _mobile_device(app, authorization)
-        result = await play_choice(run_id, payload)
-        return JSONResponse(
-            status_code=201 if result.created else 200,
-            content=result.model_dump(mode="json"),
-        )
-
-    @app.post("/api/v2/host/mobile-devices/{device_id}:revoke")
-    async def revoke_mobile_device(device_id: str, request: Request) -> dict[str, str]:
-        _require_loopback_host(request)
-        try:
-            await app.state.pairing.revoke(device_id)
-        except PairingError as error:
-            raise HTTPException(status_code=404, detail=str(error)) from error
-        return {"device_id": device_id, "status": "revoked"}
 
     @app.post("/api/v2/worlds:compose")
     async def compose_world(payload: ComposeWorldInput) -> JSONResponse:
         try:
             result = await app.state.world_composer.compose(payload)
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except IdempotencyConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return JSONResponse(
+            status_code=201 if result.created else 200,
+            content=result.model_dump(mode="json"),
+        )
+
+    @app.post("/api/v2/worlds/{world_id}/runs")
+    async def create_run(world_id: str, payload: CreateRunInput) -> JSONResponse:
+        try:
+            result = await app.state.world_composer.create_run(world_id, payload)
         except DomainValidationError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except IdempotencyConflictError as error:
@@ -278,12 +149,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_fog_harbor_template() -> dict[str, object]:
         return fog_harbor_template()
 
+    @app.get("/api/v2/runs/{run_id}:export")
+    async def export_run(run_id: str) -> dict[str, object]:
+        bundle = await app.state.portable.export_run(run_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return bundle
+
     @app.get("/api/v2/runs/{run_id}")
     async def get_run(run_id: str) -> dict[str, object]:
         snapshot = await app.state.world_composer.load_run(run_id)
         if snapshot is None:
             raise HTTPException(status_code=404, detail="run not found")
         return snapshot.model_dump(mode="json")
+
+    @app.post("/api/v2/runs:clone")
+    async def clone_run(payload: PortableRunCloneInput) -> JSONResponse:
+        try:
+            result = await app.state.portable.clone_run(payload)
+        except (PortableBundleError, DomainValidationError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=201, content=result.model_dump(mode="json"))
+
+    @app.get("/api/v2/runs/{run_id}/model-profile")
+    async def get_run_model_profile(run_id: str) -> dict[str, str | None]:
+        try:
+            model_profile_id = await app.state.world_composer.run_model_profile_id(run_id)
+        except RunModelProfileConflictError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"run_id": run_id, "model_profile_id": model_profile_id}
+
+    @app.post("/api/v2/runs/{run_id}/model-profile")
+    async def set_run_model_profile(run_id: str, payload: RunModelProfileInput) -> dict[str, str]:
+        try:
+            model_profile_id = await app.state.world_composer.set_run_model_profile(run_id, payload)
+        except RunModelProfileConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return {"run_id": run_id, "model_profile_id": model_profile_id}
 
     @app.post("/api/v2/worlds/{world_id}:archive")
     async def archive_world(world_id: str) -> dict[str, str]:
@@ -307,6 +211,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             world.model_dump(mode="json") for world in await app.state.world_lifecycle.list_worlds()
         ]
 
+    @app.get("/api/v2/worlds/{world_id}:export")
+    async def export_world(world_id: str) -> dict[str, object]:
+        bundle = await app.state.portable.export_world(world_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="world not found")
+        return bundle
+
+    @app.post("/api/v2/worlds:import")
+    async def import_world(payload: PortableImportInput) -> JSONResponse:
+        try:
+            result = await app.state.portable.import_world(payload)
+        except (PortableBundleError, DomainValidationError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=201, content=result.model_dump(mode="json"))
+
     @app.get("/api/v2/worlds/{world_id}")
     async def get_world(world_id: str) -> dict[str, object]:
         try:
@@ -315,13 +234,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.post("/api/v2/worlds/{world_id}/versions")
-    async def create_world_version(
-        world_id: str, payload: WorldVersionInput
-    ) -> dict[str, object]:
+    async def create_world_version(world_id: str, payload: WorldVersionInput) -> dict[str, object]:
         try:
-            return (
-                await app.state.world_lifecycle.create_version(world_id, payload)
-            ).model_dump(mode="json")
+            return (await app.state.world_lifecycle.create_version(world_id, payload)).model_dump(
+                mode="json"
+            )
         except WorldNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         except WorldVersionConflictError as error:
@@ -339,9 +256,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.delete("/api/v2/worlds/{world_id}")
     async def purge_world(world_id: str, payload: PurgeConfirmation) -> dict[str, object]:
         try:
-            return (
-                await app.state.world_lifecycle.purge(world_id, payload)
-            ).model_dump(mode="json")
+            return (await app.state.world_lifecycle.purge(world_id, payload)).model_dump(
+                mode="json"
+            )
         except WorldNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         except PurgeConfirmationError as error:
@@ -358,7 +275,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "app": APP_NAME,
             "api_version": API_VERSION,
             "contract": app.state.contracts,
-            "storage": "isolated",
+            "storage": "local",
             "database": await diagnostic_snapshot(app.state.sessions),
         }
 
@@ -374,9 +291,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         world_version_id: str, payload: LorebookSelectionInput
     ) -> dict[str, object]:
         try:
-            return (
-                await app.state.content.select_lorebook(world_version_id, payload)
-            ).model_dump(mode="json")
+            return (await app.state.content.select_lorebook(world_version_id, payload)).model_dump(
+                mode="json"
+            )
         except ContentNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -398,7 +315,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         world_version_id: str, character_card_id: str
     ) -> dict[str, object]:
         try:
-            return await app.state.content.export_character_card(world_version_id, character_card_id)
+            return await app.state.content.export_character_card(
+                world_version_id, character_card_id
+            )
         except ContentNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         except TypeError as error:
@@ -412,6 +331,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     async def play_turn(run_id: str, payload: TurnInput) -> TurnResult:
+        if not app.state.turn_coordinator.begin_operation(payload.request_id):
+            raise HTTPException(status_code=409, detail="operation is already running")
         try:
             return await app.state.turn_coordinator.play(run_id, payload)
         except RunNotFoundError as error:
@@ -420,6 +341,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=502, detail=str(error)) from error
         except (RevisionConflictError, TurnIdempotencyConflictError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
+        finally:
+            app.state.turn_coordinator.finish_operation(payload.request_id)
 
     async def play_rollback(run_id: str, payload: TurnRollbackInput) -> TurnResult:
         try:
@@ -430,6 +353,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     async def play_choice(run_id: str, payload: ChoiceTurnInput) -> TurnResult:
+        if not app.state.turn_coordinator.begin_operation(payload.request_id):
+            raise HTTPException(status_code=409, detail="operation is already running")
         try:
             return await app.state.turn_coordinator.play_choice(run_id, payload)
         except RunNotFoundError as error:
@@ -438,40 +363,95 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=502, detail=str(error)) from error
         except (RevisionConflictError, TurnIdempotencyConflictError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
+        finally:
+            app.state.turn_coordinator.finish_operation(payload.request_id)
+
+    @app.post("/api/v2/operations/{request_id}:cancel")
+    async def cancel_operation(request_id: str) -> dict[str, object]:
+        accepted = (
+            app.state.turn_coordinator.cancel_operation(request_id)
+            or app.state.ai_world_drafts.cancel_operation(request_id)
+        )
+        return {
+            "request_id": request_id,
+            "accepted": accepted,
+            "detail": (
+                "cancellation accepted; the original Run state will be preserved"
+                if accepted
+                else "operation is no longer cancellable"
+            ),
+        }
 
     @app.post("/api/v2/runs/{run_id}/turns")
     async def create_turn(run_id: str, payload: TurnInput) -> JSONResponse:
         result = await play_turn(run_id, payload)
         return JSONResponse(
-            status_code=201 if result.created else 200,
-            content=result.model_dump(mode="json"),
+            status_code=201 if result.created else 200, content=result.model_dump(mode="json")
         )
 
     @app.post("/api/v2/runs/{run_id}/choices")
     async def choose_turn(run_id: str, payload: ChoiceTurnInput) -> JSONResponse:
         result = await play_choice(run_id, payload)
         return JSONResponse(
-            status_code=201 if result.created else 200,
-            content=result.model_dump(mode="json"),
+            status_code=201 if result.created else 200, content=result.model_dump(mode="json")
         )
 
     @app.post("/api/v2/runs/{run_id}/rollbacks")
     async def rollback_turn(run_id: str, payload: TurnRollbackInput) -> JSONResponse:
         result = await play_rollback(run_id, payload)
         return JSONResponse(
-            status_code=201 if result.created else 200,
-            content=result.model_dump(mode="json"),
+            status_code=201 if result.created else 200, content=result.model_dump(mode="json")
         )
+
+    async def stream_turn_events(
+        run_id: str,
+        payload: TurnInput,
+        *,
+        planned_choice: bool = False,
+        choice_id: str | None = None,
+    ) -> StreamingResponse:
+        async def events():
+            if not app.state.turn_coordinator.begin_operation(payload.request_id):
+                yield _sse(
+                    1,
+                    "turn_failed",
+                    {"category": "state", "detail": "operation is already running"},
+                )
+                return
+            event_id = 1
+            try:
+                async for event_type, event_payload in app.state.turn_coordinator.stream(
+                    run_id,
+                    payload,
+                    planned_choice=planned_choice,
+                    choice_id=choice_id,
+                ):
+                    yield _sse(event_id, event_type, event_payload)
+                    event_id += 1
+            finally:
+                app.state.turn_coordinator.finish_operation(payload.request_id)
+
+        return StreamingResponse(events(), media_type="text/event-stream")
 
     @app.post("/api/v2/runs/{run_id}/turns:stream")
     async def stream_turn(run_id: str, payload: TurnInput) -> StreamingResponse:
-        async def events():
-            event_id = 1
-            async for event_type, event_payload in app.state.turn_coordinator.stream(run_id, payload):
-                yield _sse(event_id, event_type, event_payload)
-                event_id += 1
+        return await stream_turn_events(run_id, payload)
 
-        return StreamingResponse(events(), media_type="text/event-stream")
+    @app.post("/api/v2/runs/{run_id}/choices:stream")
+    async def stream_choice(run_id: str, payload: ChoiceTurnInput) -> StreamingResponse:
+        return await stream_turn_events(
+            run_id,
+            TurnInput(
+                request_id=payload.request_id,
+                expected_revision=payload.expected_revision,
+                player_input=payload.player_input,
+                commands=[
+                    {"type": "choose_story_choice", "payload": {"choice_id": payload.choice_id}}
+                ],
+            ),
+            planned_choice=True,
+            choice_id=payload.choice_id,
+        )
 
     @app.post("/api/v2/model-profiles")
     async def create_model_profile(payload: ModelProfileInput) -> JSONResponse:
@@ -484,6 +464,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/v2/model-profiles")
     async def list_model_profiles() -> list[dict[str, object]]:
         return [item.model_dump(mode="json") for item in await app.state.model_profiles.list()]
+
+    @app.put("/api/v2/model-profiles/{profile_id}")
+    async def update_model_profile(
+        profile_id: str, payload: ModelProfileInput
+    ) -> dict[str, object]:
+        try:
+            return (await app.state.model_profiles.update(profile_id, payload)).model_dump(
+                mode="json"
+            )
+        except ModelProfileConflictError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/api/v2/model-profiles/{profile_id}:default")
+    async def set_default_model_profile(profile_id: str) -> dict[str, object]:
+        try:
+            return (await app.state.model_profiles.set_default(profile_id)).model_dump(mode="json")
+        except ModelProfileConflictError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/v2/model-profiles/{profile_id}", status_code=204)
+    async def delete_model_profile(profile_id: str) -> None:
+        try:
+            await app.state.model_profiles.delete(profile_id)
+        except ModelProfileConflictError as error:
+            status = 409 if "used by" in str(error) else 404
+            raise HTTPException(status_code=status, detail=str(error)) from error
 
     @app.post("/api/v2/model-profiles/{profile_id}:probe")
     async def probe_model_profile(profile_id: str) -> dict[str, object]:
@@ -498,51 +506,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 app = create_app()
 
 
-async def _advertise_after_listener(
-    advertisement: HostAdvertisement, *, host_id: str, port: int
-) -> None:
-    """Do not make the Host discoverable until Uvicorn has bound its listener."""
-    for _ in range(100):
-        try:
-            _, writer = await asyncio.open_connection("127.0.0.1", port)
-        except OSError:
-            await asyncio.sleep(0.05)
-            continue
-        writer.close()
-        with suppress(OSError):
-            await writer.wait_closed()
-        await advertisement.start(host_id=host_id, port=port)
-        return
-
-
 def _sse(event_id: int, event_type: str, payload: dict[str, Any]) -> str:
-    import json
-
-    return f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-
-def _require_loopback_host(request: Request) -> None:
-    if not _is_loopback(request):
-        raise HTTPException(status_code=403, detail="host control requires a loopback connection")
-
-
-def _is_loopback(request: Request) -> bool:
-    client = request.client.host if request.client else ""
-    return client in {"127.0.0.1", "::1", "testclient"}
-
-
-def _bearer_token(authorization: str | None) -> str:
-    prefix = "Bearer "
-    if authorization is None or not authorization.startswith(prefix):
-        raise HTTPException(status_code=401, detail="mobile bearer token is required")
-    return authorization.removeprefix(prefix)
-
-
-async def _mobile_device(app: FastAPI, authorization: str | None):
-    try:
-        device = await app.state.pairing.authenticate(_bearer_token(authorization))
-    except PairingError as error:
-        raise HTTPException(status_code=401, detail=str(error)) from error
-    if "gameplay" not in device.capabilities:
-        raise HTTPException(status_code=403, detail="mobile device lacks gameplay capability")
-    return device
+    return (
+        f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    )

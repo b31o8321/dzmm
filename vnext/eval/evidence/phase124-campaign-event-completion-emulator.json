@@ -1,0 +1,29 @@
+{
+  "phase": 124,
+  "title": "campaign phase and event completion on local emulator",
+  "runtime": {
+    "event_completion": "Python evaluates completion_conditions and marks active events resolved",
+    "campaign_state": "current phase, completed events and completed phases are persisted in RunState",
+    "phase_advance": "required_count of current phase key events advances the next phase"
+  },
+  "verification": {
+    "backend_pytest": "121 passed, 1 warning",
+    "backend_ruff": "passed",
+    "emulator": {
+      "avd": "dzmm-ux-api36",
+      "android_api": 36,
+      "serial": "emulator-5554",
+      "package": "local.dzmm.dzmm_next_mobile",
+      "activity": "local.dzmm.dzmm_next_mobile/.MainActivity",
+      "apk_sha256": "9b8f667cee1209e50b30cbd65421420fb52ee086f2296bf751f54f4fcb161ce8",
+      "adb_reverse": "host-16 tcp:11434 tcp:11434",
+      "launch": "passed; focused Activity window observed"
+    },
+    "screenshot": "/tmp/dzmm-next-phase124.png"
+  },
+  "residual": [
+    "NPC faction membership and initial reputation are persisted; reputation deltas are not yet exposed as a hard command",
+    "Campaign generation is optional in the creative draft and needs richer prompt evaluation",
+    "full player journey on emulator still needs qwen 7B model setup and a two-Run comparison"
+  ]
+}

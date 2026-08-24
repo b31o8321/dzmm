@@ -1,0 +1,9 @@
+{
+  "version": "2026-08-19-local-host",
+  "themes": {
+    "fog": { "canvas": "#0b1514", "surface": "#10211f", "accent": "#d7af67", "text": "#edf0e7" },
+    "paper": { "canvas": "#f7f3eb", "surface": "#f2eee5", "accent": "#2d6b59", "text": "#1e312b" },
+    "amber": { "canvas": "#1b130f", "surface": "#281d16", "accent": "#e5a85f", "text": "#fff4e8" }
+  },
+  "semantics": ["canvas", "surface", "accent", "text", "danger", "success"]
+}

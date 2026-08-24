@@ -1,0 +1,36 @@
+{
+  "phase": 123,
+  "title": "runtime event predicates and faction tension",
+  "ported_predicates": [
+    "location_reached",
+    "npc_state",
+    "item_owned",
+    "faction_tension",
+    "flag",
+    "all",
+    "any"
+  ],
+  "runtime_boundary": {
+    "python_owns": [
+      "faction_state.tension",
+      "passive per-turn growth",
+      "trigger evaluation",
+      "active event insertion"
+    ],
+    "model_owns": ["narrative interpretation", "player-visible consequences", "bounded gm_actions proposals"]
+  },
+  "verification": {
+    "backend_pytest": "120 passed, 1 warning",
+    "backend_ruff": "passed",
+    "android_debug_apk": {
+      "path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "26fc9e2f24bfacb99a03fe34840d66f4b6ee2c16715a204d62ab4ffb976075e6",
+      "install": "blocked: adb devices returned no online device"
+    }
+  },
+  "residual": [
+    "Campaign/phase gating is not yet represented in Next",
+    "NPC faction membership and reputation deltas remain a later migration",
+    "manual qwen 7B gameplay validation awaits an online Android device"
+  ]
+}

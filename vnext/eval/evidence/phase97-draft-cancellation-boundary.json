@@ -1,0 +1,30 @@
+{
+  "phase": "phase97",
+  "date": "2026-08-21",
+  "status": "ai-draft-cancellation-boundary-verified",
+  "player_behavior": [
+    "Desktop and Android assign a request identity to AI world drafting and show a distinct cancel action while the model is generating.",
+    "Cancellation is accepted only before the draft enters validation/application; a late model response is ignored and cannot create a World, Run or partial save.",
+    "After cancellation the player sees that no World, journey or archive was created and can retry from the same creation entry point."
+  ],
+  "automated_checks": {
+    "backend_tests": "106 passed",
+    "backend_ruff": "passed",
+    "desktop_tests": "16 passed across 6 files",
+    "desktop_build": "passed",
+    "flutter_tests": "14 passed",
+    "flutter_analyze": "passed",
+    "android_debug_apk": "built",
+    "macos_arm64_dmg": "built",
+    "git_diff_check": "passed",
+    "package_sha256": {
+      "android_debug_apk": "25e21ffdc0f8c44d8a0c3ee595c46a04016bd31a3778cb8c6c1a2779c5f49c14",
+      "macos_arm64_dmg": "b1145d46a08eb6ddaa085b4f2e933da1d922e7c6950ad74a1b9987b668a9fdb6"
+    }
+  },
+  "not_proven": [
+    "Windows native package and macOS packaged WebView A-F remain unrun.",
+    "Android physical-device cancellation and authenticated provider request remain unrun because adb devices is empty.",
+    "The package hashes prove rebuilt artifacts only; they do not replace package-level player acceptance."
+  ]
+}

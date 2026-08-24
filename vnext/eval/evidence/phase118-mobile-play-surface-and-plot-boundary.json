@@ -1,0 +1,34 @@
+{
+  "phase": "phase118",
+  "date": "2026-08-21",
+  "scope": "mobile player surface redesign and narrative variation boundary",
+  "mobile_changes": [
+    "PlayPage keeps one main history scroll and places current scene, operation status, and choices/free-action controls in a bottom action dock.",
+    "New successful Run updates auto-scroll to the latest content; upward scrolling is reserved for history.",
+    "Persistent state is exposed in a collapsible 当前状态 panel.",
+    "state_feedback and turn records are grouped in a collapsible 事件与行动记录 panel instead of being mixed into narrative cards.",
+    "Completed Runs keep the formal ending summary in the history surface so the bottom action dock cannot obscure it."
+  ],
+  "verification": {
+    "flutter_analyze": "passed",
+    "flutter_test": "22 passed",
+    "apk_build": "passed",
+    "apk_path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "apk_sha256": "80706d7e2242e1ea158b21dafd7fd435e4c20ed2259c818cfd80a2c731e8860b",
+    "adb_device": "emulator-5554 / dzmm-ux-api36 / API 36",
+    "adb_install": "passed",
+    "manual_surface": "new Run opening visibly showed current-scene dock with opening narrative and choice buttons; existing worlds and local model profiles were preserved"
+  },
+  "plot_boundary": {
+    "rules": "authored deterministic chapter/choice/effect/ending graph in backend narrative.py",
+    "opening": "deterministic from world definition, hero, first location, first character and lore",
+    "prose": "model-generated when a profile is configured; deterministic template fallback without a model",
+    "replay_behavior": "same world version plus same choice sequence produces the same structure/effects/ending; prose wording may vary with the model",
+    "gap": "there is no per-Run seed, alternate scene pack, or variation prompt in the current contract, so repeated runs can feel substantially identical",
+    "recommendation": "preserve Python determinism for rules, then add an explicit per-Run variation contract (seed plus authored opening/scene variants) before claiming materially different replays"
+  },
+  "not_claimed": [
+    "This is not a physical Android A-F/30-turn acceptance run.",
+    "No plot randomization was introduced in this phase; product semantics need to distinguish replayable canonical routes from intentionally varied replays."
+  ]
+}

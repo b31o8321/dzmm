@@ -1,0 +1,24 @@
+{
+  "phase": "phase88",
+  "date": "2026-08-21",
+  "status": "android-world-export-entry-verified",
+  "scope": "Android World detail portable workflow",
+  "player_surface": [
+    "Opening an existing World now exposes 导出世界包 alongside 开始新 Run and archive/restore.",
+    "The action requests the shared LocalHost world export, serializes the bundle as JSON, and uses the Android system file picker to save it.",
+    "Android settings already accepts the same bundle kind for import, so a player can export a World and later import it on another local host."
+  ],
+  "automated_checks": {
+    "widget_coverage": "world card test asserts 导出世界包 is visible",
+    "flutter_analyze": "passed",
+    "flutter_tests": "12 passed",
+    "debug_apk": {
+      "status": "built",
+      "sha256": "2119e594215c8c53987e9739b52ba071ac1954c3cf9d8cfe032e7fd79594c9db"
+    }
+  },
+  "not_proven": [
+    "System file picker save/import and touch behavior require an Android physical-device run.",
+    "Cross-device World transfer has not been claimed without a physical-device and desktop installation journey."
+  ]
+}

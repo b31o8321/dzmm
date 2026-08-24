@@ -8,9 +8,9 @@ dependencies = [
     "aiosqlite>=0.19",
     "fastapi>=0.110",
     "jsonschema>=4.23",
+    "keyring>=25.6",
     "sqlalchemy[asyncio]>=2.0",
     "uvicorn[standard]>=0.27",
-    "zeroconf>=0.132",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,25 @@
+{
+  "phase": 79,
+  "name": "android-operation-status-and-cancel",
+  "date": "2026-08-21",
+  "status": "widget-and-build-verified",
+  "scope": "Android now uses a reusable OperationStatusCard for Run actions and AI world drafting. Stage transitions yield to Flutter rendering so connecting is observable before a slow local model call; cancellation is hidden once state application begins.",
+  "changes": [
+    "mobile/lib/widgets/operation_status.dart centralizes progress, elapsed time, stage labels, slow-model guidance and cancellation action",
+    "PlayPage uses the shared card and only exposes cancellation in preparing/connecting/generating",
+    "AI world drafting shows preparing/connecting/generating/applying and retains zero-write cancellation semantics",
+    "tests avoid waiting for an intentionally live operation clock while a model future is pending",
+    "the Play entry now leads with the current story location instead of Python/revision jargon"
+  ],
+  "verification": {
+    "flutter_analyze": "passed",
+    "flutter_tests": "10 passed",
+    "android_debug_apk": "built successfully; sha256 a302389a0e8bd51e36fe4a896e608486ad6ae1cee4754ec256327392dcf1ce38",
+    "apk_size_bytes": 219180246
+  },
+  "remaining": [
+    "Physical Android device install and real slow-model/failure/accessibility acceptance",
+    "Windows native package and WebView journey",
+    "macOS installed WebView full A-F acceptance"
+  ]
+}

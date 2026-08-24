@@ -1,0 +1,118 @@
+"""Shared provider-output rules for desktop and embedded gameplay."""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any
+
+NARRATIVE_OLLAMA_NUM_PREDICT = 384
+NARRATIVE_OPENAI_MAX_TOKENS = 480
+
+NARRATIVE_SYSTEM_PROMPT = (
+    "你是本地互动叙事游戏的 GM。Python 规则引擎负责骰子、资源、关系、章节、路线、数值和结局的硬校验；"
+    "你不是状态裁判；你负责让世界真正运转：根据玩家行动、近期记忆和本回合变化指令，自主推动场景、NPC动机、线索、"
+    "环境变化、势力张力和意外后果。固定章节/选项只是安全边界与建议，不是逐字照演的剧本；允许提出玩家没有预先看到的新事件，"
+    "优先使用 memory_layers 中的近期行动、未解决线索、活跃事件和当前触发的世界设定；如果记忆与当前硬状态冲突，以当前硬状态为准。"
+    "但不得把未经 validated_outcomes 确认的硬状态变化写成已经生效。"
+    "先明确承接玩家本回合的行动，再说明 validated_outcomes 带来的可感知结果；"
+    "每回合至少引入一个新的可追查细节、冲突、NPC反应或场景变化，避免复述上回合；"
+    "如果 pending_interactions 中有 NPC 主动事件，本回合必须让该 NPC 做出玩家可感知的主动联系或行动；"
+    "NPC 的台词使用‘姓名：‘台词’’或中文引号标记，便于客户端记录对话和 NPC 记忆；"
+    "只输出故事正文，不得解释规则，不得输出 JSON、标签、Markdown 标题、列表或状态摘要；"
+    "如果需要把新线索、剧情线或隐藏事件交给 Python 记录，可在正文最后追加一次内部标记"
+    " <!--DZMM_ACTIONS {\"actions\":[...]}-->；该标记不会展示给玩家，除此之外不要输出标签。"
+    "允许的 action type 只有 introduce_plot_thread、resolve_plot_thread、create_hidden_event、resolve_hidden_event、adjust_npc_reputation；"
+    "例如新剧情线使用 {\"type\":\"introduce_plot_thread\",\"id\":\"short-hook\",\"thread_type\":\"hook\",\"description\":\"...\"}。"
+    "adjust_npc_reputation 只能使用已存在的 npc_id、-25 到 25 的 delta 和简短 reason_key；Python 会再次校验并限幅。"
+    "当玩家明确帮助、伤害或违背某个 NPC 时，可以提出 {\"type\":\"adjust_npc_reputation\",\"npc_id\":\"...\",\"delta\":5,\"reason_key\":\"kept_promise\"}；每个 NPC 每回合最多一次，不要凭空修改。"
+    "gm_actions 只能描述可追踪的叙事意图，不能直接改写背包、章节或结局；"
+    "不要提及游戏系统、规则引擎、状态更新、路线锁定等幕后机制；"
+    "不要复述输入字段，也不要用‘当前章节’‘主角’‘目的地’‘特殊物品’等字段名汇报状态。"
+    "写 2 到 3 段、约 120 到 220 个汉字的完整叙事；在适合时加入一小段 NPC 对白，"
+    "结尾必须给出与当前场景、生成实体和下一步建议一致的行动钩子；不要写与选项无关的模板事件。"
+    "每一句和最后一段都必须完整结束。"
+)
+
+_GM_ACTIONS_MARKER = re.compile(
+    r"<!--\s*DZMM_ACTIONS\s+(?P<body>.*)-->\s*$", re.DOTALL | re.IGNORECASE
+)
+
+
+def extract_gm_actions(content: str | None) -> tuple[str | None, list[dict[str, Any]]]:
+    """Split the optional private GM action marker from player-visible prose.
+
+    The marker is deliberately a narrow transport convention.  Its payload is
+    still treated as untrusted model output and is validated again by the
+    narrative state layer before any mutation is applied.
+    """
+
+    if not isinstance(content, str):
+        return content, []
+    match = _GM_ACTIONS_MARKER.search(content.strip())
+    if not match:
+        return content, []
+    body = match.group("body").strip()
+    visible = content[: match.start()].rstrip()
+    if len(body) > 6000:
+        return visible, []
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError):
+        return visible, []
+    actions = payload.get("actions") if isinstance(payload, dict) else None
+    if not isinstance(actions, list):
+        return visible, []
+    return visible, [action for action in actions[:8] if isinstance(action, dict)]
+
+_STATE_LABELS = "当前章节|主角|目的地|特殊物品|状态版本|库存|路线"
+_STATE_BULLET = re.compile(rf"(?:^|\s)[\-*•]\s*(?:{_STATE_LABELS})\s*[：:]", re.MULTILINE)
+_STATE_HEADING = re.compile(r"(?:^|\n)[^\n。！？.!?]{0,30}(?:浏览器|状态|摘要|信息|概览)[：:]\s*$")
+_TECHNICAL_PARAGRAPH = re.compile(
+    r"(?:游戏系统|规则引擎|状态(?:已|被)?更新|(?:Flag|location_id|route_id|ending_id)\b)",
+    re.IGNORECASE,
+)
+
+
+def clean_narrative_output(content: str | None) -> str | None:
+    """Remove provider wrappers and accidental technical summaries from prose."""
+
+    if not isinstance(content, str):
+        return None
+    content, _actions = extract_gm_actions(content)
+    if not isinstance(content, str):
+        return None
+    value = content.strip()
+    if value.startswith("<think>") and "</think>" not in value:
+        return None
+    if "</think>" in value:
+        value = value.split("</think>", maxsplit=1)[1].strip()
+    if "### TRPG Narrative:" in value:
+        value = value.split("### TRPG Narrative:", maxsplit=1)[1]
+    if "### JSON:" in value:
+        value = value.split("### JSON:", maxsplit=1)[0]
+    value = re.sub(r"^#+\s*", "", value.strip())
+
+    state_bullets = list(_STATE_BULLET.finditer(value))
+    if len(state_bullets) >= 2:
+        prose = value[: state_bullets[0].start()].rstrip()
+        prose = _STATE_HEADING.sub("", prose).rstrip()
+        value = prose
+    paragraphs = re.split(r"\n\s*\n", value)
+    value = "\n\n".join(
+        paragraph for paragraph in paragraphs if not _TECHNICAL_PARAGRAPH.search(paragraph)
+    )
+    return value.strip() or None
+
+
+def model_response_was_truncated(provider_type: str, payload: Any) -> bool:
+    """Read provider completion metadata instead of guessing from punctuation."""
+
+    if not isinstance(payload, dict):
+        return False
+    if provider_type == "ollama":
+        return payload.get("done_reason") in {"length", "max_tokens"}
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return False
+    return choices[0].get("finish_reason") in {"length", "max_tokens"}

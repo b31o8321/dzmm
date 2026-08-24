@@ -1,0 +1,41 @@
+{
+  "phase": "phase86",
+  "date": "2026-08-21",
+  "status": "macos-packaged-parent-exit-cleanup-verified",
+  "artifact": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM Next.app",
+  "dmg": {
+    "path": "vnext/desktop/src-tauri/target/release/bundle/dmg/DZMM Next_0.1.0_aarch64.dmg",
+    "sha256": "19bde43983ef73a410bb1fe2d2c5e7a17d2bd98d72539b93d7b8488fd5d48838"
+  },
+  "isolated_runtime": {
+    "data_dir": "/tmp/dzmm-vnext-parent-watch.Pllz0C",
+    "port": 18792,
+    "desktop_pid": 47312,
+    "sidecar_pid": 47322
+  },
+  "journey": [
+    "Launched the release app with an isolated data directory and port.",
+    "Waited for the frozen sidecar health endpoint to become available.",
+    "Terminated the desktop owner process to simulate an abnormal app exit.",
+    "The sidecar detected that its expected parent PID disappeared and stopped by the second 0.5-second check.",
+    "The sidecar process exited and port 18792 closed; no release app or sidecar process remained."
+  ],
+  "implementation_boundary": [
+    "Tauri passes its process ID through DZMM_NEXT_PARENT_PID when spawning the sidecar.",
+    "The Python sidecar owns a small asynchronous parent watcher and asks Uvicorn to shut down when reparented.",
+    "Normal Tauri exit cleanup remains in place; this closes the force-exit gap without UI coupling."
+  ],
+  "automated_checks": {
+    "backend": "99 passed",
+    "sidecar_and_packaging_focused": "11 passed",
+    "ruff": "passed",
+    "cargo_fmt": "passed",
+    "cargo_check": "passed",
+    "frozen_sidecar_build_and_health_smoke": "passed",
+    "tauri_release_app_and_dmg_build": "passed"
+  },
+  "not_proven": [
+    "Windows parent-loss behavior still requires a native package process test.",
+    "This is a packaged process-lifecycle check, not the blocked macOS WebView A-F visual journey."
+  ]
+}

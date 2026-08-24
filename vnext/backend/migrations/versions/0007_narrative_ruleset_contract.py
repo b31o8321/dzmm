@@ -1,15 +1,14 @@
 """narrative ruleset contract v2
 
 Revision ID: 0007_narrative_ruleset_contract
-Revises: 0006_mobile_pairing
+Revises: 0005_turn_rollbacks
 Create Date: 2026-08-17
 """
 
 from alembic import op
 
-
 revision = "0007_narrative_ruleset_contract"
-down_revision = "0006_mobile_pairing"
+down_revision = "0005_turn_rollbacks"
 branch_labels = None
 depends_on = None
 

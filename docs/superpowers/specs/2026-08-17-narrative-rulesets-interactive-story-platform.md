@@ -1,12 +1,12 @@
 # DZMM vNext 叙事规则集：本地优先、状态驱动的互动叙事平台
 
-**状态：** Active — schema v3 已将角色卡与关系定义分离，并通过确定性雾港/回滚与 500 Turn 重开回归；打包桌面 WebView、真实模型、Android 和 LAN 实机验收待推进
+**状态：** Active — schema v3 已将角色卡与关系定义分离，并通过确定性雾港/回滚与 500 Turn 重开回归；打包桌面 WebView、真实模型、Android Local Host 实机验收待推进
 **日期：** 2026-08-17
 **范围：** 只扩展 vNext 的 `World → WorldVersion → Run → RunState → Turn` 聚合；不读取、迁移或兼容 v0.x。
 
 ## 1. 产品定位与问题
 
-DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 是其中一个重要玩法，而不是产品边界。玩家在 macOS 或 Windows 桌面 Host 创建、导入和管理一个版本化世界，并在同一桌面 Host 或已配对 Android 上游玩同一个固定版本的 Run；Python 是所有真实状态的唯一裁判，LLM 只负责叙事与受限意图提议。
+DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 是其中一个重要玩法，而不是产品边界。玩家在 macOS、Windows 或 Android Local Host 创建、导入和管理一个版本化世界，并在该设备上游玩固定版本的 Run；Python 是所有真实状态的唯一裁判，LLM 只负责叙事与受限意图提议。
 
 目前的 vNext 聚合已经解决“一个世界、一个版本、一个运行态”的所有权问题，但其规则 contract 只覆盖地点、物品、事件和骰子，无法清晰表达章节、选择、角色路线、关系维度和多结局。若另建“剧情存档”或“恋爱模式存档”，会重新引入两套创建、删除、回滚和手机恢复语义。本规格以一套 `RunState` 和一条审计 Turn 链解决三类体验。
 
@@ -16,7 +16,8 @@ DZMM vNext 是一个**本地优先、状态驱动的互动叙事平台**。TRPG 
 2. 玩家可完成“剧情冒险 + 多维关系 + 多结局”的完整本地闭环，且刷新、断线、回滚后状态仍可信。
 3. 将**世界书（Lorebook）**与**角色卡（Character Card）**作为一等内容概念和互通入口，优先采用 SillyTavern 社区可理解的字段/格式，而不是用 DZMM 私有术语替代它们。
 4. 任何 Flag、章节、路线、关系、资源、事件和结局变化都由 Python 通过受限 command 验证、应用、记录与回滚。
-5. Android 保持 gameplay-only；macOS/Windows 桌面 Host 保持世界、规则集、模型、配对和生命周期管理权。
+5. macOS、Windows 和 Android 都是完整 Local Host；每端拥有自己的数据库、Python 状态裁判和
+   ModelProfile。跨设备只允许用户明确 export/import/clone，不共享 live Run。
 
 ### 非目标
 
@@ -247,11 +248,15 @@ stateDiagram-v2
 - **结局页：** 只在 `ending.locked` 后展示结局类别、达成关键事实、可回看的 Turn 与“回滚到选择前”操作；不提供直接改数值的 debug 控件给普通玩家。
 - **错误与恢复：** revision conflict、冷却、无效 choice、已锁结局都用可理解原因提示，刷新后重新取 RunState 与可选项，不能凭前端缓存继续提交。
 
-### Android（gameplay-only）
+### Android（Local Host）
 
-- Android 只呈现已配对 Host 的 Run 列表、叙事、可选行动、可见状态、关系变化理由、结局和恢复状态；没有世界书编辑、角色卡导入、规则集选择、模型配置、归档/删除或配对批准权限。
-- 手机用触控优先的“故事卡 + 选择按钮 + 轻量状态抽屉”：章节进度、角色关系、线索/资源在一屏可扫读，展开后才显示变化原因与历史；视觉可借鉴 Tavo/Saylo 的沉浸节奏，但 API 仍是 Host 的受限 command 契约。
-- SSE 恢复后以 server revision 重新 hydration；若 choice 已因其他提交、回滚或 ending lock 失效，客户端丢弃本地候选并展示当前状态。
+- 手机按同一 Experience Contract 呈现世界、创作、游玩、模型和设置入口；请求通过 embedded
+  CPython `LocalHostPort` 执行，数据和模型档案保存在手机本机。
+- 游玩页仍用触控优先的“故事卡 + 选择按钮 + 轻量状态抽屉”：章节进度、角色关系、线索/资源
+  在一屏可扫读，展开后才显示变化原因与历史；世界中心、创作和模型页可以为小屏重排，而不是
+  被移除。
+- force-stop/reopen 后以本机 SQLite revision 重新 hydration；若 choice 已因回滚或 ending lock
+  失效，客户端丢弃本地候选并展示当前状态。状态变化只能由 Python 预定义 command 应用。
 
 ## 8. 成熟度矩阵调整与证据
 
@@ -265,7 +270,7 @@ stateDiagram-v2
 | 内容互通与作者体验 | 10 | 80 | ST V3 卡 + World Info 导入/报告/保留未知字段；世界书提升为实体产生新 version。 | 打包桌面应用完成导入→编辑→导出 round-trip，用户能在 3 分钟开始雾港。 |
 | 模型与流鲁棒性 | 10 | 80 | Ollama、LM Studio/OpenAI 兼容探针，HTTP 200 error、空流、429、取消均不提交。 | Huihui 14B 多次故事/关系回合，意图拒绝与叙事降级可解释。 |
 | 桌面 UX 与无障碍 | 10 | 80 | 打包桌面应用完成创建→选择→关系变化→结局→回滚→刷新；键盘主路径。 | 屏幕阅读与截图评审覆盖空态、失败、锁结局、恢复，零 P0 旅程缺陷。 |
-| Android gameplay 恢复 | 10 | 80 | 真实 Android 在 LAN 完成配对、Run recovery、选择/状态/结局、SSE 断线恢复。 | 两个网络环境、Host 重启、撤销、冲突提交和 30 回合 Huihui 实机旅程通过；macOS 与 Windows Host 均取证。 |
+| Android Local Host 与恢复 | 10 | 80 | Android embedded CPython + SQLite 完成 World/Run 创建、选择/状态/结局、force-stop/reopen。 | 真实模型、30 回合、rollback、模型失败恢复和导出/导入旅程；不依赖 PC 或 LAN。 |
 | 长局性能 | 5 | 80 | 50 回合/500 消息重开及剧情状态大小预算，状态无损。 | 100 回合混合模式断线 soak，目标设备流式与恢复预算达标。 |
 | 工程与发布 | 5 | 80 | fresh DB migration、contract/后端/前端测试、诊断导出通过。 | 签名 Mac/Android RC、发布清单、P0 缺陷为零。 |
 | **总计** | **100** | **每个 P0 >=80** | — | **加权 >=85，且无 P0 defect** |
@@ -279,7 +284,7 @@ stateDiagram-v2
 | 2. 内容边界重构与真实模型作者闭环 | 将 schema v2 的卡内 `relationship_dimensions` 迁为 schema v3 的显式 `RelationshipDefinition`；模型仅提意图的 adapter、叙事 prompt、**世界书和角色卡作为持久内容资产**的导入/编辑/导出、结局页和审计 UI；清除对外 `lore`/“建议主角”替代语义。 | Huihui 14B 30 回合含一次回滚；同卡可在两个 WorldVersion 有不同关系规则；导入 V3 JSON/PNG 或 World Info → 保留报告 → 创建世界 → 开局 → 结局 → 导出 round-trip 的 packaged desktop 证据；相关 P0 >=80。 |
 | 3. TRPG 规则集接入 | 将既有骰子、资源、地点、事件、战斗 command 迁入同一 v3 白名单；`trpg` 不携带剧情特有字段。 | TRPG regression、同 aggregate rollback、规则集越权拒绝。 |
 | 4. Hybrid | 声明式 capability 组合、TRPG 检定影响章节/关系的预定义桥接规则、冲突检测和可视化。 | 50 回合 hybrid 实跑、交叉条件/ending/replay E2E；不出现第二存档模型。 |
-| 5. Android 与 RC | gameplay-only 的章节/选择/关系/结局体验、LAN/断线/撤销实机矩阵、长局性能与打包。 | 矩阵总分 >=85、所有 P0 >=80、无 P0 defect。 |
+| 5. Android Local Host 与 RC | embedded Python、世界/创作/模型/玩法体验、force-stop/reopen、portable bundle、长局性能与打包。 | 矩阵总分 >=85、所有 P0 >=85、无 P0 defect。 |
 
 ### 需要确认的开放项
 

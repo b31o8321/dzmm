@@ -1,0 +1,34 @@
+{
+  "phase": "phase66-pc-qwen3-full-journey",
+  "captured_at": "2026-08-20",
+  "status": "verified-pc-qwen3-draft-compose-three-choice-ending-rollback",
+  "counted_in_current_matrix": true,
+  "provider": {
+    "provider_type": "lm_studio",
+    "base_url": "http://192.168.31.169:1234/v1",
+    "model_name": "huihui-ai_qwen3-14b-abliterated",
+    "generation_seconds": 16.5
+  },
+  "journey": [
+    "Generated a real qwen3 draft and received a valid WorldDefinition after the explicitly reported safe-story-skeleton mapping.",
+    "The draft retained model-generated world, hero, character and location names; mechanics stayed in the Python-owned hybrid skeleton.",
+    "Composed one World, WorldVersion, Hero, Run and RunState only after the valid draft result.",
+    "Applied three Python-planned choices and reached the good ending lan-dawn.",
+    "Rolled back to the first choice turn; ending became null and revision advanced to 4."
+  ],
+  "sqlite_readback": {
+    "database": "/tmp/dzmm-pc-qwen3-full-journey.db",
+    "worlds": 1,
+    "world_versions": 1,
+    "heroes": 1,
+    "runs": 1,
+    "turns": 4,
+    "ending_before_rollback": "lan-dawn/good",
+    "ending_after_rollback": null,
+    "revision_after_rollback": 4
+  },
+  "limits": [
+    "This is shared-core evidence, not Android UI or Mac/Windows packaged WebView evidence.",
+    "The model mechanics were rejected and replaced by the explicit safe skeleton; free-form model-authored rules still require review/edit evidence."
+  ]
+}

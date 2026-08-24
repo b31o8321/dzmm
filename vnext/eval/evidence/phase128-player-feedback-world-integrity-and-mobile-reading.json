@@ -1,0 +1,48 @@
+{
+  "phase": 128,
+  "title": "玩家反馈整组修复：世界删除、模板隔离与移动端阅读层",
+  "date": "2026-08-21",
+  "scope": [
+    "删除世界时级联删除旅程、回合和历史记录，并在 Android 提供二次确认",
+    "Android 操作阶段改为单行横向滚动，保留阶段和耗时反馈",
+    "草案审阅隐藏 mechanics/canonical 等技术修复细节；不可游玩草案阻止创建",
+    "模型世界素材与雾港模板的玩家可见文本隔离，叙事上下文只注入当前世界实体",
+    "游玩历史、当前新内容和选项分离；长正文提供摘要和全文查看"
+  ],
+  "verification": {
+    "backend_tests": "129 passed, 1 warning",
+    "backend_ruff": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "24 passed",
+    "apk_build": "passed",
+    "apk_sha256": "cff89639321830fd338072fec48e33fd42ad50689226a0edadb32fc19ca338b1",
+    "apk_path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "desktop_tests": "32 passed",
+    "desktop_build": "passed"
+  },
+  "emulator": {
+    "avd": "dzmm-ux-api36",
+    "serial": "emulator-5554",
+    "adb_reverse": "tcp:11434 -> host Ollama",
+    "apk_installed": true,
+    "qwen7b_attempt": {
+      "profile": "PC-qwen3-direct",
+      "result": "model operation reached 120 second timeout without writing a draft",
+      "player_feedback": "single-line stage and elapsed time remained visible; no partial result was persisted"
+    },
+    "offline_template_attempt": {
+      "result": "draft review opened successfully",
+      "clarification": "offline template is explicitly labeled as a fixed Fog Harbor example and is not presented as topic-generated content"
+    }
+  },
+  "manual_follow_up": [
+    "Use a responsive local Qwen profile to create a new world and judge narrative causality and immersion",
+    "Open an existing world, verify the delete confirmation copy, and only delete a disposable test world",
+    "Exercise history scrolling after several long turns on a real device"
+  ],
+  "score": {
+    "previous": 87,
+    "current": 87,
+    "reason": "Code and automated gates improved; player score is held until manual acceptance of a fresh-world Qwen journey."
+  }
+}

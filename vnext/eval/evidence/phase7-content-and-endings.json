@@ -1,4 +1,7 @@
 {
+  "status": "historical-superseded",
+  "counted_in_current_matrix": false,
+  "superseded_by": ["phase61-android-portable-roundtrip", "phase70-portable-cross-platform"],
   "matrix_version": "narrative-platform-v2",
   "commit": "10be976",
   "environment": "macOS; Python 3.13.3; fresh temporary DZMM_NEXT_DATA_DIR; FastAPI/uvicorn at 127.0.0.1:18765; Vite at 127.0.0.1:5182; local Chrome browser journey; no legacy database or API",

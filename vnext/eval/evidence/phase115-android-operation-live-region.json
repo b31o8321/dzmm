@@ -1,0 +1,15 @@
+{
+  "phase": "phase115-android-operation-live-region",
+  "date": "2026-08-21",
+  "objective": "Make Android model and turn progress readable by TalkBack as well as visible on screen.",
+  "change": "OperationStatusCard now exposes a live Semantics region with the current stage label and elapsed time.",
+  "verification": {
+    "flutter_tests": "22 passed",
+    "flutter_analyze": "no issues found",
+    "desktop_tests": "32 passed",
+    "desktop_build": "passed",
+    "backend_tests": "112 passed",
+    "backend_ruff": "all checks passed"
+  },
+  "status": "implemented; physical TalkBack and packaged A-F acceptance remains pending"
+}

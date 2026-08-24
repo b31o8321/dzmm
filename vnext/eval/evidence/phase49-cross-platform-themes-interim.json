@@ -1,0 +1,33 @@
+{
+  "phase": "phase49-cross-platform-themes-interim",
+  "captured_at": "2026-08-18",
+  "status": "source-and-build-verified",
+  "goal": "Mac and Android share story-adaptive theme choices",
+  "implementation": {
+    "desktop": ["fog", "paper", "amber"],
+    "android": ["fog", "paper", "amber"],
+    "android_persistence": "secure local presentation preference; never sent to Host",
+    "android_home_cards": "all hardcoded colors replaced with ColorScheme tokens",
+    "host_state_impact": "none"
+  },
+  "verification": {
+    "flutter_analyze": "passed",
+    "flutter_test": {"passed": 24, "failed": 0},
+    "flutter_build_apk_debug": "passed",
+    "adb_visual_install": "not_run: no Android SDK/AVD or connected device in this shell",
+    "desktop_visual_recheck": "not_run: installed Mac app is a separate build from this worktree"
+  },
+  "user_journey": [
+    "Android app bar palette action opens theme picker",
+    "theme picker explains immersion/readability intent and current selection",
+    "selection updates Material surfaces, navigation, cards and primary actions",
+    "selection persists locally across Android app restarts",
+    "desktop continues to persist the same three theme IDs in localStorage"
+  ],
+  "maturity": {
+    "overall_platform": {"before": 66.25, "after": 66.25, "reason": "No device screenshot or packaged desktop WebView evidence; implementation alone does not raise score."},
+    "android_visual_accessibility_loading_failure_recovery": {"before": 40, "after": 40},
+    "mac_desktop_ux": {"before": 68, "after": 68}
+  },
+  "next_gate": "Install on API 36 emulator or Redmi, capture fog/paper/amber full-page screenshots, verify large text and gameplay contrast, then repeat on packaged Mac app."
+}

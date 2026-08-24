@@ -1,0 +1,34 @@
+{
+  "phase": 119,
+  "title": "old DZMM GM boundary and per-run emergent narrative contract",
+  "status": "implemented_backend_pending_qwen_manual_comparison",
+  "reference": {
+    "old_dzmm": [
+      "backend/src/dzmm/prompts/gm_template.py",
+      "backend/src/dzmm/prompts/gm_few_shot.py",
+      "backend/src/dzmm/service/game.py",
+      "backend/src/dzmm/service/npc_memory.py"
+    ],
+    "principle": "LLM drives scene/NPC/plot hooks while Python validates dice, resources, relationships, routes, chapters and endings"
+  },
+  "changes": [
+    "vnext narrative rulesets accept free narrate/move turns in addition to authored choices",
+    "Run state persists bounded narrative_context with run_seed, current_hook and the latest six turns",
+    "model prompts receive narrative memory and a per-run/per-turn variation directive",
+    "Ollama, LM Studio and OpenAI-compatible narrative requests use temperature 0.85 and top_p 0.9",
+    "player-facing guidance describes authored choices as suggestions and invites direct actions"
+  ],
+  "verification": {
+    "backend_tests": "113 passed, 1 warning",
+    "ruff": "passed",
+    "new_regression": "test_choice_world_accepts_free_action_as_a_gm_led_story_turn",
+    "manual_qwen_comparison": "pending",
+    "android_flutter": "22 tests passed; analyze passed",
+    "android_apk": {
+      "sha256": "3a9d17ec23db45ffcebbcf4c9b676ead1e83f3dd8ba10821687e3013a6820461",
+      "installed_on": "emulator-5554"
+    },
+    "manual_scope": "start the same world twice, use the same opening choice sequence, compare hook/NPC/scene variation and verify Python state outcomes remain valid"
+  },
+  "residual_risk": "The first increment keeps the authored graph as the hard-effect boundary; deeper model-proposed structured events and dynamic endings require a separate schema/acceptance phase."
+}

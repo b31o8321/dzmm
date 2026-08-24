@@ -41,9 +41,21 @@ def test_health_uses_isolated_fresh_data_directory(tmp_path) -> None:
         "app": "dzmm-next",
         "api_version": 2,
         "contract": contract_manifest(),
-        "storage": "isolated",
+        "storage": "local",
+        "host": "127.0.0.1",
         "foreign_keys": True,
     }
+
+
+def test_runtime_route_surface_has_no_retired_remote_or_pairing_api(tmp_path) -> None:
+    app = create_app(Settings(data_dir=tmp_path / "route-surface"))
+    paths = {route.path for route in app.routes}
+    assert "/health" in paths
+    assert "/api/v2/worlds:compose" in paths
+    assert all(
+        not any(token in path.lower() for token in ("remote", "pairing", "discovery", "mobile"))
+        for path in paths
+    )
 
 
 def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> None:
@@ -53,7 +65,7 @@ def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> Non
     assert response.status_code == 200
     payload = response.json()
     assert payload["app"] == "dzmm-next"
-    assert payload["storage"] == "isolated"
+    assert payload["storage"] == "local"
     assert payload["database"] == {
         "aggregate_counts": {
             "worlds": 0,
@@ -61,9 +73,8 @@ def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> Non
             "heroes": 0,
             "runs": 0,
             "turns": 0,
+            "story_beats": 0,
             "model_profiles": 0,
-            "mobile_devices": 0,
-            "pairing_requests": 0,
         },
         "integrity": {
             "clean": True,
@@ -72,8 +83,11 @@ def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> Non
                 "runs_without_world_version": 0,
                 "runs_without_hero": 0,
                 "turns_without_run": 0,
+                "story_beats_without_run": 0,
                 "compose_requests_without_world": 0,
                 "compose_requests_without_run": 0,
+                "run_create_requests_without_world": 0,
+                "run_create_requests_without_run": 0,
             },
         },
     }
@@ -84,13 +98,21 @@ def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> Non
 
 def test_local_desktop_origins_can_call_api_but_unrelated_origins_cannot(migrated_client) -> None:
     client, _ = migrated_client
-    allowed = client.options(
-        "/api/v2/world-templates/fog-harbor",
-        headers={
-            "origin": "http://127.0.0.1:5175",
-            "access-control-request-method": "GET",
-        },
-    )
+    for origin in (
+        "http://127.0.0.1:5175",
+        "https://tauri.localhost",
+        "http://tauri.localhost",
+        "tauri://localhost",
+    ):
+        allowed = client.options(
+            "/api/v2/world-templates/fog-harbor",
+            headers={
+                "origin": origin,
+                "access-control-request-method": "GET",
+            },
+        )
+        assert allowed.status_code == 200
+        assert allowed.headers["access-control-allow-origin"] == origin
     denied = client.options(
         "/api/v2/world-templates/fog-harbor",
         headers={
@@ -98,10 +120,45 @@ def test_local_desktop_origins_can_call_api_but_unrelated_origins_cannot(migrate
             "access-control-request-method": "GET",
         },
     )
-
-    assert allowed.status_code == 200
-    assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5175"
     assert denied.status_code == 400
+
+
+def test_model_profile_http_crud_default_and_run_reference_guard(migrated_client) -> None:
+    client, _ = migrated_client
+    payload = {
+        "name": "Ollama",
+        "provider_type": "ollama",
+        "base_url": "http://127.0.0.1:11434/",
+        "model_name": "qwen:7b",
+    }
+    first = client.post("/api/v2/model-profiles", json=payload).json()
+    second = client.post(
+        "/api/v2/model-profiles",
+        json={
+            **payload,
+            "name": "Studio",
+            "provider_type": "lm_studio",
+            "base_url": "http://127.0.0.1:1234/v1",
+        },
+    ).json()
+    assert first["is_default"] is True
+    assert second["is_default"] is False
+
+    edited = client.put(
+        f"/api/v2/model-profiles/{second['id']}",
+        json={
+            **payload,
+            "name": "Studio 14B",
+            "provider_type": "lm_studio",
+            "base_url": "http://127.0.0.1:1234/v1",
+        },
+    )
+    assert edited.status_code == 200
+    assert edited.json()["name"] == "Studio 14B"
+    selected = client.post(f"/api/v2/model-profiles/{second['id']}:default")
+    assert selected.status_code == 200
+    assert selected.json()["is_default"] is True
+    assert client.delete(f"/api/v2/model-profiles/{first['id']}").status_code == 204
 
 
 def test_contract_validators_reject_incomplete_payloads() -> None:
@@ -116,7 +173,14 @@ def test_contract_validators_reject_incomplete_payloads() -> None:
         "events": [],
         "resources": [],
         "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "resources"]},
-        "story": {"chapters": [], "flags": [], "relationships": [], "relationship_events": [], "routes": [], "endings": []},
+        "story": {
+            "chapters": [],
+            "flags": [],
+            "relationships": [],
+            "relationship_events": [],
+            "routes": [],
+            "endings": [],
+        },
     }
     contract_validator("world_definition.schema.json").validate(world)
 

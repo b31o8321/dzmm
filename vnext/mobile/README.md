@@ -1,17 +1,17 @@
 # vNext mobile
 
-DZMM Next Mobile is the Flutter Android gameplay-only client. It pairs with a
-vNext desktop Host and never manages models, worlds or data deletion.
+DZMM Next Mobile is the Android Local Host. It owns its app-private SQLite and
+uses an embedded Python core as the only state judge. The phone calls its chosen
+model provider directly and never requires a DZMM Mac/Windows Host, pairing,
+QR handoff, LAN listener or remote token.
 
-The first playable vertical slice supports local-Host discovery/manual entry,
-desktop-side approval, secure token storage, automatic recovery of the most
-recent active Run and server-planned story choices. The phone receives only a
-minimal active-Run picker (world name, hero name and state revision), not World
-definitions, lorebook content or model configuration. It never sends an
-arbitrary narrative command: it only submits the current choice ID and expected
-revision to the Python Host.
+The remote-client implementation has been removed. The first Local Host slice
+is: embedded CPython + local SQLite → schema-v3 compose
+→ three constrained choices → ending → rollback → force-stop/reopen. Direct
+model profiles retain the complete `type`, `base_url` and `model_name` bundle;
+optional provider credentials are kept in Android secure storage and are only
+passed to the embedded runtime for the single request that needs them;
+the core rejects malformed/empty protocol responses before state commit.
 
-The desktop Host currently uses authenticated HTTP on the local network. Android
-therefore explicitly permits cleartext traffic for the user-selected Host. Do
-not enter an untrusted network endpoint; a future TLS/QR discovery upgrade may
-tighten this boundary without broadening mobile authority.
+Cross-device continuation is explicit export/import/clone, never automatic DB
+sync or concurrent writes to one Run. See ADR-008 and the Local Host spec.

@@ -1,0 +1,45 @@
+{
+  "phase": 76,
+  "name": "embedded-model-request-and-repair-boundary",
+  "date": "2026-08-21",
+  "status": "source-frozen-sidecar-and-android-build-verified",
+  "changes": {
+    "core_runtime_lines": {
+      "before_phase_73": 1288,
+      "after": 1009
+    },
+    "extracted_modules": {
+      "embedded_model_requests.py": [
+        "shared request transport and timeout",
+        "provider endpoint selection",
+        "Qwen thinking control",
+        "LM Studio world-draft JSON Schema",
+        "HTTP and protocol error handling",
+        "narrative and fenced JSON cleanup"
+      ],
+      "generated_world_repair.py": [
+        "deterministic chapter and relationship-link repair",
+        "safe mapping of narrative names onto the vetted hybrid skeleton"
+      ]
+    },
+    "boundary": "LocalCoreRuntime now orchestrates use cases; model HTTP/schema and generated-world repair no longer depend on SQLite or runtime persistence."
+  },
+  "verification": {
+    "backend": "88 passed; Ruff clean",
+    "new_tests": "6 tests cover request payloads, qwen no-think, HTTP-200 protocol errors, output cleanup, deterministic repairs and safe skeleton fallback",
+    "frozen_sidecar": "PyInstaller build and automatic isolated /health smoke passed after both new modules",
+    "android": "Flutter analyze, 10 widget tests and debug APK build passed with the extracted modules",
+    "macos_bundle": "app and DMG rebuilt after the final frozen sidecar",
+    "macos_packaged_host": "isolated launch on port 18772 passed /health with app=dzmm-next and storage=local"
+  },
+  "score": {
+    "code_quality": 85,
+    "player_readiness": 78,
+    "release_gate": "not passed; code threshold is independent of Windows native and Android physical-device player evidence",
+    "remaining_code_risk": [
+      "App.vue still owns AI draft, portable and lifecycle orchestration.",
+      "LocalCoreRuntime still owns World/Run/Turn/portable SQLite orchestration.",
+      "Operation stages are UI-driven rather than a complete cross-platform streaming event protocol."
+    ]
+  }
+}

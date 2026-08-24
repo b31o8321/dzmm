@@ -1,0 +1,26 @@
+{
+  "phase": 80,
+  "name": "formal-ending-narrative-parity",
+  "date": "2026-08-21",
+  "status": "component-and-widget-verified",
+  "scope": "The ending is a player-facing narrative result rather than an internal ending key or raw kind value.",
+  "changes": [
+    "desktop PlayScene promotes the persisted ending story beat into the ending card and no longer falls back to narrative_key",
+    "Android PlayPage promotes the persisted ending story beat into the ending card and maps good/normal/bad/hidden to friendly labels",
+    "ending beats are not duplicated in the normal chronicle after the ending card is shown"
+  ],
+  "verification": {
+    "desktop_tests": "4 files, 9 tests passed including ending title, narrative and key-redaction fallback",
+    "desktop_build": "vue-tsc and Vite production build passed",
+    "macos_tauri_package": "rebuilt; DMG sha256 75f6d8805d119337501c4ed5e4a07b9350c0b8ce47176dca86fbfa35f347827c",
+    "macos_packaged_host_health": "passed on isolated port 18779 with app=dzmm-next, storage=local, host=127.0.0.1",
+    "flutter_analyze": "passed",
+    "flutter_tests": "10 passed including friendly ending label and narrative",
+    "android_debug_apk": "built successfully; sha256 de208cbbd77a82c53f65738c7c9d6f622f3dc36a533fcb3bbe005a093b84f875"
+  },
+  "remaining": [
+    "macOS installed WebView ending journey",
+    "Windows native package ending journey",
+    "Android physical-device ending and accessibility journey"
+  ]
+}

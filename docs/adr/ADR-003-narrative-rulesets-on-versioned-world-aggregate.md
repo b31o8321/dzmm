@@ -77,7 +77,8 @@ World
 - World Info 的未知字段继续 escrow；只映射确定性知识字段。角色卡/世界书导入、提升、编辑、导出是 WorldVersion authoring 行为，不是 Run 行为。导入角色卡必须持久保存卡及其原始 payload；仅将其降级为“建议主角”不算完成角色卡互通。
 - 结局由 Python 的有限条件树与稳定优先级确定；LLM 可接收并叙述“已锁定的 ending”，不能推断真实 ending。
 - 关系变化将从“任意 number delta”变为“已定义 relationship event 的固定 effect + reason + once/cooldown ledger”。这限制作者的随意脚本，但换来可解释和可重放。
-- Android contract 需增加可见 chapter/choice/relationship/ending projection，却不能获得 ruleset authoring、模型或生命周期权限。
+- Android 通过本机 `LocalHostPort` 操作自己的聚合；它仍只能提交受限输入，不能直写规则或
+  RunState。跨设备只能通过显式 export/import/clone 生成新的 aggregate/Run ID。
 
 ## Action items
 

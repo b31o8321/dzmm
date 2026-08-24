@@ -1,4 +1,7 @@
 {
+  "status": "historical-superseded",
+  "counted_in_current_matrix": false,
+  "superseded_by": ["phase58-android-local-host-vertical-slice", "phase67-android-pc-qwen3-ui-full-journey"],
   "matrix_version": "narrative-platform-v2",
   "commit": "5d0b6e3",
   "environment": "Python 3.13.3; fresh temporary SQLite database; FastAPI TestClient; Vite local-browser journey; Vue production build; deterministic narrator and Huihui 14B real-model evidence",

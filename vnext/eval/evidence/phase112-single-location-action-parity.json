@@ -1,0 +1,18 @@
+{
+  "phase": "phase112",
+  "date": "2026-08-21",
+  "status": "single-location-action-parity",
+  "player_change": [
+    "Desktop now hides the destination control for single-location worlds, matching Android's simpler free-action surface.",
+    "Multi-location worlds keep the dynamic destination control sourced from the Run presentation."
+  ],
+  "automated_checks": {
+    "desktop_tests": "30 passed across 12 files",
+    "desktop_build": "passed",
+    "git_diff_check": "passed"
+  },
+  "not_proven": [
+    "Installed Android and Windows journeys remain unavailable in this environment.",
+    "macOS packaged visible-window gate remains unproven."
+  ]
+}

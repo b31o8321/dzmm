@@ -1,0 +1,25 @@
+{
+  "phase": "phase98",
+  "date": "2026-08-21",
+  "status": "cancellation-transport-recovery-verified",
+  "player_behavior": [
+    "If a draft cancellation request cannot reach the local runtime, desktop and Android stop waiting locally, invalidate the request identity and ignore any late draft response; no World, Run or archive is created.",
+    "If a turn cancellation request cannot reach the local runtime, Android keeps the operation visible and explains that the current journey is still processing instead of pretending the turn was cancelled.",
+    "A subsequently completed turn still updates the same Run after a failed cancellation request, preserving the original state transition boundary."
+  ],
+  "automated_checks": {
+    "flutter_tests": "16 passed",
+    "flutter_analyze": "passed",
+    "desktop_tests": "16 passed across 6 files",
+    "desktop_build": "passed",
+    "git_diff_check": "passed",
+    "package_sha256": {
+      "android_debug_apk": "b8da0f282e97475ea8cca957105d5666f0ed755c050d0ace405b8f10a1d92ff5",
+      "macos_arm64_dmg": "1689fc71cc7a0d40cba2d800db341616e5f124088282c9029cd5e357b3038fc4"
+    }
+  },
+  "not_proven": [
+    "Actual Android transport failure and cancellation during a physical-device model request remain unrun because adb devices is empty.",
+    "Windows native package and macOS packaged WebView recovery remain unrun."
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "phase": "phase50-desktop-settings-workbench-interim",
+  "captured_at": "2026-08-18",
+  "status": "historical-superseded",
+  "counted_in_current_matrix": false,
+  "superseded_by": ["phase55-macos-packaged-full-journey", "phase57-shared-core-android-build-smoke"],
+  "scope": "historical desktop/browser settings UX snapshot; no current capability claim",
+  "implementation": [
+    "World and Settings are separate top-level workspaces",
+    "Host, diagnostics, models and appearance were grouped into four settings sections in the historical snapshot",
+    "Desktop model profiles expose a Host-side protocol/content Probe",
+    "LAN control is unavailable and explained in browser preview; only Tauri can open it",
+    "Fog, Paper and Amber are configured in the settings workspace"
+  ],
+  "qa": {
+    "desktop_build": "npm run build passed",
+    "tauri_debug_bundle": "CI=true npm run tauri:build -- --debug passed; DZMM Next.app and DMG created",
+    "source_host": "http://127.0.0.1:28767 health passed; isolated data directory",
+    "browser": "Chrome headless against Vite preview with Host proxy",
+    "viewports": {
+      "desktop": {"width": 1600, "height": 900, "horizontal_overflow": false},
+      "narrow_web": {"width": 390, "height": 844, "horizontal_overflow": false}
+    },
+    "interactions": [
+      "World to Settings navigation",
+      "Host, model, mobile and appearance section navigation",
+      "Paper theme selection",
+      "real Host Probe for local Ollama qwen2.5:7b: protocol response contains content",
+      "browser-only LAN unavailable explanation"
+    ]
+  },
+  "screenshots": [],
+  "maturity": {
+    "overall_platform": {"before": 66.25, "after": 66.25, "reason": "Source Web improvement only; no packaged Mac WebView, accessibility or Windows proof."},
+    "mac_pc_creation_and_play_ux": {"before": 68, "after": 68},
+    "android_local_host": {"before": 0, "after": 0}
+  },
+  "remaining": [
+    "Packaged Mac app full journey and accessibility",
+    "Windows Host and WebView visual acceptance",
+    "AI draft structured review and field-level recovery",
+    "Physical Android full journey"
+  ]
+}

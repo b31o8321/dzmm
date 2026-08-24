@@ -1,0 +1,40 @@
+{
+  "phase": "phase87",
+  "date": "2026-08-21",
+  "status": "shared-core-and-android-bridge-archive-parity-verified",
+  "scope": "Android embedded Local Host world lifecycle; shared transport-free Python core",
+  "journey": [
+    "Composed a fresh World through the embedded bridge.",
+    "Archived the World and read back archived status from list_worlds.",
+    "Attempted to create a new Run while archived; the core rejected it with 'archived world cannot start a new run'.",
+    "Restored the World and received active status."
+  ],
+  "bridge_result": {
+    "archived_status": "archived",
+    "listed_status": "archived",
+    "blocked_action": "archived world cannot start a new run",
+    "restored_status": "active"
+  },
+  "implementation": [
+    "local_worlds now persists status with a safe upgrade for existing app-private databases.",
+    "Shared core exposes archive_world/restore_world and blocks create, choose, play, and rollback while archived.",
+    "Dart LocalHostPort, Kotlin supported operations, Chaquopy bridge, and experience contract expose the same operations.",
+    "Android World detail now shows reversible archive/restore controls and disables new Run while archived."
+  ],
+  "automated_checks": {
+    "backend": "100 passed",
+    "backend_ruff": "passed",
+    "desktop_component_tests": "11 passed",
+    "desktop_build": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "12 passed",
+    "debug_apk": {
+      "status": "built",
+      "sha256": "4fb95ec92ed5201acaf1119166d15636ff8c94428d59b6beb8ca5df0b7b8d883"
+    }
+  },
+  "not_proven": [
+    "No Android physical device is currently connected; APK install and touch journey remain open.",
+    "Windows native package and macOS packaged WebView visual A-F remain open."
+  ]
+}

@@ -1,90 +1,247 @@
-# Active Delivery Index
+# DZMM vNext Active Delivery Index
 
-## DZMM vNext 干净重做
+更新时间：2026-08-21
+工作树：`.worktrees/dzmm-vnext`
+分支：`feature/dzmm-vnext`
+基线：`main` at `df38037`
 
-- **状态：** Active — Phase 0–3 的已实现范围已有中间证据；当前进入打包桌面壳、模型流失败恢复与长局验收。叙事规则集已进入产品/架构评审，批准后以“剧情冒险 + 关系 + 多结局”垂直切片推进，再进入 Android/LAN RC。
-- **日期：** 2026-08-16
-- **工作树 / 分支：** `.worktrees/dzmm-vnext` / `feature/dzmm-vnext`
-- **基线：** `main` at `df38037` (`v0.16.0`)
-- **目标：** 在隔离的 vNext 产品根中重建 DZMM：单一版本化世界聚合、可恢复 Python-first 回合、受限 Lorebook/内容导入、macOS/Windows 桌面 Host 与 Android gameplay client。旧数据库、旧 API 和旧代码不构成迁移或兼容约束。
+## 当前目标
 
-### Canonical artifacts
+DZMM vNext 是“本地优先、状态驱动的互动叙事平台”。macOS、Windows、Android
+都是独立 Local Host：本机 SQLite、共享 Python 状态裁判和完整 ModelProfile。跨设备只允许
+用户明确执行的 portable export/import/clone，不做自动同步或同一 Run 双端写入。
 
-- [产品与领域现状评审](reviews/2026-08-16-dzmm-product-domain-review.md)（历史与设计参考）
-- [ADR-002：vNext 干净重做](adr/ADR-002-vnext-clean-slate-rebuild.md)
-- [vNext 规格、评分矩阵与分阶段实施计划](superpowers/specs/2026-08-16-dzmm-vnext-clean-rebuild.md)
-- [叙事规则集：互动叙事平台规格、雾港示例、矩阵与 Plan](superpowers/specs/2026-08-17-narrative-rulesets-interactive-story-platform.md)
-- [ADR-003：在版本化世界聚合上扩展叙事规则集](adr/ADR-003-narrative-rulesets-on-versioned-world-aggregate.md)
-- [ADR-004：世界书与角色卡的互通内容边界](adr/ADR-004-interoperable-lorebook-and-character-card-boundary.md)
+自 2026-08-21 起，发布判断以安装后的玩家旅程为第一事实源：玩家必须能快速设置模型、从可复用
+World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM 当前阶段、沉浸完成回合和正式结局，
+并从同一 World 开始下一局。API、构建、模拟器自动点击和长回合脚本只证明工程能力，不能替代可玩性。
+
+完成门槛：所有 P0 维度及整体成熟度均 >=85；正式代码、UI、测试、配置、依赖、迁移和发布产物中不再存在废弃的 remote/LAN/mDNS/QR/pairing/scope 能力。
+
+## Canonical artifacts
+
+- [ADR-008：每个平台都是 Local Host](adr/ADR-008-local-host-on-every-platform.md)
+- [ADR-009：共享跨端体验契约](adr/ADR-009-cross-platform-adaptive-experience.md)
+- [全平台 Local Host 规格、矩阵与 Plan](superpowers/specs/2026-08-19-local-host-all-platforms.md)
+- [叙事规则集规格](superpowers/specs/2026-08-17-narrative-rulesets-interactive-story-platform.md)
 - [AI 世界创作向导规格](superpowers/specs/2026-08-17-ai-world-creation-wizard.md)
-- [ADR-005：AI 世界草案边界](adr/ADR-005-ai-world-draft-boundary.md)
-- [本地 Host 发现与配对恢复规格](superpowers/specs/2026-08-17-mobile-local-discovery-and-host-parity.md)
-- [ADR-006：本地 Host 发现与配对恢复](adr/ADR-006-local-host-discovery-and-paired-mobile-recovery.md)
-- [世界中心交互原型](prototypes/2026-08-16-world-center-prototype.html)
+- [共享 Experience Contract](../vnext/contracts/experience_contract.json)
+- [共享 Design Tokens](../vnext/contracts/design_tokens.json)
+- [玩家视角重定基线](reviews/2026-08-21-player-first-vnext-rebaseline.md)
+- [三端玩家能力与代码质量评分](reviews/2026-08-21-cross-platform-player-code-scorecard.md)
+- [玩家旅程验收清单](acceptance/2026-08-21-player-journey-acceptance.md)
+- [玩家闭环交互原型](prototypes/2026-08-21-player-loop.html)
 
-### 已确认决策
+历史 ADR、规格、截图和 evidence 不再作为当前能力证明；仍保留的历史快照已标记
+`historical-superseded`，不得计入当前矩阵。
 
-1. DZMM vNext 定位为「本地优先、状态驱动的互动叙事平台」；TRPG、剧情冒险、关系叙事和受限 hybrid 共享一个版本化聚合，Python 决定规则与状态，不复刻酒馆的完整提示词/脚本工作台。
-2. vNext 不迁移真实用户数据，不兼容旧 API、旧 schema 或旧页面；`main` 只作为产品行为和测试设计的参考。
-3. 世界是一个版本化 aggregate；世界书（Lorebook / World Info）是受限叙事知识层，不能直接写入运行态。
-4. Android 仍为 gameplay-only client；macOS/Windows 桌面应用是同构 Host。vNext 使用版本化的独立 API，而不是兼容旧远程接口。
-5. 每阶段只能按 vNext 成熟度矩阵累积证据；旧项目的 88.1 成熟度和 Android CI 不能转移为 vNext 分数。
-6. 世界书（Lorebook / World Info）与角色卡（Character Card）采用生态通用概念和安全互通；它们是内容/上下文层，不能直接写 RunState。`WorldDefinition` 仅为内部契约术语。
-7. 世界书与角色卡不只是兼容导入格式，而是 vNext 的一级、可版本化内容资产。公开 API、UI 与存储 contract 固定采用 `lorebook` / `character_cards`；当前 `lore` 和“角色卡转建议主角”的实现仅为未完成的过渡状态，不能作为 Phase 2 完成证据。
-8. 角色卡是可移植内容，不承载本世界的关系数值或结局规则；schema v3 的规则集通过显式 `RelationshipDefinition → character_card_id` 引用角色卡，relationship event 只引用 relationship ID。v2 卡内 `relationship_dimensions` 被拒绝；schema v3 数据目录独立于早期 preview，且不迁移或打开 v2 World/Run。
-9. AI 世界创作是无持久化的、schema v3 受限 `WorldDraft`：模型只能生成候选，Mac 用户审阅/编辑后仍通过现有原子 compose 创建唯一 World 聚合；草案、模型或 Android 都没有直接状态写入权。
-10. Mac 与 Windows 都是同一 vNext Host；Android 只通过配对后的 gameplay API 游玩。局域网开关开启后以 mDNS 发现 Host，手机安全保存 Host 身份、token 与 Run，管理 API 永不向 LAN 开放。
+## 2026-08-21 玩家可玩性重定基线与实现进度
 
-### AI 世界创作向导（进行中，未计分）
+真实 Android 体验和老版 `main` 对照证明，vNext 当前是“框架可运行、主循环未完成”：
 
-- `AIWorldDraft` 仅接受模型生成的世界名、主角、地点、两位角色和世界书素材；Python 将这些素材投影到雾港同等复杂度的三章/选择/Flag/关系/路线/ending schema v3 骨架，再做 contract 与 narrative 校验。
-- 草案不会写入数据库；模型失败、空/非 JSON 内容、未知字段或编辑后的非法 schema 都必须在确认前返回解释性错误。确认复用 `WorldComposer.compose` 的原子性与 request-id 幂等性。
-- 当前已完成 mock/contract 测试、source desktop build 与隔离环境 Huihui 14B 的真实生成→明确 compose→三 choice→结局→回滚 API 垂直切片（`vnext/eval/evidence/phase27-ai-world-draft-interim.json`）；尚无打包桌面 creator UI、键盘/读屏旅程或真实导出再导入，因而分数不变。详情见 `ADR-005` 与 AI 世界创作向导规格。
+- Android 世界列表点击没有动作，desktop 世界详情也没有继续/新 Run 主动作；core 不提供从已有
+  World 创建 Run 的 use case。
+- compose 会直接创建 World、Version、Hero、Run；初始 Run 没有 opening story beat，玩家先看到 choices。
+- Android 回合是阻塞 MethodChannel，游玩页只禁用按钮；desktop 也没有使用已存在的流式 endpoint。
+- narrative ruleset 展示自由行动输入，却拒绝非 choice 状态变化。
+- ending 只有锁定状态和内部类型，没有正式结局叙事、回到世界或同世界新 Run。
+- model profile 只有 create/list/probe，没有 edit/delete/default。
 
-### 当前证据与风险
+这份重定基线记录的是改动前的 **30/100**，不是当前实现评分。当前工作树已补齐上述主循环的
+第一版实现，真实桌面浏览器 + 隔离后端已验证开场、慢模型阶段、取消零写入、回合叙事/状态反馈、
+正式结局和同一 World 新 Run；Android 已通过自动化测试和 APK 构建，但尚未在物理设备验收。
+当前暂定玩家评分 **78/100**，仍然发布阻断：Windows 安装包和 Android 真机证据缺失，macOS 当前
+安装包虽然已完成 Host 级 30 回合重启恢复，但完整 WebView/可访问性和三端 30 回合验收尚未完成。
+phase77 的安装包 Host 恢复证据，以及 phase78 的跨端 operation stage 契约/构建证据，分别见
+`vnext/eval/evidence/phase77-macos-packaged-trpg-restart-recovery.json` 和
+`vnext/eval/evidence/phase78-operation-stage-contract-parity.json`。
 
-- v0.16 的重叠领域模型与手工级联删除是 vNext clean-slate 的触发证据，而不是待迁移负担。
-- 桌面 v0.16.0 的玩法成熟度 88.1 可用于定义质量下限；vNext 的 Phase 0 初始评分为 0，不继承 legacy 分数。
-- Android remote acceptance 78.1 证明已有功能方向，但 vNext 仍必须重新完成 Mac + Android + LAN 物理验收。
-- **Phase 0 已验证：** 实现提交为 `401c7be`。Python 3.13.3 的独立 venv 中，`pytest -q` 为 `4 passed`、`ruff check src tests` 通过；临时 `DZMM_NEXT_DATA_DIR` 执行 `alembic upgrade head` 后，`schema_meta` 有 app/api/contract 三条基线记录、`alembic_version=0001_phase0`；`/health` 返回 `api_version=2`、四份契约、`storage=isolated` 与 `foreign_keys=true`。评分器读取 `vnext/eval/evidence/phase0.json` 得 **0.0/100**、所有 P0 未达标、不可发布——这是尚未实现功能的正确零基线，不得据此加分。
-- **Phase 1 中间证据（已评分，未过 gate）：** `9bf5f4f` 在临时 SQLite 上验证了 World/WorldVersion/Hero/Run 的单事务 compose、重试、冲突与 20 次数据库写失败零残留；还覆盖三回合、SSE 事件与刷新恢复。`d413a87` 将模型 profile 固化为完整协议并验证 LM Studio 的 HTTP 200 error body 必须失败。`ca82df6` 把 Run 绑定到 profile，并以台式机 LM Studio 的 `huihui-ai_qwen3-14b-abliterated` 完成四回合实跑：Python 最终状态为地点/库存/revision 的唯一来源，Qwen RP 包装与 JSON 回显会被净化。桌面 vNext 的 `npm run build` 已通过，浏览器实测 Create → Confirm → Turn → Refresh 恢复成功。
-- **Phase 2 lifecycle 证据（已评分，未过 gate）：** `cde8ef3` 实现了 archive、确认 token 保护的 purge manifest、聚合删除与零 SQL 孤儿扫描；测试还确认 archived World 不能再收回合。当前没有资产或派生索引模块，manifest 因此明确报告空集合，不把不存在的清理能力计为完成。
-- **Phase 2 rollback 证据（已评分，未过 gate）：** `abf1f60` 将回滚实现为新的审计 Turn，`edf4ac1` 将它接入桌面。浏览器在临时 DB 中验证两回合 → 恢复第一回合后 → 刷新：历史仍有三条记录，RunState 为新 revision 的第一回合快照。此测试使用 deterministic narrator；真实 Huihui 模型只为此前四回合证据背书，不能替代长局。
-- **Phase 3 content 证据（已评分，未过 gate）：** `53250f8` 支持 SillyTavern V3 card 与 World Info 解析、原始条目保留、关键词/常驻/优先级/预算选择，并让 Lore 提升产生 WorldVersion 2、既有 Run 留在版本 1。模型仅接收选择出的 Lore body，不能把 Lore 直接写入 RunState。
-- **Phase 3 desktop import 证据（已评分，未过 gate）：** `602a568` 的临时 DB 浏览器 E2E 验证 V3 卡 → 1 条 Lore → 建议 Hero → 单一 compose → 确认页面；Lore 没有静默变成实体。
-- **macOS Host 打包中间证据（已评分，未过 gate）：** `b53da75` 以 PyInstaller 生成 arm64 sidecar，首次启动完成 Alembic 至 `0005_turn_rollbacks` 并返回 vNext `/health`；它被放入 Tauri debug `.app`，以独立端口和临时 `DZMM_NEXT_DATA_DIR` 启动该 `.app` 后，WebView 触发 Host command 并启动同一个 sidecar。该证据只证明打包和启动边界；尚未在打包应用中完成 create/play/archive/recovery 与无障碍旅程，不能加分。
-- **真实模型流与长局中间证据（已评分，未过 gate）：** `078c268` 让 SSE token 在回合提交前传输，畸形/空流、429 与客户端取消都不会写入半回合。`phase2-real-model-30-turns.json` 记录台式机 Huihui 14B 在临时数据库的 30 回合实跑（中位 0.519 秒，最大 3.053 秒），最终 revision 与 Turn 数均为 30；未以此替代 50 回合、500 消息或实际设备指标。
-- **50 回合与重开中间证据（已评分，未过 gate）：** `8409b01` 记录 50 回合 Huihui 14B 流式实跑（中位 0.553 秒，最大 3.045 秒、零重试）和 500 条持久化回合的确定性 API 重开（0.004 秒、165 KB）。这证明本地恢复，不替代目标设备的流式预算。
-- **Mobile control-plane 基础（未计分）：** `4ccd8c9` 增加 API v2 独立配对请求、loopback host 批准、一次性 token 交付、token 哈希校验与撤销；mobile bearer 只能读 Run 和提交 gameplay SSE，不能触及世界/模型管理。28 项后端测试覆盖批准、使用、撤销和流式回合。尚无 Flutter 客户端、LAN 发现或实体设备证据，因此 Mobile 仍为 0。
-- **当前 vNext 矩阵：58.0 / 100，全部 P0 未达标，不可发布。** 取证文件为 `vnext/eval/evidence/phase4-performance-interim.json`：Domain 60、Game Loop 75、Content 60、Model 65、Desktop 60、Mobile 0、Long-play 75、Engineering 50。低分不是实现失败的代名词，而是如实反映缺少 PNG/导出 round-trip、Tauri RC、Android、目标设备性能和发布证据；不以局部真实模型成功推断这些维度完成。
-- **叙事规则集评审（未计分）：** `ADR-003` 与 2026-08-17 规格提出在相同 WorldVersion/Run/RunState/Turn aggregate 内加入 `trpg`、`story_adventure`、`relationship_drama`、`hybrid`。现有 **58.0/100** 是前序 TRPG 矩阵的实现基线，不因文档增加分数，也不能与新的平台矩阵横向比较；Phase 0 contract freeze 后，scorecard 必须按新矩阵重新取证。
-- **叙事规则集 Phase 0 / Mac 确定性切片（已实现，未过 gate，contract 已被 ADR-004 取代）：** `2ba5d57` 将 contract 升为 2026-08-17 / schema v2，`WorldDefinition` 固化 ruleset、章节/Flag/路线/ending definitions；唯一 `RunState` 保存关系 reason/once ledger、章节和锁定结局。`bb81a16` 增加雾港 native template、current-choice projection 和服务端 planned-choice endpoint；桌面页面仅发送 choice ID，不拼章节/结局 command。临时 DB 浏览器完成 create → 三次选择 → 好结局 → 回滚至第一回合后 → 刷新并恢复第二章选择；关系原因和 locked ending 均可见，控制台零错误。迁移 `0007_narrative_ruleset_contract` 仅更新 vNext contract metadata，不读取 legacy。该 v2 切片把 `relationship_dimensions` 放在角色卡内；ADR-004 要求先移至显式 `RelationshipDefinition` 的 schema v3 后重取相同证据，故不能将其作为最终内容建模完成证据。平台矩阵取证在 `vnext/eval/evidence/phase5-narrative-vertical-slice.json`：**56.75 / 100，所有 P0 仍未达到 80，不可发布。** 该数值刻意不复用 v2 未覆盖的旧 TRPG 长局/Android 分数。
-- **真实模型补充证据（已实现，未过 gate）：** `fecce45` 将模型提示收紧为“只描述 Python 已确认结果”，并注入 ruleset/章节/路线/关系等只读上下文；单测确认模型没有状态裁判权限。台式机 Huihui 14B 在隔离数据库完成 v2 50 回合 SSE（最小 0.334s、中位 0.802s、最大 6.646s、一次非提交重试，recovery 正确），并完成雾港岚路线的三次选择与好结局（三段非空真实叙事）。原始取证为 `phase5-real-model-v2-50-turns.json` 与 `phase5-real-model-fog-harbor.json`。平台矩阵现为 **61.75 / 100，所有 P0 仍未达到 80，不可发布。** 仍缺 v2 500 消息重开、打包 Tauri、Android/LAN 与 release evidence。
-- **v2 重开性能补充证据（已实现，未过 gate）：** `5d0b6e3` 使 benchmark 使用 schema v2；隔离 DB 中 500 条持久化 Turn 重开为 0.005s / 165475 bytes，revision 与完整历史都正确。平台矩阵现为 **62.25 / 100，所有 P0 仍未达到 80，不可发布。** 长局维度仍缺目标设备流式预算，不能上调到 80。
-- **内容资产 contract 落地（未计分）：** 已将 WorldDefinition/API/桌面导入统一切换为 `lorebook.entries` 与 `character_cards`；旧 `lore` schema 和 endpoint 被明确拒绝。SillyTavern V3 导入会持久保留完整卡 payload、映射可解释字段和卡内世界书条目引用；API 可导出原始 V3 卡，也可通过 `GET /api/v2/world-versions/{id}/lorebook:export` 导出 World Info：导入条目原样回传 escrow 的原始对象，DZMM 原生条目则映射到安全的 World Info 字段。测试覆盖卡的导入 → WorldVersion 固定 → 导出 round-trip、World Info 保真导出、原生世界书安全导出，以及世界书选择/提升不改既有 Run。仍未完成 PNG metadata 文件输入、角色卡编辑界面与打包桌面作者旅程，因此内容互通与作者体验维度不加分。
-- **跨规则集内容创建路径（未计分）：** 创建向导不再只在自定义 TRPG 显示 SillyTavern 导入；雾港剧情/关系模式同样会把导入的世界书与角色卡在单一 compose 前附着到新 WorldVersion。浏览器以 V3 卡完成“雾港 → 导入 → 创建 → 确认”，随后从该 version 导出原始卡和包含模板/导入两条目的 World Info；合并会在客户端拒绝重复 Lorebook/Character Card ID，避免模板规则或关系目标被静默遮蔽。`npm run build` 通过。证据为 `vnext/eval/evidence/phase10-cross-ruleset-content-authoring-interim.json`；这不替代编辑器、真实 PNG filechooser、打包桌面作者旅程或 Android 验收，平台矩阵仍为 **65.00 / 100**。
-- **桌面内容资产导出（未计分）：** WorldVersion 创建确认页现在展示世界书条目数、角色卡清单，并可下载 World Info 与具备原始 payload 的 V3 角色卡。浏览器以正常操作完成雾港导入、创建和两次实际下载：World Info 保留模板/导入的 2 条条目，角色卡仍为 `chara_card_v3` 且名称正确；资产区和开局操作在 1600×900 首屏内可见、无横向溢出。证据为 `vnext/eval/evidence/phase11-desktop-content-export-interim.json`。它仍不是可重入的世界中心/编辑器、打包 WebView、PNG filechooser、Android 或评分提升证据；平台矩阵仍为 **65.00 / 100**。
-- **多角色卡作者路径（未计分）：** 导入器现在累积多个来源，而不是以最后一张卡覆盖前一张；纯中文卡名得到稳定且不相同的内部 ID。雾港确认页区分“原生”与“SillyTavern V3”卡并为每张外部卡提供独立导出；如果外部卡与模板关系卡同名，创建会解释性拒绝，而不把名称猜成 relationship target。44 项后端测试、Ruff、桌面 build 均通过；浏览器覆盖两次连续导入、双下载、同名拒绝，以及 1600×900 与 Tauri 最小 960×600 的无横向溢出布局。证据为 `vnext/eval/evidence/phase12-multi-character-card-authoring-interim.json`。这仍不等于卡编辑/显式绑定、持久世界中心、打包桌面或 Android 验收，平台矩阵仍为 **65.00 / 100**。
-- **World Center 生命周期（未计分）：** API v2 与桌面 World Center 现在以 World 为唯一管理根：可浏览最新版本/Run/世界书/角色卡计数，归档与恢复；永久删除先展示 aggregate manifest，再要求同时提交 manifest token 与精确世界名。通用 `POST /worlds/{id}/versions` 验证完整 WorldDefinition、乐观锁定 base version、附加新版本而不改既有 Run；旧 version、归档世界与错误名称都 fail-closed。45 项后端测试、Ruff、桌面 build 通过；浏览器以空态→创建→中心→归档→恢复→键入确认删除→空态完成旅程并检查 1600×900 settled 布局无横向溢出。证据为 `vnext/eval/evidence/phase13-world-center-lifecycle-interim.json`。目前没有完整的可视 WorldDefinition 编辑器，也没有打包 Tauri WebView lifecycle 证据，平台矩阵仍为 **65.00 / 100**。
-- **世界书版本作者闭环（未计分）：** World Center 已提供受限 Lorebook 编辑器：作者可增删条目、编辑标题/内容/常驻或关键词触发/优先级，保存时调用 append-version API。浏览器完成雾港 v1 加入关键词条目→保存 v2，世界书由 1→2 条；原 Run 的 WorldVersion ID 保持 v1，新 WorldVersion ID 不同。密集编辑器在 1600×900 下无横向溢出，长表单按设计纵向滚动。证据为 `vnext/eval/evidence/phase14-lorebook-version-authoring-interim.json`。角色卡 payload、关系/章节/ending 还不能在该 UI 编辑；这不是打包 WebView 或评分提升证据，平台矩阵仍为 **65.00 / 100**。
-- **最新打包 sidecar / DMG 冒烟（未计分）：** `30f7aee` 重新 PyInstaller 打包后，最新 Tauri debug `.app` 以隔离数据目录启动，`/health` 报告 `2026-08-17-lorebook`；经该 `.app` 内 sidecar 完成雾港三次选择 → `lan-dawn` → 回滚 → 重开，恢复到第二章三项 choice。`CI=true npx tauri build --debug` 同时成功生成 DMG，挂载后确认 `.app` 和 sidecar 存在。原始摘要在 `vnext/eval/evidence/phase5-packaged-app-sidecar.json`。本次是 packaged sidecar API 证据，不是 WebView UI 验收；debug app 仅 ad-hoc 签名且不能通过 strict bundle verification，因此不得给 Desktop/Engineering 维度加分。
-- **当前打包 sidecar / DMG 冒烟（未计分）：** `bce4488` 代码已重新 PyInstaller 与 `CI=true npx tauri build --debug` 打包；实际启动该 `.app` 后，包内 sidecar 在隔离目录完成迁移并以 API v2 监听。通过这个包内 sidecar 完成当前雾港隐藏路线 → `bell-beyond-fog` → 回滚第一回合 → 重开，恢复为 revision 4 / `ch2` / 四个 choices；挂载 DMG 确认 sidecar 位于 `.app/Contents/Resources/backend-runtime/`。严格 `codesign --verify --deep --strict` 对 debug bundle 失败。证据为 `vnext/eval/evidence/phase8-packaged-current-sidecar.json`；它更新了当前代码的打包运行边界，不是 WebView UI、可访问性、正式签名或模型/Android 验收，不能加分。
-- **叙事 command 权限收口（已评分，未过 gate）：** `d914ae6` 禁止含 `choices` capability 的 ruleset 走 raw `/turns` 或 `/turns:stream` 改状态；只有 `/choices` 才能把当前 choice 转为 Python planned commands。Android gameplay 同样拒绝 raw narrative stream，并增加受 pairing token 保护的 mobile choice endpoint。36 项后端测试、Ruff 均通过；取证 `phase6-choice-authority.json` 仅将状态裁决与 command 安全从 70 升至 **75**，当时平台矩阵为 **63.25 / 100**。
-- **PNG 角色卡与完整雾港结局（已评分，未过 gate）：** `10be976` 接受 SillyTavern 标准 PNG `chara` metadata（`tEXt` / `zTXt` / `iTXt`，16 MiB image、8 MiB metadata 上限），保留解出的 V3 原始 payload，并在创建页加入本地 PNG 导入入口。雾港原生模板此前虽有“隐藏结局”概念但实际不可达；现增加受限 `unite-witnesses` choice、固定 Flag/关系 event，并以当前模板确定性覆盖岚/沈砚好结局、普通、坏与隐藏结局，另覆盖 once/cooldown 拒绝零写入。隔离 Host + 本地浏览器实测隐藏路线并确认多条关系 reason 与结局页；Host 重启遗留的失效 Run 也会静默清理。`pytest -q` 为 42 passed，Ruff 与桌面 build 通过。取证 `vnext/eval/evidence/phase7-content-and-endings.json`：内容 60→65、剧情完整性 75→**80**、桌面 70→75，平台矩阵现为 **65.00 / 100**；其余 P0 仍未达 80，不可发布。该证据不把合成 PNG 测试当真实卡 filechooser E2E，也不把浏览器当打包桌面验收。
-- **安全 LAN gameplay Host（未计分）：** Mac Tauri Host 已有显式“局域网玩法”开关；它重启 sidecar 于 `127.0.0.1` / `0.0.0.0`，失败时恢复上一次监听。LAN 开启时，非 loopback 请求仅允许 `/api/v2/mobile/*`：世界、模型、Host 管理和能力发现均在 handler 前被拒绝；loopback 仍可批准/撤销配对。43 项后端测试（含远程来源的配对→mobile choice）与 Ruff、桌面 build、Rust format/check、PyInstaller 与 debug `.app`/DMG build 均通过；隔离 sidecar 实测非 loopback Host 路径 403、mobile pairing 200。证据为 `vnext/eval/evidence/phase9-lan-host-security-interim.json`。这不是打包 WebView 点击、Android UI/恢复、Wi-Fi 发现、断线 soak 或 Mac+Android 实机验收，Mobile 仍为 0，平台矩阵仍为 **65.00 / 100**。
-- **schema v3 内容/关系边界（未计分）：** `ddb8ac2` 后，当前实现把角色卡内 `relationship_dimensions` 移至 `story.relationships[]`，其中的 dimensions 独立声明 initial/min/max，relationship event 仅引用 relationship ID；Python 按定义边界 clamp，RunState 仍只存已应用 event 的结果。测试明确拒绝卡内关系字段与未知 relationship，并证明同一角色卡可在不同 WorldVersion 使用不同关系初值/边界；雾港四结局、回滚和 mobile choice 回归保持通过。fresh isolated DB 的 500 Turn 重开为 0.005s / 165475 bytes，证据为 `vnext/eval/evidence/phase16-schema-v3-reopen-500-interim.json`。本项替代 v2 contract 的内容建模证据，但没有真实模型、打包 WebView 或 Android 实机旅程，故不改变当前 **65.00 / 100** 的保守分数。
-- **主题系统（未计分）：** 桌面现在可在雾夜、纸页和琥珀间切换；选择保存在 `dzmm-next-theme`，刷新后恢复。1600×900 全页目测确认三套主题的创建页层级与浅色告警对比，Chrome 自动化确认三主题在 390×844 无横向溢出。`npm run build`、`cargo fmt --check` 与 `cargo check` 均通过；证据为 `vnext/eval/evidence/phase17-theme-interim.json`。这是 source-browser 主题验收，不替代打包 WebView 或成熟度加分。
-- **schema v3 本机真实模型矩阵（未计分）：** 本机 Ollama 的 `sakura-eclipse-12b-32k:latest`（12.2B）在 fresh isolated DB 完成雾港岚/沈砚/中立/坏/隐藏五条路线：15 次 choice 均有非空真实叙事，每条路线在锁定结局后回滚第一回合并重开为第二章、未锁 ending。延迟 min/median/max 为 8.506/17.526/28.692 秒。选择端点此前漏映射 `NarrationError`，会把模型 timeout 变为无信息 500；现改为 502 且保留异常类别，模型 read timeout 为 120 秒、输出上限为 96 token，错误时不提交 RunState。取证 `vnext/eval/evidence/phase18-local-sakura-schema-v3-fog-harbor-matrix-interim.json`。台式机 Huihui 14B/22B 的 `/v1` endpoint 当前超时，Sakura 只作为本机工程证据，不提高 65.00/100，也不满足真实模型最终 gate。
-- **schema v3 Mac 包冷启动/sidecar（未计分）：** `--onefile` 冻结 sidecar 的首次监听约为 35 秒，超过桌面 Host 20 秒就绪门槛，造成错误的“Host 未就绪”。现切换为同名目录式 PyInstaller runtime，Tauri 的资源解析同步指向其中的可执行文件；新鲜隔离数据目录下，包内 sidecar 1.996 秒返回 `/health`。实际启动 `DZMM Next.app/Contents/MacOS/dzmm-next-desktop`（而非直接启动 sidecar）时，WebView 的 `onMounted → invoke(start_backend)` 路径在 0.841 秒暴露健康端点。重新构建 debug `.app`/DMG 后，包内 sidecar 实测 schema v3 雾港创建 → 三次 choice → `lan-dawn` → 回滚第一回合 → 重开，重开状态与 revision 4 的回滚状态完全一致；挂载 DMG 确认目录式 runtime 存在。证据为 `vnext/eval/evidence/phase19-schema-v3-packaged-sidecar-cold-start-interim.json`。这仍不是完整 WebView 点击/可访问性、正式签名、模型或 Android/LAN 物理验收，因此不提高当前 **65.00 / 100**。
-- **安全诊断导出（未计分）：** 新增只读 `GET /api/v2/diagnostics` 与桌面“导出诊断”按钮。报告只含 app/API/contract、isolated storage 标志、匿名表计数和零孤儿完整性扫描；明确不含用户路径、模型 URL、token、玩家输入、叙事或 RunState。后端回归断言这些字段缺失；重新打包后，实际从 `DZMM Next.app/Contents/MacOS/dzmm-next-desktop` 启动的 Host 于 1.791 秒返回零计数、完整性 clean 的报告。`pytest -q` 为 52 passed，Ruff、Vue production build、PyInstaller 与 Tauri debug bundle 通过。证据为 `vnext/eval/evidence/phase20-diagnostics-export-interim.json`。这补齐工程诊断能力，但未替代签名 RC、发布清单、打包 UI 无障碍或 Android 验收，当前 **65.00 / 100** 不变。
-- **Huihui 14B schema v3 真实叙事/长局（已评分，未过 gate）：** 台式机 LM Studio 已恢复后，`huihui-ai_qwen3-14b-abliterated` 在 fresh isolated DB 完成五路线双轮雾港矩阵：30 次 choice 皆有非空叙事，岚/沈砚好结局、普通、坏与隐藏结局均各通过两次，且每一 Run 回滚第一回合后重开到 `ch2`、未锁 ending。延迟 min/median/max 为 0.462/2.008/3.367 秒。独立 50 回合真实 SSE 长局零重试（0.358/0.709/3.134 秒），最终 revision/Turn count 完整恢复；与既有 schema v3 500 消息重开 0.005 秒/165475 bytes 一起满足长局 80 分条件。安全诊断导出、fresh migration、contract/后端/前端验证满足工程 80 分条件。评测 harness 现支持 `--cycles`，使该 30 回合矩阵可重复执行。取证为 `phase21-huihui-schema-v3-fog-harbor-matrix-interim.json`、`phase22-huihui-schema-v3-50-turn-long-play-interim.json`、`phase23-huihui-schema-v3-30-story-turn-matrix.json` 与计分 `phase24-huihui-schema-v3-maturity.json`。平台矩阵由 **65.00 → 66.25 / 100**：长局 75→80、工程 60→80；剧情保持 80，其他维度不因本次实跑外溢加分。Android 仍为 0，所有 P0 未达标，不可发布。
-- **Android 原型只读审计（未计分）：** 未提交的 `vnext/mobile/` Flutter 原型可申请配对、读取 Run 和发送 TRPG raw stream，但尚未消费 narrative choice、章节/关系/结局投影或恢复 contract；`flutter analyze` / `flutter test` 均因模板测试引用不存在的 `MyApp` 而失败。当前 `adb devices` 与 Flutter 无 Android 或无线设备，不能构造实机 LAN 证据。为保留未知所有权的未提交文件，本轮没有改写或提交该目录；Mobile 仍为 0。
-- **桌面手机配对控制面（未计分）：** 当前实测的 macOS Host 提供 loopback-only 的 pending/active mobile device 清单；macOS/Windows 桌面 Host 的同一控制面会在开启“局域网玩法”后刷新手机请求、批准一次性配对及撤销已配对设备。后台测试覆盖 pending → active → revoked 状态、token 失效与远程 Host 管理 403；52 项后端测试、Ruff、Vue build、PyInstaller 与 debug `.app`/DMG 均通过。包内 sidecar 在隔离端口实际迁移并返回两份 Host 管理清单。证据为 `vnext/eval/evidence/phase25-mac-mobile-pairing-control-interim.json`。它不暴露 token/approval code，不扩大 LAN API，也不替代 Android narrative UI 或真机 LAN/recovery 验收，Mobile 仍为 0，平台矩阵保持 **66.25 / 100**。
-- **Android gameplay 客户端接管（未计分）：** 已将 Flutter 原型替换为 gameplay-only 客户端：手动 Host/Run 输入、Mac 批准配对、安全 token 存储、章节/路线/关系原因/结局/回合投影，以及仅向 mobile `/choices` 提交 choice ID 与 revision 的恢复路径；旧的剧情 raw `turns:stream` UI 已删除。`dart format`、`flutter analyze` 与 3 个 Flutter tests 通过，debug APK 已构建。Redmi Android 14 已由 ADB 识别且与 Mac 同一 `192.168.31.0/24`，但首次 USB 安装受系统 `INSTALL_FAILED_USER_RESTRICTED` 拦截，尚无安装、配对或 LAN 玩法证据。证据为 `vnext/eval/evidence/phase26-android-gameplay-client-interim.json`；Android 仍为 0，平台矩阵保持 **66.25 / 100**。
-- **本地发现、持久配对、QR 与 Windows Host（进行中，未计分）：** `ADR-006` 固化 mDNS-first、QR/手填回退、Host ID 绑定重连、Mac/Windows 同构 Host 的范围。实现增加 `_dzmm._tcp` 的最小安全广播、Android 自动发现/扫码与 secure storage 内的 Host ID；Windows NSIS 有原生 Tauri 构建入口。61 项 backend 测试、Flutter/桌面构建通过，fresh packaged sidecar 已由 macOS `dns-sd` 解析为预期端口与无敏感 TXT 元数据；本机 `mobile-handoff` 可生成无 token 的 QR payload，LAN 访问该 Host 控制端点仍为 403，证据为 `vnext/eval/evidence/phase29-local-discovery-qr-host-parity-interim.json`。尚未在真实 Redmi、真实 Mac 打包 Host 或 Windows 机器执行发现、扫码/批准、DHCP 变更、撤销和重启恢复，矩阵仍必须保持 **66.25 / 100**。
-- **当前包与 Redmi 安装刷新（未计分）：** 当前 worktree 的后端 61 项测试/Ruff、Flutter analyze/6 测试/Debug APK、Vue build、Rust format/check、PyInstaller 与 Tauri debug `.app`/DMG 均重新通过。新版 APK 已用 `adb install -r` 更新到 Redmi；当前打包 sidecar 在 fresh 临时目录以 LAN gameplay 启动，并返回 `api_version=2`、稳定 Host ID 和私有 `mobile-handoff` URL。手机仍锁屏，尚无发现、扫码、批准、choice、撤销、冲突、重启或 DHCP 实机旅程，因此 Android 分数和总分均不增加。证据为 `vnext/eval/evidence/phase30-current-package-and-redmi-install-interim.json`。
-- **首次配对自动恢复活跃 Run（未计分）：** 已配对 bearer 可请求受限 `GET /api/v2/mobile/runs`，只得到活跃 Run 的 ID、世界名、主角名、revision 与更新时间；已归档 World 被排除，响应无 WorldDefinition/世界书/角色卡/model/lifecycle 数据。手机首次配对后自动选取最近一局并保存；以后优先恢复已保存 Run，手动 ID 仅作兜底。后端 61 项与 Ruff、Flutter analyze/7 测试、新版 APK 安装、PyInstaller 与当前 Tauri debug `.app`/DMG 均通过。手机仍锁屏，未构成实机验收或分数上调，证据为 `vnext/eval/evidence/phase31-mobile-active-run-recovery-interim.json`。
+本轮建立的交互原型已通过浏览器实点：desktop 与 390×844 无横向溢出；World 继续/新 Run、开场
+叙事、角色对话、选择/自由行动、`preparing/connecting/generating/applying`、慢模型、provider error、
+取消恢复、模型编辑和结局后新 Run 均可演示。原型是验收面，不是正式功能证据。
 
-### 下一关
+## 已完成（可复核）
 
-完成当前发现/恢复代码的打包 Host 与真机验收：Android 搜索→桌面批准→选择→撤销→重启恢复、mDNS 受阻手填回退与 DHCP 变更；随后在 Windows 原生包重复 Host 安全矩阵。真实证据达到门槛前，Android/平台分数不变；并继续以打包桌面的 PNG 导入→开局→导出 round-trip、Huihui 14B 剧情回滚长局和 hybrid 验收推进剩余 P0。
+### 后端 Local Host 边界
+
+- 删除 pairing、discovery/mDNS、host identity、confirmation ticket、remote/mobile 路由。
+- 删除 LAN 配置、`zeroconf` 依赖、pairing/remote 迁移和专用测试。
+- FastAPI 仅保留本机 `/api/v2/*` adapter；健康检查明确返回 `storage=local`、`host=127.0.0.1`。
+- `dzmm_vnext.core.command_engine.apply_commands` 已成为 TurnCommand 的共享应用入口；FastAPI
+  只注入 schema validator 和错误类型，后续 Android runtime 将直接复用该 core。
+- 生命周期审计保留为本机能力，不再绑定设备身份。
+
+证据：`cd vnext/backend && .venv/bin/python -m pytest -q`（112 passed，包括 30 回合本机回读、协议 200/error recovery、Experience Contract stage parity、Android 模型后台线程边界、共享叙事清洗/截断防线、可执行模型超时/连接恢复提示、Android World 归档/恢复 parity、回滚记录语义和系统安全存储凭据边界、AI 草案取消后零写入、release package extra gate、桌面离线/键盘边界、sidecar 父进程退出监控、retired route-surface guard、choice stream 和干净打包迁移边界）、Ruff 通过。
+
+### macOS / Windows 桌面
+
+- Tauri 只启动 `127.0.0.1` sidecar，无启动方式、LAN 开关、手机联动或配对页面。
+- Vue 设置页改为本机服务、模型和外观；API 类型中删除 remote/pairing 类型与函数。
+
+证据：`cd vnext/desktop && npm run build`、`src-tauri/cargo check` 通过；使用
+`vnext/backend/.venv/bin/python vnext/packaging/build_backend.py` 生成 macOS arm64 sidecar 成功。
+发布工作流已切换到 vNext 路径，并包含 macOS DMG 与 Windows NSIS 的 sidecar/runtime 内容检查；
+该 CI 配置尚未替代实际 Windows 打包运行证据。
+
+### Android Local Host UI 边界
+
+- Flutter 从远程客户端重写为正式多入口 Local Host 壳：世界、创作、游玩、模型、设置。
+- 删除发现、扫码、配对、Host URL/token 会话和远程 API 客户端；新增 `LocalHostPort` 与
+  `EmbeddedPythonLocalHostPort` MethodChannel adapter。
+- 删除网络发现/相机/权限依赖；主题和本机 Run/Model preference 使用 secure storage。
+- Android 游玩和 AI 世界创作共用 `OperationStatusCard`，显示准备/连接模型/生成叙事/状态写入、耗时和慢模型说明；只有在状态写入前才允许取消。
+- Chaquopy 17.0 已接入 Android debug 构建；bridge 可启动 Python 3.11，并通过
+  `dzmm_vnext.core_runtime.LocalCoreRuntime` 使用 app-private SQLite、模型档案、compose、choice、
+  ending、rollback 和 portable 操作。API 36 模拟器已完成三 choice、ending、rollback、force-stop/reopen
+ 和 SQLite 回读；phase59 已在同一模拟器取 direct Ollama Probe 成功，phase60 又完成 30 回合行动和重启回读。
+phase68 又在不使用 adb reverse/TCP proxy 的情况下直连 PC LM Studio qwen3，完成草案到 rollback 的完整 Run。
+
+证据：`flutter analyze`、`flutter test`、`flutter build apk --debug`、
+`vnext/eval/evidence/phase56-android-embedded-python-spike.json`、
+`vnext/eval/evidence/phase57-shared-core-android-build-smoke.json`、
+`vnext/eval/evidence/phase58-android-local-host-vertical-slice.json`、
+`vnext/eval/evidence/phase59-android-direct-model-probe.json`、
+`vnext/eval/evidence/phase60-android-30-turn-local-ui.json`、
+`vnext/eval/evidence/phase61-android-portable-roundtrip.json`、
+`vnext/eval/evidence/phase62-android-ai-draft-direct-invalid-recovery.json`、
+`vnext/eval/evidence/phase63-android-ai-draft-cancel-ux.json`、
+`vnext/eval/evidence/phase64-experience-contract-parity.json`、
+  `vnext/eval/evidence/phase65-pc-qwen3-json-schema-gate.json`、
+`vnext/eval/evidence/phase66-pc-qwen3-full-journey.json`、
+`vnext/eval/evidence/phase67-android-pc-qwen3-ui-full-journey.json`、
+`vnext/eval/evidence/phase68-android-pc-qwen3-direct-lan.json`、
+`vnext/eval/evidence/phase69-model-protocol-200-error.json`、
+`vnext/eval/evidence/phase70-portable-cross-platform.json`、
+`vnext/eval/evidence/phase78-operation-stage-contract-parity.json`、
+`vnext/eval/evidence/phase79-android-operation-status-and-cancel.json`、
+`vnext/eval/evidence/phase80-formal-ending-narrative-parity.json`、
+`vnext/eval/evidence/phase81-model-profile-field-validation.json`、
+`vnext/eval/evidence/phase82-android-background-model-operations.json`、
+`vnext/eval/evidence/phase83-macos-vite-player-journey.json`、
+`vnext/eval/evidence/phase84-clean-package-runtime-and-exit.json`、
+`vnext/eval/evidence/phase85-shared-narrative-quality.json`、
+`vnext/eval/evidence/phase86-packaged-parent-exit-cleanup.json`、
+`vnext/eval/evidence/phase87-android-world-archive-parity.json`、
+`vnext/eval/evidence/phase88-android-world-export-entry.json`、
+`vnext/eval/evidence/phase89-desktop-loading-stage-parity.json`、
+`vnext/eval/evidence/phase90-android-action-mode-boundary.json`、
+`vnext/eval/evidence/phase91-player-surface-technical-leakage.json`。phase91 已从桌面游玩、桌面/Android
+World 入口和桌面创建确认中移除 revision、内部 ID 等技术字段，并由共享资源名称映射显示背包物品；当前 Android P0 计为 85，
+尚不能达到发布门槛。
+
+phase92 又把正式结局从“文本 + 回合数”补齐为玩家回顾：最终路线、持有物品、人物关系和最近三次
+关键行动在桌面与 Android 使用同一共享 Python presentation 投影显示。证据见
+`vnext/eval/evidence/phase92-formal-ending-recap-parity.json`；两端产物已重建，但安装后视觉验收仍不以自动化替代。
+
+phase93 统一了三端共享玩家术语：主路径使用“本机游戏服务、世界、内容版本、旅程、本机规则、本机存档”；
+Host、SQLite、Python、loopback 和 schema 等实现词只留在高级诊断或高级创作边界。证据见
+`vnext/eval/evidence/phase93-player-language-parity.json`。
+
+phase94 按 Web Interface Guidelines 补齐桌面跳过导航、可见焦点、模型 Probe live announcement、关键表单
+输入元数据和离线字体边界，并移除 Android 新旅程弹窗的强制 autofocus；后端新增防回退测试。证据见
+`vnext/eval/evidence/phase94-offline-keyboard-accessibility-boundary.json`。
+
+phase95 清除桌面模型草稿中的开发者局域网 IP/Huihui 默认值，首次启动直接展开中性本机模型配置；
+桌面和 Android 切换 provider 时同步更新完整协议预设，预设由 Experience Contract 锁定；桌面设置与
+AI 创作复用同一 `ModelProfileEditor`。证据见
+`vnext/eval/evidence/phase95-model-first-run-provider-parity.json`。
+
+phase96 修复了 embedded runtime 的回滚记录语义：安卓结局回合数、最近行动和历史入口现在与桌面一致，
+旧本地库启动时会兼容补齐 `kind`。同时恢复 authenticated OpenAI-compatible 能力：桌面 API Key 进入系统
+密钥链，Android 进入 `flutter_secure_storage`，SQLite、Run export 和 portable bundle 不保存明文，Probe、
+AI 起草和回合请求只在内存中注入 Authorization。证据见
+`vnext/eval/evidence/phase96-rollback-and-credential-boundary.json`。
+
+phase97 为 AI 世界起草补上了与回合相同的请求身份和取消边界：桌面和 Android 在生成期间显示“取消本次起草”，后端/embedded runtime 只在进入校验前接受取消；模型晚到的结果会被丢弃，不会创建 World、Run 或半成品存档。证据见
+`vnext/eval/evidence/phase97-draft-cancellation-boundary.json`；本次重新构建的 Android APK SHA-256 为
+`25e21ffdc0f8c44d8a0c3ee595c46a04016bd31a3778cb8c6c1a2779c5f49c14`，macOS arm64 DMG SHA-256 为
+`b1145d46a08eb6ddaa085b4f2e933da1d922e7c6950ad74a1b9987b668a9fdb6`。
+
+phase98 又补齐了取消请求自身失败时的恢复语义：起草会立即停止等待并使晚到草案失效；正在处理的回合不会被假装取消，而是保留操作状态并说明旅程仍在处理中。Android widget 覆盖了起草取消传输失败和回合取消传输失败，证据见
+`vnext/eval/evidence/phase98-cancellation-transport-recovery.json`。
+
+phase99 修复了发布工作流的真实依赖边界：macOS 和 Windows clean runner 在构建 sidecar 前都会安装声明的
+`.[dev,package]` extra，避免仅因开发机全局存在 PyInstaller 而让 release 误绿。证据见
+`vnext/eval/evidence/phase99-release-sidecar-dependency-gate.json`。
+
+phase100 将归档语义补到玩家入口：桌面和 Android 仍可查看已归档世界中的既有旅程，但 Continue 和 New Run
+均明确禁用，必须先恢复世界才可游玩；这避免玩家点击后才收到后端拒绝。证据见
+`vnext/eval/evidence/phase100-archived-world-view-only-boundary.json`。
+
+phase101 为桌面和 Android 补上了 pending Run-operation 恢复标记：异常退出后重开会直接回到记住的 Run，
+清理未完成标记，并明确告知玩家没有写入半个回合；正常完成、失败或接受取消都会清理标记。只保存布尔状态，
+不保存叙事、请求内容或凭据。证据见 `vnext/eval/evidence/phase101-interrupted-run-recovery-marker.json`。
+phase102 又修复了桌面导入世界/复制旅程后未持久化 active Run 的恢复缺口，并将 active Run key 操作收敛为可测试 composable。证据见 `vnext/eval/evidence/phase102-imported-run-recovery.json`。
+phase103 将桌面自由行动和故事选择都接入 local-host SSE：模型生成中的玩家可见叙事会增量显示，只有 `turn_completed` 后才重新读取并展示已保存 Run；失败仍回到可重试状态，后端 choice stream 复用同一状态裁判和提交边界。证据见 `vnext/eval/evidence/phase103-desktop-narrative-stream.json`。
+phase104 将桌面 portable 导入的重复 ID、模板覆盖和报告合并提取到纯函数模块，页面只保留状态/导航编排；独立边界测试已通过。证据见 `vnext/eval/evidence/phase104-portable-content-boundary.json`。
+phase105 将模型超时/连接失败收敛为桌面和 Android 共享的玩家错误契约：Probe 明确等待 10 秒，叙事/草案明确等待 120 秒，并说明未写入结果、重试/换更快模型等恢复动作；Android 也不再暴露 Python 异常类名。证据见 `vnext/eval/evidence/phase105-player-model-timeout-feedback.json`。
+phase106 首次把当前 DMG 的 WebView 窗口作为独立 gate 实测：在 macOS 26.3.1 上从构建包和只读挂载的 DMG 启动时，sidecar 和 `/health` 正常，但主进程在 WindowServer/System Events 中始终是 0 个窗口，因此当前 macOS 安装包玩家入口判定为 P0 fail。同时修复了 Vite 监听 `::1`、Tauri 等待 `127.0.0.1` 导致 `tauri dev` 无限等待的独立问题。证据见 `vnext/eval/evidence/phase106-macos-packaged-webview-window-gate.json`。
+phase107 又在隔离副本中编译并运行 Tauri 2.11.5 / tao 0.35.3 / wry 0.55.1，仍得到进程存活、sidecar health 正常但 0 个 WindowServer 窗口；旧版 `/Applications/dzmm.app` 和 Calculator 控制应用在同一会话也无法被窗口枚举。因此 macOS gate 继续保持未通过，但根因尚不能归因到 DZMM 生命周期代码，暂不引入猜测性 native hack。证据见 `vnext/eval/evidence/phase107-macos-window-control-experiment.json`；下一次有效验收需要已知控制应用可见窗口的正常 macOS GUI 会话。
+phase108 又把模型“测试连接”纳入三端操作反馈边界：桌面使用共享 OperationStatus 显示连接/等待阶段、耗时和终态；Android 模型页显示同一组阶段和耗时，返回后保留可用/未通过结果。证据见 `vnext/eval/evidence/phase108-model-probe-loading-parity.json`；桌面 27 项测试、Flutter 20 项测试、分析和构建均通过；phase109 后桌面测试增至 28 项。
+phase109 将桌面模型档案列表从根 `App.vue` 提取为 `ModelProfileList.vue`：列表摘要、默认标记、Probe 结果和 CRUD 事件现在有独立的 typed component boundary，根页面只保留 use-case 编排；新增组件测试覆盖动作 payload。证据见 `vnext/eval/evidence/phase109-desktop-model-list-boundary.json`；桌面测试增至 28 项、共 12 个测试文件，构建通过。
+phase110 修复了 Android 自由行动与桌面规则能力不一致的缺口：当世界存在多个地点时，Android 现在显示目的地选择并在 `narrate` 前提交同一 Python 校验的 `move` 命令；单地点世界仍保持简洁输入。证据见 `vnext/eval/evidence/phase110-android-free-action-destination-parity.json`；Flutter 20 项测试和分析通过。
+phase111 又把桌面目的地选项从硬编码港口/灯塔改为当前 Run presentation 的全部地点，并在重开/回读时校正过期目的地；Android 和 desktop 现在共享同一 World location 映射。证据见 `vnext/eval/evidence/phase111-destination-presentation-parity.json`；桌面测试增至 29 项，构建和 Flutter 20 项测试均通过。
+phase112 进一步统一单地点世界的玩家界面：desktop 与 Android 都隐藏无意义的目的地控件，多地点世界仍保留动态地点选择。证据见 `vnext/eval/evidence/phase112-single-location-action-parity.json`；桌面测试增至 30 项，构建通过。
+phase113 修复跨 Run 的重试状态泄漏：桌面和 Android 在进入另一段旅程时都会清除捕获旧 Run 的重试动作，避免失败后的旧选择/行动被误提交到新旅程；桌面和 Android 新增纯边界测试。证据见 `vnext/eval/evidence/phase113-retry-run-boundary.json`；桌面 32 项测试、构建和 Flutter 21 项测试通过。
+phase114 修复桌面 `App.vue` 组件抽取后的无障碍回归：顶层玩家通知恢复 `role=status` 与 `aria-live=polite`，保存、取消、重试和恢复反馈会继续被键盘/辅助技术感知；Host 故障仍保持 alert。证据见 `vnext/eval/evidence/phase114-desktop-notice-live-region.json`；后端 112 项与 Ruff、桌面 32 项/构建、Flutter 21 项/analyze 均通过。
+phase115 将 Android OperationStatusCard 补为显式 TalkBack live region：阶段、耗时和“模型可能仍在加载”的反馈不再只依赖视觉文本；新增 Semantics 测试。证据见 `vnext/eval/evidence/phase115-android-operation-live-region.json`；Flutter 22 项测试/analyze、桌面 32 项/构建和后端 112 项/Ruff 通过。
+phase116 生成了包含 phase113–115 修复的最新 Android debug APK（SHA-256 `1b108e7bcfbd77d1e879f45b08d092d76b83ae4cd58fac15dd32a15312624dfe`）和 macOS release `.app`；`tauri build --bundles app` 通过，但完整 DMG 在当前环境的 `bundle_dmg.sh` 最后一步失败，因此旧 DMG 不作为最新产物替代。证据见 `vnext/eval/evidence/phase116-latest-package-artifacts.json`。
+phase117 启动了 `dzmm-ux-api36` Android 模拟器并安装最新 APK，通过 `adb reverse tcp:11434 tcp:11434` 连接本机 Ollama；默认 `qwen2.5:7b` Probe 返回可用。模拟器保留既有测试世界并停在 World 列表，交由玩家人工体验；这不是物理 Android A-F 或 30 回合完成证据。证据见 `vnext/eval/evidence/phase117-android-emulator-qwen7b-session.json`。
+phase118 按玩家反馈重排 Android 游玩界面：历史叙事留在唯一主滚动区，最新场景、操作阶段和选项/自由行动输入固定在底部；常驻状态进入可收起的“当前状态”，状态反馈和回合记录进入独立的“事件与行动记录”。Flutter analyze、22 项测试和 APK 构建通过；新 Run 在模拟器中已安装并人工确认开场叙事与底部选项可见。APK SHA-256 为 `80706d7e2242e1ea158b21dafd7fd435e4c20ed2259c818cfd80a2c731e8860b`。phase118 当时核实剧情仍是固定规则图 + 模型正文；该边界已由 phase119 的每 Run 变化契约继续推进。证据见 `vnext/eval/evidence/phase118-mobile-play-surface-and-plot-boundary.json`。
+phase119 参考老版 DZMM 的 GM 回合边界，补上 vNext 的叙事变化契约：章节/选项继续由 Python 校验硬效果，但章节选项不再阻断 `narrate`/`move` 自由行动；每个 Run 以独立 Run ID 作为变化种子，保存最近 6 回合的玩家输入、叙事和机械结果，向模型注入新的场景/NPC/线索压力点；Ollama、LM Studio 和 OpenAI-compatible 叙事请求启用非零采样。后端全量 113 项测试和 Ruff 通过，新增自由行动与 `narrative_context` 回读断言。证据见 `vnext/eval/evidence/phase119-emergent-gm-narrative-contract.json`。当前仍需用本地 qwen 7B 重开同一世界两次，人工确认不同 Run 的剧情钩子、NPC反应和可追查线索出现差异；硬状态/结局一致性仍由 Python 规则边界负责。
+phase120 按老版 DZMM 的运行时概念补齐 Next 第一批世界运行层：RunState 新增地点访问状态、NPC 动态状态、活跃世界事件、剧情线容器和待回应互动；NPC 在叙事中被遇见/发言后会被 Python 记录，满足地点/相遇/冷却条件时排队一次主动联系；预定义世界事件支持按回合门槛激活；StoryBeat 和桌面/Android 支持多段结构化 NPC 对话与主动事件反馈。后端全量 116 项测试、Ruff、桌面 32 项测试/构建、Flutter 22 项/analyze 通过。最新 Android APK SHA-256 为 `1338c8fc5be88440191a979c5449689f11e867d519e9032cc9021d287aa39aed`，已安装到 `emulator-5554`。证据见 `vnext/eval/evidence/phase120-world-runtime-npc-initiative.json`。尚未实现 LLM 结构化 `gm_actions` 对剧情线/隐藏事件的自由创建与解决，下一阶段再接入 Python allowlist。
+phase121 将 `gm_actions` 接入 desktop 与 embedded 两条回合链路：模型可在不可见尾部标记中提出新剧情线、隐藏事件及其解决意图；Python 只接受有限类型、合法 ID、长度/枚举/目标检查，重复或越权动作不会写入 RunState。正文清洗、流式增量、旧 narrator seam 和取消/失败零写入语义保持兼容。后端全量 117 项测试、Ruff、desktop 32 项/构建、Flutter 22 项/analyze 通过；Android debug APK 已重新构建，SHA-256 为 `1a77b99d4c10110930e327e52ae33a90befc91614c4a15db803ff0dfa71675d6`，但当前 adb 无在线设备，尚未安装。证据见 `vnext/eval/evidence/phase121-gm-actions-allowlist.json`。
+phase122 扩展 AI 世界草案的安全创作边界：模型可以提供 NPC、势力、世界事件和地点连接；Python 负责安全 ID、数量/长度/枚举限制、地点引用解析，并将角色卡同步为可跟踪的运行时 NPC。embedded 生成失败的安全骨架也保留描述性 NPC/事件/势力，不再把所有动态实体丢弃。后端全量 119 项测试、Ruff 通过；Android debug APK 已重新构建，SHA-256 为 `3171ba53f5c9dfa26f2b131efdd2357fb09b9d9a7922f54ef682897b1f374409`，但当前 adb 仍无在线设备。证据见 `vnext/eval/evidence/phase122-ai-world-runtime-material.json`。
+phase123 将老 DZMM 的结构化事件谓词迁移到 Next 的纯 RunState：支持地点到达、NPC 状态、物品拥有、旗标、势力张力和 `all/any` 组合；势力按回合由 Python 增长并限幅，事件满足 `trigger_conditions` 后才激活，同一 revision 不会重复推进。LLM 只看到状态并提出叙事，不获得直接写入权。后端全量 120 项测试、Ruff 通过；Android debug APK SHA-256 为 `26fc9e2f24bfacb99a03fe34840d66f4b6ee2c16715a204d62ab4ffb976075e6`，当前 adb 无在线设备。证据见 `vnext/eval/evidence/phase123-runtime-event-predicates.json`。
+phase124 又补上老 DZMM 的事件完成和 Campaign/Phase 最小运行层：事件可声明 Python 可验证的 `completion_conditions`，完成后进入 resolved；Campaign 记录当前阶段、已完成事件和已完成阶段，并在关键事件达到 required_count 后推进下一阶段；NPC 运行时状态补上所属势力与初始声誉。事件、阶段和势力状态同时注入 GM 上下文。后端全量 121 项测试、Ruff 通过；本地 `dzmm-ux-api36` Android 36 模拟器已启动，最新 APK 已安装并成功打开 `local.dzmm.dzmm_next_mobile/.MainActivity`，SHA-256 为 `9b8f667cee1209e50b30cbd65421420fb52ee086f2296bf751f54f4fcb161ce8`。证据见 `vnext/eval/evidence/phase124-campaign-event-completion-emulator.json`。
+phase125 用本地 `dzmm-ux-api36` 模拟器接入本机 `qwen2.5:7b` 完成了 3 回合玩家旅程：Loading 阶段可见，模型缺少结构化 `available_choices` 时 Android 不再因快照投影异常停在旧画面，而是安全进入自由行动分支；最终正式结局摘要正常显示，并从同一 World 成功开始新 Run、显示新的开场叙事和选项。进一步用相同世界和相同首个选择重开第二个 Run，Qwen 7B 生成了不同的叙事，并出现沈砚主动联系、灰潮线索和新的回应钩子。Flutter 24 项测试、analyze、APK 构建通过；APK SHA-256 为 `874ec1d5dfd21b42077c7f6d0ef434e70684f548bf0c7b371faaa278ce7cd9aa`。本地模拟器证据下玩家评分由 78 提升至 85（+7）；证据见 `vnext/eval/evidence/phase125-local-emulator-qwen7b-player-journey.json`。下一轮只继续做高收益 P1；若评分不再明显提升则结束 Goal。
+
+phase126 改为从零创建新世界验收，而不是复用既有世界：Android AI 世界向导通过本机 Qwen 7B 生成“潮汐之门”，保留 2 个角色、2 个地点、4 个运行时 NPC、2 个势力和 2 个事件素材；针对 7B 容易输出 `chapter_1` 紧凑 JSON 的事实，embedded world draft 使用紧凑素材协议和较小输出预算，Python 再映射到受控 hybrid 规则骨架。新世界开场已实测显示生成地点“月光港”、角色“艾莉/杰克”和对应推荐“援手艾莉 / 替杰克保守秘密”；首个选择后，Qwen 正文引用“月光港、艾莉、老渔夫汤姆”和小巷线索，并触发“艾莉主动找到了你”的待回应互动，下一组推荐也跟随生成角色重写。另修复主角与首角色同名时开场对话自言自语的边界，并补充 compact story、描述性 NPC 和 opening speaker 测试。后端 126 项测试、Ruff、Flutter 24 项/analyze、APK 构建通过；最新 APK SHA-256 为 `15e9be4a358c4bb4c9002cd978391c0510e4c424addb561ce2336ba6748069a7`。玩家评分 85→86（+1）；证据见 `vnext/eval/evidence/phase126-new-world-qwen7b-quality.json`。当前剩余主要是“模型素材 + Python 规则骨架”的边界、Android 草案摘要信息层级和三端安装包验收，不再把本轮 Goal 扩展为大规模视觉重构。
+
+phase127 在同一条玩家路径上继续收口：Android AI 世界草案确认前新增生成素材摘要，明确展示地点、角色/NPC、势力、事件，并说明本机 hybrid 规则接管边界；Flutter widget test 覆盖摘要和确认前零写入。随后用本机 Qwen 7B 从零创建“潮汐之门”新世界，完成 3 回合并持久化正式结局，再从同一 World 开始新 Run。叙事上下文改为向模型提供生成实体的玩家名称、章节/结局显示标签和禁止内部 ID/旧模板名的 guardrail；复测中正文使用“艾莉森、墨菲斯托、老船长”并触发主动 NPC 联系，不再把内部关系 ID `lan` 写成旧名“兰”。后端 127 项测试、Ruff、Flutter 23 项/analyze、APK 构建通过；最新 APK SHA-256 为 `e84207e9592fc90bf1d30008d50d5a97ea50c364a542c4b788de4d5270e8063b`。玩家评分 86→87（+1）；证据见 `vnext/eval/evidence/phase127-next-goal-draft-review-and-context-grounding.json`。本 Goal 到此停止：剩余主要是 Windows/macOS/Android 发布环境与真机验收门槛。
+
+phase128 处理本轮玩家反馈的整组 P0/P1：世界详情新增永久删除入口，删除会级联旅程、回合和历史并要求二次确认；Android 操作阶段改为单行横向滚动；草案审阅只显示玩家可理解的素材摘要和可玩性结论，不再暴露 `mechanics`/`canonical` 等修复路径，不可玩草案阻止创建。安全世界映射清理雾港 lorebook、雾灯和旧章节文本，叙事上下文改为当前世界的生成实体；离线模板则明确标注为固定雾港示例。Android 游玩页把历史、当前新内容和选项拆成独立阅读区域，长正文可展开全文；当前卡片的折叠阈值进一步收紧后，模拟器截图已同时看到长文摘要和底部选项。后端 129 项测试、Ruff、Flutter 24 项/analyze、桌面 32 项/构建通过；最新 Android debug APK SHA-256 为 `cff89639321830fd338072fec48e33fd42ad50689226a0edadb32fc19ca338b1`。本地 `dzmm-ux-api36` 已安装并打开该 APK；PC-qwen3-direct 本轮在 120 秒内无返回，界面正确保留单行等待状态且未写入半成品，离线模板草案审阅流程正常。玩家评分暂不变，交由用户用响应的 Qwen 配置人工验收新世界叙事关联性和长历史滚动。证据见 `vnext/eval/evidence/phase128-player-feedback-world-integrity-and-mobile-reading.json`。
+
+phase129 按玩家体验 Goal 连续做了三轮可感知改进：当前回合先显示主要结果并把其他变化收进可展开入口；叙事请求增加最近行动、未完成剧情线、活动事件和按关键词触发的世界书分层记忆；Android“当前状态”集中展示地点、路线、物品、人物关系和线索；NPC 主动联系时紧凑当前卡仍保留“正在等待回应”和下一步提示。真实模拟器截图、回合状态面板和 NPC StoryBeat 契约均有证据；后端 132 项测试、Ruff、Flutter analyze/24 项测试、APK 构建通过，最新 APK SHA-256 为 `e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad`，已安装至 `emulator-5554`。玩家体验评分由 87 提升至 90（+3）；本轮未触发连续两轮无提升，后续若新世界真实体验连续两轮不加分则停止 Goal。证据见 `vnext/eval/evidence/phase129-player-experience-goal.json`。
+
+### Portable bundle slice
+
+- 后端提供显式 `world export/import` 与 `Run export/clone`；导入/克隆始终生成新的 aggregate/Run ID，
+  不携带模型凭据，也不自动同步。
+- 桌面设置页提供世界包、Run 快照导出以及 JSON 导入入口；Android 设置页也提供 Run 导出和 JSON
+  导入/克隆，`LocalHostPort` 与 embedded core 已声明同一组操作；phase61 已在 Android 取 Run
+  export→system picker→clone→重开回读证据。
+
+证据：`vnext/backend/tests/test_portable.py`（world round-trip、Run clone 与损坏包拒绝），桌面生产构建通过；
+Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android-direct-model-probe.json`、
+`vnext/eval/evidence/phase61-android-portable-roundtrip.json`。
+损坏包零写入已有后端保护；Android↔desktop 双向安装后 UI 取证仍是 P0 缺口。
+
+## 当前玩家矩阵（实现后暂定）
+
+| 玩家维度 | 满分 | 当前贡献 | 主要缺口 |
+|---|---:|---:|---|
+| 首次设置 | 15 | 12 | Windows/真实 provider 矩阵仍未验收 |
+| World / Run 生命周期 | 15 | 15 | 本地模拟器已验证继续已有 Run、正式结束、返回 World 和同 World 新 Run；安装包重启和归档边界待验收 |
+| 开场与沉浸游玩 | 30 | 28 | 共享 opening/对话/状态反馈、分层记忆、NPC 主动回应、Android/desktop 动态地点自由行动和同世界不同 Run 叙事差异已在模拟器/契约测试验证；30 回合、字体/TalkBack 待验收 |
+| LLM 反馈和失败恢复 | 15 | 14 | 阶段、耗时、取消、零写入、重试、因果结果和缺少结构化选项的恢复已验证；安装包恢复和真实流式待验收 |
+| 正式结局与重玩 | 15 | 14 | 正式结局、回顾、回 World、新 Run 已在本地模拟器验证；三端安装包待验收 |
+| 三端一致性与安装证据 | 10 | 7 | macOS 包和 Android 本地模拟器已验证；Windows 包和跨端旅程缺证据 |
+| **玩家可玩性（暂定）** | **100** | **90** | **仍有发布阻断，不能宣称完成；新世界 Qwen 长局一致性仍待人工复测** |
+
+工程能力继续由测试、lint、构建、状态回读、portable 和打包证据单独记录，不与玩家分数平均。
+
+## 当前代码质量矩阵
+
+代码质量暂定 **85/100**：共享 Python command engine、story beat、model protocol、Experience Contract、LocalHostPort、
+operation registry、operation stage boundary 和模型超时/连接恢复文案已形成可复用边界；Android 根页面已拆出模型、游玩、设置和
+错误视图；desktop 已拆出模型档案 composable、共享 `ModelProfileEditor`、`ModelProfileList`、`PlayScene`、`OperationStatus`、`WorldRunLauncher`、active Run persistence、pending Run recovery、SSE parser、portable content 和跨 Run retry boundary，13 个组件/组合式/API/纯函数测试文件共 32 项通过；Android 游玩页和模型探测也已对齐准备/连接/生成/状态写入阶段，模型表单在本地调用前提供字段级校验；embedded model repository 已从
+runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预算、技术摘要清洗和 provider 截断判定；embedded 模型 HTTP、JSON Schema 和安全 repair 也已独立，`core_runtime.py` 从 1288 行降到 1009 行；Android bridge 已收敛为单一 operation 集合，并由 contract test 校验 Dart/Kotlin 精确一致。主要扣分仍是约 1500 行的 `App.vue`、runtime 中剩余的 World/Run/Turn/portable 编排，以及三端 package E2E gate。详细评分和后续条件见
+`docs/reviews/2026-08-21-cross-platform-player-code-scorecard.md`。
+
+## 下一阶段门槛
+
+1. M1：共享 `create_run`、World 详情、继续/新 Run、opening story beat 和结局后动作——已实现并完成桌面真实后端回归、Android 自动化覆盖。
+2. M2：共享 operation state、阶段/耗时、取消、失败零写入、重试和对话/状态分层——已实现；桌面慢模型真实回归通过。
+3. M3：ModelProfile CRUD/default/probe、引用冲突和三端一致交互——已实现；桌面真实回归、Android widget 覆盖通过。
+4. M4：macOS/Windows 安装包和 Android 真机完成 A-F、30 回合、重启/失败恢复——进行中；phase82–114 已累积补齐 Android 后台模型操作、三端玩家术语/操作阶段、正式结局、安全凭据、取消/恢复、归档世界、active Run 恢复、桌面 SSE、portable 内容边界、模型超时/连接恢复提示、模型 Probe 的连接/等待/耗时反馈、桌面模型列表边界、Android/desktop 动态地点和单地点自由行动 parity、跨 Run retry boundary 及 desktop notice live-region。phase106–107 证明当前 macOS 26.3.1 观察会话无法提供可见 WebView 窗口，且控制应用也无法枚举窗口；当前精确阻塞为 macOS GUI 观察条件、Windows 原生构建环境和空的 `adb devices`。
+5. 所有玩家 P0/P1、分项和整体达到 85 后，才允许 `update_goal complete`。

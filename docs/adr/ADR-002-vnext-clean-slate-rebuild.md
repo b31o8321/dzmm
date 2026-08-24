@@ -6,7 +6,7 @@
 
 ## Context
 
-用户明确不要求保留当前数据、旧 API 或旧实现兼容。当前项目经历 screenplay-first、framework、Python 规则引擎与 Android remote 等多轮叠加；继续在原结构上做兼容迁移会把历史表、双重语义和手工删除规则带入下一阶段。
+用户明确不要求保留当前数据、旧 API 或旧实现兼容。当前项目经历 screenplay-first、framework、Python 规则引擎与多端远程方案等多轮叠加；继续在原结构上做兼容迁移会把历史表、双重语义和手工删除规则带入下一阶段。
 
 v0.16 的核心玩法、模型协议与 Android 方案有可复用的产品经验，但不应成为 vNext 的代码依赖或成熟度得分。
 
@@ -18,7 +18,7 @@ v0.16 的核心玩法、模型协议与 Android 方案有可复用的产品经�
 vnext/
 ├── backend/        FastAPI + fresh SQLite schema + Alembic
 ├── desktop/        Tauri + Vue world-management shell
-├── mobile/         Flutter Android gameplay-only client
+├── mobile/         Flutter Android Local Host
 ├── contracts/      API/OpenAPI, event schema, world/run JSON schema
 ├── eval/           deterministic fixtures, model replay and score harness
 └── packaging/      vNext-only build/release artifacts
@@ -36,7 +36,8 @@ World ──> WorldVersion ──> Run ──> Turn[]
 - `RunState` 是唯一的可变游戏状态，Python engine 接收已验证 command 后更新它；LLM 永不直写数据库。
 - `Turn` 同时记录 request id、玩家输入、叙事、command、state revision 与诊断，成为回滚与恢复的唯一审计单位。
 - Lorebook 是 WorldDefinition 的受限条目集，按明确 activation 选择上下文；只有用户显式“提升”为实体才改变结构世界。
-- macOS/Windows 桌面 Host 与 Android 走新的 `api_version=2` capability contract；Android 不管理模型、世界、密钥或删除操作。
+- macOS/Windows/Android 都是 Local Host；共享体验契约只约束操作、状态和恢复语义，平台通过
+  原生 renderer 调用本机 Python core。Android 使用 embedded CPython bridge，不依赖 PC Host。
 
 ## Options considered
 

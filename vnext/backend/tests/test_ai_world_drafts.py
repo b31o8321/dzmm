@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from copy import deepcopy
 from pathlib import Path
+from threading import Event
 
-from dzmm_vnext.model_profiles import NarrationError
+import pytest
+
+from dzmm_vnext.ai_world_drafts import (
+    AIWorldDraftGenerationError,
+    AIWorldDraftInput,
+    AIWorldDraftService,
+)
+from dzmm_vnext.model_profiles import ModelProfile, NarrationError, ProviderType
 
 
 def table_counts(database: Path) -> dict[str, int]:
@@ -42,6 +51,28 @@ class StaticDraftGenerator:
         return deepcopy(self.source), ["removed Markdown code fence"]
 
 
+class BlockingDraftGenerator:
+    def __init__(self) -> None:
+        self.started = Event()
+        self.release = Event()
+
+    async def generate(self, _profile, _prompt):
+        self.started.set()
+        await asyncio.to_thread(self.release.wait)
+        return {}, []
+
+
+class StaticProfileService:
+    async def get(self, _profile_id: str) -> ModelProfile:
+        return ModelProfile(
+            id="profile-1",
+            name="test",
+            provider_type=ProviderType.OLLAMA,
+            base_url="http://127.0.0.1:11434",
+            model_name="test",
+        )
+
+
 def _create_profile(client) -> str:
     response = client.post(
         "/api/v2/model-profiles",
@@ -66,6 +97,31 @@ def _draft_request(profile_id: str) -> dict:
         "hero_preference": "会做艰难选择的年轻领航员",
         "character_preferences": ["学者", "守夜人"],
     }
+
+
+def test_ai_draft_cancellation_discards_result_before_validation() -> None:
+    generator = BlockingDraftGenerator()
+    service = AIWorldDraftService(StaticProfileService(), generator=generator)
+    payload = AIWorldDraftInput(
+        model_profile_id="profile-1",
+        ruleset="hybrid",
+        genre="悬疑",
+        tone="温柔",
+        core_conflict="潮门重开",
+        hero_preference="领航员",
+        request_id="draft-cancel-1",
+    )
+
+    async def run() -> None:
+        task = asyncio.create_task(service.generate(payload))
+        await asyncio.to_thread(generator.started.wait)
+        assert service.cancel_operation(payload.request_id or "") is True
+        generator.release.set()
+        with pytest.raises(AIWorldDraftGenerationError, match="draft was discarded"):
+            await task
+        assert service.cancel_operation(payload.request_id or "") is False
+
+    asyncio.run(run())
 
 
 def test_ai_draft_is_ephemeral_then_composes_and_reaches_a_python_ending(migrated_client) -> None:
@@ -117,6 +173,7 @@ def test_ai_draft_is_ephemeral_then_composes_and_reaches_a_python_ending(migrate
     assert chosen.json()["state"]["ending"]["id"] == "lan-dawn"
     presentation = client.get(f"/api/v2/runs/{run_id}").json()["presentation"]
     assert presentation["locations"]["harbor"] == "星潮码头"
+    assert presentation["resources"]["fog-lantern"] == "关键线索"
     assert presentation["relationships"]["lan"] == "苏岚"
     assert presentation["chapters"]["ch2"] == "星潮港的证词"
 
@@ -159,6 +216,109 @@ def test_ai_draft_projects_each_supported_narrative_ruleset(migrated_client) -> 
         assert response.status_code == 200
         assert response.json()["valid"] is True
         assert response.json()["world_definition"]["ruleset"]["id"] == ruleset
+
+
+def test_ai_draft_projects_runtime_npcs_events_factions_and_location_links(migrated_client) -> None:
+    client, _ = migrated_client
+    profile_id = _create_profile(client)
+    source = {
+        **CREATIVE_SOURCE,
+        "locations": ["星潮码头", "坠月观测塔", "盐雾集市"],
+        "npcs": [
+            {
+                "name": "白檀",
+                "role": "集市情报贩子",
+                "description": "她总能比守卫更早听见风声。",
+                "motivation": "想找到失踪的弟弟。",
+                "location": "盐雾集市",
+                "contact_cooldown_turns": 6,
+            }
+        ],
+        "factions": [{"name": "潮门守望会", "description": "守护旧航道的松散组织。"}],
+        "events": [
+            {
+                "name": "潮门异响",
+                "summary": "夜里潮门传出第三次敲击。",
+                "location": "星潮码头",
+                "importance": 4,
+                "trigger_turn": 2,
+            }
+        ],
+        "campaign": {
+            "name": "星潮战役",
+            "phases": [
+                {
+                    "name": "潮门异响",
+                    "description": "查明第一声敲击的来源。",
+                    "key_event_names": ["潮门异响"],
+                    "required_count": 1,
+                }
+            ],
+        },
+        "location_links": [
+            {
+                "from_location": "星潮码头",
+                "to_location": "盐雾集市",
+                "direction": "向南",
+                "travel_turns": 2,
+            }
+        ],
+    }
+    client.app.state.ai_world_drafts._generator = StaticDraftGenerator(source=source)
+
+    response = client.post("/api/v2/ai-world-drafts:generate", json=_draft_request(profile_id))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is True
+    definition = body["world_definition"]
+    assert [location["name"] for location in definition["locations"]] == [
+        "星潮码头",
+        "坠月观测塔",
+        "盐雾集市",
+    ]
+    assert {npc["name"] for npc in definition["npcs"]} == {"苏岚", "季衡", "白檀"}
+    assert definition["npcs"][2]["location_id"] == "location-3"
+    assert definition["events"] == [
+        {
+            "id": "event-1",
+            "name": "潮门异响",
+            "summary": "夜里潮门传出第三次敲击。",
+            "scope_ref": "harbor",
+            "importance": 4,
+            "trigger_turn": 2,
+            "initial_active": False,
+            "trigger_conditions": {},
+            "completion_conditions": {},
+            "campaign_phase_id": "phase-1",
+        }
+    ]
+    assert definition["factions"] == [
+        {
+            "id": "faction-1",
+            "name": "潮门守望会",
+            "description": "守护旧航道的松散组织。",
+            "initial_tension": 0,
+            "tension_rules": {"passive_gain_per_turn": 0, "threshold_conflict": 80},
+        }
+    ]
+    assert definition["story"]["campaign"] == {
+        "id": "campaign-main",
+        "name": "星潮战役",
+        "phases": [
+            {
+                "id": "phase-1",
+                "name": "潮门异响",
+                "description": "查明第一声敲击的来源。",
+                "key_event_ids": ["event-1"],
+                "required_count": 1,
+            }
+        ],
+    }
+    assert {link["target_id"] for link in definition["locations"][0]["connections"]} == {
+        "lighthouse",
+        "location-3",
+    }
 
 
 def test_ai_draft_handles_model_failure_and_invalid_user_edits(migrated_client) -> None:

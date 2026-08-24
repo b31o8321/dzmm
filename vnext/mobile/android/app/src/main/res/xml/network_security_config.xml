@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <!-- DZMM Next connects only to a user-selected, local desktop Host. The Host
-         currently exposes authenticated gameplay over LAN HTTP. Do not use
-         this application to access an untrusted network endpoint. -->
-    <base-config cleartextTrafficPermitted="true" />
-</network-security-config>

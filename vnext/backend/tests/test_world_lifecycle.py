@@ -59,8 +59,10 @@ def test_archive_manifest_purge_and_integrity_scan(migrated_client) -> None:
         "world_versions": 1,
         "runs": 1,
         "turns": 1,
+        "story_beats": 2,
         "heroes": 1,
         "compose_requests": 1,
+        "run_create_requests": 0,
     }
     assert manifest.json()["file_paths"] == []
     assert manifest.json()["derived_indexes"] == []
@@ -88,8 +90,11 @@ def test_archive_manifest_purge_and_integrity_scan(migrated_client) -> None:
             "runs_without_world_version": 0,
             "runs_without_hero": 0,
             "turns_without_run": 0,
+            "story_beats_without_run": 0,
             "compose_requests_without_world": 0,
             "compose_requests_without_run": 0,
+            "run_create_requests_without_world": 0,
+            "run_create_requests_without_run": 0,
         },
     }
 
@@ -112,6 +117,7 @@ def test_world_center_lists_restores_and_versions_without_mutating_existing_run(
             "run_count": 1,
             "lorebook_entry_count": 0,
             "character_card_count": 0,
+            "latest_run_id": created["run_id"],
         }
     ]
 

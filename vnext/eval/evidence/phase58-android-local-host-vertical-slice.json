@@ -1,0 +1,49 @@
+{
+  "phase": "phase58-android-local-host-vertical-slice",
+  "captured_at": "2026-08-20",
+  "status": "verified-android-emulator-local-host",
+  "counted_in_current_matrix": true,
+  "device": {
+    "serial": "emulator-5554",
+    "avd": "dzmm-ux-api36",
+    "android_api": 36,
+    "install": "clean uninstall/install of the active-worktree debug APK",
+    "apk_sha256": "98542b7327e8f8c56124ef5a31e14ba34462b0982e2321cef83d134aab5ac795"
+  },
+  "journey": [
+    "Opened the Android app without a PC/Mac Host, pairing, LAN or QR step.",
+    "Generated the local Fog Harbor-equivalent draft, reviewed the Python schema result, and explicitly confirmed creation.",
+    "Committed three choices through the embedded CPython state judge; state revision reached 3 and Python locked the good ending.",
+    "Used the in-app rollback action to restore the state after turn 0; rollback audit raised revision to 4 and cleared the ending.",
+    "Force-stopped and reopened the app; the local Run ID and revision 4 state were recovered from app-private SQLite."
+  ],
+  "sqlite_readback": {
+    "database": "run-as local.dzmm.dzmm_next_mobile files/dzmm.db",
+    "tables": ["local_worlds", "local_world_versions", "local_heroes", "local_runs", "local_turns"],
+    "worlds": 1,
+    "world_versions": 1,
+    "heroes": 1,
+    "runs": 1,
+    "turns": 4,
+    "run_revision_after_reopen": 4,
+    "ending_after_reopen": null
+  },
+  "screenshots": [
+    "screens/phase58-android-local-host/01-worlds-empty.png",
+    "screens/phase58-android-local-host/02-ai-create.png",
+    "screens/phase58-android-local-host/03-draft-review.png",
+    "screens/phase58-android-local-host/04-ending-and-rollback.png",
+    "screens/phase58-android-local-host/05-rollback-result.png",
+    "screens/phase58-android-local-host/06-force-stop-reopen.png"
+  ],
+  "limits": [
+    "The creation journey used the deterministic local template fallback; the separate phase59 capture proves direct Ollama HTTP through the emulator host mapping.",
+    "The current evidence is a three-choice vertical slice, not a 30-turn long-play matrix.",
+    "Windows packaged Local Host and Android portable bundle round-trip remain open."
+  ],
+  "maturity": {
+    "android_local_host": {"before": 0, "after": 62},
+    "python_state_truth": {"before": 75, "after": 80},
+    "overall": {"before": 54, "after": 61}
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "phase": "phase99",
+  "date": "2026-08-21",
+  "status": "release-sidecar-dependency-gate-verified",
+  "player_behavior": [
+    "The release workflow now installs the backend package extra on both macOS and Windows before invoking the PyInstaller sidecar build, so a clean runner has the declared packaging dependency.",
+    "A packaging regression test locks the workflow dependency contract instead of relying on a developer machine's globally installed PyInstaller."
+  ],
+  "automated_checks": {
+    "packaging_tests": "3 passed",
+    "backend_ruff": "passed",
+    "local_pyinstaller_build": "passed earlier in this delivery cycle",
+    "macos_tauri_bundle": "passed earlier in this delivery cycle"
+  },
+  "not_proven": [
+    "The GitHub-hosted Windows job and resulting NSIS installer have not run in this local environment.",
+    "Android physical-device and packaged macOS WebView player journeys remain open."
+  ]
+}

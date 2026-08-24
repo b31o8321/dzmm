@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -10,12 +9,26 @@ from uuid import uuid4
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import insert, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .persistence import model_profiles
+from .model_protocol import chat_content as _chat_content
+from .model_protocol import chat_endpoint, probe_body
+from .model_request_feedback import model_connection_detail, model_timeout_detail
+from .model_secrets import ModelSecretStore, default_model_secret_store
+from .narrative import narrative_variation
+from .narrative_output import (
+    NARRATIVE_OLLAMA_NUM_PREDICT,
+    NARRATIVE_OPENAI_MAX_TOKENS,
+    NARRATIVE_SYSTEM_PROMPT,
+    clean_narrative_output,
+    extract_gm_actions,
+    model_response_was_truncated,
+)
+from .persistence import model_profiles, runs
 
 NARRATION_TIMEOUT_SECONDS = 120.0
+PROBE_TIMEOUT_SECONDS = 10.0
 
 
 class ProviderType(StrEnum):
@@ -31,15 +44,24 @@ class ModelProfileInput(BaseModel):
     provider_type: ProviderType
     base_url: str = Field(min_length=1, max_length=500)
     model_name: str = Field(min_length=1, max_length=200)
+    api_key: str | None = Field(default=None, max_length=4000, exclude=True)
 
     @field_validator("base_url")
     @classmethod
     def remove_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
 
+    @field_validator("api_key")
+    @classmethod
+    def normalize_optional_api_key(cls, value: str | None) -> str | None:
+        return (value.strip() or None) if value is not None else None
+
 
 class ModelProfile(ModelProfileInput):
     id: str
+    is_default: bool = False
+    api_key_ref: str | None = Field(default=None, exclude=True)
+    has_api_key: bool = False
 
 
 class ProbeResult(BaseModel):
@@ -56,29 +78,60 @@ class NarrationRateLimitError(NarrationError):
     pass
 
 
+class ModelProfileConflictError(ValueError):
+    pass
+
+
 class ModelProfileService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        secret_store: ModelSecretStore | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._secret_store = secret_store or default_model_secret_store()
 
     async def create(self, payload: ModelProfileInput) -> ModelProfile:
         _chat_endpoint(payload)
-        profile = ModelProfile(id=str(uuid4()), **payload.model_dump())
         async with self._session_factory() as session, session.begin():
-            await session.execute(
-                insert(model_profiles).values(
-                    id=profile.id,
-                    name=profile.name,
-                    provider_type=profile.provider_type,
-                    base_url=profile.base_url,
-                    model_name=profile.model_name,
-                    created_at=datetime.now(UTC).replace(tzinfo=None),
+            count = (
+                await session.execute(select(func.count()).select_from(model_profiles))
+            ).scalar_one()
+            profile_id = str(uuid4())
+            api_key_ref = f"profile:{profile_id}" if payload.api_key else None
+            if api_key_ref and payload.api_key:
+                self._secret_store.set(api_key_ref, payload.api_key)
+            try:
+                profile = ModelProfile(
+                    id=profile_id,
+                    is_default=count == 0,
+                    api_key_ref=api_key_ref,
+                    has_api_key=api_key_ref is not None,
+                    **payload.model_dump(),
                 )
-            )
+                await session.execute(
+                    insert(model_profiles).values(
+                        id=profile.id,
+                        name=profile.name,
+                        provider_type=profile.provider_type,
+                        base_url=profile.base_url,
+                        model_name=profile.model_name,
+                        api_key_ref=api_key_ref,
+                        is_default=profile.is_default,
+                        created_at=datetime.now(UTC).replace(tzinfo=None),
+                    )
+                )
+            except Exception:
+                if api_key_ref:
+                    self._secret_store.delete(api_key_ref)
+                raise
         return profile
 
     async def get(self, profile_id: str) -> ModelProfile | None:
         async with self._session_factory() as session:
-            result = await session.execute(select(model_profiles).where(model_profiles.c.id == profile_id))
+            result = await session.execute(
+                select(model_profiles).where(model_profiles.c.id == profile_id)
+            )
             row = result.mappings().one_or_none()
         if row is None:
             return None
@@ -88,11 +141,16 @@ class ModelProfileService:
             provider_type=row["provider_type"],
             base_url=row["base_url"],
             model_name=row["model_name"],
+            is_default=bool(row["is_default"]),
+            api_key_ref=row["api_key_ref"],
+            has_api_key=row["api_key_ref"] is not None,
         )
 
     async def list(self) -> list[ModelProfile]:
         async with self._session_factory() as session:
-            result = await session.execute(select(model_profiles).order_by(model_profiles.c.created_at))
+            result = await session.execute(
+                select(model_profiles).order_by(model_profiles.c.created_at)
+            )
             rows = result.mappings().all()
         return [
             ModelProfile(
@@ -101,23 +159,126 @@ class ModelProfileService:
                 provider_type=row["provider_type"],
                 base_url=row["base_url"],
                 model_name=row["model_name"],
+                is_default=bool(row["is_default"]),
+                api_key_ref=row["api_key_ref"],
+                has_api_key=row["api_key_ref"] is not None,
             )
             for row in rows
         ]
 
+    async def update(self, profile_id: str, payload: ModelProfileInput) -> ModelProfile:
+        _chat_endpoint(payload)
+        async with self._session_factory() as session, session.begin():
+            existing = (
+                await session.execute(
+                    select(model_profiles.c.api_key_ref).where(model_profiles.c.id == profile_id)
+                )
+            ).mappings().one_or_none()
+            if existing is None:
+                raise ModelProfileConflictError("model profile not found")
+            api_key_ref = existing["api_key_ref"]
+            if payload.api_key:
+                api_key_ref = api_key_ref or f"profile:{profile_id}"
+                self._secret_store.set(api_key_ref, payload.api_key)
+            changed = await session.execute(
+                update(model_profiles)
+                .where(model_profiles.c.id == profile_id)
+                .values(**payload.model_dump(), api_key_ref=api_key_ref)
+            )
+            if changed.rowcount != 1:
+                raise ModelProfileConflictError("model profile not found")
+        profile = await self.get(profile_id)
+        assert profile is not None
+        return profile
+
+    async def set_default(self, profile_id: str) -> ModelProfile:
+        async with self._session_factory() as session, session.begin():
+            exists = await session.execute(
+                select(model_profiles.c.id).where(model_profiles.c.id == profile_id)
+            )
+            if exists.scalar_one_or_none() is None:
+                raise ModelProfileConflictError("model profile not found")
+            await session.execute(update(model_profiles).values(is_default=False))
+            await session.execute(
+                update(model_profiles)
+                .where(model_profiles.c.id == profile_id)
+                .values(is_default=True)
+            )
+        profile = await self.get(profile_id)
+        assert profile is not None
+        return profile
+
+    async def delete(self, profile_id: str) -> None:
+        async with self._session_factory() as session, session.begin():
+            profile = (
+                await session.execute(
+                    select(model_profiles.c.is_default, model_profiles.c.api_key_ref).where(
+                        model_profiles.c.id == profile_id
+                    )
+                )
+            ).mappings().one_or_none()
+            if profile is None:
+                raise ModelProfileConflictError("model profile not found")
+            was_default = profile["is_default"]
+            references = (
+                await session.execute(
+                    select(func.count())
+                    .select_from(runs)
+                    .where(runs.c.model_profile_id == profile_id)
+                )
+            ).scalar_one()
+            if references:
+                raise ModelProfileConflictError(
+                    f"model profile is used by {references} run(s); choose another model before deleting"
+                )
+            await session.execute(delete(model_profiles).where(model_profiles.c.id == profile_id))
+            if profile["api_key_ref"]:
+                self._secret_store.delete(profile["api_key_ref"])
+            if was_default:
+                replacement = await session.execute(
+                    select(model_profiles.c.id)
+                    .order_by(model_profiles.c.created_at, model_profiles.c.id)
+                    .limit(1)
+                )
+                replacement_id = replacement.scalar_one_or_none()
+                if replacement_id:
+                    await session.execute(
+                        update(model_profiles)
+                        .where(model_profiles.c.id == replacement_id)
+                        .values(is_default=True)
+                    )
+
 
 class ModelProber:
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        transport: httpx.AsyncBaseTransport | None = None,
+        secret_store: ModelSecretStore | None = None,
+    ) -> None:
         self._transport = transport
+        self._secret_store = secret_store or default_model_secret_store()
 
     async def probe(self, profile: ModelProfile) -> ProbeResult:
         endpoint = _chat_endpoint(profile)
         body = _probe_body(profile)
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=10.0) as client:
-                response = await client.post(endpoint, json=body)
-        except httpx.HTTPError as error:
-            return ProbeResult(success=False, endpoint=endpoint, detail=f"connection failed: {error}")
+            headers = _request_headers(profile, self._secret_store)
+            async with httpx.AsyncClient(
+                transport=self._transport, timeout=PROBE_TIMEOUT_SECONDS
+            ) as client:
+                response = await client.post(endpoint, json=body, headers=headers)
+        except NarrationError as error:
+            return ProbeResult(success=False, endpoint=endpoint, detail=str(error))
+        except httpx.TimeoutException:
+            return ProbeResult(
+                success=False,
+                endpoint=endpoint,
+                detail=model_timeout_detail(PROBE_TIMEOUT_SECONDS),
+            )
+        except httpx.HTTPError:
+            return ProbeResult(
+                success=False, endpoint=endpoint, detail=model_connection_detail()
+            )
         if response.status_code != 200:
             return ProbeResult(
                 success=False,
@@ -127,10 +288,14 @@ class ModelProber:
         try:
             payload = response.json()
         except ValueError:
-            return ProbeResult(success=False, endpoint=endpoint, detail="provider returned non-JSON response")
+            return ProbeResult(
+                success=False, endpoint=endpoint, detail="provider returned non-JSON response"
+            )
         content = _chat_content(profile.provider_type, payload)
         if isinstance(content, str) and content.strip():
-            return ProbeResult(success=True, endpoint=endpoint, detail="protocol response contains content")
+            return ProbeResult(
+                success=True, endpoint=endpoint, detail="protocol response contains content"
+            )
         return ProbeResult(
             success=False,
             endpoint=endpoint,
@@ -139,8 +304,13 @@ class ModelProber:
 
 
 class ModelNarrator:
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        transport: httpx.AsyncBaseTransport | None = None,
+        secret_store: ModelSecretStore | None = None,
+    ) -> None:
         self._transport = transport
+        self._secret_store = secret_store or default_model_secret_store()
 
     async def narrate(
         self,
@@ -150,30 +320,61 @@ class ModelNarrator:
         player_input: str,
         outcomes: list[dict[str, Any]],
         lore_entries: list[dict[str, Any]],
+        *,
+        variation_seed: str = "",
     ) -> str:
+        narrative, _actions = await self.narrate_with_actions(
+            profile,
+            definition,
+            state,
+            player_input,
+            outcomes,
+            lore_entries,
+            variation_seed=variation_seed,
+        )
+        return narrative
+
+    async def narrate_with_actions(
+        self,
+        profile: ModelProfile,
+        definition: dict[str, Any],
+        state: dict[str, Any],
+        player_input: str,
+        outcomes: list[dict[str, Any]],
+        lore_entries: list[dict[str, Any]],
+        *,
+        variation_seed: str = "",
+    ) -> tuple[str, list[dict[str, Any]]]:
         endpoint = _chat_endpoint(profile)
-        body = _narration_body(profile, definition, state, player_input, outcomes, lore_entries)
+        body = _narration_body(
+            profile, definition, state, player_input, outcomes, lore_entries,
+            variation_seed=variation_seed,
+        )
         try:
             async with httpx.AsyncClient(
                 transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
             ) as client:
-                response = await client.post(endpoint, json=body)
+                response = await client.post(
+                    endpoint, json=body, headers=_request_headers(profile, self._secret_store)
+                )
         except httpx.HTTPError as error:
-            raise NarrationError(
-                f"model connection failed: {type(error).__name__}: {error}"
-            ) from error
+            raise _request_narration_error(error) from error
         if response.status_code != 200:
             raise NarrationError(
                 f"model returned HTTP {response.status_code}: {_response_detail(response)}"
             )
         try:
-            content = _chat_content(profile.provider_type, response.json())
+            payload = response.json()
         except ValueError as error:
             raise NarrationError("model returned non-JSON response") from error
-        narrative = _clean_narrative(content)
+        if model_response_was_truncated(profile.provider_type, payload):
+            raise NarrationError("model narrative was truncated; retry the turn")
+        content = _chat_content(profile.provider_type, payload)
+        visible, actions = extract_gm_actions(content)
+        narrative = _clean_narrative(visible)
         if not narrative:
             raise NarrationError("model returned no valid narrative content")
-        return narrative
+        return narrative, actions
 
     async def stream(
         self,
@@ -183,17 +384,31 @@ class ModelNarrator:
         player_input: str,
         outcomes: list[dict[str, Any]],
         lore_entries: list[dict[str, Any]],
+        *,
+        variation_seed: str = "",
     ) -> AsyncIterator[str]:
         endpoint = _chat_endpoint(profile)
         body = _narration_body(
-            profile, definition, state, player_input, outcomes, lore_entries, stream=True
+            profile,
+            definition,
+            state,
+            player_input,
+            outcomes,
+            lore_entries,
+            stream=True,
+            variation_seed=variation_seed,
         )
         try:
             async with (
                 httpx.AsyncClient(
                     transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
                 ) as client,
-                client.stream("POST", endpoint, json=body) as response,
+                client.stream(
+                    "POST",
+                    endpoint,
+                    json=body,
+                    headers=_request_headers(profile, self._secret_store),
+                ) as response,
             ):
                 if response.status_code == 429:
                     raise NarrationRateLimitError("model returned HTTP 429")
@@ -210,29 +425,34 @@ class ModelNarrator:
         except NarrationError:
             raise
         except httpx.HTTPError as error:
-            raise NarrationError(
-                f"model connection failed: {type(error).__name__}: {error}"
-            ) from error
+            raise _request_narration_error(error) from error
 
 
 class ModelDraftGenerator:
     """Calls a configured local provider for non-persistent creative source material."""
 
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        transport: httpx.AsyncBaseTransport | None = None,
+        secret_store: ModelSecretStore | None = None,
+    ) -> None:
         self._transport = transport
+        self._secret_store = secret_store or default_model_secret_store()
 
-    async def generate(self, profile: ModelProfile, prompt: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    async def generate(
+        self, profile: ModelProfile, prompt: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
         endpoint = _chat_endpoint(profile)
         body = _draft_body(profile, prompt)
         try:
             async with httpx.AsyncClient(
                 transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
             ) as client:
-                response = await client.post(endpoint, json=body)
+                response = await client.post(
+                    endpoint, json=body, headers=_request_headers(profile, self._secret_store)
+                )
         except httpx.HTTPError as error:
-            raise NarrationError(
-                f"model connection failed: {type(error).__name__}: {error}"
-            ) from error
+            raise _request_narration_error(error) from error
         if response.status_code != 200:
             raise NarrationError(
                 f"model returned HTTP {response.status_code}: {_response_detail(response)}"
@@ -247,34 +467,28 @@ class ModelDraftGenerator:
 
 
 def _chat_endpoint(profile: ModelProfileInput) -> str:
-    base_url = profile.base_url
-    if profile.provider_type is ProviderType.OLLAMA:
-        if base_url.endswith("/v1"):
-            raise ValueError("Ollama base_url must be the server root, not an OpenAI /v1 root")
-        return f"{base_url}/api/chat"
-    if not base_url.endswith("/v1"):
-        raise ValueError("LM Studio and OpenAI-compatible base_url must end with /v1")
-    return f"{base_url}/chat/completions"
+    return chat_endpoint(profile.provider_type, profile.base_url)
+
+
+def _request_narration_error(error: httpx.HTTPError) -> NarrationError:
+    if isinstance(error, httpx.TimeoutException):
+        return NarrationError(model_timeout_detail(NARRATION_TIMEOUT_SECONDS))
+    return NarrationError(model_connection_detail())
+
+
+def _request_headers(
+    profile: ModelProfile, secret_store: ModelSecretStore
+) -> dict[str, str] | None:
+    if not profile.api_key_ref:
+        return None
+    api_key = secret_store.get(profile.api_key_ref)
+    if not api_key:
+        raise NarrationError("model credential is missing from operating-system secure storage")
+    return {"Authorization": f"Bearer {api_key}"}
 
 
 def _probe_body(profile: ModelProfile) -> dict[str, Any]:
-    messages = [{"role": "user", "content": "Reply with OK."}]
-    if profile.provider_type is ProviderType.OLLAMA:
-        return {"model": profile.model_name, "messages": messages, "stream": False}
-    return {"model": profile.model_name, "messages": messages, "stream": False, "max_tokens": 8}
-
-
-def _chat_content(provider_type: ProviderType, payload: Any) -> str | None:
-    if not isinstance(payload, dict) or payload.get("error"):
-        return None
-    if provider_type is ProviderType.OLLAMA:
-        message = payload.get("message")
-        return message.get("content") if isinstance(message, dict) else None
-    choices = payload.get("choices")
-    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-        return None
-    message = choices[0].get("message")
-    return message.get("content") if isinstance(message, dict) else None
+    return probe_body(profile.provider_type, profile.model_name)
 
 
 def _response_detail(response: httpx.Response) -> str:
@@ -305,15 +519,13 @@ def _narration_body(
     lore_entries: list[dict[str, Any]],
     *,
     stream: bool = False,
+    variation_seed: str = "",
 ) -> dict[str, Any]:
+    variation = narrative_variation(definition, state, variation_seed or "default-run")
     messages = [
         {
             "role": "system",
-            "content": (
-                "你是本地互动叙事的叙事者。只用简洁中文描述 Python 规则引擎已经确认的结果；"
-                "你不是状态裁判：不得编造或改变物品、地点、关系、Flag、章节、路线、数值或结局，"
-                "不得解释规则，也不得输出标签、命令或 JSON。"
-            ),
+            "content": NARRATIVE_SYSTEM_PROMPT,
         },
         {
             "role": "user",
@@ -330,6 +542,15 @@ def _narration_body(
                     "ending": state.get("ending"),
                     "player_input": player_input,
                     "validated_outcomes": outcomes,
+                    "narrative_memory": state.get("narrative_context", {}).get("recent_turns", []),
+                    "variation_directive": variation,
+                    "npc_state": state.get("npc_state", {}),
+                    "faction_state": state.get("faction_state", {}),
+                    "campaign_state": state.get("campaign_state"),
+                    "location_state": state.get("location_state", {}),
+                    "active_events": state.get("active_events", []),
+                    "plot_threads": state.get("plot_threads", []),
+                    "pending_interactions": state.get("pending_interactions", []),
                     "active_lore": [
                         {"id": entry["id"], "title": entry["title"], "body": entry["body"]}
                         for entry in lore_entries
@@ -344,13 +565,19 @@ def _narration_body(
             "model": profile.model_name,
             "messages": messages,
             "stream": stream,
-            "options": {"num_predict": 96},
+            "options": {
+                "temperature": 0.85,
+                "top_p": 0.9,
+                "num_predict": NARRATIVE_OLLAMA_NUM_PREDICT,
+            },
         }
     body: dict[str, Any] = {
         "model": profile.model_name,
         "messages": messages,
         "stream": stream,
-        "max_tokens": 160,
+        "max_tokens": NARRATIVE_OPENAI_MAX_TOKENS,
+        "temperature": 0.85,
+        "top_p": 0.9,
     }
     if profile.provider_type is ProviderType.LM_STUDIO and "qwen" in profile.model_name.lower():
         body["chat_template_kwargs"] = {"enable_thinking": False}
@@ -362,7 +589,8 @@ def _draft_body(profile: ModelProfile, prompt: dict[str, Any]) -> dict[str, Any]
         {"role": "system", "content": prompt["system"]},
         {
             "role": "user",
-            "content": "/no_think\n" + json.dumps(
+            "content": "/no_think\n"
+            + json.dumps(
                 {"brief": prompt["brief"], "first_slice": prompt["first_slice"]}, ensure_ascii=False
             ),
         },
@@ -407,17 +635,7 @@ def _draft_json(content: str) -> tuple[dict[str, Any], list[str]]:
 
 
 def _clean_narrative(content: str | None) -> str | None:
-    if not isinstance(content, str):
-        return None
-    value = content.strip()
-    if "</think>" in value:
-        value = value.split("</think>", maxsplit=1)[1].strip()
-    if "### TRPG Narrative:" in value:
-        value = value.split("### TRPG Narrative:", maxsplit=1)[1]
-    if "### JSON:" in value:
-        value = value.split("### JSON:", maxsplit=1)[0]
-    value = re.sub(r"^#+\s*", "", value.strip())
-    return value.strip() or None
+    return clean_narrative_output(content)
 
 
 def _stream_piece(provider_type: ProviderType, line: str) -> tuple[str | None, bool]:
@@ -432,6 +650,8 @@ def _stream_piece(provider_type: ProviderType, line: str) -> tuple[str | None, b
             raise NarrationError("model returned malformed Ollama stream event")
         if payload.get("error"):
             raise NarrationError("model returned stream error")
+        if model_response_was_truncated(provider_type, payload):
+            raise NarrationError("model narrative was truncated; retry the turn")
         message = payload.get("message")
         content = message.get("content") if isinstance(message, dict) else None
         if content is not None and not isinstance(content, str):
@@ -454,6 +674,8 @@ def _stream_piece(provider_type: ProviderType, line: str) -> tuple[str | None, b
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         raise NarrationError("model returned malformed SSE choices")
+    if model_response_was_truncated(provider_type, payload):
+        raise NarrationError("model narrative was truncated; retry the turn")
     delta = choices[0].get("delta")
     content = delta.get("content") if isinstance(delta, dict) else None
     if content is not None and not isinstance(content, str):

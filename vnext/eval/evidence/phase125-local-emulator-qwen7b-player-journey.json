@@ -1,0 +1,52 @@
+{
+  "phase": 125,
+  "title": "local emulator Qwen 7B player journey and missing-choice recovery",
+  "scope": [
+    "three consecutive choices on an existing Run",
+    "loading stages visible while Qwen 7B generates",
+    "formal ending summary after the final turn",
+    "return to World and start a new Run from the same World",
+    "new Run opening narrative and choices"
+  ],
+  "verification": {
+    "emulator": {
+      "avd": "dzmm-ux-api36",
+      "android_api": 36,
+      "serial": "emulator-5554",
+      "package": "local.dzmm.dzmm_next_mobile",
+      "apk_sha256": "874ec1d5dfd21b42077c7f6d0ef434e70684f548bf0c7b371faaa278ce7cd9aa",
+      "model": "qwen2.5:7b",
+      "adb_reverse": "host-16 tcp:11434 tcp:11434",
+      "launch": "passed; focused Activity window observed"
+    },
+    "player_flow": {
+      "loading": "preparing/connecting/generating/applying stages visible",
+      "turns": 3,
+      "ending": "formal neutral ending rendered with summary and key actions",
+      "same_world_new_run": "passed; new opening and choices rendered",
+      "two_run_difference": "same world and same opening choice produced different Qwen 7B narrative; second Run introduced Shen Yan proactive contact, gray tide clue and a new response hook"
+    },
+    "flutter_test": "24 passed",
+    "flutter_analyze": "passed",
+    "apk_build": "passed"
+  },
+  "change": {
+    "problem": "A model response without available_choices could crash the Android RunSnapshot projection and leave the player on stale content.",
+    "fix": "Missing available_choices now safely means free-action mode; a story beat without structured choices remains playable instead of crashing the view."
+  },
+  "score": {
+    "previous": 78,
+    "current": 85,
+    "delta": 7,
+    "basis": "direct local-emulator evidence for loading, formal ending, same-world new Run and same-choice narrative divergence; no real phone required"
+  },
+  "residual": [
+    "NPC reputation deltas are now exposed as bounded hard commands and state presentation; detailed player-facing reputation acceptance remains a follow-up",
+    "Windows package and full desktop/mobile cross-platform evidence remain outside this local-emulator gate"
+  ],
+  "screenshots": [
+    "/tmp/dzmm-goal-turn1-loading.png",
+    "/tmp/dzmm-goal-after-fix.png",
+    "/tmp/dzmm-goal-newrun-opening-final.png"
+  ]
+}

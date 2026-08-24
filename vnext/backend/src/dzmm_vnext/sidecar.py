@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import sqlite3
 import sys
+from contextlib import suppress
 from pathlib import Path
+from typing import Protocol
 
 import uvicorn
 from alembic import command
@@ -12,6 +15,12 @@ from alembic.config import Config
 from . import CONTRACT_VERSION
 from .config import Settings
 from .main import create_app
+
+PARENT_CHECK_INTERVAL_SECONDS = 0.5
+
+
+class _StoppableServer(Protocol):
+    should_exit: bool
 
 
 def distribution_root() -> Path:
@@ -55,7 +64,52 @@ def host_port() -> tuple[str, int]:
     return host, port
 
 
+def parent_pid() -> int | None:
+    value = os.environ.get("DZMM_NEXT_PARENT_PID")
+    if value is None:
+        return None
+    try:
+        pid = int(value)
+    except ValueError as error:
+        raise ValueError("DZMM_NEXT_PARENT_PID must be an integer") from error
+    if pid <= 0:
+        raise ValueError("DZMM_NEXT_PARENT_PID must be positive")
+    return pid
+
+
+async def watch_parent(
+    server: _StoppableServer,
+    expected_parent_pid: int,
+    *,
+    interval_seconds: float = PARENT_CHECK_INTERVAL_SECONDS,
+) -> None:
+    """Stop the Local Host after its desktop owner exits unexpectedly."""
+
+    while not server.should_exit:
+        if os.getppid() != expected_parent_pid:
+            server.should_exit = True
+            return
+        await asyncio.sleep(interval_seconds)
+
+
+async def serve() -> None:
+    host, port = host_port()
+    server = uvicorn.Server(uvicorn.Config(create_app(), host=host, port=port, log_level="info"))
+    expected_parent_pid = parent_pid()
+    watcher = (
+        asyncio.create_task(watch_parent(server, expected_parent_pid))
+        if expected_parent_pid is not None
+        else None
+    )
+    try:
+        await server.serve()
+    finally:
+        if watcher is not None:
+            watcher.cancel()
+            with suppress(asyncio.CancelledError):
+                await watcher
+
+
 def main() -> None:
     migrate()
-    host, port = host_port()
-    uvicorn.run(create_app(), host=host, port=port, log_level="info")
+    asyncio.run(serve())

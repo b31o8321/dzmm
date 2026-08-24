@@ -7,7 +7,6 @@ Create Date: 2026-08-17
 
 from alembic import op
 
-
 revision = "0008_lorebook_content_contract"
 down_revision = "0007_narrative_ruleset_contract"
 branch_labels = None

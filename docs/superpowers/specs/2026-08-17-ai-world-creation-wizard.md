@@ -43,8 +43,8 @@
 - 模型不执行任意 Python、JavaScript、世界书 regex、prompt script 或任意 TurnCommand。
 - 不让模型直接持久化、修改 RunState、关系数值、Flag、章节、路线或结局。
 - 不新增 Draft/Story/Relationship 的数据库根，不做旧存档、旧 API 或旧 UI 兼容。
-- 首版不做无限自由题材的自动质量承诺、后台队列、云生成或 Android 创作；Android 仍是
-  gameplay-only。
+- 首版不做无限自由题材的自动质量承诺、后台队列或云生成。Android 在自己的 Local Host
+  上使用同一 `LocalHostPort` 草案流程；它不能绕过审阅/确认边界。
 
 ## 领域与 API 决策
 
@@ -70,6 +70,8 @@ World → WorldVersion → Run → RunState → Turn[]
   `issues[{path,message}]`。`valid=false` 绝不返回可确认的 compose payload。
 - 导出遵循既有 WorldVersion export API；确认后，原生角色卡由 V3 mapper 导出，世界书由
   World Info mapper 导出。
+- Android 通过 `LocalHostPort.generateDraft` / `validateDraft` 调用嵌入 Python core；两者只返回
+  内存草案，手机编辑后必须再次 validate，才可调用原子 `composeWorld`。这不是第二套存档模型。
 
 ## 雾港等复杂度 vertical slice
 
@@ -106,3 +108,8 @@ World → WorldVersion → Run → RunState → Turn[]
    content export evidence。
 4. **自由题材扩展**：只有在 vertical slice 可重复通过后，增加 prompt library 和题材预设；
    不放宽 schema/command 白名单。
+
+## 当前 Android 实现检查点（未计分）
+
+Flutter 已建立 LocalHostPort 和多入口审阅 UI；embedded CPython bridge 尚未接入真实运行时。
+在 runtime spike、真实模型和 SQLite 回读证据完成前，Android 不计入成熟度分数。

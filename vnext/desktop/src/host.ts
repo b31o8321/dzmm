@@ -25,15 +25,3 @@ export async function startHost(): Promise<string | null> {
   hostOrigin = origin
   return `${origin}/api/v2`
 }
-
-export function canControlLanGameplay(): boolean {
-  return isTauri()
-}
-
-export async function setLanGameplay(enabled: boolean): Promise<boolean | null> {
-  if (!isTauri()) return null
-  const active = await invoke<boolean>('set_lan_gameplay', { enabled })
-  if (hostOrigin === null) throw new Error('桌面 Host 尚未就绪')
-  await waitForHealth(hostOrigin)
-  return active
-}

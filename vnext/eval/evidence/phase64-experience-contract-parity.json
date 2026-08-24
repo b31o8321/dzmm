@@ -1,0 +1,31 @@
+{
+  "phase": "phase64-experience-contract-parity",
+  "captured_at": "2026-08-20",
+  "status": "verified-static-contract-parity",
+  "counted_in_current_matrix": true,
+  "evidence": {
+    "contract": "vnext/contracts/experience_contract.json",
+    "test": "vnext/backend/tests/test_experience_contract.py",
+    "operations": 16,
+    "navigation_entries": 5,
+    "recovery_states": [
+      "loading",
+      "success",
+      "validation_error",
+      "provider_error",
+      "conflict",
+      "cancelled",
+      "restored"
+    ],
+    "adapters": [
+      "desktop Vue loopback FastAPI adapter",
+      "Android Flutter LocalHostPort",
+      "Android embedded Python MethodChannel bridge"
+    ],
+    "result": "2 contract parity tests passed"
+  },
+  "limits": [
+    "This proves operation/name parity, not identical platform rendering or runtime behavior.",
+    "Mac/Windows/Android end-to-end UI and SQLite round-trip evidence remains required."
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "phase": "phase107",
+  "date": "2026-08-21",
+  "status": "macos-window-gate-environment-wide-unresolved",
+  "purpose": "Separate an application-specific Tauri window failure from the current macOS GUI observation/session boundary before changing native lifecycle code.",
+  "environment": {
+    "os": "macOS 26.3.1 (25D771280a)",
+    "arch": "arm64",
+    "current_stack": "tauri 2.10.3 / tao 0.34.8 / wry 0.54.4",
+    "isolated_upgrade_stack": "tauri 2.11.5 / tao 0.35.3 / wry 0.55.1"
+  },
+  "observations": [
+    "A clean isolated build with Tauri 2.11.5, tao 0.35.3 and wry 0.55.1 compiled successfully and was launched with isolated data and port 18768; the process stayed alive, sidecar health was valid, and System Events still reported visible=true with count of windows=0.",
+    "The same isolated upgraded binary with an explicit Regular activation policy still reported zero windows, so a speculative activation-policy workaround was not carried into the product worktree.",
+    "The installed legacy /Applications/dzmm.app and the native Calculator control app also stayed alive with System Events visible=true and count of windows=0 in this observation session; the screenshot window enumerator listed ChatGPT, system UI and control surfaces but no Calculator or DZMM window.",
+    "All temporary upgraded, legacy and control processes were stopped after the check; no isolated sidecar process or test port was left running."
+  ],
+  "assessment": [
+    "The current host cannot provide reliable visual WindowServer evidence for a newly launched app, even with a Tauri upgrade and a non-DZMM native control app. The macOS package gate remains unpassed, but the root cause is not proven to be DZMM code.",
+    "Do not add a native lifecycle hack or claim the DMG is fixed from this session. The next valid gate requires a macOS session where a known control app produces an observable window, then rerun the DZMM DMG A-F journey there."
+  ],
+  "not_proven": [
+    "Whether the upgraded Tauri stack opens a window in a normal local macOS GUI session.",
+    "Whether the current DMG opens a window on macOS 14 or 15 or on another macOS 26 session.",
+    "Windows native and Android physical-device package journeys remain unrun."
+  ]
+}
