@@ -269,6 +269,11 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] macOS/Windows 与 Android 设置页明确旧版 DZMM 存档不会自动迁移或覆盖 Next；玩家需要通过世界包或旅程快照主动携带内容。
 - [x] Android widget、桌面测试和生产构建通过；本轮玩家评分保持 92，属于理解成本收口而非核心玩法加分。
 
+## Phase 133：发布包退出验收
+
+- [x] 当前 macOS release `.app` 和 PyInstaller sidecar 冷启动健康检查通过；`/health` 返回 vNext local host 的完整关键字段。
+- [x] Windows 原生 installer、Android 真机/发布包仍未验证；phase132 与 phase133 连续两轮评分保持 92，按 Goal 退出机制停止。
+
 证据：`vnext/eval/evidence/phase129-player-experience-goal.json`。
 
 ## 评分规则
