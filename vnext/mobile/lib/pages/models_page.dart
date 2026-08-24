@@ -82,7 +82,9 @@ class _ModelsPageState extends State<ModelsPage> {
 
   void _reload() {
     final profiles = widget.port.listModelProfiles();
-    setState(() => _profiles = profiles);
+    setState(() {
+      _profiles = profiles;
+    });
   }
 
   void _clearFieldError(String field) {
