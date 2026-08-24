@@ -544,7 +544,7 @@ def test_narrator_rejects_provider_reported_truncation() -> None:
             )
         )
 
-    assert seen["body"]["options"]["num_predict"] == 384
+    assert seen["body"]["options"]["num_predict"] == 1024
 
 
 def test_narrator_streams_openai_deltas_only_after_protocol_completion() -> None:

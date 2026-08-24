@@ -1,6 +1,6 @@
 # DZMM vNext Active Delivery Index
 
-更新时间：2026-08-21
+更新时间：2026-08-24
 工作树：`.worktrees/dzmm-vnext`
 分支：`feature/dzmm-vnext`
 基线：`main` at `df38037`
@@ -220,6 +220,11 @@ Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android
 `vnext/eval/evidence/phase61-android-portable-roundtrip.json`。
 损坏包零写入已有后端保护；Android↔desktop 双向安装后 UI 取证仍是 P0 缺口。
 
+## Phase 134：Qwen 7B 长局与移动端操作区复验
+
+本机 Qwen 7B 已从新世界创建开始完成 10 回合并正式结局；Android 长正文操作区修复为正文内部滚动、选项固定在底部，并提高 Ollama 生成预算、清理 Qwen Markdown/选择元话术。玩家评分暂为 93/100。不同题材世界、Android release/真机和 Windows 原生安装仍未通过；若后续两轮评分无提升，停止本 Goal。
+证据见 `vnext/eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
+
 ## 当前玩家矩阵（实现后暂定）
 
 | 玩家维度 | 满分 | 当前贡献 | 主要缺口 |
@@ -230,7 +235,7 @@ Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android
 | LLM 反馈和失败恢复 | 15 | 14 | 阶段、耗时、取消、零写入、重试、因果结果和缺少结构化选项的恢复已验证；安装包恢复和真实流式待验收 |
 | 正式结局与重玩 | 15 | 14 | 正式结局、回顾、回 World、新 Run 已在本地模拟器验证；三端安装包待验收 |
 | 三端一致性与安装证据 | 10 | 7 | macOS 包和 Android 本地模拟器已验证；Windows 包和跨端旅程缺证据 |
-| **玩家可玩性（暂定）** | **100** | **91** | **仍有发布阻断，不能宣称完成；10–30 回合新世界长局、不同题材去模板化和三端安装证据仍待复测** |
+| **玩家可玩性（暂定）** | **100** | **93** | **10 回合 Qwen 新世界长局和正式结局已复测；不同题材去模板化、Android release/真机和 Windows 安装证据仍缺失，不能宣称发布完成** |
 
 工程能力继续由测试、lint、构建、状态回读、portable 和打包证据单独记录，不与玩家分数平均。
 

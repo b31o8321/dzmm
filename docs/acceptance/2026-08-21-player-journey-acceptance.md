@@ -276,6 +276,17 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 
 证据：`vnext/eval/evidence/phase129-player-experience-goal.json`。
 
+## Phase 134：Qwen 7B 长局与移动端操作区复验
+
+- [x] 使用本机 Qwen 7B 从新世界创建开始完成 10 回合，正式结算为好结局，并在重新读取存档后确认结局摘要、关键行动和关系信息可见。
+- [x] 1024 token 预算让 Qwen 7B 越过原先的常见截断点；生成期间 Android 仍显示阶段、耗时和取消入口。
+- [x] 长正文操作区改为固定高度、正文内部滚动、选项固定在底部；新回合选项保持可达。
+- [x] 共享清理器移除 Qwen 常见 Markdown 标题、选择/结果重复段落和元话术；后端 134 项测试、Ruff、Flutter 24 项/analyze、APK 构建通过。
+- [x] 玩家评分由 92 提升至 93（+1）。
+- [ ] 不同题材新世界、Android release/真机和 Windows 原生安装仍是发布前门槛。
+
+证据：`vnext/eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
+
 ## 评分规则
 
 以下六项分别评分；任何一项 P0 未通过时，总可玩性封顶 30 分：

@@ -132,6 +132,47 @@ def test_gm_actions_are_private_allowlisted_and_deduplicated() -> None:
     assert apply_gm_actions(state, actions) == []
 
 
+def test_narrative_cleanup_removes_qwen_choice_meta_but_keeps_scene() -> None:
+    raw = (
+        "#### 灯塔顶端\n\n"
+        "艾莉森推开暗门，潮声从石缝里涌上来。\n\n"
+        "### 可能的选择与结果\n\n"
+        "1. 仔细研究日记内容\n"
+        "   - 找到潮门关闭的线索。\n\n"
+        "#### 神秘女子现身\n\n"
+        "她在雾里抬手，示意两人保持安静。\n\n"
+        "#### 行动钩子\n\n"
+        "- 回应神秘女子\n"
+        "- 忽略她"
+    )
+    assert clean_narrative_output(raw) == (
+        "灯塔顶端\n\n"
+        "艾莉森推开暗门，潮声从石缝里涌上来。\n\n"
+        "神秘女子现身\n\n"
+        "她在雾里抬手，示意两人保持安静。"
+    )
+
+
+def test_narrative_cleanup_removes_inline_markdown_and_followup_meta() -> None:
+    raw = (
+        "### NPC 反应\n\n"
+        "**神秘女子**：“潮门今晚会开启。”\n\n"
+        "### 选择：\n"
+        "1. 询问更多信息\n"
+        "2. 立即离开\n\n"
+        "### 后续行动\n"
+        "- 前往月光港\n\n"
+        "### 情节推进\n\n"
+        "他们带着线索返回港口。"
+    )
+    assert clean_narrative_output(raw) == (
+        "NPC 反应\n\n"
+        "神秘女子：“潮门今晚会开启。”\n\n"
+        "情节推进\n\n"
+        "他们带着线索返回港口。"
+    )
+
+
 def test_gm_actions_change_npc_reputation_with_hard_bounds() -> None:
     state = initial_state(_definition(), {"id": "hero", "name": "旅人", "profile": {}})
     state["revision"] = 4

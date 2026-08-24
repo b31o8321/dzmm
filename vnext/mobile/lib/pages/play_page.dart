@@ -43,6 +43,7 @@ class _PlayPageState extends State<PlayPage> {
   Future<void> Function()? _retryAction;
   final _action = TextEditingController();
   final _storyScroll = ScrollController();
+  final _actionScroll = ScrollController();
 
   Future<void> _markPendingRunOperation(bool pending) async {
     try {
@@ -63,6 +64,7 @@ class _PlayPageState extends State<PlayPage> {
     _operationTicker?.cancel();
     _action.dispose();
     _storyScroll.dispose();
+    _actionScroll.dispose();
     super.dispose();
   }
 
@@ -74,6 +76,25 @@ class _PlayPageState extends State<PlayPage> {
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
       );
+    });
+  }
+
+  void _scrollActionToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_actionScroll.hasClients) return;
+      final target = _actionScroll.position.maxScrollExtent;
+      _actionScroll.jumpTo(target);
+      Future<void>.delayed(const Duration(milliseconds: 80), () {
+        if (!mounted || !_actionScroll.hasClients) return;
+        final latestTarget = _actionScroll.position.maxScrollExtent;
+        if ((_actionScroll.offset - latestTarget).abs() > 1) {
+          _actionScroll.animateTo(
+            latestTarget,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
     });
   }
 
@@ -190,7 +211,10 @@ class _PlayPageState extends State<PlayPage> {
           _run = run;
           _destination = _initialDestination(run);
         });
-        if (run.status != 'completed') _scrollToLatest();
+        if (run.status != 'completed') {
+          _scrollToLatest();
+          _scrollActionToLatest();
+        }
       }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -226,6 +250,7 @@ class _PlayPageState extends State<PlayPage> {
           _error = null;
         });
         _scrollToLatest();
+        _scrollActionToLatest();
       }
     } catch (error) {
       if (mounted && _activeRequestId == requestId) {
@@ -281,6 +306,7 @@ class _PlayPageState extends State<PlayPage> {
           _error = null;
         });
         _scrollToLatest();
+        _scrollActionToLatest();
       }
     } catch (error) {
       if (mounted && _activeRequestId == requestId) {
@@ -522,12 +548,10 @@ class _PlayPageState extends State<PlayPage> {
             child: Material(
               elevation: 12,
               color: Theme.of(context).colorScheme.surface,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.46,
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.46,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -574,11 +598,22 @@ class _PlayPageState extends State<PlayPage> {
                             ),
                           ),
                       ],
-                      if (latestBeat != null) ...[
-                        const SizedBox(height: 8),
-                        _StoryBeatCard(beat: latestBeat, current: true),
-                      ],
-                      if (_run!.availableChoices.isEmpty)
+                      if (_error == null && latestBeat != null)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: _actionScroll,
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _StoryBeatCard(
+                              beat: latestBeat,
+                              current: true,
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      if (_error != null)
+                        const Spacer()
+                      else if (_run!.availableChoices.isEmpty)
                         _FreeActionPanel(
                           presentation: presentation,
                           destination: _destination,

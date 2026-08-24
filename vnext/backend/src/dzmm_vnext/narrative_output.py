@@ -6,7 +6,10 @@ import json
 import re
 from typing import Any
 
-NARRATIVE_OLLAMA_NUM_PREDICT = 384
+# Qwen 7B often needs more than 384 tokens for a complete Chinese scene plus
+# its private GM action marker; keep a bounded budget while avoiding routine
+# truncation before the player receives a finished hook.
+NARRATIVE_OLLAMA_NUM_PREDICT = 1024
 NARRATIVE_OPENAI_MAX_TOKENS = 480
 
 NARRATIVE_SYSTEM_PROMPT = (
@@ -72,6 +75,55 @@ _TECHNICAL_PARAGRAPH = re.compile(
     r"(?:游戏系统|规则引擎|状态(?:已|被)?更新|(?:Flag|location_id|route_id|ending_id)\b)",
     re.IGNORECASE,
 )
+_MARKDOWN_HEADING = re.compile(r"^\s*#{1,6}\s*")
+_CHOICE_META_HEADING = re.compile(
+    r"^(?:可能的选择与结果|现在[，,]?请(?:选择|决定你的行动)|选择(?:你的行动)?|选择与结果|"
+    r"后续行动|结果|具体行动|接下来的故事进展|下一章预告|下一次行动)\s*[：:]?\s*$"
+)
+_ACTION_HOOK_HEADING = re.compile(r"^行动钩子\s*[：:]?\s*$")
+_LIST_ITEM = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+_PLAIN_HEADING = re.compile(
+    r"^(?:NPC 反应|与.+的互动|接下来的发展|紧急事件触发|结语|情节推进)\s*[：:]?\s*$"
+)
+
+
+def _remove_model_choice_sections(value: str) -> str:
+    """Drop Qwen's duplicate choice/meta sections while retaining scene prose."""
+
+    lines = value.splitlines()
+    kept: list[str] = []
+    skip_until_heading = False
+    skip_to_end = False
+    hook_section = False
+    for raw_line in lines:
+        line = raw_line.strip()
+        if skip_to_end:
+            continue
+        heading = _MARKDOWN_HEADING.sub("", line).strip()
+        if _CHOICE_META_HEADING.fullmatch(heading):
+            skip_until_heading = True
+            hook_section = False
+            continue
+        if line.startswith("#") or _PLAIN_HEADING.fullmatch(heading):
+            if _ACTION_HOOK_HEADING.fullmatch(heading):
+                hook_section = True
+                skip_until_heading = False
+                continue
+            if skip_until_heading:
+                skip_until_heading = False
+            # Keep story headings as plain text; raw Markdown markers are not
+            # useful in the mobile card and are frequently emitted by Qwen.
+            kept.append(heading)
+            continue
+        if skip_until_heading:
+            continue
+        if hook_section:
+            # A hook emitted as a list is a duplicate of the app's options.
+            if not line or _LIST_ITEM.match(line):
+                continue
+            hook_section = False
+        kept.append(raw_line)
+    return "\n".join(kept)
 
 
 def clean_narrative_output(content: str | None) -> str | None:
@@ -91,7 +143,10 @@ def clean_narrative_output(content: str | None) -> str | None:
         value = value.split("### TRPG Narrative:", maxsplit=1)[1]
     if "### JSON:" in value:
         value = value.split("### JSON:", maxsplit=1)[0]
+    value = _remove_model_choice_sections(value.strip())
     value = re.sub(r"^#+\s*", "", value.strip())
+    value = re.sub(r"\*{1,2}([^*\n]+)\*{1,2}", r"\1", value)
+    value = re.sub(r"^\s*[-*_]{3,}\s*$", "", value, flags=re.MULTILINE)
 
     state_bullets = list(_STATE_BULLET.finditer(value))
     if len(state_bullets) >= 2:
