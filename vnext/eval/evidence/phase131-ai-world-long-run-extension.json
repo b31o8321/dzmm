@@ -43,7 +43,7 @@
     "emulator": "dzmm-ux-api36 / emulator-5554",
     "adb_reverse": "tcp:11434 -> host Ollama",
     "model": "qwen2.5:7b",
-    "apk_sha256": "a562753214a13ccccd60b8e31cf7e8865524bfe5b8623d06423859b056e318f8",
+    "apk_sha256": "d73306bdba9f365263fd8443272db9986fbceb41d739af7adc4ffd7a102d13e1",
     "apk_installed": true,
     "backend_tests": "132 passed",
     "ruff": "passed",

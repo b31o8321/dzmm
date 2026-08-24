@@ -519,7 +519,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('此设备独立保存并运行游戏。不会扫描电脑、局域网服务或二维码，也不会自动同步正在游玩的旅程。'),
+      find.textContaining('旧版 DZMM 存档不会自动迁移'),
       findsOneWidget,
     );
     expect(find.text('雾夜'), findsOneWidget);

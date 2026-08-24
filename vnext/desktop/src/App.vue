@@ -1270,7 +1270,7 @@ onMounted(() => {
         <section class="settings-panel">
           <template v-if="settingsSection === 'host'">
             <p class="eyebrow">本机服务</p><h2>本机服务已固定运行</h2>
-            <p class="settings-intro">世界、旅程和模型档案都保存在这台电脑。只有你主动导入或导出时，内容才会移动到其他设备。</p>
+            <p class="settings-intro">世界、旅程和模型档案都保存在这台电脑。旧版 DZMM 存档不会自动迁移或覆盖 Next 数据；需要带入内容时，请使用世界包或旅程快照。只有你主动导入或导出时，内容才会移动到其他设备。</p>
             <dl class="settings-facts"><div><dt>当前状态</dt><dd>{{ hostStatus === 'ready' ? '可以游玩' : hostStatus === 'starting' ? '正在准备' : '需要恢复' }}</dd></div><div><dt>存档位置</dt><dd>仅此设备</dd></div></dl>
             <div class="settings-actions"><button v-if="hostStatus !== 'ready'" type="button" :disabled="busy" @click="bootHost">恢复本机服务</button><button class="minor-action" type="button" :disabled="busy || !selectedWorld" @click="downloadPortableWorld">导出世界包</button><button class="minor-action" type="button" :disabled="busy || !run" @click="downloadPortableRun">导出旅程快照</button><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="choosePortableBundle">导入世界 / 复制旅程</button><input ref="portableFileInput" class="visually-hidden" type="file" name="portable-bundle" aria-label="选择要导入的世界或旅程文件" accept="application/json,.json" @change="importPortableBundle" /></div>
             <details class="advanced-runtime"><summary>高级诊断信息</summary><p>本机 Python 规则服务使用 SQLite 存档，并固定监听 127.0.0.1。</p><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="downloadDiagnostics">导出不含隐私内容的诊断</button></details>

@@ -1,0 +1,33 @@
+{
+  "phase": 132,
+  "title": "Legacy 与 DZMM Next 的玩家可见边界",
+  "date": "2026-08-24",
+  "scope": [
+    "让玩家知道旧版 DZMM 存档不会自动迁移到 Next",
+    "说明跨设备携带内容的唯一主动路径是世界包或旅程快照",
+    "保持两条产品线的数据库隔离和 Next clean-slate 策略"
+  ],
+  "player_surface": {
+    "desktop": "设置 > 本机服务显示旧版 DZMM 存档不会自动迁移或覆盖 Next 数据，并指向世界包/旅程快照。",
+    "android": "设置页同样显示迁移边界；导入成功后提示会创建独立世界或旅程，不覆盖原存档。"
+  },
+  "verification": {
+    "flutter_analyze": "passed",
+    "flutter_tests": "24 passed",
+    "desktop_tests": "32 passed",
+    "desktop_build": "passed",
+    "apk_sha256": "d73306bdba9f365263fd8443272db9986fbceb41d739af7adc4ffd7a102d13e1"
+  },
+  "score": {
+    "previous": 92,
+    "current": 92,
+    "delta": 0,
+    "reason": "降低迁移误解和覆盖风险，但不改变核心游玩能力。"
+  },
+  "remaining_gates": [
+    "完整 10–30 回合 Qwen 长局",
+    "不同题材新世界去模板化复测",
+    "macOS、Windows、Android 冷启动/重启/恢复安装包证据"
+  ],
+  "stop_rule": "本轮评分保持 92；若下一轮真实玩家体验仍无明显提升，则按 Goal 退出。"
+}
