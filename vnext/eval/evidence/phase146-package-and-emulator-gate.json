@@ -14,7 +14,7 @@
     "macos_bundle_display_name": "DZMM",
     "macos_bundle_backend": "dzmm-next-backend present",
     "android_unit_and_analyze": "passed",
-    "android_emulator": "blocked: dzmm-ux-api36 did not appear in adb devices",
+    "android_emulator": "online after direct emulator launch; DZMM debug APK installed and MainActivity launched; fresh Qwen journey not re-scored in this phase",
     "windows_native": "not available on this host"
   },
   "release_blockers": [
