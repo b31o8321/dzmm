@@ -255,6 +255,11 @@ gate、升级兼容和回滚策略确认后再迁移；因此这轮不计玩家�
 验证：cargo check、桌面 34 项测试与生产构建、Flutter 25 项测试与 analyze 通过。正式包名、
 sidecar 名、默认数据目录和 `main` 合并仍是 cutover 阶段工作，不在本轮执行。
 
+随后复核 macOS PyInstaller sidecar：当前代码可完成 clean build、sidecar `/health` smoke，且
+release workflow 的 macOS/Windows 资源检查已与实际 `dzmm-next-backend` 产物一致；这只证明
+打包依赖边界，不等同于 macOS 可见 WebView 或 Windows 安装后玩家旅程通过。模拟器当前未在线，
+因此本轮没有新增 Android 真实旅程分数。
+
 ## 当前玩家矩阵（实现后暂定）
 
 | 玩家维度 | 满分 | 当前贡献 | 主要缺口 |
