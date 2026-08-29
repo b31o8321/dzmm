@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   archiveWorld,
   cancelOperation,
@@ -142,6 +142,7 @@ const aiDraftReview = ref<DraftReview | null>(null)
 const aiLastValidDraft = ref<{ definition: string; hero: string } | null>(null)
 const settingsSection = ref<SettingsSection>('host')
 const portableFileInput = ref<HTMLInputElement | null>(null)
+let activeStreamController: AbortController | null = null
 
 const draftRulePreview = computed(() => {
   const story = aiDraft.value?.world_definition?.story as { chapters?: Array<{ title?: string; choices?: Array<{ label?: string }> }>; relationships?: unknown[]; routes?: unknown[]; endings?: unknown[] } | undefined
@@ -160,6 +161,17 @@ const exportableCharacterCards = computed(() =>
 
 function requestId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
+}
+
+function abortActiveStream() {
+  activeStreamController?.abort()
+  activeStreamController = null
+}
+
+function beginStream() {
+  abortActiveStream()
+  activeStreamController = new AbortController()
+  return activeStreamController
 }
 
 function syncDestination(snapshot: RunSnapshot) {
@@ -184,6 +196,7 @@ async function cancelActiveTurn() {
       advanceOperation('generating', '取消请求未送达；请继续等待或重试。')
       return
     }
+    abortActiveStream()
     activeDraftRequestId.value = null
     busy.value = false
     notice.value = '已停止等待本次起草；没有创建世界、旅程或存档。'
@@ -192,6 +205,7 @@ async function cancelActiveTurn() {
   }
   if (!result.accepted) {
     if (cancellingDraft) {
+      abortActiveStream()
       activeDraftRequestId.value = null
       busy.value = false
       notice.value = '已停止等待本次起草；没有创建世界、旅程或存档。'
@@ -206,6 +220,7 @@ async function cancelActiveTurn() {
   }
   activeTurnRequestId.value = null
   activeDraftRequestId.value = null
+  abortActiveStream()
   if (!cancellingDraft) markPendingRunOperation(false)
   busy.value = false
   notice.value = cancellingDraft
@@ -245,6 +260,7 @@ function restoreTheme() {
 }
 
 async function openWorldCenter(worldId?: string) {
+  abortActiveStream()
   busy.value = true
   notice.value = ''
   purgeManifest.value = null
@@ -267,6 +283,7 @@ async function openWorldCenter(worldId?: string) {
 }
 
 async function openSettings(section: SettingsSection = 'host') {
+  abortActiveStream()
   settingsSection.value = section
   notice.value = ''
   if (section !== 'models') {
@@ -301,6 +318,7 @@ function toggleDraftModelSetup() {
 }
 
 async function selectWorld(worldId: string) {
+  abortActiveStream()
   busy.value = true
   notice.value = ''
   purgeManifest.value = null
@@ -316,6 +334,7 @@ async function selectWorld(worldId: string) {
 }
 
 function startCreatingWorld() {
+  abortActiveStream()
   notice.value = ''
   purgeManifest.value = null
   purgeName.value = ''
@@ -326,6 +345,7 @@ function startCreatingWorld() {
 }
 
 async function startCreatingAIWorld() {
+  abortActiveStream()
   notice.value = ''
   composed.value = null
   run.value = null
@@ -395,6 +415,7 @@ async function probeSavedModelProfile(profile: ModelProfile) {
   busy.value = true
   notice.value = ''
   beginOperation('正在连接本地模型…', 'connecting')
+  const draftController = beginStream()
   try {
     advanceOperation('generating', '正在等待模型返回测试结果；已耗时会持续显示。')
     const result = await probeSavedProfile(profile)
@@ -537,6 +558,7 @@ async function generateDraft() {
   const draftRequestId = requestId('ai-draft')
   activeDraftRequestId.value = draftRequestId
   beginOperation('正在连接本地模型…', 'connecting')
+  const draftController = beginStream()
   try {
     advanceOperation('generating', '模型正在起草世界；已耗时会持续显示。')
     const draft = await generateAIWorldDraft({
@@ -548,7 +570,7 @@ async function generateDraft() {
       request_id: draftRequestId,
       hero_preference: aiHeroPreference.value,
       character_preferences: aiCharacterPreferences.value.split('，').flatMap((value) => value.split(',')).map((value) => value.trim()).filter(Boolean),
-    })
+    }, draftController.signal)
     if (activeDraftRequestId.value !== draftRequestId) return
     aiDraft.value = draft
     if (!draft.valid || !draft.world_definition || !draft.hero) {
@@ -572,6 +594,7 @@ async function generateDraft() {
       activeDraftRequestId.value = null
       busy.value = false
     }
+    if (activeStreamController === draftController) activeStreamController = null
   }
 }
 
@@ -982,6 +1005,7 @@ async function chooseStory(choice: { id: string; label: string }) {
   busy.value = true
   notice.value = ''
   beginOperation('正在连接本地模型…', 'connecting')
+  const streamController = beginStream()
   try {
     advanceOperation('generating', '正在生成后续故事；旅程尚未写入新回合。')
     let streamFailure: string | null = null
@@ -998,7 +1022,7 @@ async function chooseStory(choice: { id: string; label: string }) {
       if (event.event === 'turn_failed') {
         streamFailure = typeof event.data.detail === 'string' ? event.data.detail : '回合生成失败'
       }
-    })
+    }, streamController.signal)
     if (streamFailure) throw new Error(streamFailure)
     if (activeTurnRequestId.value !== turnRequestId) return
     advanceOperation('applying', '叙事已返回，本机规则正在确认并保存结果。')
@@ -1017,6 +1041,7 @@ async function chooseStory(choice: { id: string; label: string }) {
       activeTurnRequestId.value = null
       busy.value = false
     }
+    if (activeStreamController === streamController) activeStreamController = null
   }
 }
 
@@ -1116,6 +1141,7 @@ async function sendTurn() {
   busy.value = true
   notice.value = ''
   beginOperation('正在连接本地模型…', 'connecting')
+  const streamController = beginStream()
   try {
     advanceOperation('generating', '正在生成后续故事；旅程尚未写入新回合。')
     let streamFailure: string | null = null
@@ -1135,7 +1161,7 @@ async function sendTurn() {
       if (event.event === 'turn_failed') {
         streamFailure = typeof event.data.detail === 'string' ? event.data.detail : '回合生成失败'
       }
-    })
+    }, streamController.signal)
     if (streamFailure) throw new Error(streamFailure)
     if (activeTurnRequestId.value !== turnRequestId) return
     playerInput.value = ''
@@ -1156,6 +1182,7 @@ async function sendTurn() {
       activeTurnRequestId.value = null
       busy.value = false
     }
+    if (activeStreamController === streamController) activeStreamController = null
   }
 }
 
@@ -1220,6 +1247,12 @@ async function bootHost() {
 onMounted(() => {
   restoreTheme()
   void bootHost()
+})
+
+onUnmounted(() => {
+  abortActiveStream()
+  activeTurnRequestId.value = null
+  activeDraftRequestId.value = null
 })
 </script>
 

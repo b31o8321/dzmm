@@ -783,7 +783,7 @@ class _CreatePageState extends State<_CreatePage> {
       });
     } catch (error) {
       if (mounted && _draftRequestId == draftRequestId) {
-        setState(() => _error = error.toString());
+        setState(() => _error = playerSafeDraftError(error));
       }
     } finally {
       if (mounted) {
@@ -1041,6 +1041,18 @@ class _CreatePageState extends State<_CreatePage> {
       ],
     );
   }
+}
+
+String playerSafeDraftError(Object error) {
+  final message = error.toString();
+  if (message.contains('model draft is not valid JSON') ||
+      message.contains('model draft is not a single JSON object')) {
+    return '模型返回的世界草案格式不完整，未创建世界。请重试或切换模型。';
+  }
+  if (message.contains('model returned no draft content')) {
+    return '模型没有返回世界草案，未创建世界。请重试或切换模型。';
+  }
+  return message;
 }
 
 class _DraftMaterialSummary extends StatelessWidget {

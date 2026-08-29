@@ -328,11 +328,13 @@ class TurnCoordinator:
             )
             existing_row = existing.mappings().one_or_none()
             if existing_row:
-                if existing_row["player_input"] != payload.player_input or (
-                    planned_choice
-                    and not _choice_command_matches(existing_row["commands"], choice_id)
-                ) or (
-                    not planned_choice and existing_row["commands"] != payload.commands
+                if (
+                    existing_row["player_input"] != payload.player_input
+                    or (
+                        planned_choice
+                        and not _choice_command_matches(existing_row["commands"], choice_id)
+                    )
+                    or (not planned_choice and existing_row["commands"] != payload.commands)
                 ):
                     yield (
                         "turn_failed",
@@ -492,6 +494,8 @@ class TurnCoordinator:
                 and "</think>" not in raw_narrative
             ):
                 raise NarrationError("model returned no valid narrative content")
+            if profile is not None and narrative and not emitted_narrative:
+                yield "narrative_delta", {"text": narrative}
             outcomes.extend(apply_gm_actions(state, gm_actions))
             settle_world_events(state, run["definition"], outcomes)
             settle_pending_interactions(state, outcomes)
@@ -830,9 +834,7 @@ class TurnCoordinator:
         return _clean_narrative(visible) or "", actions
 
 
-def _requires_choice_planner(
-    definition: dict[str, Any], commands: list[dict[str, Any]]
-) -> bool:
+def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str, Any]]) -> bool:
     """Keep authored effects behind choices while allowing free GM-led actions."""
 
     if "choices" not in definition["ruleset"]["enabled_capabilities"]:

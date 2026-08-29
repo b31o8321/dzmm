@@ -182,15 +182,23 @@ class AIWorldDraftService:
         if profile is None:
             return AIWorldDraftResult(
                 valid=False,
-                issues=[DraftIssue(path="model_profile_id", message="configured model profile does not exist")],
+                issues=[
+                    DraftIssue(
+                        path="model_profile_id", message="configured model profile does not exist"
+                    )
+                ],
             )
         try:
-            source_payload, repairs = await self._generator.generate(profile, _generation_prompt(payload))
+            source_payload, repairs = await self._generator.generate(
+                profile, _generation_prompt(payload)
+            )
         except NarrationError as error:
             raise AIWorldDraftGenerationError(str(error)) from error
         if payload.request_id and not self._operations.enter_applying(payload.request_id):
             raise AIWorldDraftGenerationError("operation cancelled; draft was discarded")
         try:
+            source_payload, source_repairs = _normalize_creative_source_payload(source_payload)
+            repairs = [*repairs, *source_repairs]
             source = CreativeSource.model_validate(source_payload)
         except PydanticValidationError as error:
             return AIWorldDraftResult(
@@ -207,10 +215,62 @@ class AIWorldDraftGenerationError(ValueError):
     pass
 
 
+def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
+    """Repair harmless weak-model shape drift without granting it rule authority."""
+
+    if not isinstance(payload, dict):
+        return payload, []
+    normalized = deepcopy(payload)
+    repairs: list[str] = []
+
+    factions = normalized.get("factions")
+    if isinstance(factions, list):
+        for index, faction in enumerate(factions):
+            if not isinstance(faction, dict):
+                continue
+            for field, minimum, maximum, fallback in (
+                ("initial_tension", 0, 100, 0),
+                ("passive_gain_per_turn", 0, 10, 0),
+                ("threshold_conflict", 1, 100, 80),
+            ):
+                value = faction.get(field)
+                if isinstance(value, bool):
+                    value = None
+                if isinstance(value, (int, float)):
+                    bounded = max(minimum, min(maximum, int(value)))
+                else:
+                    bounded = fallback
+                if value != bounded:
+                    faction[field] = bounded
+                    repairs.append(f"factions[{index}].{field} 已按安全范围规范化")
+
+    events = normalized.get("events")
+    if isinstance(events, list):
+        for index, event in enumerate(events):
+            if not isinstance(event, dict):
+                continue
+            importance = event.get("importance")
+            bounded_importance = (
+                max(1, min(5, int(importance)))
+                if isinstance(importance, (int, float)) and not isinstance(importance, bool)
+                else 2
+            )
+            if importance != bounded_importance:
+                event["importance"] = bounded_importance
+                repairs.append(f"events[{index}].importance 已按安全范围规范化")
+            for field in ("trigger", "completion"):
+                if not isinstance(event.get(field), dict):
+                    event[field] = {}
+                    repairs.append(f"events[{index}].{field} 非对象条件已忽略")
+
+    return normalized, repairs
+
+
 def validate_world_draft(definition: dict[str, Any], hero: dict[str, Any]) -> AIWorldDraftResult:
     issues: list[DraftIssue] = []
     for error in sorted(
-        contract_validator("world_definition.schema.json").iter_errors(definition), key=lambda item: str(item.path)
+        contract_validator("world_definition.schema.json").iter_errors(definition),
+        key=lambda item: str(item.path),
     ):
         issues.append(DraftIssue(path=_json_path(error), message=error.message))
     try:
@@ -264,7 +324,7 @@ def _map_creative_source(
     definition["ruleset"] = {
         "id": ruleset,
         "enabled_capabilities": [
-            *( ["trpg"] if ruleset == "hybrid" else [] ),
+            *(["trpg"] if ruleset == "hybrid" else []),
             "chapters",
             "choices",
             "relationships",
@@ -278,7 +338,9 @@ def _map_creative_source(
     for index, location_name in enumerate(locations[2:], start=3):
         definition["locations"].append({"id": f"location-{index}", "name": location_name})
     location_ids = [location["id"] for location in definition["locations"]]
-    location_names = {name: location_id for name, location_id in zip(locations, location_ids, strict=True)}
+    location_names = {
+        name: location_id for name, location_id in zip(locations, location_ids, strict=True)
+    }
     for index, location in enumerate(definition["locations"]):
         location["connections"] = []
         if index + 1 < len(location_ids):
@@ -458,7 +520,10 @@ def _resolve_location_id(
 
 
 def _rename_story_surface(
-    definition: dict[str, Any], world_name: str, locations: list[str], characters: list[CreativeCharacter]
+    definition: dict[str, Any],
+    world_name: str,
+    locations: list[str],
+    characters: list[CreativeCharacter],
 ) -> None:
     first, second = characters
     story = definition["story"]

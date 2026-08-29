@@ -1,0 +1,29 @@
+{
+  "phase": 140,
+  "title": "P0 Goal：弱模型世界草案边界与 macOS 打包 Host 门槛",
+  "date": "2026-08-25",
+  "scope": [
+    "隔离临时数据库中使用本地 Qwen 7B 对非雾港新题材生成世界草案",
+    "验证弱模型素材类型漂移不会越过 Python 安全规则边界",
+    "启动 macOS release .app 并检查其 bundled Host"
+  ],
+  "verification": {
+    "qwen_7b_32k": "结构化草案请求在 120 秒内未返回，服务返回可恢复的超时提示，隔离数据库没有写入",
+    "qwen_7b": "草案在约 47 秒返回，但负值势力参数和数组条件导致原先的 CreativeSource 校验失败",
+    "fix": "新增最小安全规范化：势力数值限制在声明范围，非对象事件条件忽略并记录 repairs；不执行模型规则",
+    "tests": "后端全量 135 passed，ruff passed；AI draft 专项 9 passed",
+    "macos_package": "release .app 启动并让 bundled Host 在 127.0.0.1:28768/health 返回正常；当前 GUI 截图不可见，窗口门槛仍未通过"
+  },
+  "score": {
+    "previous": 94,
+    "current": 94,
+    "delta": 0,
+    "reason": "修复提升了弱模型失败的可恢复性，但真实 Qwen 世界草案仍需重新跑通并进入长局，macOS 可见窗口仍是 P0 阻塞。"
+  },
+  "remaining_gates": [
+    "确认规范化后的真实 Qwen 草案可进入审阅、确认和新 Run",
+    "同一新题材完成 10–30 回合、正式结局和同世界新 Run",
+    "解决 macOS release .app GUI 窗口不可见问题",
+    "Windows 原生安装与 Android 真机验收仍不在当前机器范围"
+  ]
+}

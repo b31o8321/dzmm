@@ -1,0 +1,33 @@
+{
+  "phase": 139,
+  "title": "模型 Profile 冷启动与游玩重进验收",
+  "date": "2026-08-24",
+  "scope": [
+    "强制停止并冷启动 Android 本地模拟器应用",
+    "确认已有 Run 和新增模型 Profile 可恢复",
+    "确认默认模型、编辑、删除入口在重进后仍可见"
+  ],
+  "artifacts": {
+    "emulator": "dzmm-ux-api36 / emulator-5554",
+    "screenshots": [
+      "/tmp/dzmm-cold-launch-ready.png",
+      "/tmp/dzmm-models-cold-persist.png"
+    ]
+  },
+  "verification": {
+    "run_reentry": "冷启动后直接恢复 Neo-Tokyo Central Plaza 的已有 Run，当前内容和选项仍可继续",
+    "model_profiles": "collective8b、abliterate7b、qwen7b 均保留；collective8b 仍显示默认，其他 Profile 仍提供编辑/设为默认/删除",
+    "loading": "冷启动显示明确的本地服务准备状态，随后恢复页面"
+  },
+  "score": {
+    "previous": 94,
+    "current": 94,
+    "delta": 0,
+    "reason": "重进和 Profile 持久化稳定，但没有新增玩家能力；非 Qwen 模型的世界草案质量仍未达到可玩基准。"
+  },
+  "remaining_gates": [
+    "为 Collective/Abliterate 增加结构化输出约束或 JSON 修复层",
+    "第二题材 10 回合以上长局与正式结局",
+    "macOS/Windows 安装包和 Android 真机证据仍不在当前范围"
+  ]
+}

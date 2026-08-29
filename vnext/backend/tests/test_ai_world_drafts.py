@@ -12,6 +12,7 @@ from dzmm_vnext.ai_world_drafts import (
     AIWorldDraftGenerationError,
     AIWorldDraftInput,
     AIWorldDraftService,
+    _normalize_creative_source_payload,
 )
 from dzmm_vnext.model_profiles import ModelProfile, NarrationError, ProviderType
 
@@ -19,7 +20,9 @@ from dzmm_vnext.model_profiles import ModelProfile, NarrationError, ProviderType
 def table_counts(database: Path) -> dict[str, int]:
     names = ["worlds", "world_versions", "heroes", "runs", "compose_requests"]
     with sqlite3.connect(database) as connection:
-        return {name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0] for name in names}
+        return {
+            name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0] for name in names
+        }
 
 
 CREATIVE_SOURCE = {
@@ -97,6 +100,75 @@ def _draft_request(profile_id: str) -> dict:
         "hero_preference": "会做艰难选择的年轻领航员",
         "character_preferences": ["学者", "守夜人"],
     }
+
+
+def test_weak_model_material_is_safely_normalized_before_creative_validation() -> None:
+    normalized, repairs = _normalize_creative_source_payload(
+        {
+            **CREATIVE_SOURCE,
+            "factions": [
+                {
+                    "name": "守望者",
+                    "description": "守护城市。",
+                    "initial_tension": -12,
+                    "passive_gain_per_turn": -3,
+                    "threshold_conflict": 140,
+                }
+            ],
+            "events": [
+                {
+                    "name": "异常",
+                    "summary": "网络短暂失灵。",
+                    "importance": "high",
+                    "trigger": [],
+                    "completion": "later",
+                }
+            ],
+        }
+    )
+
+    assert normalized["factions"][0]["initial_tension"] == 0
+    assert normalized["factions"][0]["passive_gain_per_turn"] == 0
+    assert normalized["factions"][0]["threshold_conflict"] == 100
+    assert normalized["events"][0]["trigger"] == {}
+    assert normalized["events"][0]["completion"] == {}
+    assert normalized["events"][0]["importance"] == 2
+    assert len(repairs) == 6
+
+
+def test_ai_draft_normalization_keeps_weak_model_material_reviewable(migrated_client) -> None:
+    client, _ = migrated_client
+    profile_id = _create_profile(client)
+    source = {
+        **CREATIVE_SOURCE,
+        "factions": [
+            {
+                "name": "守望者",
+                "description": "守护城市。",
+                "initial_tension": -12,
+                "passive_gain_per_turn": -3,
+                "threshold_conflict": 140,
+            }
+        ],
+        "events": [
+            {
+                "name": "异常",
+                "summary": "网络短暂失灵。",
+                "trigger": [],
+                "completion": "later",
+            }
+        ],
+    }
+    client.app.state.ai_world_drafts._generator = StaticDraftGenerator(source=source)
+
+    response = client.post("/api/v2/ai-world-drafts:generate", json=_draft_request(profile_id))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is True
+    assert any("factions[0].initial_tension" in repair for repair in body["repairs"])
+    assert body["world_definition"]["factions"][0]["initial_tension"] == 0
+    assert body["world_definition"]["events"][0]["trigger_conditions"] == {}
 
 
 def test_ai_draft_cancellation_discards_result_before_validation() -> None:
@@ -225,7 +297,8 @@ def test_ai_draft_projects_each_supported_narrative_ruleset(migrated_client) -> 
 
     for ruleset in ("story_adventure", "relationship_drama", "hybrid"):
         response = client.post(
-            "/api/v2/ai-world-drafts:generate", json={**_draft_request(profile_id), "ruleset": ruleset}
+            "/api/v2/ai-world-drafts:generate",
+            json={**_draft_request(profile_id), "ruleset": ruleset},
         )
         assert response.status_code == 200
         assert response.json()["valid"] is True
@@ -369,5 +442,7 @@ def test_ai_draft_requires_a_configured_model_profile(migrated_client) -> None:
         "world_definition": None,
         "hero": None,
         "repairs": [],
-        "issues": [{"path": "model_profile_id", "message": "configured model profile does not exist"}],
+        "issues": [
+            {"path": "model_profile_id", "message": "configured model profile does not exist"}
+        ],
     }

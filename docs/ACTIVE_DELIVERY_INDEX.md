@@ -1,4 +1,4 @@
-# DZMM vNext Active Delivery Index
+# DZMM replacement-candidate Active Delivery Index
 
 更新时间：2026-08-24
 工作树：`.worktrees/dzmm-vnext`
@@ -15,7 +15,7 @@ DZMM vNext 是“本地优先、状态驱动的互动叙事平台”。macOS、W
 World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM 当前阶段、沉浸完成回合和正式结局，
 并从同一 World 开始下一局。API、构建、模拟器自动点击和长回合脚本只证明工程能力，不能替代可玩性。
 
-完成门槛：所有 P0 维度及整体成熟度均 >=85；正式代码、UI、测试、配置、依赖、迁移和发布产物中不再存在废弃的 remote/LAN/mDNS/QR/pairing/scope 能力。
+完成门槛：所有 P0 维度及整体成熟度均 >=85；正式代码、UI、测试、配置、依赖、迁移和发布产物中不再存在废弃的 remote/LAN/mDNS/QR/pairing/scope 能力。统一命名和旧版删除遵循 [ADR-010：单一 DZMM 受控替换](adr/ADR-010-single-dzmm-cutover.md)，在发布 gate 通过前不可执行不可逆删除。
 
 ## Canonical artifacts
 
@@ -227,6 +227,23 @@ Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android
 
 phase135–136 尝试不同题材和复核发布 gate，但没有取得可复核的新玩家分值；连续两轮保持 93，按退出机制停止本 Goal。后续需在可控输入环境、Android release/真机和 Windows 原生环境补齐证据后再开启新 Goal。
 证据见 `vnext/eval/evidence/phase135-genre-and-release-gate-review.json`、`vnext/eval/evidence/phase136-no-score-exit-review.json`。
+
+## Phase 144：替换旧版的工程安全网与 cutover 决策
+
+本轮没有改变玩家可感知的剧情或布局，因此评分保持 **93/100**，不计入新的玩家体验加分。
+为后续把 vNext 作为唯一 DZMM 做准备，新增 `ADR-010-single-dzmm-cutover.md`，明确采用
+“先通过发布 gate、再统一命名、归档旧版、最后删除旧版实现”的受控 cutover，而不是长期双线
+维护或立即不可逆删除。
+
+工程侧新增 `.github/workflows/backend-ci.yml`，在 PR 和 `main` push 上固定安装 backend dev
+依赖、Ruff 与 pytest；桌面 SSE 解析抽为共享 `consumeSseStream`，补齐 CRLF、跨 chunk 和无尾
+分隔符测试；桌面回合与 AI 世界起草请求现在传递 `AbortSignal`，切换世界/设置、取消或卸载时
+会中止旧请求，避免旧 Run 的迟到事件污染新页面。后端 136 项测试、Ruff、桌面 34 项 Vitest
+与生产构建、Flutter 25 项测试与 analyze 均通过。
+
+反馈逐项映射见 `docs/reviews/2026-08-30-cutover-readiness.md`。当前仍阻塞替换的事实是
+macOS 可见 WebView/完整安装包旅程、Windows 原生 installer 旅程、Android release 冷启动/恢复
+以及统一正式命名和旧版归档策略；在这些门槛通过前不合入 `main` 或删除老版代码。
 
 ## 当前玩家矩阵（实现后暂定）
 

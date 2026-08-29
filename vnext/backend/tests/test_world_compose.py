@@ -39,7 +39,9 @@ def compose_payload(request_id: str) -> dict:
 def table_counts(database: Path) -> dict[str, int]:
     names = ["worlds", "world_versions", "heroes", "runs", "compose_requests"]
     with sqlite3.connect(database) as connection:
-        return {name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0] for name in names}
+        return {
+            name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0] for name in names
+        }
 
 
 def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
@@ -98,9 +100,9 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
 
     retry = client.post("/api/v2/worlds:compose", json=payload)
     assert retry.status_code == 200
-    assert {key: retry.json()[key] for key in ("world_id", "world_version_id", "hero_id", "run_id")} == {
-        key: created[key] for key in ("world_id", "world_version_id", "hero_id", "run_id")
-    }
+    assert {
+        key: retry.json()[key] for key in ("world_id", "world_version_id", "hero_id", "run_id")
+    } == {key: created[key] for key in ("world_id", "world_version_id", "hero_id", "run_id")}
     assert table_counts(database)["runs"] == 1
 
     recovered = client.get(f"/api/v2/runs/{created['run_id']}")
@@ -110,7 +112,9 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
     assert recovered.json()["story_beats"][0]["kind"] == "opening"
 
 
-def test_existing_world_can_start_idempotent_new_run_with_persisted_opening(migrated_client) -> None:
+def test_existing_world_can_start_idempotent_new_run_with_persisted_opening(
+    migrated_client,
+) -> None:
     client, _ = migrated_client
     created = client.post(
         "/api/v2/worlds:compose", json=compose_payload("compose-for-new-run")
@@ -355,6 +359,10 @@ def test_stream_failure_or_client_cancellation_does_not_commit_a_turn(migrated_c
             yield "灯塔"
             await asyncio.Future()
 
+    class BufferedNarrator:
+        async def stream(self, *_args):
+            yield "### 场景\n\n灯塔亮起。"
+
     async def collect(coordinator, request_id: str):
         payload = TurnInput(
             request_id=request_id,
@@ -389,3 +397,8 @@ def test_stream_failure_or_client_cancellation_does_not_commit_a_turn(migrated_c
     asyncio.run(cancel())
     assert client.get(f"/api/v2/runs/{run_id}").json()["state"]["revision"] == 0
     assert client.get(f"/api/v2/runs/{run_id}").json()["turns"] == []
+
+    buffered = TurnCoordinator(client.app.state.sessions, narrator=BufferedNarrator())
+    buffered_events = asyncio.run(collect(buffered, "stream-buffered"))
+    assert ("narrative_delta", {"text": "场景\n\n灯塔亮起。"}) in buffered_events
+    assert buffered_events[-1][0] == "turn_completed"

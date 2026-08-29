@@ -1,4 +1,4 @@
-import { parseSseBlock } from './sse'
+import { consumeSseStream } from './sse'
 
 export type RunState = {
   revision: number
@@ -207,11 +207,13 @@ async function streamSse(
   path: string,
   payload: object,
   onEvent: (event: TurnStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(`${apiBase}${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
+    signal,
   })
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { detail?: string }
@@ -219,39 +221,25 @@ async function streamSse(
   }
   if (!response.body) throw new Error('本机模型没有返回可读取的叙事流')
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  const consume = (complete: boolean) => {
-    const blocks = buffer.split(/\r?\n\r?\n/)
-    buffer = complete ? '' : blocks.pop() ?? ''
-    for (const block of blocks) {
-      const event = parseSseBlock(block)
-      if (event) onEvent(event)
-    }
-  }
-  while (true) {
-    const chunk = await reader.read()
-    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done })
-    consume(chunk.done)
-    if (chunk.done) break
-  }
+  await consumeSseStream(response.body, onEvent)
 }
 
 export function streamTurn(
   runId: string,
   payload: object,
   onEvent: (event: TurnStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return streamSse(`/runs/${runId}/turns:stream`, payload, onEvent)
+  return streamSse(`/runs/${runId}/turns:stream`, payload, onEvent, signal)
 }
 
 export function streamChoice(
   runId: string,
   payload: object,
   onEvent: (event: TurnStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return streamSse(`/runs/${runId}/choices:stream`, payload, onEvent)
+  return streamSse(`/runs/${runId}/choices:stream`, payload, onEvent, signal)
 }
 
 export function composeWorld(payload: object) {
@@ -302,11 +290,12 @@ export function probeModelProfile(profileId: string) {
   return request<ModelProbeResult>(`/model-profiles/${profileId}:probe`, { method: 'POST' })
 }
 
-export function generateAIWorldDraft(payload: object) {
+export function generateAIWorldDraft(payload: object, signal?: AbortSignal) {
   return request<AIWorldDraft>('/ai-world-drafts:generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
+    signal,
   })
 }
 

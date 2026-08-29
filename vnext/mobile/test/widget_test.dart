@@ -456,6 +456,19 @@ class _EndedRunPort extends _WorldFlowPort {
 }
 
 void main() {
+  test('maps model draft parser failures to player-safe guidance', () {
+    expect(
+      playerSafeDraftError(
+        "model draft is not valid JSON: Expecting ',' delimiter",
+      ),
+      '模型返回的世界草案格式不完整，未创建世界。请重试或切换模型。',
+    );
+    expect(
+      playerSafeDraftError('model returned no draft content'),
+      '模型没有返回世界草案，未创建世界。请重试或切换模型。',
+    );
+  });
+
   test(
     'RunSnapshot treats a model response without choices as free action',
     () {
@@ -518,10 +531,7 @@ void main() {
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('旧版 DZMM 存档不会自动迁移'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('旧版 DZMM 存档不会自动迁移'), findsOneWidget);
     expect(find.text('雾夜'), findsOneWidget);
     expect(find.text('纸页'), findsOneWidget);
     expect(find.text('琥珀'), findsOneWidget);

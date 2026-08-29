@@ -1,0 +1,45 @@
+{
+  "phase": 137,
+  "title": "第二题材赛博朋克世界模拟器玩家旅程",
+  "date": "2026-08-24",
+  "scope": [
+    "在 Android API 36 本地模拟器中使用全新题材输入创建世界",
+    "验证生成素材、世界名称、主角、开场和回合内容的一致性",
+    "验证 NPC 主动联系、路线效果和后续选项不依赖潮汐之门/雾港模板"
+  ],
+  "artifacts": {
+    "emulator": "dzmm-ux-api36 / emulator-5554",
+    "screenshots": [
+      "/tmp/dzmm-genre-filled.png",
+      "/tmp/dzmm-genre-draft.png",
+      "/tmp/dzmm-genre-draft-bottom.png",
+      "/tmp/dzmm-genre-world-created.png",
+      "/tmp/dzmm-genre-turn1.png",
+      "/tmp/dzmm-genre-turn2.png"
+    ],
+    "input": {
+      "theme": "Cyberpunk detective noir",
+      "tone": "tense neon",
+      "conflict": "AI witness vanished"
+    }
+  },
+  "verification": {
+    "generated_material": "Neo-Tokyo Central Plaza、Tanaka Industries Headquarters；Aki Nakamura、Ryosuke Tanaka、Makoto Sato、Yumi Hoshino；Corporate Consortium、Cyber Resistance；The Blackout、The Auction",
+    "world_consistency": "草案、确认后的世界和开场均使用 Neo-Tokyo / Aki Nakamura；未出现潮汐之门、月光港或雾港模板",
+    "turn_1": "Aki Nakamura 主动联系玩家，生成 4 个不同方向的行动选项",
+    "turn_2": "选择把证词交给 Aki 后锁定 Aki Nakamura 路线，Makoto Sato 主动联系并生成新的调查/询问选项",
+    "loading": "起草和回合生成均显示准备、连接模型、生成叙事、耗时和取消入口",
+    "player_surface": "玩家看到的是地点、角色、事件、对话、结果和下一步选项，没有内部 ID 或规则字段"
+  },
+  "score": {
+    "previous": 93,
+    "current": 94,
+    "delta": 1,
+    "reason": "第二题材真实模拟器旅程排除了内容模板复用，并验证了世界一致性、NPC 主动事件、路线效果和选项推进；仍未覆盖长局、安装包和真机。"
+  },
+  "remaining_gates": [
+    "新模型在 DZMM 玩家入口中的 Profile 配置和完整回合基准",
+    "第二题材 10 回合以上长局与正式结局",
+    "macOS/Windows 安装包和 Android 真机证据仍不在当前范围"
+  ]
+}
