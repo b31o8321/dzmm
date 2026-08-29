@@ -260,6 +260,17 @@ release workflow 的 macOS/Windows 资源检查已与实际 `dzmm-next-backend` 
 打包依赖边界，不等同于 macOS 可见 WebView 或 Windows 安装后玩家旅程通过。模拟器当前未在线，
 因此本轮没有新增 Android 真实旅程分数。
 
+## Phase 146：当前发布环境复核
+
+当前 worktree 已成功生成 `DZMM.app`，Info.plist 的展示名为 `DZMM`，包内 sidecar 资源存在；
+clean sidecar build 与 health smoke 通过。Android 单元测试/analyze 仍通过，但本轮启动
+`dzmm-ux-api36` 后没有出现在线 adb 设备；Windows 原生 installer 也不在本机可用环境中。
+因此玩家评分仍为 **93/100**，证据见 `vnext/eval/evidence/phase146-package-and-emulator-gate.json`。
+
+这不是 Goal 退出条件：阻塞点从代码缺陷转为可控的发布/观察环境。下一步安全动作是使用已知可见
+窗口的 macOS GUI 会话、Windows runner 和在线 Android 模拟器补齐主旅程证据；在此之前不删除旧版
+实现，也不把内部 `dzmm_vnext`/`dzmm-next-*` 标识直接改成不可兼容的新包标识。
+
 ## 当前玩家矩阵（实现后暂定）
 
 | 玩家维度 | 满分 | 当前贡献 | 主要缺口 |
