@@ -128,9 +128,9 @@ jobs:
             exit 1
           fi
 
-          BACKEND=$(find "$APP/Contents/Resources" -name 'dzmm-backend' -type f | head -1)
+          BACKEND=$(find "$APP/Contents/Resources" -name 'dzmm-next-backend' -type f | head -1)
           if [ -z "$BACKEND" ]; then
-            echo "::error::dzmm-backend missing from .app resources"
+            echo "::error::dzmm-next-backend missing from .app resources"
             ls -la "$APP/Contents/Resources/" | head -20
             exit 1
           fi
@@ -166,8 +166,8 @@ jobs:
           head -100 /tmp/nsis_contents.txt
           echo "::endgroup::"
 
-          if ! grep -q 'dzmm-backend.exe' /tmp/nsis_contents.txt; then
-            echo "::error::dzmm-backend.exe not found in NSIS installer"
+          if ! grep -q 'dzmm-next-backend.exe' /tmp/nsis_contents.txt; then
+            echo "::error::dzmm-next-backend.exe not found in NSIS installer"
             exit 1
           fi
 
@@ -176,7 +176,7 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::EXE smoke OK: $SIZE bytes, dzmm-backend.exe + Python runtime present"
+          echo "::notice::EXE smoke OK: $SIZE bytes, dzmm-next-backend.exe + Python runtime present"
 
       - name: smoke packaged Local Host sidecar (Windows)
         if: runner.os == 'Windows'

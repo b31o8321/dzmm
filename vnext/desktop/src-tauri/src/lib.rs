@@ -62,7 +62,7 @@ fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result
     let executable = backend_path(app)?;
     if !executable.exists() {
         return Err(format!(
-            "vNext backend sidecar is missing: {}",
+            "DZMM 本机服务组件缺失: {}",
             executable.display()
         ));
     }
@@ -78,7 +78,7 @@ fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|error| format!("start vNext backend: {error}"))?;
+        .map_err(|error| format!("start DZMM 本机服务: {error}"))?;
     runtime.child = Some(child);
     Ok(())
 }
