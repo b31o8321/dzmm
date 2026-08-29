@@ -1,3 +1,4 @@
+use std::fs::OpenOptions;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -78,13 +79,22 @@ fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result
     std::fs::create_dir_all(&app_data).map_err(|error| format!("create app data: {error}"))?;
     let port = backend_port();
     let parent_pid = std::process::id().to_string();
+    let log_path = app_data.join("dzmm.log");
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|error| format!("open DZMM log {}: {error}", log_path.display()))?;
+    let error_log = log
+        .try_clone()
+        .map_err(|error| format!("prepare DZMM error log {}: {error}", log_path.display()))?;
     let child = Command::new(&executable)
         .env("DZMM_NEXT_DATA_DIR", &app_data)
         .env("DZMM_NEXT_PORT", &port)
         .env("DZMM_NEXT_PARENT_PID", parent_pid)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(error_log))
         .spawn()
         .map_err(|error| format!("start DZMM 本机服务: {error}"))?;
     runtime.child = Some(child);
