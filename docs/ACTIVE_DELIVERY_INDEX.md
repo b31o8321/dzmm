@@ -275,6 +275,19 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 并对 `dzmm-next-*` 旧键提供一次性兼容迁移；36 项桌面测试与生产构建通过。这是可回滚的数据边界
 改进，不改变玩家评分。
 
+## Phase 147：macOS 包窗口与旧版端口共存复核
+
+重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
+在隔离端口的 `/health` smoke 也通过。但本机旧版 `/Applications/dzmm.app` 的两个 sidecar
+仍占用 `127.0.0.1:8765` 与通配端口，导致新包完整启动旅程不能作为通过证据。为降低过渡期冲突，
+Tauri host 现在在未显式设置 `DZMM_NEXT_PORT` 时优先 8765、被占用则选择空闲 loopback 端口；
+显式端口仍原样使用。该改动已 cargo check 通过，证据见
+`vnext/eval/evidence/phase147-macos-window-and-port-collision.json`。
+
+玩家评分保持 **93/100**：这是发布可靠性改进，不是新的可玩性分数。下一步需要在关闭旧版
+sidecar 或全新用户目录的干净 GUI 会话重跑包内创建→游玩→结局→新 Run，随后再补 Windows
+installer 和 Android release 证据。
+
 ## 当前玩家矩阵（实现后暂定）
 
 | 玩家维度 | 满分 | 当前贡献 | 主要缺口 |

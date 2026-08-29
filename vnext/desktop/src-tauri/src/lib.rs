@@ -1,3 +1,4 @@
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -42,7 +43,17 @@ fn backend_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn backend_port() -> String {
-    std::env::var("DZMM_NEXT_PORT").unwrap_or_else(|_| "8765".to_owned())
+    if let Ok(configured) = std::env::var("DZMM_NEXT_PORT") {
+        return configured;
+    }
+    if TcpListener::bind(("127.0.0.1", 8765)).is_ok() {
+        return "8765".to_owned();
+    }
+    TcpListener::bind(("127.0.0.1", 0))
+        .ok()
+        .and_then(|listener| listener.local_addr().ok())
+        .map(|address| address.port().to_string())
+        .unwrap_or_else(|| "8765".to_owned())
 }
 
 fn stop_runtime(runtime: &mut BackendRuntime) {
@@ -61,10 +72,7 @@ fn stop_backend(state: &BackendState) {
 fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result<(), String> {
     let executable = backend_path(app)?;
     if !executable.exists() {
-        return Err(format!(
-            "DZMM 本机服务组件缺失: {}",
-            executable.display()
-        ));
+        return Err(format!("DZMM 本机服务组件缺失: {}", executable.display()));
     }
     let app_data = data_dir(app)?;
     std::fs::create_dir_all(&app_data).map_err(|error| format!("create app data: {error}"))?;
