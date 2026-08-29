@@ -1,6 +1,6 @@
 # vNext mobile
 
-DZMM Next Mobile is the Android Local Host. It owns its app-private SQLite and
+DZMM Mobile is the Android Local Host. It owns its app-private SQLite and
 uses an embedded Python core as the only state judge. The phone calls its chosen
 model provider directly and never requires a DZMM Mac/Windows Host, pairing,
 QR handoff, LAN listener or remote token.

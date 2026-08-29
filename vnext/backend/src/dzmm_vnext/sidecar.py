@@ -48,7 +48,7 @@ def migrate() -> None:
         ).fetchone()
     if contract_version != (CONTRACT_VERSION,):
         raise RuntimeError(
-            "this DZMM Next schema v3 sidecar will not open or migrate a previous preview data directory"
+            "this DZMM schema v3 sidecar will not open or migrate a previous preview data directory"
         )
 
 

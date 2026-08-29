@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "DZMM Next",
+  "productName": "DZMM",
   "version": "0.1.0",
   "identifier": "local.dzmm.next",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "DZMM Next",
+        "title": "DZMM",
         "width": 1280,
         "height": 800,
         "minWidth": 960,

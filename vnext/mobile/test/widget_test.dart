@@ -495,7 +495,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('DZMM Next'), findsOneWidget);
+    expect(find.text('DZMM'), findsOneWidget);
     expect(find.text('本机游戏服务已就绪 · 存档只保存在此设备'), findsOneWidget);
     expect(find.text('世界'), findsOneWidget);
     expect(find.text('创作'), findsOneWidget);

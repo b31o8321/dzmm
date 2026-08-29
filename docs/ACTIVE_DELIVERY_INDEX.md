@@ -245,6 +245,16 @@ phase135–136 尝试不同题材和复核发布 gate，但没有取得可复核
 macOS 可见 WebView/完整安装包旅程、Windows 原生 installer 旅程、Android release 冷启动/恢复
 以及统一正式命名和旧版归档策略；在这些门槛通过前不合入 `main` 或删除老版代码。
 
+## Phase 145：用户可见名称收敛
+
+在不改变内部包标识、数据库目录或 sidecar 文件名的前提下，桌面窗口/HTML 标题、Tauri 产品名、
+Android 应用标题与系统标签、后端描述和相关 README 已统一为 **DZMM**，不再让玩家看到“Next”
+或“Preview”作为第二产品线。内部 `dzmm_vnext`、`dzmm-next-*` 和旧数据目录仍暂留，直到发布
+gate、升级兼容和回滚策略确认后再迁移；因此这轮不计玩家体验加分。
+
+验证：cargo check、桌面 34 项测试与生产构建、Flutter 25 项测试与 analyze 通过。正式包名、
+sidecar 名、默认数据目录和 `main` 合并仍是 cutover 阶段工作，不在本轮执行。
+
 ## 当前玩家矩阵（实现后暂定）
 
 | 玩家维度 | 满分 | 当前贡献 | 主要缺口 |

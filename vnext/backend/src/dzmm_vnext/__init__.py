@@ -1,4 +1,4 @@
-"""DZMM Next Preview backend."""
+"""DZMM local backend."""
 
 APP_NAME = "dzmm-next"
 API_VERSION = 2

@@ -117,7 +117,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("failed to build DZMM Next desktop host");
+        .expect("failed to build DZMM desktop host");
 
     app.run(|app_handle, event| {
         if matches!(

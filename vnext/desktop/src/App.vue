@@ -1260,7 +1260,7 @@ onUnmounted(() => {
   <main class="shell">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="masthead">
-      <a class="brand" href="#" @click.prevent="() => void openWorldCenter()">DZMM <span>Next</span></a>
+      <a class="brand" href="#" @click.prevent="() => void openWorldCenter()">DZMM</a>
       <p>{{ step === 'settings' ? '本地叙事工作台 · 设置与联动' : '本地叙事工作台 · 世界、规则与回合' }}</p>
       <div class="masthead-actions">
         <nav class="workspace-nav" aria-label="工作台导航">

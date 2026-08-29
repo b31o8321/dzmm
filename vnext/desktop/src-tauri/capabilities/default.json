@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "DZMM Next desktop host permissions",
+  "description": "DZMM desktop host permissions",
   "windows": ["main"],
   "permissions": ["core:default"]
 }

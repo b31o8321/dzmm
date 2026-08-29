@@ -1,4 +1,4 @@
-# DZMM Next desktop
+# DZMM desktop
 
 The Phase 1 desktop surface is a clean Vue application that uses API v2 only.
 It owns the minimal authoring and recovery flow: create a world, confirm its

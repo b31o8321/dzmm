@@ -53,7 +53,7 @@ class _DzmmMobileAppState extends State<DzmmMobileApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'DZMM Next',
+    title: 'DZMM',
     debugShowCheckedModeBanner: false,
     theme: themeDataFor(_theme),
     home: _LocalShell(
@@ -252,7 +252,7 @@ class _LocalShellState extends State<_LocalShell> {
     ];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DZMM Next'),
+        title: const Text('DZMM'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(24),
           child: Padding(

@@ -84,7 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await app.state.engine.dispose()
 
-    app = FastAPI(title="DZMM Next Local Host", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="DZMM Local Host", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=(
