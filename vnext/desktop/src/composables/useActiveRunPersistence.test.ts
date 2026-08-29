@@ -32,4 +32,13 @@ describe('active Run persistence', () => {
     forgetActiveRun(local)
     expect(readActiveRun(local)).toBeNull()
   })
+
+  it('migrates the previous preview key without losing the active Run', () => {
+    const local = storage()
+    local.setItem('dzmm-next-active-run', 'run-preview')
+
+    expect(readActiveRun(local)).toBe('run-preview')
+    expect(local.getItem('dzmm-active-run')).toBe('run-preview')
+    expect(local.getItem('dzmm-next-active-run')).toBeNull()
+  })
 })

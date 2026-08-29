@@ -30,4 +30,13 @@ describe('pending Run recovery marker', () => {
 
     expect(consumePendingRunOperation(local)).toBe(false)
   })
+
+  it('consumes a marker written by the preview build during name migration', () => {
+    const local = storage()
+    local.setItem('dzmm-next-pending-run-operation', '1')
+
+    expect(consumePendingRunOperation(local)).toBe(true)
+    expect(local.getItem('dzmm-next-pending-run-operation')).toBeNull()
+    expect(local.getItem('dzmm-pending-run-operation')).toBeNull()
+  })
 })

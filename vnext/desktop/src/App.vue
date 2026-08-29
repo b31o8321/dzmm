@@ -107,7 +107,8 @@ const purgeManifest = ref<PurgeManifest | null>(null)
 const purgeName = ref('')
 const lorebookDraft = ref<LorebookEntry[] | null>(null)
 const hostReady = computed(() => hostStatus.value === 'ready')
-const themeKey = 'dzmm-next-theme'
+const themeKey = 'dzmm-theme'
+const legacyThemeKey = 'dzmm-next-theme'
 const theme = ref<Theme>('fog')
 const {
   profiles: modelProfiles,
@@ -248,10 +249,11 @@ function applyTheme(nextTheme: Theme) {
   theme.value = nextTheme
   document.documentElement.dataset.theme = nextTheme
   localStorage.setItem(themeKey, nextTheme)
+  localStorage.removeItem(legacyThemeKey)
 }
 
 function restoreTheme() {
-  const storedTheme = localStorage.getItem(themeKey)
+  const storedTheme = localStorage.getItem(themeKey) ?? localStorage.getItem(legacyThemeKey)
   if (storedTheme === 'fog' || storedTheme === 'paper' || storedTheme === 'amber') {
     applyTheme(storedTheme)
   } else {
