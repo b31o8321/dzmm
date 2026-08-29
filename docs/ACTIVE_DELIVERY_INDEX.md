@@ -275,6 +275,17 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 并对 `dzmm-next-*` 旧键提供一次性兼容迁移；36 项桌面测试与生产构建通过。这是可回滚的数据边界
 改进，不改变玩家评分。
 
+## Phase 148：修复打包数据库迁移阻断
+
+重新启动 macOS 包时发现真实迁移错误：旧本地库记录的 `0011_lifecycle_audit_events` 在当前
+迁移资源中不存在，sidecar 因此退出。新增窄范围回锚逻辑，只在 `alembic_version` 精确匹配该
+旧 revision 且 `lifecycle_audit_events` 表存在时改为现行 `0009_lifecycle_audit_events`，随后
+正常执行到 `0012_model_credentials`；其他数据库版本保持不变。复制当前本地库做迁移回归已通过，
+后端 137 项测试与 Ruff 全绿。证据见 `vnext/eval/evidence/phase148-packaged-migration-repair.json`。
+
+这是安装/升级可靠性修复，玩家评分仍为 **93/100**。下一步重新构建并启动 DZMM 包，确认旧版
+端口共存时 Host 能就绪；完整玩家旅程、Windows installer 和 Android release 仍是替换门槛。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar

@@ -43,6 +43,21 @@ def test_sidecar_refuses_a_previous_preview_contract_without_migrating_it(
         sidecar.migrate()
 
 
+def test_sidecar_repairs_the_renamed_lifecycle_revision_before_alembic(tmp_path) -> None:
+    database = tmp_path / "legacy.db"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        connection.execute("INSERT INTO alembic_version VALUES ('0011_lifecycle_audit_events')")
+        connection.execute("CREATE TABLE lifecycle_audit_events (id TEXT PRIMARY KEY)")
+
+    sidecar.repair_legacy_migration_revision(database)
+
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+            "0009_lifecycle_audit_events",
+        )
+
+
 @pytest.mark.parametrize(
     ("value", "message"),
     [("not-a-port", "integer"), ("0", "between 1 and 65535"), ("65536", "between 1 and 65535")],

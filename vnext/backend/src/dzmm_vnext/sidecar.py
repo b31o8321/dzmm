@@ -17,6 +17,8 @@ from .config import Settings
 from .main import create_app
 
 PARENT_CHECK_INTERVAL_SECONDS = 0.5
+LEGACY_LIFECYCLE_REVISION = "0011_lifecycle_audit_events"
+LIFECYCLE_REVISION = "0009_lifecycle_audit_events"
 
 
 class _StoppableServer(Protocol):
@@ -38,9 +40,31 @@ def migration_config(root: Path | None = None) -> Config:
     return config
 
 
+def repair_legacy_migration_revision(database_path: Path) -> None:
+    """Re-anchor a preview database whose lifecycle revision was renamed later."""
+
+    if not database_path.exists():
+        return
+    with sqlite3.connect(database_path) as connection:
+        version_row = connection.execute(
+            "SELECT version_num FROM alembic_version LIMIT 1"
+        ).fetchone()
+        if version_row != (LEGACY_LIFECYCLE_REVISION,):
+            return
+        lifecycle_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'lifecycle_audit_events'"
+        ).fetchone()
+        if lifecycle_table:
+            connection.execute(
+                "UPDATE alembic_version SET version_num = ?",
+                (LIFECYCLE_REVISION,),
+            )
+
+
 def migrate() -> None:
     settings = Settings.from_env()
     settings.ensure_layout()
+    repair_legacy_migration_revision(settings.database_path)
     command.upgrade(migration_config(), "head")
     with sqlite3.connect(settings.database_path) as connection:
         contract_version = connection.execute(
