@@ -420,7 +420,8 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 桌面启动后已有模型档案时，进入世界中心会显示本机独立存储提示，明确旧版 DZMM
 不会自动迁移或覆盖，并指向主动导入世界包/旅程快照的路径；首次无模型仍优先引导模型
 设置，恢复中的旅程提示不被覆盖。`npm run build` 通过。本阶段不改变玩家评分，仍需在
-安装包 GUI 中确认提示与主流程的视觉位置。
+安装包 GUI 中确认提示与主流程的视觉位置。结构化证据见
+`vnext/eval/evidence/phase161-desktop-storage-boundary-notice.json`。
 
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 

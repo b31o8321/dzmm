@@ -1,0 +1,16 @@
+{
+  "phase": 161,
+  "title": "desktop first world entry storage boundary notice",
+  "commit": "64d704f",
+  "status": "implemented",
+  "behavior": {
+    "profiles_exist": "after host boot and model refresh, opening the world center shows a notice that storage is local and legacy DZMM data is not auto-migrated or overwritten",
+    "first_use": "without model profiles, the existing model setup guidance remains the primary notice",
+    "interrupted_run": "an interrupted operation recovery notice is not replaced by the storage boundary notice"
+  },
+  "verification": [
+    "cd vnext/desktop && npm run build"
+  ],
+  "score_change": 0,
+  "remaining": "confirm placement in the packaged macOS and Windows GUI flows"
+}
