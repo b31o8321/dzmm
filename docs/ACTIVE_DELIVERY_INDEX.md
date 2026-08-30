@@ -438,6 +438,14 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 不迁移边界”门槛，但旧版归档 tag、恢复演练和最终 cutover 仍未完成，评分保持 **95/100**。
 结构化证据见 `vnext/eval/evidence/phase163-migration-policy-freeze.json`。
 
+## Phase 166：运行时数据备份与恢复演练
+
+新增回归测试，在临时 vNext 数据目录中创建可玩世界，执行 SQLite 备份、模拟数据库丢失、
+恢复备份并重新启动 API，成功通过 `/api/v2/worlds` 回读世界。后端全量测试 **138 passed**，
+仅有既存 Starlette/httpx 弃用警告；没有触碰真实用户数据。证据见
+`vnext/eval/evidence/phase166-runtime-data-restore-rehearsal.json`。这是数据恢复演练，
+仍不等同于 macOS/Windows 安装包 GUI 验收，评分保持 **95/100**。
+
 ## Phase 164：旧版归档 tag 固定
 
 已在旧版 `main@df38037` 上建立本地归档 tag
