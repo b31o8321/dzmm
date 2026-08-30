@@ -1,0 +1,24 @@
+{
+  "phase": 174,
+  "title": "current candidate release workflow",
+  "status": "build_passed_publish_skipped",
+  "run_id": 33314492033,
+  "head_sha": "be5523711c05ebbe43cecb0fda8e1eac172fd5ee",
+  "url": "https://github.com/b31o8321/dzmm/actions/runs/33314492033",
+  "jobs": {
+    "macos-arm64": "success",
+    "windows-x64": "success",
+    "release": "skipped because workflow was manually dispatched from a non-v tag"
+  },
+  "artifacts": [
+    {"name": "dzmm-macos-arm64", "size_in_bytes": 31008691, "expired": false},
+    {"name": "dzmm-windows-x64", "size_in_bytes": 22770402, "expired": false}
+  ],
+  "decision": "Current candidate builds are valid for installer testing; native Windows GUI and packaged macOS player-flow acceptance remain open.",
+  "score_change": 0,
+  "remaining": [
+    "install and exercise Windows artifact on native Windows",
+    "exercise macOS packaged visible GUI journey",
+    "final naming/default-path cutover"
+  ]
+}

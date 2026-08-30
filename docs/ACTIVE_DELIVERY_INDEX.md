@@ -452,6 +452,13 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 以及最终 cutover 的命名、合并和删除约束。见 `docs/reviews/2026-08-30-release-handoff.md`。
 本阶段不改变玩家评分，Goal 继续保持 active。
 
+## Phase 174：当前候选 release workflow
+
+已从推送后的当前候选运行 `33314492033`：macOS arm64 与 Windows x64 构建均成功，生成未过期
+artifacts（分别约 31.0MB、22.8MB）；`release` 发布 job 因非 `v*` tag 按设计跳过。构建产物
+现在可用于安装验收，但不能替代 Windows 原生 GUI 或 macOS 可见玩家旅程。证据见
+`vnext/eval/evidence/phase174-release-workflow-current-candidate.json`，评分保持 **95/100**。
+
 ## Phase 173：GitHub 分支与 PR 现状审计
 
 只读核对 GitHub：仓库为公开仓库、默认分支为 `main`，当前没有 `feature/dzmm-vnext` PR；
