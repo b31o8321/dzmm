@@ -361,6 +361,20 @@ Windows 安装后的玩家路径仍未完成。
 Windows 安装后 GUI、Android 真机和跨端回读门槛不变。证据见
 `vnext/eval/evidence/phase155-macos-gui-observation-boundary.json`。
 
+## Phase 156：Android 模型端点可达性提示
+
+Android release 模拟器的真实操作暴露出一个此前被 API/冷启动证据掩盖的 P0：已保存模型档案使用
+`127.0.0.1:11434` 时，模型请求失败，页面虽然保持零写入并提供重试，但玩家不知道模拟器中的
+`127.0.0.1` 不是电脑。模型设置现在按平台提供默认地址：Android 模拟器使用 `10.0.2.2`，桌面
+仍使用 `127.0.0.1`；已有 loopback 档案会显示迁移提示，并说明真机局域网 IP 和服务监听要求。
+Flutter analyze、相关 widget 测试、release APK 构建/安装均通过，截图确认提示在模型列表可见。
+证据见 `vnext/eval/evidence/phase156-android-model-endpoint-guidance.json`。
+
+这是设置可理解性和失败恢复的实际修复，但尚未增加玩家分数（保持 **94/100**）：Ollama 当前仅
+监听宿主机 `127.0.0.1:11434`，Android release 尚未完成“配置可达模型→创建世界→完整游玩→结局→新
+Run”的可见闭环。下一步先建立受控的宿主机可达模型端点，再重跑 Android release 主旅程；若分数连续
+两轮无提升，则停止体验驱动改动，转入替换门槛审计。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
