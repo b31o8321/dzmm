@@ -6,6 +6,7 @@
   "verification": {
     "flutter_analyze": "passed",
     "targeted_widget_tests": "passed",
+    "flutter_tests": "25 passed",
     "release_apk": "built successfully"
   },
   "score": {
