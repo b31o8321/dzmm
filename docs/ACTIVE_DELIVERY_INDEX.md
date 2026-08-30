@@ -446,6 +446,12 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 `vnext/eval/evidence/phase166-runtime-data-restore-rehearsal.json`。这是数据恢复演练，
 仍不等同于 macOS/Windows 安装包 GUI 验收，评分保持 **95/100**。
 
+## Phase 172：发布交接清单
+
+新增 release handoff，固定当前候选、已完成证据、授权后推送/CI/Windows/macOS GUI 验收顺序，
+以及最终 cutover 的命名、合并和删除约束。见 `docs/reviews/2026-08-30-release-handoff.md`。
+本阶段不改变玩家评分，Goal 继续保持 active。
+
 ## Phase 167：macOS 安装包 GUI 门槛复核
 
 重新检查当前 macOS 安装包：`dzmm-next-desktop` 进程存在，但 WindowServer 对该进程返回
