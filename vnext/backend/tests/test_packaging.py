@@ -36,5 +36,5 @@ def test_verify_clean_migrations_rejects_retired_artifacts(tmp_path) -> None:
 
 def test_release_workflow_installs_the_pyinstaller_package_extra() -> None:
     workflow = Path(__file__).parents[3] / ".github" / "workflows" / "release.yml"
-    source = workflow.read_text()
+    source = workflow.read_text(encoding="utf-8")
     assert 'pip install -e ".[dev,package]"' in source
