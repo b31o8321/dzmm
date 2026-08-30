@@ -21,6 +21,15 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: install Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
       - name: install vNext backend
         working-directory: vnext/backend
         run: |
