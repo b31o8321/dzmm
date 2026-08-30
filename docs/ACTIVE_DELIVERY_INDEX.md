@@ -318,6 +318,20 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 这是首屏可玩性/跨端安装可靠性的实际提升，玩家评分由 **93/100 提升至 94/100**；尚未证明该
 安装包的完整创建世界→游玩→结局→新 Run 旅程，Windows installer 和 Android 后台恢复仍待验证。
 
+## Phase 152：Windows release CI 与 installer smoke
+
+将隔离分支同步到远端并触发 release workflow 后，首次 Windows runner 在读取含中文的
+`release.yml` 时因 cp1252 编码失败；测试改为显式 UTF-8 后重新运行成功。run
+`33299415557` 的 Windows job 完成 137 项后端测试、PyInstaller sidecar、Tauri NSIS 构建，
+installer 内容检查确认 `dzmm-next-backend.exe` 与 Python `_internal` 存在，打包 sidecar 的
+Local Host `/health` 也通过；同一 run 的 macOS job 完成 DMG `.app + backend + _internal` smoke。
+artifact 为 `dzmm-windows-x64`（22,770,763 bytes）和 `dzmm-macos-arm64`（31,012,067 bytes）。
+证据见 `vnext/eval/evidence/phase152-windows-release-ci.json`。
+
+这轮只证明构建与安装包内容，未在 Windows 桌面上执行安装后可见玩家流程，因此评分保持
+**94/100**。Windows 安装后完整创建世界→游玩→结局→新 Run、Android 后台恢复/真机和
+跨端回读仍是替换门槛。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar

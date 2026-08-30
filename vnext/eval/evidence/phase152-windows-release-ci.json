@@ -1,0 +1,32 @@
+{
+  "phase": 152,
+  "name": "windows-release-ci-and-installer-smoke",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 94,
+    "current": 94,
+    "change": 0,
+    "reason": "CI 构建与 artifact smoke 通过，但没有 Windows 真实安装后的可见玩家旅程"
+  },
+  "workflow": {
+    "url": "https://github.com/b31o8321/dzmm/actions/runs/33299415557",
+    "run_id": 33299415557,
+    "head_sha": "7a25ec88b8ba1871e82ca2f0bafa7b384632e709",
+    "conclusion": "success",
+    "windows_job": "build (windows-x64) success",
+    "macos_job": "build (macos-arm64) success"
+  },
+  "windows_verification": {
+    "backend_tests": "137 passed",
+    "sidecar": "PyInstaller build succeeded",
+    "installer": "NSIS .exe created; size/content smoke passed",
+    "installer_contents": "dzmm-next-backend.exe and Python _internal runtime present",
+    "packaged_health": "Windows sidecar Local Host /health passed with storage=local and host=127.0.0.1",
+    "artifact": "dzmm-windows-x64, 22770763 bytes, not expired"
+  },
+  "macos_verification": {
+    "dmg_smoke": "passed; .app + backend + _internal present",
+    "artifact": "dzmm-macos-arm64, 31012067 bytes, not expired"
+  },
+  "fix_included": "Windows runner cp1252 failure fixed by reading release.yml with explicit UTF-8 encoding."
+}
