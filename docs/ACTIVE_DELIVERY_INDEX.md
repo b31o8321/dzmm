@@ -459,6 +459,16 @@ artifacts（分别约 31.0MB、22.8MB）；`release` 发布 job 因非 `v*` tag 
 现在可用于安装验收，但不能替代 Windows 原生 GUI 或 macOS 可见玩家旅程。证据见
 `vnext/eval/evidence/phase174-release-workflow-current-candidate.json`，评分保持 **95/100**。
 
+## Phase 175：GitHub 授权后 Draft PR 与校验闭环
+
+用户已明确授权 GitHub 操作。当前候选已推送到 `feature/dzmm-vnext`，并创建
+[Draft PR #2](https://github.com/b31o8321/dzmm/pull/2)（base=`main`，head=`80fd39f`）；
+PR 保持 Draft，未合并、未删除旧版。PR 的 backend-ci 与 E2E smoke 均通过；E2E 之前因
+Ubuntu runner 缺少 `gobject-2.0`/`gio-2.0` 失败，补充 `libwebkit2gtk-4.1-dev`、
+`libappindicator3-dev`、`librsvg2-dev`、`patchelf` 后恢复通过。证据见
+`vnext/eval/evidence/phase175-github-draft-pr-and-checks.json`。这解决的是交付校验环境问题，
+不增加玩家评分，当前仍为 **95/100**；macOS/Windows 可见 GUI 与最终 cutover 门槛继续保持未闭合。
+
 ## Phase 173：GitHub 分支与 PR 现状审计
 
 只读核对 GitHub：仓库为公开仓库、默认分支为 `main`，当前没有 `feature/dzmm-vnext` PR；
