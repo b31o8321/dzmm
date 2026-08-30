@@ -1,6 +1,6 @@
 # DZMM Cutover Release Handoff
 
-当前候选：`feature/dzmm-vnext@606f6b3`
+当前候选：`feature/dzmm-vnext@7814509`（GitHub Draft PR #2）
 
 ## 已完成
 
@@ -10,13 +10,17 @@
 - 临时运行时数据库备份/恢复演练。
 - 首个替换版本“不自动迁移旧版数据库”策略及玩家提示。
 
-## 授权后执行
+## 授权后已执行
 
-1. 将当前 feature 分支推送到 `origin`。
-2. 等待并检查当前 head 的 release workflow；不得复用 `7a25ec8` 的旧产物。
-3. 在 Windows 原生环境安装 NSIS 包，完成模型配置、创建世界、游玩、结局和新 Run。
-4. 在 macOS 授权 GUI 自动化后，完成同一套安装包可见流程。
-5. 保存两端截图/日志和 workflow URL，更新 ADR-010 gates。
+1. 已将 feature 分支推送到 `origin`，并创建 [Draft PR #2](https://github.com/b31o8321/dzmm/pull/2)。
+2. 已从候选 head 运行 release workflow `33314492033`；macOS arm64 与 Windows x64 构建和 artifact smoke 成功。
+3. PR backend-ci 与 E2E smoke 均通过；E2E 的 Linux Tauri 构建依赖已固定在 workflow 中。
+
+## 尚未完成的验收
+
+1. 在 Windows 原生环境安装 NSIS 包，完成模型配置、创建世界、游玩、结局和新 Run。
+2. 在 macOS 获得 Computer Use 权限后，完成同一套安装包可见流程；当前只能证明窗口可见，不能证明完整点击旅程。
+3. 保存两端安装后截图/日志，更新 ADR-010 gates；完成前保持 Draft，不合并、不删除旧版。
 
 ## 最终 cutover
 
@@ -33,4 +37,3 @@
 - 未经授权不要 push 或触发远端 release workflow。
 - 不要在 GUI gate 未通过前合并 `main` 或删除旧版。
 - 不要把“进程存在”“sidecar health”当作玩家 GUI 验收。
-
