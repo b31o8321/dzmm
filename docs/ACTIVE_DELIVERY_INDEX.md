@@ -332,6 +332,15 @@ artifact 为 `dzmm-windows-x64`（22,770,763 bytes）和 `dzmm-macos-arm64`（31
 **94/100**。Windows 安装后完整创建世界→游玩→结局→新 Run、Android 后台恢复/真机和
 跨端回读仍是替换门槛。
 
+## Phase 153：Android release 强制停止后恢复
+
+在 `emulator-5554` 上对 release APK 执行 `am force-stop` 后重新启动 `MainActivity`，系统顶层
+Activity 恢复成功；截图显示 DZMM 游玩页仍保留当前场景、叙事内容、历史重新读取入口和底部
+操作。证据见 `vnext/eval/evidence/phase153-android-release-recovery.json`。
+
+本轮没有新的完整创建/游玩旅程，评分保持 **94/100**。Android 真机、模型失败重试、跨端回读和
+Windows 安装后的玩家路径仍未完成。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
