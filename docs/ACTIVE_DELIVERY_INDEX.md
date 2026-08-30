@@ -446,6 +446,13 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 `vnext/eval/evidence/phase166-runtime-data-restore-rehearsal.json`。这是数据恢复演练，
 仍不等同于 macOS/Windows 安装包 GUI 验收，评分保持 **95/100**。
 
+## Phase 167：macOS 安装包 GUI 门槛复核
+
+重新检查当前 macOS 安装包：`dzmm-next-desktop` 进程存在，但 WindowServer 对该进程返回
+可见窗口数为 0；同时旧版 `/Applications/dzmm.app` sidecar 仍在运行。按证据纪律，
+进程/sidecar 健康不能替代玩家可见窗口，因此 macOS GUI gate 仍未通过，评分保持 **95/100**。
+证据见 `vnext/eval/evidence/phase167-macos-gui-gate-recheck.json`。
+
 ## Phase 164：旧版归档 tag 固定
 
 已在旧版 `main@df38037` 上建立本地归档 tag
