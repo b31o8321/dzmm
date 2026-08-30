@@ -306,6 +306,18 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 本轮仍保持 **93/100**：只是 release 冷启动和布局证据，没有新增完整玩家旅程。Android 真机、后台
 恢复/失败重试、30 回合 Qwen 旅程和 Windows 原生 installer 仍是替换门槛。
 
+## Phase 151：修复 macOS 回退端口返回值错配
+
+可见 macOS 包曾在 sidecar 已健康监听回退端口时仍显示 Host 未就绪。根因是 Tauri 启动 sidecar
+和返回给前端的 origin 各自重新计算端口；旧版占用 8765 时两次结果不同。现在由 `start_runtime`
+计算一次端口并返回实际 origin，前端轮询与 sidecar 使用同一地址。`cargo fmt --check`、`cargo check`、
+桌面 36 项测试通过；重建并启动包后，sidecar 在 `127.0.0.1:53308` 健康，窗口显示“本机游戏服务
+已就绪”，日志记录 `/health` 和模型列表请求均为 200。证据见
+`vnext/eval/evidence/phase151-macos-host-port-return.json`。
+
+这是首屏可玩性/跨端安装可靠性的实际提升，玩家评分由 **93/100 提升至 94/100**；尚未证明该
+安装包的完整创建世界→游玩→结局→新 Run 旅程，Windows installer 和 Android 后台恢复仍待验证。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar

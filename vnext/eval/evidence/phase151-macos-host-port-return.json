@@ -1,0 +1,22 @@
+{
+  "phase": 151,
+  "name": "macos-host-port-return-fix",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 94,
+    "change": 1,
+    "reason": "修复旧版占用 8765 时桌面启动后端地址错配，打包版可见窗口现在显示本机游戏服务已就绪"
+  },
+  "problem": "Tauri 启动 sidecar 时选择一次回退端口，但 start_backend 返回值再次计算端口；前端轮询了错误地址并显示 Host 未就绪。",
+  "fix": "start_runtime 计算端口一次并返回实际 origin，start_backend 原样返回该 origin。",
+  "verification": {
+    "checks": ["cargo fmt --check", "cargo check", "desktop Vitest 36 passed", "tauri app rebuild"],
+    "legacy_port": "127.0.0.1:8765 remained occupied",
+    "actual_sidecar_port": "127.0.0.1:53308",
+    "frontend_health": "persistent log records GET /health 200 and GET /api/v2/model-profiles 200",
+    "visible_window": "DZMM settings page shows green 本机游戏服务 已就绪",
+    "screenshot": "/tmp/dzmm-macos-phase151.png"
+  },
+  "boundary": "这是 macOS 包启动/首屏体验加分；完整创建世界、模型调用、长局、结局与新 Run 仍未在该安装包完成，Windows installer 仍缺原生 runner 证据。"
+}

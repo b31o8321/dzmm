@@ -70,7 +70,7 @@ fn stop_backend(state: &BackendState) {
     }
 }
 
-fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result<(), String> {
+fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result<String, String> {
     let executable = backend_path(app)?;
     if !executable.exists() {
         return Err(format!("DZMM 本机服务组件缺失: {}", executable.display()));
@@ -98,7 +98,7 @@ fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result
         .spawn()
         .map_err(|error| format!("start DZMM 本机服务: {error}"))?;
     runtime.child = Some(child);
-    Ok(())
+    Ok(format!("http://127.0.0.1:{port}"))
 }
 
 #[tauri::command]
@@ -108,8 +108,7 @@ fn start_backend(
 ) -> Result<String, String> {
     let mut runtime = state.0.lock().map_err(|_| "backend state lock poisoned")?;
     stop_runtime(&mut runtime);
-    start_runtime(&app, &mut runtime)?;
-    Ok(format!("http://127.0.0.1:{}", backend_port()))
+    start_runtime(&app, &mut runtime)
 }
 
 #[tauri::command]
