@@ -1,0 +1,21 @@
+{
+  "phase": 165,
+  "title": "legacy archive source restore rehearsal",
+  "status": "source_restore_passed",
+  "tag": "dzmm-legacy-v0.16.0-2026-08-30",
+  "restored_commit": "df38037b6e3510d2e035e20600f49bd1f48ff077",
+  "steps": [
+    "created detached worktree .worktrees/legacy-restore-rehearsal from the archive tag",
+    "verified HEAD equals the archived legacy commit",
+    "verified legacy backend/pyproject.toml and backend/src/dzmm/main.py exist",
+    "verified restored worktree was clean",
+    "removed only the temporary rehearsal worktree"
+  ],
+  "current_vnext_untouched": true,
+  "runtime_data_restore": "not yet rehearsed",
+  "score_change": 0,
+  "remaining": [
+    "document runtime/data rollback rehearsal or explicitly scope rollback to source release",
+    "complete macOS and Windows packaged GUI gates"
+  ]
+}
