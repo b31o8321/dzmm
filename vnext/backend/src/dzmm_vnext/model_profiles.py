@@ -17,6 +17,7 @@ from .model_protocol import chat_endpoint, probe_body
 from .model_request_feedback import model_connection_detail, model_timeout_detail
 from .model_secrets import ModelSecretStore, default_model_secret_store
 from .narrative import narrative_variation
+from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import (
     NARRATIVE_OLLAMA_NUM_PREDICT,
     NARRATIVE_OPENAI_MAX_TOKENS,
@@ -522,6 +523,8 @@ def _narration_body(
     variation_seed: str = "",
 ) -> dict[str, Any]:
     variation = narrative_variation(definition, state, variation_seed or "default-run")
+    entity_names = narrative_entity_names(definition)
+    world_material = narrative_world_material(definition)
     messages = [
         {
             "role": "system",
@@ -551,6 +554,13 @@ def _narration_body(
                     "active_events": state.get("active_events", []),
                     "plot_threads": state.get("plot_threads", []),
                     "pending_interactions": state.get("pending_interactions", []),
+                    "world_entity_names": entity_names,
+                    "world_material": world_material,
+                    "narrative_guardrails": (
+                        "叙事只能使用 world_entity_names 中的角色、NPC、地点、势力和事件名称；"
+                        "world_material 只用于理解这些实体的动机和背景；"
+                        "不要创造未列出的姓名，也不要把内部 ID、模板旧名或关系 ID 写进正文。"
+                    ),
                     "active_lore": [
                         {"id": entry["id"], "title": entry["title"], "body": entry["body"]}
                         for entry in lore_entries

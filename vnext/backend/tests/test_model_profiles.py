@@ -441,6 +441,63 @@ def test_narrator_describes_validated_narrative_state_without_granting_state_aut
     assert payload["variation_directive"]["key"]
 
 
+def test_narrator_context_includes_canonical_world_entities() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "message": {"content": "灯塔风声渐近。"},
+                "done": True,
+                "done_reason": "stop",
+            },
+        )
+
+    profile = ModelProfile(
+        id="profile-entity-context",
+        name="Ollama",
+        provider_type=ProviderType.OLLAMA,
+        base_url="http://localhost:11434",
+        model_name="qwen2.5:7b",
+    )
+    definition = {
+        "name": "潮汐之歌",
+        "character_cards": [
+            {"id": "captain", "name": "塞巴斯蒂安", "role": "船长", "description": "寻找航图"},
+            {"id": "scholar", "name": "弗朗西斯卡", "role": "学者", "description": "研究潮门"},
+        ],
+        "locations": [
+            {"id": "island", "name": "灯塔岛", "description": "海风中的灯塔"},
+            {"id": "port", "name": "月影港", "description": "潮汐覆盖的港口"},
+        ],
+    }
+
+    narrative = asyncio.run(
+        ModelNarrator(httpx.MockTransport(handler)).narrate(
+            profile,
+            definition,
+            {"hero": {"name": "艾莉森"}, "location_id": "island"},
+            "查看灯塔",
+            [],
+            [],
+        )
+    )
+
+    assert narrative == "灯塔风声渐近。"
+    payload = json.loads(seen["body"]["messages"][1]["content"].removeprefix("/no_think\n"))
+    assert payload["world_entity_names"] == {
+        "characters": ["塞巴斯蒂安", "弗朗西斯卡"],
+        "npcs": [],
+        "locations": ["灯塔岛", "月影港"],
+        "factions": [],
+        "events": [],
+    }
+    assert payload["world_material"]["characters"][0]["details"] == "role：船长；description：寻找航图"
+    assert "不要创造未列出的姓名" in payload["narrative_guardrails"]
+
+
 def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
     profile = ModelProfile(
         id="profile-4",

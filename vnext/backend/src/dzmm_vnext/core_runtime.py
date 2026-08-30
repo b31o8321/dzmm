@@ -39,6 +39,7 @@ from .narrative import (
     settle_world_events,
     validate_definition,
 )
+from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import extract_gm_actions, model_response_was_truncated
 from .operation_control import OperationRegistry
 from .run_presentation import build_run_presentation
@@ -49,53 +50,8 @@ from .story_beats import (
 )
 from .world_templates import fog_harbor_template
 
-
-def _narrative_entity_names(definition: dict[str, Any]) -> dict[str, list[str]]:
-    def names(key: str) -> list[str]:
-        values: list[str] = []
-        for item in definition.get(key) or []:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name") or item.get("title") or "").strip()
-            if name and name not in values:
-                values.append(name)
-        return values
-
-    return {
-        "characters": names("character_cards"),
-        "npcs": names("npcs"),
-        "locations": names("locations"),
-        "factions": names("factions"),
-        "events": names("events"),
-    }
-
-
-def _narrative_world_material(definition: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
-    """Give the narrator descriptive generated material, not only entity names."""
-
-    def material(key: str, fields: tuple[str, ...]) -> list[dict[str, str]]:
-        values: list[dict[str, str]] = []
-        for item in definition.get(key) or []:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name") or item.get("title") or "").strip()
-            if not name:
-                continue
-            details = "；".join(
-                f"{field}：{str(item.get(field)).strip()}"
-                for field in fields
-                if str(item.get(field) or "").strip()
-            )
-            values.append({"name": name, "details": details})
-        return values
-
-    return {
-        "characters": material("character_cards", ("role", "description")),
-        "npcs": material("npcs", ("role", "description", "motivation")),
-        "locations": material("locations", ("description",)),
-        "factions": material("factions", ("description",)),
-        "events": material("events", ("summary",)),
-    }
+_narrative_entity_names = narrative_entity_names
+_narrative_world_material = narrative_world_material
 
 
 def _narrative_memory_layers(
