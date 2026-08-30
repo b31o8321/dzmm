@@ -438,6 +438,13 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 不迁移边界”门槛，但旧版归档 tag、恢复演练和最终 cutover 仍未完成，评分保持 **95/100**。
 结构化证据见 `vnext/eval/evidence/phase163-migration-policy-freeze.json`。
 
+## Phase 164：旧版归档 tag 固定
+
+已在旧版 `main@df38037` 上建立本地归档 tag
+`dzmm-legacy-v0.16.0-2026-08-30`，作为 cutover 前的回滚锚点；未修改旧版提交内容，
+也未将 vNext 合入 `main`。结构化证据见 `vnext/eval/evidence/phase164-legacy-archive-tag.json`。
+恢复演练、桌面安装包 GUI gate 和最终命名收敛仍待完成，评分保持 **95/100**。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar

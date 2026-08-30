@@ -1,0 +1,20 @@
+{
+  "phase": 164,
+  "title": "legacy DZMM archive tag",
+  "status": "archive_anchor_created",
+  "tag": "dzmm-legacy-v0.16.0-2026-08-30",
+  "tag_target": "df38037b6e3510d2e035e20600f49bd1f48ff077",
+  "target_branch": "main",
+  "target_subject": "fix(world-rag): release Chroma clients on Windows",
+  "verification": [
+    "git show --no-patch --format=fuller dzmm-legacy-v0.16.0-2026-08-30",
+    "git tag --list 'dzmm-legacy-*'"
+  ],
+  "rollback_rehearsal": "pending",
+  "score_change": 0,
+  "remaining": [
+    "document and execute restore rehearsal",
+    "complete macOS and Windows packaged GUI gates",
+    "perform final cutover naming audit"
+  ]
+}
