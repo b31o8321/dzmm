@@ -375,6 +375,19 @@ Flutter analyze、相关 widget 测试、release APK 构建/安装均通过，�
 Run”的可见闭环。下一步先建立受控的宿主机可达模型端点，再重跑 Android release 主旅程；若分数连续
 两轮无提升，则停止体验驱动改动，转入替换门槛审计。
 
+## Phase 157：Android release 新世界完整玩家旅程
+
+在宿主机 Ollama 临时监听 `0.0.0.0:11434`、Android 模拟器使用 `10.0.2.2:11434` 后，按玩家入口
+创建了一个全新世界（地点为月影港/秘密岛屿，未使用雾港离线模板），审阅并确认草案，使用 Qwen 7B
+完成 10 个可见回合。每回合都有叙事、NPC 主动联系、状态结果和可选行动；最终回合显示正式的隐藏
+结局，重新进入已完成旅程可看到“10 个回合”、路线、关系与物品。回到世界详情后，界面显示该旅程已
+完成，并在同一世界创建第二段旅程，看到新的主角和新的开场内容。证据见
+`vnext/eval/evidence/phase157-android-release-new-world-journey.json`。
+
+这是新的完整玩家闭环，评分由 **94/100 提升至 95/100**。Qwen 7B 在模拟器单回合约 35–90 秒，
+虽然阶段和耗时反馈可见，但仍是明显的沉浸/节奏风险；真实 Android 设备、Windows 安装后 GUI、
+macOS 可见 GUI 和跨设备回读仍未通过，因此不执行老版删除或 `main` 合并。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
@@ -398,7 +411,7 @@ installer 和 Android release 证据。
 | LLM 反馈和失败恢复 | 15 | 14 | 阶段、耗时、取消、零写入、重试、因果结果和缺少结构化选项的恢复已验证；安装包恢复和真实流式待验收 |
 | 正式结局与重玩 | 15 | 14 | 正式结局、回顾、回 World、新 Run 已在本地模拟器验证；三端安装包待验收 |
 | 三端一致性与安装证据 | 10 | 8 | macOS 包启动/Host 就绪、Windows NSIS/sidecar CI 和 Android 本地 release 模拟器已验证；Windows 安装后 GUI 和跨端旅程缺证据 |
-| **玩家可玩性（暂定）** | **100** | **94** | **10 回合 Qwen 新世界长局和正式结局已复测，macOS 包首屏 Host 阻断已修复，Windows 构建/installer smoke 已通过；不同题材去模板化、Android 真机和 Windows 安装后 GUI 证据仍缺失，不能宣称发布完成** |
+| **玩家可玩性（暂定）** | **100** | **95** | **Android release 已完成新世界→10 回合→正式结局→同世界新 Run；Qwen 7B 单回合 35–90 秒，Android 真机、macOS/Windows 可见 GUI 和跨端回读仍缺证据，不能宣称发布完成** |
 
 工程能力继续由测试、lint、构建、状态回读、portable 和打包证据单独记录，不与玩家分数平均。
 
@@ -415,5 +428,5 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 1. M1：共享 `create_run`、World 详情、继续/新 Run、opening story beat 和结局后动作——已实现并完成桌面真实后端回归、Android 自动化覆盖。
 2. M2：共享 operation state、阶段/耗时、取消、失败零写入、重试和对话/状态分层——已实现；桌面慢模型真实回归通过。
 3. M3：ModelProfile CRUD/default/probe、引用冲突和三端一致交互——已实现；桌面真实回归、Android widget 覆盖通过。
-4. M4：macOS/Windows 安装包和 Android 本地模拟器/真机完成 A-F、30 回合、重启/失败恢复——进行中；phase82–114 已累积补齐 Android 后台模型操作、三端玩家术语/操作阶段、正式结局、安全凭据、取消/恢复、归档世界、active Run 恢复、桌面 SSE、portable 内容边界、模型超时/连接恢复提示、模型 Probe 的连接/等待/耗时反馈、桌面模型列表边界、Android/desktop 动态地点和单地点自由行动 parity、跨 Run retry boundary 及 desktop notice live-region。phase149–151 已证明 macOS 包在旧版占用 8765 时可通过回退端口启动并显示 Host 就绪，phase150/153 已证明 Android API 36 release APK 可冷启动并在强制停止后恢复，phase152 已证明 Windows NSIS/sidecar 构建与 smoke 通过；当前精确缺口是 Windows 安装后 GUI、macOS/Android 安装包可见完整玩家旅程、Android 真机和跨端回读。
+4. M4：macOS/Windows 安装包和 Android 本地模拟器/真机完成 A-F、30 回合、重启/失败恢复——进行中；phase82–114 已累积补齐 Android 后台模型操作、三端玩家术语/操作阶段、正式结局、安全凭据、取消/恢复、归档世界、active Run 恢复、桌面 SSE、portable 内容边界、模型超时/连接恢复提示、模型 Probe 的连接/等待/耗时反馈、桌面模型列表边界、Android/desktop 动态地点和单地点自由行动 parity、跨 Run retry boundary 及 desktop notice live-region。phase149–151 已证明 macOS 包在旧版占用 8765 时可通过回退端口启动并显示 Host 就绪，phase150/153 已证明 Android API 36 release APK 可冷启动并在强制停止后恢复，phase152 已证明 Windows NSIS/sidecar 构建与 smoke 通过，phase157 已证明 Android release 新世界→10 回合→结局→同世界新 Run；当前精确缺口是 Windows 安装后 GUI、macOS 可见完整玩家旅程、Android 真机和跨端回读。
 5. 所有玩家 P0/P1、分项和整体达到 85 后，才允许 `update_goal complete`。
