@@ -452,6 +452,12 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 以及最终 cutover 的命名、合并和删除约束。见 `docs/reviews/2026-08-30-release-handoff.md`。
 本阶段不改变玩家评分，Goal 继续保持 active。
 
+## Phase 173：GitHub 分支与 PR 现状审计
+
+只读核对 GitHub：仓库为公开仓库、默认分支为 `main`，当前没有 `feature/dzmm-vnext` PR；
+远端 feature 分支仍停在 `6068dbb`，本地候选为 `1e92bd7`。因此当前候选还没有可引用的
+远端 CI/PR 证据，必须在明确授权 push 后再创建。评分保持 **95/100**。
+
 ## Phase 167：macOS 安装包 GUI 门槛复核
 
 重新检查当前 macOS 安装包：`dzmm-next-desktop` 进程存在，但 WindowServer 对该进程返回
