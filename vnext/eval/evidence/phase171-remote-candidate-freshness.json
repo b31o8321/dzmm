@@ -1,0 +1,26 @@
+{
+  "phase": 171,
+  "title": "remote branch freshness before release CI",
+  "status": "precondition_missing",
+  "remote_branch": "origin/feature/dzmm-vnext",
+  "remote_head": "6068dbb0164a9ecbad7a1f27cdfc6ef741311239",
+  "local_head": "5edf0dc",
+  "ahead_commits": 12,
+  "local_only_commits": [
+    "5edf0dc",
+    "a4056e6",
+    "612932d",
+    "54f9106",
+    "9903c05",
+    "421471d",
+    "966ac26",
+    "b30378e",
+    "307d064",
+    "5defa66",
+    "64d704f",
+    "fa47649"
+  ],
+  "decision": "Do not treat remote release artifacts as evidence for the current candidate. Push requires explicit authorization.",
+  "score_change": 0,
+  "next_action": "after authorization, push the feature branch and run release CI from the resulting head"
+}

@@ -466,6 +466,13 @@ are not granted”。因此本轮没有执行或伪造任何 GUI 点击证据；
 产物只能作为历史 smoke 证据，必须从当前 cutover 候选重新运行 release workflow 后才能验收。
 本轮不直接触发发布，评分保持 **95/100**。证据见 `vnext/eval/evidence/phase169-release-ci-freshness-audit.json`。
 
+## Phase 171：远端候选新鲜度前置条件
+
+核对发现远端 `origin/feature/dzmm-vnext` 仍在 `6068dbb`，本地候选已前进到 `5edf0dc`，
+本地领先 12 个提交。远端 release workflow 无法验证这些未推送提交；按外部写入边界，
+本轮不自行 push。证据见 `vnext/eval/evidence/phase171-remote-candidate-freshness.json`，
+评分保持 **95/100**。
+
 ## Phase 170：当前候选本地打包复核
 
 在当前候选上重新完成 sidecar PyInstaller 构建、桌面前端 `npm run build` 和
