@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 
@@ -16,9 +17,14 @@ class ModelsPage extends StatefulWidget {
 }
 
 class _ModelsPageState extends State<ModelsPage> {
-  static const _providerBaseUrls = {
-    'ollama': 'http://127.0.0.1:11434',
-    'lm_studio': 'http://127.0.0.1:1234/v1',
+  static String get _ollamaBaseUrl =>
+      Platform.isAndroid ? 'http://10.0.2.2:11434' : 'http://127.0.0.1:11434';
+  static String get _lmStudioBaseUrl => Platform.isAndroid
+      ? 'http://10.0.2.2:1234/v1'
+      : 'http://127.0.0.1:1234/v1';
+  static Map<String, String> get _providerBaseUrls => {
+    'ollama': _ollamaBaseUrl,
+    'lm_studio': _lmStudioBaseUrl,
     'openai_compat': '',
   };
   late Future<List<ModelProfile>> _profiles = widget.port.listModelProfiles();
@@ -159,6 +165,12 @@ class _ModelsPageState extends State<ModelsPage> {
     });
   }
 
+  bool _isAndroidLoopback(String baseUrl) {
+    if (!Platform.isAndroid) return false;
+    final normalized = baseUrl.trim().toLowerCase();
+    return normalized.contains('127.0.0.1') || normalized.contains('localhost');
+  }
+
   Future<void> _setDefault(ModelProfile profile) async {
     setState(() {
       _busy = true;
@@ -264,6 +276,16 @@ class _ModelsPageState extends State<ModelsPage> {
                       '${profile.hasApiKey ? ' · 凭据已保存' : ''}\n${profile.baseUrl}',
                     ),
                   ),
+                  if (_isAndroidLoopback(profile.baseUrl))
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '当前地址只对手机自身可见。Android 模拟器访问电脑模型请改为 10.0.2.2；真机请填写电脑局域网 IP。',
+                        ),
+                      ),
+                    ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Wrap(
@@ -326,6 +348,13 @@ class _ModelsPageState extends State<ModelsPage> {
                       ),
                     ),
                   ),
+                  if (Platform.isAndroid)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        '模拟器访问本机 Ollama/LM Studio 请使用 10.0.2.2；真机请填写电脑局域网 IP。并确认模型服务监听了局域网地址，而不是仅 127.0.0.1。',
+                      ),
+                    ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: _provider,
