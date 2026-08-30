@@ -430,6 +430,14 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 Starlette/httpx 弃用警告，不影响结果。证据见 `vnext/eval/evidence/phase162-cutover-boundary-regression.json`。
 本阶段评分保持 **95/100**，下一步仍是安装包 GUI 证据与迁移/回滚最终决策。
 
+## Phase 163：首个替换版本迁移策略冻结
+
+ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或合并旧版数据库；保留隔离
+数据目录，玩家通过世界包或旅程快照主动带入内容，源数据不被改写。桌面和 Android
+均已有对应的玩家说明，sidecar 对不兼容预览库保持拒绝并零写入。该策略完成了“可理解的
+不迁移边界”门槛，但旧版归档 tag、恢复演练和最终 cutover 仍未完成，评分保持 **95/100**。
+结构化证据见 `vnext/eval/evidence/phase163-migration-policy-freeze.json`。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
