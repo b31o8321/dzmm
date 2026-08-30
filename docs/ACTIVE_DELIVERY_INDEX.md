@@ -358,5 +358,5 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 1. M1：共享 `create_run`、World 详情、继续/新 Run、opening story beat 和结局后动作——已实现并完成桌面真实后端回归、Android 自动化覆盖。
 2. M2：共享 operation state、阶段/耗时、取消、失败零写入、重试和对话/状态分层——已实现；桌面慢模型真实回归通过。
 3. M3：ModelProfile CRUD/default/probe、引用冲突和三端一致交互——已实现；桌面真实回归、Android widget 覆盖通过。
-4. M4：macOS/Windows 安装包和 Android 真机完成 A-F、30 回合、重启/失败恢复——进行中；phase82–114 已累积补齐 Android 后台模型操作、三端玩家术语/操作阶段、正式结局、安全凭据、取消/恢复、归档世界、active Run 恢复、桌面 SSE、portable 内容边界、模型超时/连接恢复提示、模型 Probe 的连接/等待/耗时反馈、桌面模型列表边界、Android/desktop 动态地点和单地点自由行动 parity、跨 Run retry boundary 及 desktop notice live-region。phase106–107 证明当前 macOS 26.3.1 观察会话无法提供可见 WebView 窗口，且控制应用也无法枚举窗口；当前精确阻塞为 macOS GUI 观察条件、Windows 原生构建环境和空的 `adb devices`。
+4. M4：macOS/Windows 安装包和 Android 本地模拟器/真机完成 A-F、30 回合、重启/失败恢复——进行中；phase82–114 已累积补齐 Android 后台模型操作、三端玩家术语/操作阶段、正式结局、安全凭据、取消/恢复、归档世界、active Run 恢复、桌面 SSE、portable 内容边界、模型超时/连接恢复提示、模型 Probe 的连接/等待/耗时反馈、桌面模型列表边界、Android/desktop 动态地点和单地点自由行动 parity、跨 Run retry boundary 及 desktop notice live-region。phase149–151 已证明 macOS 包在旧版占用 8765 时可通过回退端口启动并显示 Host 就绪，phase150 已证明 Android API 36 release APK 可冷启动；当前精确缺口是 Windows 原生 installer、macOS/Android 安装包完整玩家旅程、Android 后台恢复/真机和跨端回读。
 5. 所有玩家 P0/P1、分项和整体达到 85 后，才允许 `update_goal complete`。
