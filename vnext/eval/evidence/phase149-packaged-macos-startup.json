@@ -1,0 +1,27 @@
+{
+  "phase": 149,
+  "name": "packaged-macos-startup-after-migration-repair",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 93,
+    "change": 0,
+    "reason": "验证的是打包启动、旧数据库迁移和端口共存，不是新的可感知剧情旅程"
+  },
+  "verification": {
+    "artifact": "DZMM.app rebuilt after sidecar rebuild",
+    "legacy_port": "127.0.0.1:8765 remained occupied by legacy processes",
+    "selected_port": "127.0.0.1:50909",
+    "health": {
+      "app": "dzmm-next",
+      "api_version": 2,
+      "storage": "local",
+      "foreign_keys": true
+    },
+    "migration_log": "0009_lifecycle_audit_events -> 0010_run_lifecycle -> 0011_model_management -> 0012_model_credentials",
+    "database_revision": "0012_model_credentials",
+    "world_list": "GET /api/v2/worlds returned [] without error",
+    "persistent_log": "~/Library/Application Support/local.dzmm.next/v3/dzmm.log"
+  },
+  "boundary": "旧版进程未停止；新版仅使用过渡期自动选择的 loopback 端口。Windows installer、Android release 冷启动和完整可见玩家旅程仍未证明。"
+}

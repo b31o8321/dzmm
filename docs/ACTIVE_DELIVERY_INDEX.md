@@ -286,6 +286,17 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 这是安装/升级可靠性修复，玩家评分仍为 **93/100**。下一步重新构建并启动 DZMM 包，确认旧版
 端口共存时 Host 能就绪；完整玩家旅程、Windows installer 和 Android release 仍是替换门槛。
 
+## Phase 149：最新 macOS 包启动与旧存档迁移复核
+
+按正确顺序重建 PyInstaller sidecar 和 `DZMM.app` 后，新包在旧版进程继续占用 8765 的情况下
+成功启动，自动选择 `127.0.0.1:50909`；持久化 `dzmm.log` 记录了旧 revision 回锚并完成到
+`0012_model_credentials`，`/health` 返回 `app=dzmm-next`、本地存储和外键开启，世界列表 API
+返回空数组而非启动错误。证据见 `vnext/eval/evidence/phase149-packaged-macos-startup.json`。
+
+本轮仍不增加玩家分数（**93/100**），因为没有新的完整创建→游玩→结局旅程。macOS 的安装启动
+阻断已解除，但可见 GUI 主路径仍需观察，Windows 原生 installer、Android release 冷启动/恢复
+以及三端完整玩家旅程仍未完成，因此不进入老版代码删除或 `main` 合并。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
