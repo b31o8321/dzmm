@@ -397,6 +397,16 @@ macOS 可见 GUI 和跨设备回读仍未通过，因此不执行老版删除或
 这是持久化恢复的确认性证据，评分保持 **95/100**；不重复计分。下一步只处理尚未通过的
 macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Android 模拟器回归推动分数。
 
+## Phase 159：Android 执行状态单行紧凑布局
+
+真实 Android loading 截图显示阶段标签虽未换行，但右侧会被裁切，需要额外横向滑动。现在将四个
+阶段改为等宽紧凑条，每个阶段在自己的单元格内单行显示并以省略号处理极窄空间；不再依赖隐藏的
+横向滚动。Flutter analyze、相关 widget 测试和 release APK 构建均通过。证据见
+`vnext/eval/evidence/phase159-android-operation-strip.json`。
+
+这是对执行状态可读性的修复，评分保持 **95/100**，不重复计算已有 loading 能力。待 macOS/Windows
+可见安装包 gate 可用后，再补一次真实生成操作的视觉确认。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar

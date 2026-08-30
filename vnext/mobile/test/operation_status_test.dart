@@ -22,6 +22,9 @@ void main() {
     expect(semantics.label, '正在生成后续故事，已耗时 9.2 秒');
     expect(semantics.flagsCollection.isLiveRegion, isTrue);
     expect(find.byType(Wrap), findsNothing);
-    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(find.byType(SingleChildScrollView), findsNothing);
+    expect(find.text('连接模型'), findsOneWidget);
+    expect(find.text('生成叙事'), findsOneWidget);
+    expect(find.text('状态写入'), findsOneWidget);
   });
 }

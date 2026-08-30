@@ -48,28 +48,49 @@ class OperationStatusCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final step in LocalHostOperationStage.values.take(4))
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Chip(
-                          avatar: Icon(
-                            step == LocalHostOperationStage.preparing
-                                ? Icons.check_circle_outline
-                                : Icons.more_horiz,
-                            size: 16,
+              Row(
+                children: [
+                  for (final step in LocalHostOperationStage.values.take(4))
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: step == stage
+                                ? colors.primaryContainer
+                                : colors.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          label: Text(LocalHostOperationStage.labels[step]!),
-                          backgroundColor: step == stage
-                              ? colors.primaryContainer
-                              : null,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 7,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  step == LocalHostOperationStage.preparing
+                                      ? Icons.check_circle_outline
+                                      : Icons.more_horiz,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 2),
+                                Flexible(
+                                  child: Text(
+                                    LocalHostOperationStage.labels[step]!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
               if (elapsedMs > 8000) const Text('本地模型可能仍在加载；失败前不会写入半个回合。'),
               if (cancellable && onCancel != null) ...[
