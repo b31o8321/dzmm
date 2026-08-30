@@ -341,6 +341,18 @@ Activity 恢复成功；截图显示 DZMM 游玩页仍保留当前场景、叙�
 本轮没有新的完整创建/游玩旅程，评分保持 **94/100**。Android 真机、模型失败重试、跨端回读和
 Windows 安装后的玩家路径仍未完成。
 
+## Phase 154：macOS 打包版 Qwen 7B 玩家闭环（API 证据）
+
+在重建的 DZMM.app sidecar 上配置本机 Qwen 7B，通过打包 API 创建雾港世界，连续执行
+`rescue-lan → lan-testimony → open-tide-gate` 三次选择，得到 `lan-dawn / good` 正式结局
+（revision 3、4 个 story beats），随后从同一 World 创建第二个 Run，并成功重开回读 opening
+（revision 0、1 个 opening beat）。三次模型叙事调用均返回 201，耗时约 21.9/23.1/30.7 秒。
+证据见 `vnext/eval/evidence/phase154-macos-packaged-player-loop.json`。
+
+这证明 macOS 打包 sidecar 的真实模型生命周期可完成，但本轮通过 API 而非可见 GUI 点击，故玩家
+评分保持 **94/100**。仍需桌面可见创建/游玩/结局/新 Run、Windows 安装后 GUI、Android 真机
+及跨端回读证据。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
