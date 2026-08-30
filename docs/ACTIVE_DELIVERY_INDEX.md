@@ -388,6 +388,15 @@ Run”的可见闭环。下一步先建立受控的宿主机可达模型端点�
 虽然阶段和耗时反馈可见，但仍是明显的沉浸/节奏风险；真实 Android 设备、Windows 安装后 GUI、
 macOS 可见 GUI 和跨设备回读仍未通过，因此不执行老版删除或 `main` 合并。
 
+## Phase 158：Android release 真实旅程强制停止恢复
+
+在 phase157 已完成的真实 10 回合隐藏结局上执行 Android release `force-stop` 并重新启动
+`MainActivity`，应用恢复到第 10 回合、隐藏结局和结算内容，未丢失旅程状态。证据见
+`vnext/eval/evidence/phase158-android-release-recovery-after-journey.json`。
+
+这是持久化恢复的确认性证据，评分保持 **95/100**；不重复计分。下一步只处理尚未通过的
+macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Android 模拟器回归推动分数。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
