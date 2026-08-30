@@ -1,0 +1,19 @@
+{
+  "phase": 155,
+  "name": "macos-gui-observation-permission-boundary",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 94,
+    "current": 94,
+    "change": 0,
+    "reason": "GUI 自动化权限未授予，未取得新的可见玩家旅程证据"
+  },
+  "verification": {
+    "packaged_app": "DZMM.app running with sidecar health OK",
+    "api_journey": "phase154 completed create -> choices -> ending -> new Run",
+    "observation_attempt": "Computer Use get_app_state({app: DZMM})",
+    "result": "Computer Use permissions are not granted",
+    "available_visual_evidence": "/tmp/dzmm-macos-phase151.png"
+  },
+  "boundary": "当前不能通过 GUI 自动化执行点击或读取无障碍树；不将 API/截图证据等同于完整可见 GUI 验收。用户接管或授予观察权限后可继续桌面可见流程。"
+}

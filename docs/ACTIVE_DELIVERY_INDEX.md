@@ -353,6 +353,14 @@ Windows 安装后的玩家路径仍未完成。
 评分保持 **94/100**。仍需桌面可见创建/游玩/结局/新 Run、Windows 安装后 GUI、Android 真机
 及跨端回读证据。
 
+## Phase 155：macOS 可见 GUI 观察权限边界
+
+尝试通过桌面 GUI 自动化读取 DZMM 窗口时，系统返回 `Computer Use permissions are not granted`。
+因此 phase154 的打包 API 闭环和现有窗口截图不能被扩大解释为完整可见 GUI 验收；本轮评分保持
+**94/100**。待用户接管或授予 GUI 观察权限后，继续验证桌面创建/选择/结局/新 Run；其余
+Windows 安装后 GUI、Android 真机和跨端回读门槛不变。证据见
+`vnext/eval/evidence/phase155-macos-gui-observation-boundary.json`。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
