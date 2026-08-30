@@ -466,6 +466,14 @@ are not granted”。因此本轮没有执行或伪造任何 GUI 点击证据；
 产物只能作为历史 smoke 证据，必须从当前 cutover 候选重新运行 release workflow 后才能验收。
 本轮不直接触发发布，评分保持 **95/100**。证据见 `vnext/eval/evidence/phase169-release-ci-freshness-audit.json`。
 
+## Phase 170：当前候选本地打包复核
+
+在当前候选上重新完成 sidecar PyInstaller 构建、桌面前端 `npm run build` 和
+`desktop/src-tauri` 的 `cargo check`，均通过；仅先前一次命令因目录错误失败，修正后没有
+代码错误。该证据只证明当前代码可构建，不替代远端 release workflow、Windows 原生安装或
+macOS 完整可见旅程验收。评分保持 **95/100**。证据见
+`vnext/eval/evidence/phase170-current-candidate-package-build.json`。
+
 ## Phase 164：旧版归档 tag 固定
 
 已在旧版 `main@df38037` 上建立本地归档 tag

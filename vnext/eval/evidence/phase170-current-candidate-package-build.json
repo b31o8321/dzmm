@@ -1,0 +1,18 @@
+{
+  "phase": 170,
+  "title": "current cutover candidate local package build",
+  "status": "passed",
+  "candidate": "a4056e6",
+  "verification": {
+    "backend_sidecar": "packaging/build_backend.py completed; PyInstaller output present in desktop/src-tauri/backend-runtime",
+    "desktop_frontend": "npm run build passed",
+    "tauri": "cargo check passed in desktop/src-tauri"
+  },
+  "scope": "build integrity only; no native Windows install or complete macOS GUI journey claimed",
+  "score_change": 0,
+  "remaining": [
+    "rerun remote release workflow from current candidate",
+    "native Windows installer GUI acceptance",
+    "macOS packaged visible create-play-end-new-run acceptance"
+  ]
+}
