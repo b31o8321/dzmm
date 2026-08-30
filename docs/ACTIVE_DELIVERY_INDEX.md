@@ -459,6 +459,13 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 are not granted”。因此本轮没有执行或伪造任何 GUI 点击证据；macOS 安装包 gate 继续保持未通过。
 证据见 `vnext/eval/evidence/phase168-macos-computer-use-permission-recheck.json`，评分保持 **95/100**。
 
+## Phase 169：发布流水线新鲜度审计
+
+最新成功 release workflow `33299415557` 的 head 为 `7a25ec8`，虽是当前分支祖先，但不包含
+最近的 Android 模型端点/单行状态、桌面存储提示和运行时恢复测试改动。现有 Windows/macOS
+产物只能作为历史 smoke 证据，必须从当前 cutover 候选重新运行 release workflow 后才能验收。
+本轮不直接触发发布，评分保持 **95/100**。证据见 `vnext/eval/evidence/phase169-release-ci-freshness-audit.json`。
+
 ## Phase 164：旧版归档 tag 固定
 
 已在旧版 `main@df38037` 上建立本地归档 tag

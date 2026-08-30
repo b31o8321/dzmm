@@ -1,0 +1,26 @@
+{
+  "phase": 169,
+  "title": "release CI freshness audit",
+  "status": "rerun_required",
+  "latest_successful_run": {
+    "id": 33299415557,
+    "head_sha": "7a25ec88b8ba1871e82ca2f0bafa7b384632e709",
+    "url": "https://github.com/b31o8321/dzmm/actions/runs/33299415557"
+  },
+  "current_head": "612932df6c145a18e4aa9e05a53dc5d6c9829b66",
+  "ancestry": "release head is an ancestor of current feature branch",
+  "changed_after_release": [
+    "vnext/backend/tests/test_data_restore_rehearsal.py",
+    "vnext/desktop/src/App.vue",
+    "vnext/mobile/lib/pages/models_page.dart",
+    "vnext/mobile/lib/widgets/operation_status.dart",
+    "vnext/mobile/test/operation_status_test.dart"
+  ],
+  "decision": "Existing Windows/macOS artifacts remain historical smoke evidence; rerun release workflow from current cutover candidate before release acceptance.",
+  "score_change": 0,
+  "remaining": [
+    "run release CI on the current candidate",
+    "native Windows installed GUI acceptance",
+    "macOS packaged visible GUI acceptance"
+  ]
+}
