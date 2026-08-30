@@ -55,8 +55,9 @@
 - [ ] 历史内容可阅读、当前操作区固定、状态/事件独立呈现，长局不丢历史。
 - [ ] macOS 安装包有可见 WebView 窗口并完成主路径；当前 sidecar/API 闭环已通过，但 GUI 点击验收仍待完成。
 - [ ] Windows 原生 installer 完成安装后主路径；当前 NSIS/sidecar 构建与 smoke 已通过，安装后 GUI 仍待完成。
-- [ ] Android release APK 在本地模拟器完成冷启动、创建、游玩、正式结束、重开恢复；当前冷启动与强制停止恢复已通过，完整 release 玩家旅程仍待完成；真机
-      可作为独立发布证据，不阻塞本地开发，但不能被伪称为已验收。
+- [x] Android release APK 在本地模拟器完成冷启动、创建、游玩、正式结束、重开恢复；phase157/158 已在
+      `emulator-5554` 完成新世界→10 回合→正式隐藏结局→同世界新 Run，并在 force-stop 后恢复；真机可作为
+      独立发布证据，不阻塞本地开发，但不能被伪称为已验收。
 - [ ] 旧版存档有明确导出/导入方案，或在首次启动显示“不自动迁移”的可理解说明。
 - [ ] CI、测试、构建和发布脚本只引用统一产品名与新默认路径；用户可见名称已统一，内部包标识和默认目录迁移仍待 cutover。
 
@@ -70,7 +71,8 @@
 ## Action Items
 
 1. [ ] 补齐当前反馈文档中的 P0 工程安全网和玩家流程回归。
-2. [ ] 完成 macOS/Windows/Android 发布证据，更新 Active Delivery Index。
+2. [ ] 完成 macOS/Windows/Android 发布证据，更新 Active Delivery Index；Android 本地模拟器 gate 已完成，
+   仍缺 macOS/Windows 安装后可见 GUI。
 3. [ ] 创建干净 cutover 分支，统一 `DZMM Next`、`dzmm_vnext` 等内部/用户可见名称。
 4. [ ] 记录旧版归档 tag、数据迁移边界和回滚步骤。
 5. [ ] gates 全部通过后，再把 cutover 合入 `main` 并删除旧版实现路径。
