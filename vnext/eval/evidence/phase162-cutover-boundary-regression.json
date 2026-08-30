@@ -1,0 +1,19 @@
+{
+  "phase": 162,
+  "title": "cutover storage boundary regression",
+  "commit_before": "5defa66",
+  "status": "passed",
+  "verification": {
+    "desktop": "npm test -- --run: 13 files, 36 tests passed",
+    "backend": "pytest -q tests/test_sidecar.py tests/test_portable.py: 13 passed",
+    "warnings": "one existing Starlette/httpx deprecation warning; no test failure"
+  },
+  "scope": [
+    "fresh isolated sidecar database migration",
+    "refusal of incompatible previous preview contract",
+    "portable world/run import boundaries",
+    "desktop active/pending run key compatibility"
+  ],
+  "score_change": 0,
+  "remaining": "packaged macOS and native Windows GUI evidence"
+}

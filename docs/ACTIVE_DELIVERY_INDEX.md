@@ -423,6 +423,13 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 安装包 GUI 中确认提示与主流程的视觉位置。结构化证据见
 `vnext/eval/evidence/phase161-desktop-storage-boundary-notice.json`。
 
+## Phase 162：替换边界回归验证
+
+桌面 13 个测试文件/36 项测试、后端 sidecar 与便携边界 13 项测试全部通过；覆盖新库迁移、
+不兼容预览库拒绝、世界/旅程导入边界以及 active/pending Run 键兼容。仅有既存
+Starlette/httpx 弃用警告，不影响结果。证据见 `vnext/eval/evidence/phase162-cutover-boundary-regression.json`。
+本阶段评分保持 **95/100**，下一步仍是安装包 GUI 证据与迁移/回滚最终决策。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
