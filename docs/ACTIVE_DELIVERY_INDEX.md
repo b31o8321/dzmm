@@ -453,6 +453,12 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 进程/sidecar 健康不能替代玩家可见窗口，因此 macOS GUI gate 仍未通过，评分保持 **95/100**。
 证据见 `vnext/eval/evidence/phase167-macos-gui-gate-recheck.json`。
 
+## Phase 168：macOS Computer Use 权限复核
+
+普通系统截图可以看到安装包窗口，但 `@oai/sky` 读取/操作应用时仍返回“Computer Use permissions
+are not granted”。因此本轮没有执行或伪造任何 GUI 点击证据；macOS 安装包 gate 继续保持未通过。
+证据见 `vnext/eval/evidence/phase168-macos-computer-use-permission-recheck.json`，评分保持 **95/100**。
+
 ## Phase 164：旧版归档 tag 固定
 
 已在旧版 `main@df38037` 上建立本地归档 tag

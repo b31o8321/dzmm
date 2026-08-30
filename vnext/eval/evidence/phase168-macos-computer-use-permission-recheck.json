@@ -1,0 +1,18 @@
+{
+  "phase": 168,
+  "title": "macOS packaged GUI permission recheck",
+  "status": "blocked_external_permission",
+  "observed": {
+    "native_screenshot": "window is visible in screencapture",
+    "computer_use": "@oai/sky get_app_state returned Computer Use permissions are not granted",
+    "manual_window_count": 1
+  },
+  "decision": "A screenshot alone is insufficient for the packaged GUI gate; do not claim the create-play-end-new-run flow was clicked or verified.",
+  "score_change": 0,
+  "required_external_action": "grant Accessibility and Screen Recording permissions for the automation host, then rerun the visible journey",
+  "remaining": [
+    "macOS packaged GUI journey",
+    "native Windows installer GUI journey",
+    "final naming/default-path cutover"
+  ]
+}
