@@ -810,6 +810,33 @@ h3 {
   color: var(--accent-soft);
   font-size: 18px;
 }
+.world-entity-list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 28px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+}
+.world-entity-list > .eyebrow {
+  margin: 0;
+}
+.world-entity-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.world-entity-list li {
+  display: grid;
+  gap: 3px;
+  color: var(--muted-bright);
+}
+.world-entity-list li small {
+  color: var(--muted);
+  line-height: 1.55;
+}
 .world-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1054,6 +1081,14 @@ h3 {
 }
 .draft-material > .eyebrow {
   margin: 0;
+}
+.draft-material-hint {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font:
+    12px "DM Mono",
+    monospace;
+  line-height: 1.6;
 }
 .draft-material article {
   display: grid;
