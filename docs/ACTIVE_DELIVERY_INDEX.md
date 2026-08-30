@@ -415,6 +415,13 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 `vnext/eval/evidence/phase160-cutover-name-audit.json`。本阶段不改变玩家评分，且不执行旧版
 删除；下一步是 macOS/Windows 可见 GUI gate 与迁移/回滚策略。
 
+## Phase 161：桌面首次进入的存储边界提示
+
+桌面启动后已有模型档案时，进入世界中心会显示本机独立存储提示，明确旧版 DZMM
+不会自动迁移或覆盖，并指向主动导入世界包/旅程快照的路径；首次无模型仍优先引导模型
+设置，恢复中的旅程提示不被覆盖。`npm run build` 通过。本阶段不改变玩家评分，仍需在
+安装包 GUI 中确认提示与主流程的视觉位置。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar

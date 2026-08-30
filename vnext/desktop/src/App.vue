@@ -144,6 +144,7 @@ const aiLastValidDraft = ref<{ definition: string; hero: string } | null>(null)
 const settingsSection = ref<SettingsSection>('host')
 const portableFileInput = ref<HTMLInputElement | null>(null)
 let activeStreamController: AbortController | null = null
+const storageBoundaryNotice = '本机独立保存世界与旅程；旧版 DZMM 存档不会自动迁移或覆盖。需要带入内容时，请主动导入世界包或旅程快照。'
 
 const draftRulePreview = computed(() => {
   const story = aiDraft.value?.world_definition?.story as { chapters?: Array<{ title?: string; choices?: Array<{ label?: string }> }>; relationships?: unknown[]; routes?: unknown[]; endings?: unknown[] } | undefined
@@ -1238,6 +1239,7 @@ async function bootHost() {
         startAddingModelProfile()
       } else {
         await openWorldCenter()
+        if (!interruptedRunOperation) notice.value = storageBoundaryNotice
       }
       if (interruptedRunOperation) {
         notice.value = '上一次旅程操作在应用关闭前没有完成；本机没有写入半个回合，你可以重新选择。'
