@@ -297,6 +297,15 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 阻断已解除，但可见 GUI 主路径仍需观察，Windows 原生 installer、Android release 冷启动/恢复
 以及三端完整玩家旅程仍未完成，因此不进入老版代码删除或 `main` 合并。
 
+## Phase 150：Android release 模拟器冷启动复核
+
+在 `dzmm-ux-api36`（API 36，`emulator-5554`）上构建并安装 `app-release.apk`，强制停止后重新
+启动 `MainActivity` 成功，系统顶层 Activity 可见；截图确认品牌为 DZMM，当前内容、历史/重新
+读取入口和底部选项同时可见。证据见 `vnext/eval/evidence/phase150-android-release-cold-start.json`。
+
+本轮仍保持 **93/100**：只是 release 冷启动和布局证据，没有新增完整玩家旅程。Android 真机、后台
+恢复/失败重试、30 回合 Qwen 旅程和 Windows 原生 installer 仍是替换门槛。
+
 ## Phase 147：macOS 包窗口与旧版端口共存复核
 
 重新构建的 `DZMM.app` 已能在当前 GUI 会话捕获到可见 DZMM WebView 窗口，直接运行包内 sidecar
