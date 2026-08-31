@@ -28,7 +28,31 @@
       "npcs[1].reputation 已按安全范围规范化"
     ]
   },
+  "packaged_ui": {
+    "application": "macOS release DZMM.app",
+    "model_profile": "PC Qwen3 14B",
+    "probe": {
+      "success": true,
+      "detail": "protocol response contains content",
+      "elapsed_seconds": 0.3
+    },
+    "draft_generation": {
+      "success": true,
+      "elapsed_seconds": 26.0,
+      "world": "潮汐之门",
+      "locations": ["潮汐港", "夜影礁"],
+      "characters": ["苏婉儿", "守夜人阿衡"],
+      "npcs": ["苏婉儿", "守夜人阿衡", "海商陈掌柜", "迷雾谷的幽灵"],
+      "events": ["潮汐之谜", "夜影礁的守夜人"],
+      "validation": "已通过规则校验；未确认前没有创建世界、旅程或存档",
+      "observations": [
+        "素材与输入的潮汐悬疑题材、地点和角色保持一致",
+        "角色卡被同步为 NPC，当前模型仍会重复角色卡与 NPC 条目",
+        "NPC 提到了未列为草案地点的迷雾谷，需后续做地点引用一致性提示或修复"
+      ]
+    }
+  },
   "recovery": "weak-model formatting is normalized before strict CreativeSource and world-rule validation; unknown fields remain blocking",
   "player_score_change": 0,
-  "note": "PC model path is usable for draft generation, but this is an engineering/provider evidence run and does not replace Windows GUI acceptance."
+  "note": "PC model path is usable for probe and packaged macOS draft review. The draft passed validation but exposed quality follow-ups (NPC duplication and an unlisted location reference); this is provider evidence and does not replace Windows GUI acceptance."
 }
