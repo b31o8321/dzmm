@@ -74,7 +74,7 @@ type DraftReview = {
   heroOrigin: string
   locations: string[]
   characters: Array<{ name: string; role: string; description: string }>
-  npcs: Array<{ name: string; role: string; description: string; motivation: string }>
+  npcs: Array<{ id: string; name: string; role: string; description: string; motivation: string }>
   lore: Array<{ title: string; body: string }>
 }
 
@@ -462,20 +462,22 @@ function draftIssueHelp(path: string) {
 
 function parseDraftReview(definition: Record<string, any>, hero: Record<string, any>): DraftReview {
   const cards = Array.isArray(definition.character_cards) ? definition.character_cards : []
-  const npcs = Array.isArray(definition.npcs) ? definition.npcs : []
+  const cardIds = new Set(cards.map((card: Record<string, unknown>) => String(card.id ?? '')).filter(Boolean))
+  const npcs = (Array.isArray(definition.npcs) ? definition.npcs : []).filter((npc: Record<string, unknown>) => !cardIds.has(String(npc.id ?? '')))
   const lore = Array.isArray(definition.lorebook?.entries) ? definition.lorebook.entries : []
   const locations = Array.isArray(definition.locations) ? definition.locations : []
   return {
     worldName: typeof definition.name === 'string' ? definition.name : '',
     heroName: typeof hero.name === 'string' ? hero.name : '',
     heroOrigin: typeof hero.profile?.origin === 'string' ? hero.profile.origin : '',
-    locations: locations.slice(0, 2).map((location: Record<string, unknown>) => typeof location.name === 'string' ? location.name : ''),
+    locations: locations.map((location: Record<string, unknown>) => typeof location.name === 'string' ? location.name : ''),
     characters: cards.slice(0, 2).map((card: Record<string, any>) => ({
       name: typeof card.name === 'string' ? card.name : '',
       role: typeof card.mapped?.personality === 'string' ? card.mapped.personality : '',
       description: typeof card.mapped?.description === 'string' ? card.mapped.description : '',
     })),
     npcs: npcs.map((npc: Record<string, any>) => ({
+      id: String(npc.id ?? ''),
       name: typeof npc.name === 'string' ? npc.name : '',
       role: typeof npc.role === 'string' ? npc.role : '',
       description: typeof npc.description === 'string' ? npc.description : '',
@@ -514,13 +516,13 @@ function syncStructuredDraftEdits() {
   try {
     const definition = JSON.parse(aiDraftDefinitionJson.value) as Record<string, any>
     const hero = JSON.parse(aiDraftHeroJson.value) as Record<string, any>
-    const oldLocations = Array.isArray(definition.locations) ? definition.locations.slice(0, 2).map((item: Record<string, unknown>) => String(item.name ?? '')) : []
+    const oldLocations = Array.isArray(definition.locations) ? definition.locations.map((item: Record<string, unknown>) => String(item.name ?? '')) : []
     const oldCharacters = Array.isArray(definition.character_cards) ? definition.character_cards.slice(0, 2).map((item: Record<string, unknown>) => String(item.name ?? '')) : []
     const oldNpcs = Array.isArray(definition.npcs) ? definition.npcs.map((item: Record<string, unknown>) => String(item.name ?? '')) : []
-    const replacements: Array<[string, string]> = [[String(definition.name ?? ''), review.worldName], ...oldLocations.map((name, index) => [name, review.locations[index] ?? ''] as [string, string]), ...oldCharacters.map((name, index) => [name, review.characters[index]?.name ?? ''] as [string, string]), ...oldNpcs.map((name, index) => [name, review.npcs[index]?.name ?? ''] as [string, string])]
+    const replacements: Array<[string, string]> = [[String(definition.name ?? ''), review.worldName], ...oldLocations.map((name, index) => [name, review.locations[index] ?? ''] as [string, string]), ...oldCharacters.map((name, index) => [name, review.characters[index]?.name ?? ''] as [string, string]), ...oldNpcs.map((name, index) => [name, review.npcs.find((item) => item.id === String((definition.npcs?.[index] as Record<string, unknown> | undefined)?.id ?? ''))?.name ?? name] as [string, string])]
     const replaced = replaceDraftText(definition, replacements) as Record<string, any>
     replaced.name = review.worldName
-    ;(replaced.locations ?? []).slice(0, 2).forEach((location: Record<string, unknown>, index: number) => { location.name = review.locations[index] ?? '' })
+    ;(replaced.locations ?? []).forEach((location: Record<string, unknown>, index: number) => { location.name = review.locations[index] ?? '' })
     ;(replaced.character_cards ?? []).slice(0, 2).forEach((card: Record<string, any>, index: number) => {
       const character = review.characters[index]
       if (!character) return
@@ -528,7 +530,7 @@ function syncStructuredDraftEdits() {
       card.mapped = { ...(card.mapped ?? {}), personality: character.role, description: character.description }
     })
     ;(replaced.npcs ?? []).forEach((npc: Record<string, any>, index: number) => {
-      const nextNpc = review.npcs[index]
+      const nextNpc = review.npcs.find((item) => item.id === String(npc.id ?? ''))
       if (!nextNpc) return
       npc.name = nextNpc.name
       npc.role = nextNpc.role
@@ -1499,9 +1501,9 @@ onUnmounted(() => {
           <div class="draft-review-heading"><div><p class="eyebrow">可编辑叙事素材</p><p>修改这里的内容会同步到草案，再由本机规则校验；不会直接写入任何真实存档。</p></div><span>{{ aiDraft.valid && !aiDraftNeedsValidation ? '已通过规则校验' : '等待规则校验' }}</span></div>
           <div class="draft-field-grid"><label>世界名称<input v-model.trim="aiDraftReview.worldName" required maxlength="120" @input="syncStructuredDraftEdits" /></label><label>主角名称<input v-model.trim="aiDraftReview.heroName" required maxlength="120" @input="syncStructuredDraftEdits" /></label></div>
           <label>主角背景<textarea v-model.trim="aiDraftReview.heroOrigin" rows="2" maxlength="400" @input="syncStructuredDraftEdits"></textarea></label>
-          <section class="draft-material"><p class="eyebrow">地点</p><div class="draft-field-grid"><label v-for="(_, index) in aiDraftReview.locations" :key="`location-${index}`">{{ index === 0 ? '起始地点' : '远方地点' }}<input v-model.trim="aiDraftReview.locations[index]" required @input="syncStructuredDraftEdits" /></label></div></section>
+          <section class="draft-material"><p class="eyebrow">地点</p><p class="draft-material-hint">这些地点会进入可移动的世界地图；NPC、事件和世界书中的地点引用必须出现在这里。</p><div class="draft-field-grid"><label v-for="(_, index) in aiDraftReview.locations" :key="`location-${index}`">{{ index === 0 ? '起始地点' : index === 1 ? '远方地点' : `地点 ${index + 1}` }}<input v-model.trim="aiDraftReview.locations[index]" required @input="syncStructuredDraftEdits" /></label></div></section>
           <section class="draft-material"><p class="eyebrow">角色卡</p><article v-for="(character, index) in aiDraftReview.characters" :key="`character-${index}`"><label>名称<input v-model.trim="character.name" required @input="syncStructuredDraftEdits" /></label><label>角色定位<input v-model.trim="character.role" required @input="syncStructuredDraftEdits" /></label><label>人物描述<textarea v-model.trim="character.description" rows="2" required @input="syncStructuredDraftEdits"></textarea></label></article></section>
-          <section v-if="aiDraftReview.npcs.length" class="draft-material"><p class="eyebrow">NPC（会在游玩中出现）</p><p class="draft-material-hint">这些人物不是角色卡，但会由世界事件、主动联系或对话引入；请在创建前确认他们属于这个世界。</p><article v-for="(npc, index) in aiDraftReview.npcs" :key="`npc-${index}`"><label>名称<input v-model.trim="npc.name" required @input="syncStructuredDraftEdits" /></label><label>角色定位<input v-model.trim="npc.role" required @input="syncStructuredDraftEdits" /></label><label>人物描述<textarea v-model.trim="npc.description" rows="2" required @input="syncStructuredDraftEdits"></textarea></label><label>行动动机<textarea v-model.trim="npc.motivation" rows="2" required @input="syncStructuredDraftEdits"></textarea></label></article></section>
+          <section v-if="aiDraftReview.npcs.length" class="draft-material"><p class="eyebrow">额外 NPC（会在游玩中出现）</p><p class="draft-material-hint">角色卡人物也会参与对话和主动事件；这里仅列出角色卡之外的 NPC，避免同一人物重复显示。</p><article v-for="(npc, index) in aiDraftReview.npcs" :key="npc.id || `npc-${index}`"><label>名称<input v-model.trim="npc.name" required @input="syncStructuredDraftEdits" /></label><label>角色定位<input v-model.trim="npc.role" required @input="syncStructuredDraftEdits" /></label><label>人物描述<textarea v-model.trim="npc.description" rows="2" required @input="syncStructuredDraftEdits"></textarea></label><label>行动动机<textarea v-model.trim="npc.motivation" rows="2" required @input="syncStructuredDraftEdits"></textarea></label></article></section>
           <section class="draft-material"><p class="eyebrow">世界书</p><article v-for="(lore, index) in aiDraftReview.lore" :key="`lore-${index}`"><label>条目标题<input v-model.trim="lore.title" required @input="syncStructuredDraftEdits" /></label><label>条目内容<textarea v-model.trim="lore.body" rows="2" required @input="syncStructuredDraftEdits"></textarea></label></article></section>
           <section class="draft-rules-preview"><p class="eyebrow">故事规则预览（只读）</p><p>章节、选择、关系、路线和结局都由本机规则预先验证；模型或此表单不能直接修改真实存档。</p><article v-for="(chapter, index) in draftRulePreview.chapters" :key="`chapter-${index}`"><b>第 {{ index + 1 }} 章 · {{ chapter.title }}</b><small>{{ chapter.choices?.map(choice => choice.label).filter(Boolean).join(' · ') || '游玩时显示可用选择' }}</small></article><div><span>{{ draftRulePreview.relationships }} 组关系</span><span>{{ draftRulePreview.routes }} 条路线</span><span>{{ draftRulePreview.endings }} 个结局</span></div></section>
         </section>

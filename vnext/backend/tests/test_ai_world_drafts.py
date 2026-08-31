@@ -144,6 +144,36 @@ def test_weak_model_typo_in_known_faction_field_is_normalized() -> None:
     assert normalized["factions"][0]["passive_gain_per_turn"] == 2
     assert "passive_gain_per_turn 已修正字段名称" in repairs[0]
 
+
+def test_referenced_location_is_added_to_creative_material_when_capacity_allows() -> None:
+    normalized, repairs = _normalize_creative_source_payload(
+        {
+            **CREATIVE_SOURCE,
+            "npcs": [{"name": "迷路的信使", "role": "信使", "description": "带来坏消息。", "location": "盐雾集市"}],
+        }
+    )
+
+    assert normalized["locations"] == ["星潮码头", "坠月观测塔", "盐雾集市"]
+    assert any("npcs[0].location 已将引用地点加入地点列表" in repair for repair in repairs)
+
+
+def test_unrepresentable_location_reference_blocks_world_creation(migrated_client) -> None:
+    client, _ = migrated_client
+    profile_id = _create_profile(client)
+    source = {
+        **CREATIVE_SOURCE,
+        "locations": ["星潮码头", "坠月观测塔", "盐雾集市"],
+        "npcs": [{"name": "迷路的信使", "role": "信使", "description": "带来坏消息。", "location": "迷雾谷"}],
+    }
+    client.app.state.ai_world_drafts._generator = StaticDraftGenerator(source=source)
+
+    response = client.post("/api/v2/ai-world-drafts:generate", json=_draft_request(profile_id))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is False
+    assert any(issue["path"] == "npcs[0].location" for issue in body["issues"])
+
     normalized, repairs = _normalize_creative_source_payload(
         {**CREATIVE_SOURCE, "npcs": [{"name": "观察员", "role": "记录者", "description": "记录异常。", "contact_cooldown_turn个数": "2", "reputation": "中立"}]}
     )

@@ -208,6 +208,14 @@ class AIWorldDraftService:
             )
         definition, hero = _map_creative_source(source, payload.ruleset)
         result = validate_world_draft(definition, hero)
+        reference_issues = _creative_source_reference_issues(source)
+        if reference_issues:
+            result = result.model_copy(
+                update={
+                    "valid": False,
+                    "issues": [*result.issues, *reference_issues],
+                }
+            )
         return result.model_copy(update={"summary": source.summary, "repairs": repairs})
 
 
@@ -306,7 +314,65 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
                     npc[field] = bounded
                     repairs.append(f"npcs[{index}].{field} 已按安全范围规范化")
 
+    locations = normalized.get("locations")
+    if isinstance(locations, list):
+        known_locations = {
+            value.strip()
+            for value in locations
+            if isinstance(value, str) and value.strip()
+        }
+        referenced_locations: list[tuple[str, str]] = []
+        for group_name in ("npcs", "events"):
+            entries = normalized.get(group_name)
+            if not isinstance(entries, list):
+                continue
+            for index, entry in enumerate(entries):
+                if isinstance(entry, dict) and isinstance(entry.get("location"), str):
+                    referenced_locations.append((f"{group_name}[{index}].location", entry["location"].strip()))
+        links = normalized.get("location_links")
+        if isinstance(links, list):
+            for index, link in enumerate(links):
+                if not isinstance(link, dict):
+                    continue
+                for field in ("from_location", "to_location"):
+                    if isinstance(link.get(field), str):
+                        referenced_locations.append((f"location_links[{index}].{field}", link[field].strip()))
+        for path, location in referenced_locations:
+            if not location or location in known_locations or len(locations) >= 3:
+                continue
+            locations.append(location)
+            known_locations.add(location)
+            repairs.append(f"{path} 已将引用地点加入地点列表")
+
     return normalized, repairs
+
+
+def _creative_source_reference_issues(source: CreativeSource) -> list[DraftIssue]:
+    """Reject references that cannot be represented in the playable location graph."""
+
+    known_locations = set(source.locations)
+    issues: list[DraftIssue] = []
+    for group_name, entries in (("npcs", source.npcs), ("events", source.events)):
+        for index, entry in enumerate(entries):
+            location = getattr(entry, "location", None)
+            if location and location not in known_locations:
+                issues.append(
+                    DraftIssue(
+                        path=f"{group_name}[{index}].location",
+                        message=f"引用地点“{location}”不在地点列表中；请补充地点或修改该引用。",
+                    )
+                )
+    for index, link in enumerate(source.location_links):
+        for field in ("from_location", "to_location"):
+            location = getattr(link, field)
+            if location not in known_locations:
+                issues.append(
+                    DraftIssue(
+                        path=f"location_links[{index}].{field}",
+                        message=f"引用地点“{location}”不在地点列表中；请补充地点或修改该连接。",
+                    )
+                )
+    return issues
 
 
 def validate_world_draft(definition: dict[str, Any], hero: dict[str, Any]) -> AIWorldDraftResult:
