@@ -1,0 +1,34 @@
+{
+  "phase": 176,
+  "date": "2026-08-31",
+  "environment": "isolated temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; PC LM Studio",
+  "provider": "lm_studio",
+  "base_url": "http://192.168.31.169:1234/v1",
+  "model": "huihui-ai_qwen3-14b-abliterated",
+  "probe": {
+    "success": true,
+    "endpoint": "http://192.168.31.169:1234/v1/chat/completions",
+    "detail": "protocol response contains content"
+  },
+  "draft": {
+    "http_status": 200,
+    "valid": true,
+    "world": "幽影学院",
+    "locations": ["档案馆", "地下实验室", "学院庭院"],
+    "characters": ["陈书仪", "夜巡者"],
+    "npcs": ["陈书仪", "夜巡者"],
+    "events": ["实验记录重现"],
+    "npc_names_unique": true,
+    "repairs": [
+      "normalized non-standard JSON whitespace",
+      "factions[1].passive_gain_per_turn 已修正字段名称",
+      "events[0].trigger 非对象条件已忽略",
+      "events[0].completion 非对象条件已忽略",
+      "npcs[0].reputation 已按安全范围规范化",
+      "npcs[1].reputation 已按安全范围规范化"
+    ]
+  },
+  "recovery": "weak-model formatting is normalized before strict CreativeSource and world-rule validation; unknown fields remain blocking",
+  "player_score_change": 0,
+  "note": "PC model path is usable for draft generation, but this is an engineering/provider evidence run and does not replace Windows GUI acceptance."
+}

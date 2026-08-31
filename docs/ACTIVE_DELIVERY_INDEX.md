@@ -1,6 +1,6 @@
 # DZMM replacement-candidate Active Delivery Index
 
-更新时间：2026-08-24
+更新时间：2026-08-31
 工作树：`.worktrees/dzmm-vnext`
 分支：`feature/dzmm-vnext`
 基线：`main` at `df38037`
@@ -468,6 +468,19 @@ Ubuntu runner 缺少 `gobject-2.0`/`gio-2.0` 失败，补充 `libwebkit2gtk-4.1-
 `libappindicator3-dev`、`librsvg2-dev`、`patchelf` 后恢复通过。证据见
 `vnext/eval/evidence/phase175-github-draft-pr-and-checks.json`。这解决的是交付校验环境问题，
 不增加玩家评分，当前仍为 **95/100**；macOS/Windows 可见 GUI 与最终 cutover 门槛继续保持未闭合。
+
+## Phase 176：PC Qwen3 创作兼容与世界实体一致性
+
+在用户授权的 PC LM Studio（`huihui-ai_qwen3-14b-abliterated`）上完成真实 Probe 与隔离库 AI
+世界起草：Probe 成功，学院题材草案返回 `valid=true`，地点、角色、NPC 和事件均来自请求题材。
+针对本地模型常见的代码块/尾随解释、非标准 JSON 空白、中文误拼字段、字符串数值和角色重复为
+NPC 的情况，增加了安全归一化；未知字段仍由严格 CreativeSource 校验阻止创建。桌面创建审阅、
+确认页和世界详情现在展示“会在游玩中出现”的 NPC，避免正文引入未告知角色。后端全量
+`144 passed`、Ruff、桌面测试/生产构建通过；macOS release 包已重建并在可见 GUI 中确认世界详情
+显示 NPC。证据见 `vnext/eval/evidence/phase176-pc-qwen3-draft-compatibility.json`。
+
+这是模型兼容性与信息透明度改进，尚未改变玩家总分（仍为 **95/100**）；Windows 安装后 GUI、
+Android 真机和最终命名/切换门槛仍未通过，PR #2 保持 Draft。
 
 ## Phase 173：GitHub 分支与 PR 现状审计
 
