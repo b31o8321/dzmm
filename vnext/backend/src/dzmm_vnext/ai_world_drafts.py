@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from .contracts import contract_validator
-from .generated_world_repair import extend_story_for_long_run
+from .generated_world_repair import _unique_named_entities, extend_story_for_long_run
 from .model_profiles import ModelDraftGenerator, ModelProfileService, NarrationError
 from .narrative import NarrativeRuleError, validate_definition
 from .operation_control import OperationRegistry
@@ -228,6 +228,18 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
         for index, faction in enumerate(factions):
             if not isinstance(faction, dict):
                 continue
+            # Qwen-style Chinese completions occasionally replace the final
+            # token in a known key (for example, ``passive_gain_per一点``).
+            # Accept only this unambiguous alias, then apply the same bounds
+            # as the canonical field; unknown mechanics remain forbidden by
+            # CreativeFaction(extra="forbid").
+            if "passive_gain_per_turn" not in faction:
+                for key in list(faction):
+                    normalized_key = "_".join(str(key).strip().split())
+                    if normalized_key in {"passive_gain_per_turn", "passive_gain_per一点"}:
+                        faction["passive_gain_per_turn"] = faction.pop(key)
+                        repairs.append(f"factions[{index}].passive_gain_per_turn 已修正字段名称")
+                        break
             for field, minimum, maximum, fallback in (
                 ("initial_tension", 0, 100, 0),
                 ("passive_gain_per_turn", 0, 10, 0),
@@ -262,6 +274,37 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
                 if not isinstance(event.get(field), dict):
                     event[field] = {}
                     repairs.append(f"events[{index}].{field} 非对象条件已忽略")
+
+    npcs = normalized.get("npcs")
+    if isinstance(npcs, list):
+        for index, npc in enumerate(npcs):
+            if not isinstance(npc, dict):
+                continue
+            for key in list(npc):
+                normalized_key = "_".join(str(key).strip().split())
+                if normalized_key == "contact_cooldown_turn个数" and "contact_cooldown_turns" not in npc:
+                    npc["contact_cooldown_turns"] = npc.pop(key)
+                    repairs.append(f"npcs[{index}].contact_cooldown_turns 已修正字段名称")
+                    break
+            for field, minimum, maximum, fallback in (
+                ("contact_cooldown_turns", 1, 40, 4),
+                ("reputation", -100, 100, 0),
+            ):
+                value = npc.get(field)
+                if isinstance(value, bool):
+                    value = None
+                if isinstance(value, (int, float)):
+                    bounded = max(minimum, min(maximum, int(value)))
+                elif isinstance(value, str):
+                    try:
+                        bounded = max(minimum, min(maximum, int(value.strip())))
+                    except ValueError:
+                        bounded = fallback
+                else:
+                    bounded = fallback
+                if value != bounded:
+                    npc[field] = bounded
+                    repairs.append(f"npcs[{index}].{field} 已按安全范围规范化")
 
     return normalized, repairs
 
@@ -404,6 +447,11 @@ def _map_creative_source(
                 "reputation": npc.reputation,
             }
         )
+    # Character cards are mirrored as runtime NPCs for voice/contact behavior;
+    # if a model repeats a card in its explicit NPC list, keep one canonical
+    # entity so the player does not see duplicate people or receive duplicate
+    # initiative events.
+    definition["npcs"] = _unique_named_entities(definition["npcs"])
     definition["factions"] = [
         {
             "id": f"faction-{index}",

@@ -136,6 +136,29 @@ def test_weak_model_material_is_safely_normalized_before_creative_validation() -
     assert len(repairs) == 6
 
 
+def test_weak_model_typo_in_known_faction_field_is_normalized() -> None:
+    normalized, repairs = _normalize_creative_source_payload(
+        {**CREATIVE_SOURCE, "factions": [{"name": "守望者", "description": "守护城市。", "passive_gain_per一点": 2}]}
+    )
+
+    assert normalized["factions"][0]["passive_gain_per_turn"] == 2
+    assert "passive_gain_per_turn 已修正字段名称" in repairs[0]
+
+    normalized, repairs = _normalize_creative_source_payload(
+        {**CREATIVE_SOURCE, "npcs": [{"name": "观察员", "role": "记录者", "description": "记录异常。", "contact_cooldown_turn个数": "2", "reputation": "中立"}]}
+    )
+    npc = normalized["npcs"][0]
+    assert npc["contact_cooldown_turns"] == 2
+    assert npc["reputation"] == 0
+    assert any("contact_cooldown_turns 已修正字段名称" in repair for repair in repairs)
+
+    normalized, repairs = _normalize_creative_source_payload(
+        {**CREATIVE_SOURCE, "factions": [{"name": "守望者", "description": "守护城市。", "passive_gain_per turn": 2}]}
+    )
+    assert normalized["factions"][0]["passive_gain_per_turn"] == 2
+    assert "passive_gain_per_turn 已修正字段名称" in repairs[0]
+
+
 def test_ai_draft_normalization_keeps_weak_model_material_reviewable(migrated_client) -> None:
     client, _ = migrated_client
     profile_id = _create_profile(client)
@@ -169,6 +192,26 @@ def test_ai_draft_normalization_keeps_weak_model_material_reviewable(migrated_cl
     assert any("factions[0].initial_tension" in repair for repair in body["repairs"])
     assert body["world_definition"]["factions"][0]["initial_tension"] == 0
     assert body["world_definition"]["events"][0]["trigger_conditions"] == {}
+
+
+def test_ai_draft_deduplicates_character_cards_repeated_as_npcs(migrated_client) -> None:
+    client, _ = migrated_client
+    profile_id = _create_profile(client)
+    source = {
+        **CREATIVE_SOURCE,
+        "npcs": [
+            {"name": "苏岚", "role": "学者", "description": "掌握星图。"},
+            {"name": "李老渔", "role": "摆渡人", "description": "熟悉旧航道。"},
+        ],
+    }
+    client.app.state.ai_world_drafts._generator = StaticDraftGenerator(source=source)
+
+    response = client.post("/api/v2/ai-world-drafts:generate", json=_draft_request(profile_id))
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is True
+    names = [npc["name"] for npc in response.json()["world_definition"]["npcs"]]
+    assert names == ["苏岚", "季衡", "李老渔"]
 
 
 def test_ai_draft_cancellation_discards_result_before_validation() -> None:

@@ -14,6 +14,7 @@ from dzmm_vnext.model_profiles import (
     NarrationError,
     NarrationRateLimitError,
     ProviderType,
+    _draft_json,
 )
 
 
@@ -682,6 +683,31 @@ def test_draft_generator_uses_lm_studio_text_json_with_a_restricted_prompt() -> 
     assert "response_format" not in body
     assert body["chat_template_kwargs"] == {"enable_thinking": False}
     assert body["messages"][0]["content"] == "JSON only; no command."
+
+
+def test_draft_json_accepts_fenced_object_with_weak_model_commentary() -> None:
+    payload, repairs = _draft_json(
+        "```json\n{\"world_name\":\"星潮港\"}\n```\n我已经完成了世界草案。"
+    )
+
+    assert payload == {"world_name": "星潮港"}
+    assert repairs == ["removed Markdown code fence"]
+
+
+def test_draft_json_normalizes_non_standard_json_whitespace() -> None:
+    payload, repairs = _draft_json('{"world_name":\u00a0"星潮港"}')
+
+    assert payload == {"world_name": "星潮港"}
+    assert repairs == ["normalized non-standard JSON whitespace"]
+
+
+def test_draft_json_prefers_complete_source_over_leading_hero_fragment() -> None:
+    payload, repairs = _draft_json(
+        '{"name":"林悦","origin":"学生"}\n{"world_name":"影中学院","summary":"实验记录重现","locations":[],"characters":[],"lore":[]}'
+    )
+
+    assert payload["world_name"] == "影中学院"
+    assert repairs == []
 
 
 def test_narrator_rejects_empty_malformed_and_rate_limited_streams() -> None:

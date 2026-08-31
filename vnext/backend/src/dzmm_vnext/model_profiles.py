@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -30,6 +31,7 @@ from .persistence import model_profiles, runs
 
 NARRATION_TIMEOUT_SECONDS = 120.0
 PROBE_TIMEOUT_SECONDS = 10.0
+DRAFT_OPENAI_MAX_TOKENS = 6000
 
 
 class ProviderType(StrEnum):
@@ -617,7 +619,9 @@ def _draft_body(profile: ModelProfile, prompt: dict[str, Any]) -> dict[str, Any]
         "model": profile.model_name,
         "messages": messages,
         "stream": False,
-        "max_tokens": 2400,
+        "max_tokens": DRAFT_OPENAI_MAX_TOKENS,
+        "temperature": 0.2,
+        "top_p": 0.9,
     }
     if profile.provider_type is ProviderType.OPENAI_COMPAT:
         body["response_format"] = {"type": "json_object"}
@@ -632,13 +636,55 @@ def _draft_json(content: str) -> tuple[dict[str, Any], list[str]]:
     if "</think>" in value:
         value = value.split("</think>", maxsplit=1)[1].strip()
         repairs.append("removed model thinking wrapper")
-    if value.startswith("```") and value.endswith("```"):
-        value = value.split("\n", maxsplit=1)[1].rsplit("```", maxsplit=1)[0].strip()
+    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```", value, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        value = fenced.group(1).strip()
         repairs.append("removed Markdown code fence")
+    # Some local instruct models emit non-breaking/full-width spaces around
+    # JSON punctuation. Normalize whitespace only; keys and values remain
+    # untouched and are still validated by CreativeSource afterwards.
+    normalized = re.sub(r"[\u00a0\u2000-\u200b\u202f\u205f\u3000]", " ", value)
+    if normalized != value:
+        value = normalized
+        repairs.append("normalized non-standard JSON whitespace")
     try:
         payload = json.loads(value)
     except json.JSONDecodeError as error:
-        raise NarrationError(f"model draft is not a single JSON object: {error.msg}") from error
+        # Small local models often append an explanation after an otherwise
+        # valid JSON object. Decode only the first complete object; do not
+        # evaluate or repair arbitrary prose as JSON.
+        decoder = json.JSONDecoder()
+        candidates: list[tuple[dict[str, Any], int, int]] = []
+        for start, char in enumerate(value):
+            if char != "{":
+                continue
+            try:
+                candidate, end = decoder.raw_decode(value[start:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                candidates.append((candidate, start, end))
+        if not candidates:
+            raise NarrationError(f"model draft is not a single JSON object: {error.msg}") from error
+        # Prefer the object that looks like a complete creative source over a
+        # leading hero/field fragment some models emit before their answer.
+        preferred_keys = {
+            "world_name",
+            "summary",
+            "locations",
+            "characters",
+            "lore",
+            "npcs",
+            "factions",
+            "events",
+            "world_definition",
+        }
+        payload, start, end = max(
+            candidates,
+            key=lambda item: (len(preferred_keys.intersection(item[0])), -item[1]),
+        )
+        if value[start + end :].strip():
+            repairs.append("trimmed trailing model commentary")
     if not isinstance(payload, dict):
         raise NarrationError("model draft must be a JSON object")
     return payload, repairs
