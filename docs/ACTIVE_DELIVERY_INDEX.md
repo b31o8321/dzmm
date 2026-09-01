@@ -494,6 +494,14 @@ Ruff、桌面 `36 passed` 和生产构建通过。证据见
 本轮改善了草案可理解性和创建前一致性，但没有改变玩家总分（仍为 **95/100**）。Windows 安装后
 GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续保持 Draft。
 
+## Phase 178：最新跨平台 release workflow
+
+在提交 `da4e87d`（将数据库恢复演练改为隔离目录，避免 Windows SQLite 文件句柄锁定）上重新运行
+release workflow `33526060462`。macOS arm64 与 Windows x64 均成功：后端测试、sidecar 构建、Tauri
+打包、对应 artifact smoke 和打包 sidecar 健康检查均通过；macOS DMG smoke 确认 `.app`、backend
+和 `_internal` 均存在。该结果证明发布产物链路已恢复跨平台绿灯，但仍不等同于 Windows 原生安装后的
+完整玩家 GUI 验收，也没有改变玩家总分（仍为 **95/100**）。
+
 ## Phase 173：GitHub 分支与 PR 现状审计
 
 只读核对 GitHub：仓库为公开仓库、默认分支为 `main`，当前没有 `feature/dzmm-vnext` PR；

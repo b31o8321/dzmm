@@ -1,6 +1,6 @@
 # DZMM Cutover Release Handoff
 
-当前候选：`feature/dzmm-vnext@f10f69c`（GitHub Draft PR #2）
+当前候选：`feature/dzmm-vnext@da4e87d`（GitHub Draft PR #2）
 
 ## 已完成
 
@@ -18,6 +18,8 @@
 4. PC LM Studio `huihui-ai_qwen3-14b-abliterated` 已完成真实 Probe 与隔离库 AI 草案验证；
    弱模型 JSON 格式兼容、角色卡与额外 NPC 的审阅去重、地点引用一致性校验已纳入当前候选；
    本机 `qwen2.5:7b` 也已在打包 macOS 应用完成 Probe 与草案审阅复测。
+5. 最新 release workflow `33526060462`（head `da4e87d`）已通过 macOS arm64 与 Windows x64 的
+   测试、sidecar/Tauri 打包及 artifact smoke；Windows SQLite 文件句柄锁定问题已通过隔离恢复目录修复。
 
 ## 尚未完成的验收
 
