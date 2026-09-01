@@ -1,5 +1,4 @@
 import shutil
-import time
 from pathlib import Path
 
 from alembic import command
@@ -54,17 +53,13 @@ def test_runtime_database_backup_restore_reopens_world(tmp_path: Path, monkeypat
         backup = tmp_path / "dzmm-next.db.backup"
         shutil.copy2(database, backup)
 
-    for _ in range(40):
-        try:
-            database.unlink()
-            break
-        except PermissionError:
-            time.sleep(0.05)
-    else:
-        database.unlink()
-    shutil.copy2(backup, database)
+    restored_dir = tmp_path / "restored-data"
+    restored_dir.mkdir()
+    restored_database = restored_dir / database.name
+    shutil.copy2(backup, restored_database)
+    restored_settings = Settings(data_dir=restored_dir)
 
-    with TestClient(create_app(settings)) as restored_client:
+    with TestClient(create_app(restored_settings)) as restored_client:
         worlds = restored_client.get("/api/v2/worlds")
         assert worlds.status_code == 200
         assert any(world["id"] == world_id for world in worlds.json())
