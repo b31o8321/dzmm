@@ -1,6 +1,6 @@
 # DZMM replacement-candidate Active Delivery Index
 
-更新时间：2026-08-31
+更新时间：2026-09-01
 工作树：`.worktrees/dzmm-vnext`
 分支：`feature/dzmm-vnext`
 基线：`main` at `df38037`
@@ -481,6 +481,18 @@ NPC 的情况，增加了安全归一化；未知字段仍由严格 CreativeSour
 
 这是模型兼容性与信息透明度改进，尚未改变玩家总分（仍为 **95/100**）；Windows 安装后 GUI、
 Android 真机和最终命名/切换门槛仍未通过，PR #2 保持 Draft。
+
+## Phase 177：本机 Qwen 草案审阅一致性复测
+
+在重建的 macOS release `DZMM.app` 中切回本机 `qwen2.5:7b`，Probe 5.4 秒成功，AI 世界草案
+生成耗时 56.2 秒并进入确认前审阅。审阅页现在展示全部生成地点，并明确地点会进入可移动世界图；
+角色卡人物仍会参与对话和主动事件，但额外 NPC 区不再重复列出角色卡。引用不存在地点时，后端
+会在可容纳时把该地点加入素材，超过容量则阻止创建而不是静默指向其他地点。后端全量 `146 passed`、
+Ruff、桌面 `36 passed` 和生产构建通过。证据见
+`vnext/eval/evidence/phase177-local-qwen-draft-review-consistency.json`，提交为 `f10f69c`。
+
+本轮改善了草案可理解性和创建前一致性，但没有改变玩家总分（仍为 **95/100**）。Windows 安装后
+GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续保持 Draft。
 
 ## Phase 173：GitHub 分支与 PR 现状审计
 
