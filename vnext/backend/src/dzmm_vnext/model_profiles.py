@@ -76,11 +76,82 @@ CREATIVE_SOURCE_SCHEMA: dict[str, Any] = {
                 "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
             },
         },
-        "npcs": {"type": "array", "maxItems": 4, "items": {"type": "object"}},
-        "factions": {"type": "array", "maxItems": 3, "items": {"type": "object"}},
-        "events": {"type": "array", "maxItems": 4, "items": {"type": "object"}},
-        "location_links": {"type": "array", "maxItems": 4, "items": {"type": "object"}},
-        "campaign": {"type": ["object", "null"]},
+        "npcs": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+                "type": "object",
+                "required": ["name", "role", "description"],
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "role": {"type": "string"},
+                    "description": {"type": "string"},
+                    "motivation": {"type": "string"},
+                    "location": {"type": ["string", "null"]},
+                    "contact_cooldown_turns": {"type": "integer"},
+                    "faction": {"type": ["string", "null"]},
+                    "reputation": {"type": "integer"},
+                },
+            },
+        },
+        "factions": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+                "type": "object",
+                "required": ["name", "description"],
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "initial_tension": {"type": "integer"},
+                    "passive_gain_per_turn": {"type": "integer"},
+                    "threshold_conflict": {"type": "integer"},
+                },
+            },
+        },
+        "events": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+                "type": "object",
+                "required": ["name", "summary"],
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "location": {"type": ["string", "null"]},
+                    "importance": {"type": "integer"},
+                    "trigger_turn": {"type": ["integer", "null"]},
+                    "initial_active": {"type": "boolean"},
+                    "trigger": {"type": "object"},
+                    "completion": {"type": "object"},
+                },
+            },
+        },
+        "location_links": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+                "type": "object",
+                "required": ["from_location", "to_location"],
+                "additionalProperties": False,
+                "properties": {
+                    "from_location": {"type": "string"},
+                    "to_location": {"type": "string"},
+                    "direction": {"type": "string"},
+                    "travel_turns": {"type": "integer"},
+                },
+            },
+        },
+        "campaign": {
+            "type": ["object", "null"],
+            "properties": {
+                "name": {"type": "string"},
+                "phases": {"type": "array"},
+            },
+        },
     },
 }
 
