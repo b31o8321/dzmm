@@ -641,7 +641,7 @@ def test_narrator_rejects_provider_reported_stream_truncation() -> None:
         asyncio.run(collect_stream(narrator, profile))
 
 
-def test_draft_generator_uses_lm_studio_text_json_with_a_restricted_prompt() -> None:
+def test_draft_generator_uses_lm_studio_structured_json_with_a_restricted_prompt() -> None:
     seen: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -680,7 +680,17 @@ def test_draft_generator_uses_lm_studio_text_json_with_a_restricted_prompt() -> 
     assert payload["world_name"] == "雾港"
     assert repairs == []
     body = seen["body"]
-    assert "response_format" not in body
+    response_format = body["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"]["required"] == [
+        "world_name",
+        "summary",
+        "hero",
+        "locations",
+        "characters",
+        "lore",
+    ]
     assert body["chat_template_kwargs"] == {"enable_thinking": False}
     assert body["messages"][0]["content"] == "JSON only; no command."
 

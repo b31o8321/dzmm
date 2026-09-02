@@ -33,6 +33,57 @@ NARRATION_TIMEOUT_SECONDS = 120.0
 PROBE_TIMEOUT_SECONDS = 10.0
 DRAFT_OPENAI_MAX_TOKENS = 6000
 
+# LM Studio supports OpenAI-compatible structured output. Keeping this schema
+# at the transport boundary prevents local instruct models from returning a
+# single event/legacy world object when the caller requested CreativeSource.
+CREATIVE_SOURCE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["world_name", "summary", "hero", "locations", "characters", "lore"],
+    "additionalProperties": False,
+    "properties": {
+        "world_name": {"type": "string"},
+        "summary": {"type": "string"},
+        "hero": {
+            "type": "object",
+            "required": ["name", "origin"],
+            "additionalProperties": False,
+            "properties": {"name": {"type": "string"}, "origin": {"type": "string"}},
+        },
+        "locations": {"type": "array", "minItems": 2, "maxItems": 3, "items": {"type": "string"}},
+        "characters": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+                "type": "object",
+                "required": ["name", "role", "description"],
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "role": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+            },
+        },
+        "lore": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+                "type": "object",
+                "required": ["title", "body"],
+                "additionalProperties": False,
+                "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+            },
+        },
+        "npcs": {"type": "array", "maxItems": 4, "items": {"type": "object"}},
+        "factions": {"type": "array", "maxItems": 3, "items": {"type": "object"}},
+        "events": {"type": "array", "maxItems": 4, "items": {"type": "object"}},
+        "location_links": {"type": "array", "maxItems": 4, "items": {"type": "object"}},
+        "campaign": {"type": ["object", "null"]},
+    },
+}
+
 
 class ProviderType(StrEnum):
     OLLAMA = "ollama"
@@ -625,8 +676,17 @@ def _draft_body(profile: ModelProfile, prompt: dict[str, Any]) -> dict[str, Any]
     }
     if profile.provider_type is ProviderType.OPENAI_COMPAT:
         body["response_format"] = {"type": "json_object"}
-    if profile.provider_type is ProviderType.LM_STUDIO and "qwen" in profile.model_name.lower():
-        body["chat_template_kwargs"] = {"enable_thinking": False}
+    if profile.provider_type is ProviderType.LM_STUDIO:
+        body["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "dzmm_creative_source",
+                "strict": True,
+                "schema": CREATIVE_SOURCE_SCHEMA,
+            },
+        }
+        if "qwen" in profile.model_name.lower():
+            body["chat_template_kwargs"] = {"enable_thinking": False}
     return body
 
 
