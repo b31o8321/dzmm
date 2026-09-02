@@ -635,3 +635,9 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 `vnext/mobile/build/app/outputs/flutter-apk/app-release.apk`（93.7 MB）。构建输出提示
 `file_picker`/`share_plus` 仍使用旧 Kotlin Gradle Plugin 接入方式，这是依赖升级事项，不影响
 本次构建；由于 `adb devices` 为空，本轮不增加真机安装或玩家分数证据。
+## Phase 184：Windows 安装后 Host 启动 smoke
+
+在提交 `bde8022` 上运行 release workflow `33645485509`，Windows job 除了后端、sidecar 和 NSIS
+内容检查外，新增静默安装到临时目录并启动安装后的 DZMM 主程序；程序继承临时数据目录和端口后，
+`/health` 返回 `storage=local`、`host=127.0.0.1`，随后自动清理进程。macOS job 同样保持全绿。
+这证明安装产物可启动本机 Host，但不替代 Windows WebView 的人工玩家旅程；评分保持 **95/100**。
