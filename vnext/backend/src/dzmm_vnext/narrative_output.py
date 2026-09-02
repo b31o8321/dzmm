@@ -21,6 +21,8 @@ NARRATIVE_SYSTEM_PROMPT = (
     "先明确承接玩家本回合的行动，再说明 validated_outcomes 带来的可感知结果；"
     "每回合至少引入一个新的可追查细节、冲突、NPC反应或场景变化，避免复述上回合；"
     "如果 pending_interactions 中有 NPC 主动事件，本回合必须让该 NPC 做出玩家可感知的主动联系或行动；"
+    "但如果 selected_choice 不为空，正文必须先承接 selected_choice.label 所表达的选项及其对应角色，"
+    "不得用另一个 NPC 的主动事件替代 selected_choice 结果；其他主动事件最多作为一句背景伏笔。"
     "NPC 的台词使用‘姓名：‘台词’’或中文引号标记，便于客户端记录对话和 NPC 记忆；"
     "只输出故事正文，不得解释规则，不得输出 JSON、标签、Markdown 标题、列表或状态摘要；"
     "如果需要把新线索、剧情线或隐藏事件交给 Python 记录，可在正文最后追加一次内部标记"
@@ -87,6 +89,11 @@ _PLAIN_HEADING = re.compile(
 )
 
 
+_MODEL_CONTINUATION_HEADING = re.compile(
+    r"^(?:response|question|answer|续写)\s*[：:]?$", re.IGNORECASE
+)
+
+
 def _remove_model_choice_sections(value: str) -> str:
     """Drop Qwen's duplicate choice/meta sections while retaining scene prose."""
 
@@ -126,6 +133,16 @@ def _remove_model_choice_sections(value: str) -> str:
     return "\n".join(kept)
 
 
+def _remove_model_continuation(value: str) -> str:
+    """Stop at prompt-like continuation headings emitted after the scene."""
+
+    lines = value.splitlines()
+    for index, raw_line in enumerate(lines):
+        if _MODEL_CONTINUATION_HEADING.fullmatch(raw_line.strip()):
+            return "\n".join(lines[:index]).rstrip()
+    return value
+
+
 def clean_narrative_output(content: str | None) -> str | None:
     """Remove provider wrappers and accidental technical summaries from prose."""
 
@@ -143,6 +160,7 @@ def clean_narrative_output(content: str | None) -> str | None:
         value = value.split("### TRPG Narrative:", maxsplit=1)[1]
     if "### JSON:" in value:
         value = value.split("### JSON:", maxsplit=1)[0]
+    value = _remove_model_continuation(value.strip())
     value = _remove_model_choice_sections(value.strip())
     value = re.sub(r"^#+\s*", "", value.strip())
     value = re.sub(r"\*{1,2}([^*\n]+)\*{1,2}", r"\1", value)

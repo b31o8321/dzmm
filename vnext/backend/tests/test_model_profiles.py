@@ -473,15 +473,32 @@ def test_narrator_context_includes_canonical_world_entities() -> None:
             {"id": "island", "name": "灯塔岛", "description": "海风中的灯塔"},
             {"id": "port", "name": "月影港", "description": "潮汐覆盖的港口"},
         ],
+        "story": {
+            "chapters": [
+                {
+                    "id": "ch1",
+                    "choices": [
+                        {"id": "inspect", "label": "检查灯塔"},
+                        {"id": "leave", "label": "离开港口"},
+                    ],
+                }
+            ]
+        },
     }
 
     narrative = asyncio.run(
         ModelNarrator(httpx.MockTransport(handler)).narrate(
             profile,
             definition,
-            {"hero": {"name": "艾莉森"}, "location_id": "island"},
+            {
+                "hero": {"name": "艾莉森"},
+                "location_id": "island",
+                "ruleset": {"enabled_capabilities": ["choices"]},
+                "chapter": {"id": "ch1", "status": "active", "resolved_choice_ids": []},
+                "ending": None,
+            },
             "查看灯塔",
-            [],
+            [{"type": "choose_story_choice", "choice_id": "inspect"}],
             [],
         )
     )
@@ -497,6 +514,11 @@ def test_narrator_context_includes_canonical_world_entities() -> None:
     }
     assert payload["world_material"]["characters"][0]["details"] == "role：船长；description：寻找航图"
     assert "不要创造未列出的姓名" in payload["narrative_guardrails"]
+    assert payload["available_choices"] == [
+        {"id": "inspect", "label": "检查灯塔"},
+        {"id": "leave", "label": "离开港口"},
+    ]
+    assert payload["selected_choice"] == {"id": "inspect", "label": "检查灯塔"}
 
 
 def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
@@ -507,7 +529,10 @@ def test_narrator_removes_qwen_rp_wrapper_and_json_echo() -> None:
         base_url="http://desktop.local:1234/v1",
         model_name="huihui-ai_qwen3-14b-abliterated",
     )
-    wrapped = '### TRPG Narrative:\n### 灯塔的微光摇曳。\n\n### JSON:\n{"narrative": "ignored"}'
+    wrapped = (
+        '### TRPG Narrative:\n### 灯塔的微光摇曳。\n\n'
+        'Response:\n\n（续写）这段不应进入玩家叙事。\n\nQuestion:\n下一步？'
+    )
     narrator = ModelNarrator(
         httpx.MockTransport(
             lambda _: httpx.Response(200, json={"choices": [{"message": {"content": wrapped}}]})

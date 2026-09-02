@@ -17,7 +17,7 @@ from .model_protocol import chat_content as _chat_content
 from .model_protocol import chat_endpoint, probe_body
 from .model_request_feedback import model_connection_detail, model_timeout_detail
 from .model_secrets import ModelSecretStore, default_model_secret_store
-from .narrative import narrative_variation
+from .narrative import available_choices, narrative_variation
 from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import (
     NARRATIVE_OLLAMA_NUM_PREDICT,
@@ -649,6 +649,29 @@ def _narration_body(
     variation = narrative_variation(definition, state, variation_seed or "default-run")
     entity_names = narrative_entity_names(definition)
     world_material = narrative_world_material(definition)
+    choice_context: list[dict[str, str]] = []
+    story = definition.get("story")
+    if isinstance(story, dict) and isinstance(story.get("chapters"), list):
+        try:
+            choice_context = available_choices(state, definition)
+        except KeyError:
+            # The narrator also has a lightweight seam in unit tests and for
+            # partially imported content; omit optional choice context there.
+            choice_context = []
+    selected_choice: dict[str, str] | None = None
+    selected_choice_id = next(
+        (
+            item.get("choice_id")
+            for item in outcomes
+            if item.get("type") == "choose_story_choice" and isinstance(item.get("choice_id"), str)
+        ),
+        None,
+    )
+    if selected_choice_id:
+        selected_choice = next(
+            (choice for choice in choice_context if choice["id"] == selected_choice_id),
+            {"id": selected_choice_id, "label": selected_choice_id},
+        )
     messages = [
         {
             "role": "system",
@@ -678,6 +701,8 @@ def _narration_body(
                     "active_events": state.get("active_events", []),
                     "plot_threads": state.get("plot_threads", []),
                     "pending_interactions": state.get("pending_interactions", []),
+                    "available_choices": choice_context,
+                    "selected_choice": selected_choice,
                     "world_entity_names": entity_names,
                     "world_material": world_material,
                     "narrative_guardrails": (
