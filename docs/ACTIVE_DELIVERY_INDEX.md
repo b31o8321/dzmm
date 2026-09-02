@@ -648,3 +648,9 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 启动与 `/health` 检查通过，macOS arm64 同步通过构建与 DMG smoke；随后当前分支的 PR backend-ci
 和 E2E smoke 也通过。自动化证据已闭合到“安装后 Host 可启动”，但 GUI 可见旅程和真实设备仍未
 完成，评分保持 **95/100**。
+
+## Phase 186：候选文档指针与 PR 检查终态
+
+将交付文档中的候选版本指针刷新为 `feature/dzmm-vnext@0423101`。对应 Draft PR #2 的
+`test` 与 `core-and-desktop` 检查均通过；本次仅为文档同步，不增加玩家分数。剩余门槛仍是
+Windows/macOS 可见 GUI 旅程、Android 真机和跨端回读，未达到合并 `main` 或删除老版代码的条件。
