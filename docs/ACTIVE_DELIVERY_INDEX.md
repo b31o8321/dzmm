@@ -517,6 +517,12 @@ macOS DMG smoke 确认 `.app`、backend 和 `_internal` 均存在。该证据覆
 代码/组件回归，不能新增真机安装或跨设备回读证据；Windows 原生安装后的 GUI 与 macOS 完整
 可见玩家旅程仍保持未验收。评分继续保持 **95/100**。
 
+## Phase 182：当前候选远端检查终态
+
+文档更新后的当前候选 `55ac83f` 已通过 GitHub PR #2 的 `backend-ci` 和 `E2E smoke`；此前同一
+代码候选 `97f04cd` 的 macOS arm64/Windows x64 release workflow 也已全绿。远端检查仅证明代码和
+构建回归，不替代安装后玩家 GUI 旅程，因此评分保持 **95/100**，不提前执行 cutover。
+
 ## Phase 178：最新跨平台 release workflow
 
 在提交 `da4e87d`（将数据库恢复演练改为隔离目录，避免 Windows SQLite 文件句柄锁定）上重新运行
