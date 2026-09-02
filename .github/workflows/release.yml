@@ -194,7 +194,7 @@ jobs:
             if curl --fail --silent "http://127.0.0.1:${PORT}/health" > /tmp/dzmm-next-health.json; then
               grep -q '"storage":"local"' /tmp/dzmm-next-health.json
               grep -q '"host":"127.0.0.1"' /tmp/dzmm-next-health.json
-              echo "::notice::Windows packaged sidecar Local Host health OK"
+          echo "::notice::Windows packaged sidecar Local Host health OK"
               exit 0
             fi
             sleep 1
@@ -202,6 +202,45 @@ jobs:
           cat /tmp/dzmm-next-sidecar.log || true
           echo "::error::Windows packaged sidecar did not become healthy"
           exit 1
+
+      - name: smoke installed Windows app startup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem 'vnext/desktop/src-tauri/target/release/bundle/nsis' -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer not found' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'dzmm-next-installed'
+          $dataDir = Join-Path $env:RUNNER_TEMP 'dzmm-next-installed-data'
+          New-Item -ItemType Directory -Force -Path $installDir, $dataDir | Out-Null
+          Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -NoNewWindow
+
+          $app = Get-ChildItem $installDir -Recurse -Filter '*.exe' |
+            Where-Object { $_.Name -notin @('dzmm-next-backend.exe', 'uninstall.exe', 'Uninstall.exe') } |
+            Select-Object -First 1
+          if (-not $app) { throw "Installed DZMM executable not found under $installDir" }
+
+          $env:DZMM_NEXT_DATA_DIR = $dataDir
+          $env:DZMM_NEXT_PORT = '18766'
+          $process = Start-Process -FilePath $app.FullName -WorkingDirectory $app.DirectoryName -PassThru
+          try {
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:18766/health' -TimeoutSec 2
+                if ($health.storage -eq 'local' -and $health.host -eq '127.0.0.1') {
+                  $healthy = $true
+                  break
+                }
+              } catch { }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $healthy) { throw 'Installed DZMM app did not expose a healthy Local Host' }
+            Write-Host '::notice::Installed Windows app Local Host startup OK'
+          } finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            Get-Process -Name 'dzmm-next-backend' -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
 
       - name: upload artifact
         uses: actions/upload-artifact@v4
