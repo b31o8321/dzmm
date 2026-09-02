@@ -629,3 +629,9 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 3. M3：ModelProfile CRUD/default/probe、引用冲突和三端一致交互——已实现；桌面真实回归、Android widget 覆盖通过。
 4. M4：macOS/Windows 安装包和 Android 本地模拟器/真机完成 A-F、30 回合、重启/失败恢复——进行中；phase82–114 已累积补齐 Android 后台模型操作、三端玩家术语/操作阶段、正式结局、安全凭据、取消/恢复、归档世界、active Run 恢复、桌面 SSE、portable 内容边界、模型超时/连接恢复提示、模型 Probe 的连接/等待/耗时反馈、桌面模型列表边界、Android/desktop 动态地点和单地点自由行动 parity、跨 Run retry boundary 及 desktop notice live-region。phase149–151 已证明 macOS 包在旧版占用 8765 时可通过回退端口启动并显示 Host 就绪，phase150/153 已证明 Android API 36 release APK 可冷启动并在强制停止后恢复，phase152 已证明 Windows NSIS/sidecar 构建与 smoke 通过，phase157 已证明 Android release 新世界→10 回合→结局→同世界新 Run；当前精确缺口是 Windows 安装后 GUI、macOS 可见完整玩家旅程、Android 真机和跨端回读。
 5. 所有玩家 P0/P1、分项和整体达到 85 后，才允许 `update_goal complete`。
+## Phase 183：Android release 代码侧复核
+
+在当前候选上重新执行 `flutter analyze` 与 `flutter build apk --release`，均通过；生成
+`vnext/mobile/build/app/outputs/flutter-apk/app-release.apk`（93.7 MB）。构建输出提示
+`file_picker`/`share_plus` 仍使用旧 Kotlin Gradle Plugin 接入方式，这是依赖升级事项，不影响
+本次构建；由于 `adb devices` 为空，本轮不增加真机安装或玩家分数证据。
