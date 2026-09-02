@@ -494,6 +494,15 @@ Ruff、桌面 `36 passed` 和生产构建通过。证据见
 本轮改善了草案可理解性和创建前一致性，但没有改变玩家总分（仍为 **95/100**）。Windows 安装后
 GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续保持 Draft。
 
+## Phase 179：PC Qwen3 结构化草案复测
+
+在重建的 macOS release `DZMM.app` 中将 `PC Qwen3 14B` 设为默认模型后，Probe 7.3 秒成功；
+首次冷启动草案超时后，补充 LM Studio `json_schema` 结构化输出约束并重建，第二次草案在 20.7 秒
+进入确认前审阅，状态为有效。草案生成 `潮汐回廊`、3 个地点、2 张角色卡和 2 个额外 NPC；越界的
+数值字段被安全归一化，确认前没有写入世界或旅程。证据见
+`vnext/eval/evidence/phase179-pc-qwen-structured-draft.json`。本轮提升了 PC 模型可用性，但玩家
+总分暂保持 **95/100**，Windows 安装后 GUI 与完整 macOS 游玩旅程仍未验收。
+
 ## Phase 178：最新跨平台 release workflow
 
 在提交 `da4e87d`（将数据库恢复演练改为隔离目录，避免 Windows SQLite 文件句柄锁定）上重新运行
