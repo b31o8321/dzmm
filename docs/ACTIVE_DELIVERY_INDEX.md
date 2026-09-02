@@ -1,6 +1,6 @@
 # DZMM replacement-candidate Active Delivery Index
 
-更新时间：2026-09-01
+更新时间：2026-09-02
 工作树：`.worktrees/dzmm-vnext`
 分支：`feature/dzmm-vnext`
 基线：`main` at `df38037`
@@ -509,6 +509,13 @@ GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续�
 均通过后端测试、sidecar 构建、Tauri 打包、artifact smoke，以及 Windows 打包 sidecar 健康检查；
 macOS DMG smoke 确认 `.app`、backend 和 `_internal` 均存在。该证据覆盖 LM Studio 结构化世界草案
 约束修复，但仍不等同于 Windows 原生安装后的完整玩家 GUI 验收；评分保持 **95/100**。
+
+## Phase 181：当前候选全量回归与 Android 设备边界
+
+当前候选 `de1a2f8` 在本机完成后端全量 `146 passed`、Ruff、桌面 Vitest `36 passed`、桌面生产
+构建和 Android Flutter `25 passed`。`adb devices` 当前没有在线设备，因此本轮只能确认 Android
+代码/组件回归，不能新增真机安装或跨设备回读证据；Windows 原生安装后的 GUI 与 macOS 完整
+可见玩家旅程仍保持未验收。评分继续保持 **95/100**。
 
 ## Phase 178：最新跨平台 release workflow
 
