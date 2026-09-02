@@ -1,6 +1,6 @@
 # DZMM Cutover Release Handoff
 
-当前候选：`feature/dzmm-vnext@da4e87d`（GitHub Draft PR #2）
+当前候选：`feature/dzmm-vnext@97f04cd`（GitHub Draft PR #2）
 
 ## 已完成
 
@@ -22,6 +22,8 @@
    测试、sidecar/Tauri 打包及 artifact smoke；Windows SQLite 文件句柄锁定问题已通过隔离恢复目录修复。
 6. 在重建的 macOS 包中，PC Qwen3 14B 通过结构化 `json_schema` 约束完成 20.7 秒草案审阅，
    确认前未写入存档；证据见 `vnext/eval/evidence/phase179-pc-qwen-structured-draft.json`。
+7. 最新提交 `97f04cd` 的 release workflow `33641453572` 已全绿，macOS arm64 与 Windows x64
+   的测试、sidecar/Tauri 打包、artifact smoke 和 Windows sidecar 健康检查均通过。
 
 ## 尚未完成的验收
 

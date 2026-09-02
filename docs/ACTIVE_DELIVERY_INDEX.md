@@ -503,6 +503,13 @@ GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续�
 `vnext/eval/evidence/phase179-pc-qwen-structured-draft.json`。本轮提升了 PC 模型可用性，但玩家
 总分暂保持 **95/100**，Windows 安装后 GUI 与完整 macOS 游玩旅程仍未验收。
 
+## Phase 180：最新 PC 模型修复版跨平台产物
+
+提交 `97f04cd` 上的 release workflow `33641453572` 已完成并全绿：macOS arm64 与 Windows x64
+均通过后端测试、sidecar 构建、Tauri 打包、artifact smoke，以及 Windows 打包 sidecar 健康检查；
+macOS DMG smoke 确认 `.app`、backend 和 `_internal` 均存在。该证据覆盖 LM Studio 结构化世界草案
+约束修复，但仍不等同于 Windows 原生安装后的完整玩家 GUI 验收；评分保持 **95/100**。
+
 ## Phase 178：最新跨平台 release workflow
 
 在提交 `da4e87d`（将数据库恢复演练改为隔离目录，避免 Windows SQLite 文件句柄锁定）上重新运行
