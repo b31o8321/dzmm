@@ -1,6 +1,6 @@
 # DZMM Cutover Release Handoff
 
-当前候选：`feature/dzmm-vnext@837ae85`（GitHub Draft PR #2）
+当前候选：`feature/dzmm-vnext@c1b942c`（GitHub Draft PR #2）
 
 ## 已完成
 
