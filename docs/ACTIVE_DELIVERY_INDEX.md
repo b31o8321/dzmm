@@ -641,3 +641,10 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 内容检查外，新增静默安装到临时目录并启动安装后的 DZMM 主程序；程序继承临时数据目录和端口后，
 `/health` 返回 `storage=local`、`host=127.0.0.1`，随后自动清理进程。macOS job 同样保持全绿。
 这证明安装产物可启动本机 Host，但不替代 Windows WebView 的人工玩家旅程；评分保持 **95/100**。
+
+## Phase 185：安装启动 smoke 的远端终态
+
+包含新增安装启动步骤的当前 release workflow `33645485509` 已全绿：Windows 静默安装后的主程序
+启动与 `/health` 检查通过，macOS arm64 同步通过构建与 DMG smoke；随后当前分支的 PR backend-ci
+和 E2E smoke 也通过。自动化证据已闭合到“安装后 Host 可启动”，但 GUI 可见旅程和真实设备仍未
+完成，评分保持 **95/100**。
