@@ -3,10 +3,11 @@
   "title": "release candidate freeze and artifact fingerprints",
   "status": "passed",
   "branch": "feature/dzmm-vnext",
-  "commit": "747659c0dbd6e46032f2e800d5050cf4173f1c75",
+  "candidate_code_commit": "af0fc4012bdb32ba7880273b912c23e7babb701e",
+  "evidence_record_commit": "fe96b48",
   "pr": {
     "number": 2,
-    "head": "747659c0dbd6e46032f2e800d5050cf4173f1c75",
+    "head": "af0fc4012bdb32ba7880273b912c23e7babb701e",
     "merge_state": "CLEAN",
     "checks": {
       "test": "success",

@@ -701,7 +701,7 @@ Android 真机和跨设备回读，玩家评分保持 **95/100**。
 
 ## Phase 192：发布候选冻结与产物指纹
 
-冻结候选 `feature/dzmm-vnext@747659c0dbd6e46032f2e800d5050cf4173f1c75`；PR #2 的
+冻结候选代码 `feature/dzmm-vnext@af0fc4012bdb32ba7880273b912c23e7babb701e`（后续仅有证据文档提交）；PR #2 的
 `test` 与 `core-and-desktop` 均为 success，合并状态为 `CLEAN`。当前 Android release APK
 SHA-256 为 `47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0`，当前
 macOS arm64 DMG SHA-256 为 `735201e3e2d0ed151b09d2ee3c8a8edcabe2073bba9c88dcb40aa6039747d917`。
