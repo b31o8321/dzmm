@@ -173,6 +173,16 @@ def test_narrative_cleanup_removes_inline_markdown_and_followup_meta() -> None:
     )
 
 
+def test_narrative_cleanup_drops_model_self_analysis_and_latex() -> None:
+    raw = (
+        "艾尔文抬头看向碑石，指尖捕捉到一缕新出现的蓝光。\n\n"
+        "根据故事发展的逻辑，接下来的情节将进入第七章（chapter_id: ch7）。\n\n"
+        "- 选择向艾尔文询问进展（choice_id: ask-7）\n\n"
+        "\\[\\boxed{失联的导航员}\\]"
+    )
+    assert clean_narrative_output(raw) == "艾尔文抬头看向碑石，指尖捕捉到一缕新出现的蓝光。"
+
+
 def test_gm_actions_change_npc_reputation_with_hard_bounds() -> None:
     state = initial_state(_definition(), {"id": "hero", "name": "旅人", "profile": {}})
     state["revision"] = 4

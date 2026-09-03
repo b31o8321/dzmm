@@ -95,6 +95,12 @@ _PLAIN_HEADING = re.compile(
 _MODEL_CONTINUATION_HEADING = re.compile(
     r"^(?:response|question|answer|续写)\s*[：:]?$", re.IGNORECASE
 )
+_MODEL_META_PARAGRAPH = re.compile(
+    r"(?:行动钩子|choice_id|chapter_id|motivation|\\boxed|根据(?:故事|情境|对话|之前的情节)"
+    r".{0,24}(?:逻辑|分析|选择|发展)|接下来的(?:情节|情景)|因此[，,]?我选择|可以预测|"
+    r"状态描述为|请回答[，,]?(?:你们|接下来))",
+    re.IGNORECASE,
+)
 
 
 def _remove_model_choice_sections(value: str) -> str:
@@ -176,7 +182,10 @@ def clean_narrative_output(content: str | None) -> str | None:
         value = prose
     paragraphs = re.split(r"\n\s*\n", value)
     value = "\n\n".join(
-        paragraph for paragraph in paragraphs if not _TECHNICAL_PARAGRAPH.search(paragraph)
+        paragraph
+        for paragraph in paragraphs
+        if not _TECHNICAL_PARAGRAPH.search(paragraph)
+        and not _MODEL_META_PARAGRAPH.search(paragraph)
     )
     return value.strip() or None
 
