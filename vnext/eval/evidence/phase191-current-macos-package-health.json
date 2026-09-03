@@ -1,0 +1,27 @@
+{
+  "phase": 191,
+  "title": "current candidate macOS packaged Host smoke",
+  "status": "passed",
+  "candidate": "e550a41",
+  "package": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM.app",
+  "verification": {
+    "backend_sidecar": "PyInstaller arm64 sidecar bundled",
+    "isolated_data_dir": "temporary DZMM_NEXT_DATA_DIR",
+    "port": 18773,
+    "health": {
+      "app": "dzmm-next",
+      "api_version": 2,
+      "storage": "local",
+      "host": "127.0.0.1",
+      "foreign_keys": true
+    }
+  },
+  "scope": "current packaged Host startup only; Mac was locked so no visible GUI journey was claimed",
+  "score_change": 0,
+  "remaining": [
+    "macOS visible create-play-ending-new-Run GUI journey",
+    "Windows installed visible GUI journey",
+    "Android emulator replay on current APK",
+    "cross-device readback"
+  ]
+}

@@ -690,3 +690,11 @@ Android 真机和跨设备回读，玩家评分保持 **95/100**。
 `47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0`。本轮没有连接模拟器，
 因此不把构建证据扩大解释为安装或玩家旅程验收；评分保持 **95/100**。证据见
 `vnext/eval/evidence/phase190-current-android-release-build.json`。
+
+## Phase 191：当前候选 macOS 安装包 Host smoke
+
+从当前候选重新构建 arm64 PyInstaller sidecar 与 Tauri `DZMM.app`，在临时数据目录和端口
+`18773` 冷启动包内二进制；`/health` 返回 `app=dzmm-next`、`api_version=2`、
+`storage=local`、`host=127.0.0.1`、`foreign_keys=true`。由于 Mac 仍处于锁屏，本轮只记录
+当前安装包 Host 启动，不扩大解释为可见 GUI 玩家旅程，评分保持 **95/100**。证据见
+`vnext/eval/evidence/phase191-current-macos-package-health.json`。
