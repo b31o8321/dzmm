@@ -93,6 +93,7 @@ def test_story_surface_uses_mapped_names_for_new_world_recommendations() -> None
     assert len(story["chapters"]) == 10
     assert story["chapters"][2]["title"] == "潮汐之门·线索推进 1"
     assert story["chapters"][-1]["title"] == "回声灯塔的最终决断"
+    assert story["chapters"][-1]["choices"][1]["label"] == "暂缓行动，等待更佳时机"
     assert any("story surface" in repair for repair in repairs)
     serialized = json.dumps(safe_definition, ensure_ascii=False)
     assert "雾港" not in serialized

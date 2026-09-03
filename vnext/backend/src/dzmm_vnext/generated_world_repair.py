@@ -29,7 +29,10 @@ def extend_story_for_long_run(
     terminal["next_chapter_id"] = None
     terminal["title"] = f"{locations[1]}的最终决断"
     terminal["choices"][0]["label"] = f"在{locations[1]}完成关键行动"
-    terminal["choices"][1]["label"] = "暂缓行动，等待下一次潮汐"
+    # Keep the long-run bridge topic-neutral.  “潮汐” belongs to the offline
+    # Fog Harbor example and leaking it into an AI-authored world makes the
+    # generated setting feel like a reskinned template.
+    terminal["choices"][1]["label"] = "暂缓行动，等待更佳时机"
     for order in range(3, 10):
         location = locations[(order - 1) % len(locations)]
         character = character_names[(order - 3) % len(character_names)]
