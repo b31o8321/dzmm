@@ -1,0 +1,75 @@
+{
+  "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real local provider",
+  "provider": "ollama",
+  "model": "huihui_ai/qwen2.5-abliterate:7b",
+  "base_url": "http://127.0.0.1:11434",
+  "cycles": 1,
+  "routes": {
+    "lan_good": [
+      {
+        "choices": [
+          "rescue-lan",
+          "lan-testimony",
+          "open-tide-gate"
+        ],
+        "ending": "lan-dawn",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "shen_good": [
+      {
+        "choices": [
+          "hide-chart",
+          "shen-confession",
+          "open-tide-gate"
+        ],
+        "ending": "shen-low-tide",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "neutral": [
+      {
+        "choices": [
+          "hide-chart",
+          "neutral-lead",
+          "open-tide-gate"
+        ],
+        "ending": "neutral-harbor",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "bad": [
+      {
+        "choices": [
+          "hide-chart",
+          "neutral-lead",
+          "miss-the-tide"
+        ],
+        "ending": "fog-drowned",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "hidden": [
+      {
+        "choices": [
+          "rescue-lan",
+          "unite-witnesses",
+          "open-tide-gate"
+        ],
+        "ending": "bell-beyond-fog",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ]
+  },
+  "total_choice_turns": 15,
+  "latency_seconds": {
+    "min": 10.205,
+    "median": 15.583,
+    "max": 24.312
+  }
+}

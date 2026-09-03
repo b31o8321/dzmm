@@ -672,3 +672,13 @@ Windows/macOS 可见 GUI 旅程、Android 真机和跨端回读，未达到合�
 避免将这类内容直接展示给玩家。该修复尚需新进程回合确认，评分保持 **95/100**；三端安装包
 GUI、Android 真机和跨设备回读仍是替换门槛。证据见
 `vnext/eval/evidence/phase188-mac-local-qwen-10-turn.json`。
+
+## Phase 189：Mac 本地 Qwen 7B 过滤后路线矩阵
+
+在最新叙事清理规则提交 `df84a53` 上，继续使用 Mac 本机 Ollama
+`huihui_ai/qwen2.5-abliterate:7b`，以全新临时数据目录跑通 5 条 Fog Harbor 路线、共 15 个
+真实选择回合。每条路线均产生非空正文并到达预期结局；随后回滚首回合并重新读取，均恢复到
+第二章且结局重新解锁。回合耗时 10.2–24.3 秒，中位数 15.6 秒。新增的“根据语境/答案是/角色
+列表/在转述中”等自检段落清理规则由单测与该真实矩阵共同覆盖。该轮仍未完成安装包可见 GUI、
+Android 真机和跨设备回读，玩家评分保持 **95/100**。
+证据见 `vnext/eval/evidence/phase189-mac-local-qwen-filtered-matrix.json`。
