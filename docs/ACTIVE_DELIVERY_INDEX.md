@@ -682,3 +682,11 @@ GUI、Android 真机和跨设备回读仍是替换门槛。证据见
 列表/在转述中”等自检段落清理规则由单测与该真实矩阵共同覆盖。该轮仍未完成安装包可见 GUI、
 Android 真机和跨设备回读，玩家评分保持 **95/100**。
 证据见 `vnext/eval/evidence/phase189-mac-local-qwen-filtered-matrix.json`。
+
+## Phase 190：当前候选 Android release 构建
+
+在候选提交 `cd7428d` 上重新执行 Android `flutter analyze`、25 项 widget 测试和
+`flutter build apk --release`，全部通过。生成 APK 为 93.7 MB，SHA-256 为
+`47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0`。本轮没有连接模拟器，
+因此不把构建证据扩大解释为安装或玩家旅程验收；评分保持 **95/100**。证据见
+`vnext/eval/evidence/phase190-current-android-release-build.json`。
