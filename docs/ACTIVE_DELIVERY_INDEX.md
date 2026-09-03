@@ -1,6 +1,6 @@
 # DZMM replacement-candidate Active Delivery Index
 
-更新时间：2026-09-02
+更新时间：2026-09-03
 工作树：`.worktrees/dzmm-vnext`
 分支：`feature/dzmm-vnext`
 基线：`main` at `df38037`
@@ -707,3 +707,16 @@ SHA-256 为 `47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0`�
 macOS arm64 DMG SHA-256 为 `735201e3e2d0ed151b09d2ee3c8a8edcabe2073bba9c88dcb40aa6039747d917`。
 本机当前没有连接 Android 设备或 AVD，因此本阶段只冻结候选身份和产物完整性，不宣称 GUI/模拟器
 验收，评分保持 **95/100**。证据见 `vnext/eval/evidence/phase192-release-candidate-freeze.json`。
+
+## Phase 193：macOS 当前候选可见 GUI 创建、游玩与新 Run 回放
+
+从 `feature/dzmm-vnext@90d9236` 重建当前 arm64 `DZMM.app`/DMG，并用精确 bundle 路径打开，避免误用
+旧版 `/Applications/dzmm.app`。Mac 本地 `ollama/qwen2.5:7b` 完成 AI 草案审阅、确认创建新世界、进入
+开场、执行首个选择并看到 `preparing/connecting/generating/applying` 阶段；回合保存了新章节、线索、
+关系变化和 NPC 主动联系。返回世界列表后，刚创建的世界显示世界书 2 条、角色卡 2 张、NPC 4 位，
+并成功展开“开始新旅程”创建独立第二局，新的主角和开场均可见。
+
+本轮还确认题材中立修复已进入当前产物：长回合桥接选项为“暂缓行动，等待更佳时机”，草案中没有
+`雾港`/`潮门`/`雾灯`模板词。但首回合正文仍出现“回到港口”等地点连续性和 NPC 插入不自然问题；
+本轮未完成 10 章可见结局及结局后新 Run 回放，因此 macOS gate 记为 partial pass，玩家评分保持
+**95/100**。证据见 `vnext/eval/evidence/phase193-macos-packaged-visible-gui.json`。
