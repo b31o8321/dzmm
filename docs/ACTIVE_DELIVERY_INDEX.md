@@ -654,3 +654,12 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 将交付文档中的候选版本指针刷新为 `feature/dzmm-vnext@0423101`。对应 Draft PR #2 的
 `test` 与 `core-and-desktop` 检查均通过；本次仅为文档同步，不增加玩家分数。剩余门槛仍是
 Windows/macOS 可见 GUI 旅程、Android 真机和跨端回读，未达到合并 `main` 或删除老版代码的条件。
+
+## Phase 187：Mac 本地 Qwen 7B 新世界首回合
+
+在隔离临时数据目录中使用 Ollama 本机 `huihui_ai/qwen2.5-abliterate:7b`，完成
+“AI 草案→确认创建世界→创建 Run→选择首个故事选项”的真实闭环。草案有效，世界为
+`星辰的低语`，主角为 `艾莉娅·斯通`，选择 `援手图南` 后回合提交到 revision 1；
+叙事未被截断，且正文从所选角色开始承接。证据见
+`vnext/eval/evidence/phase187-mac-local-qwen-choice.json`。本轮只增加本地模型兼容性证据，
+玩家分数保持 **95/100**；安装包可见 GUI、Android 真机和跨设备回读仍未闭合。

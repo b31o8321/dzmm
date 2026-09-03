@@ -1,0 +1,27 @@
+{
+  "phase": 187,
+  "date": "2026-09-03",
+  "host": "macOS local temporary sidecar",
+  "data_dir_isolated": true,
+  "model": {
+    "provider_type": "ollama",
+    "model_name": "huihui_ai/qwen2.5-abliterate:7b",
+    "base_url": "http://127.0.0.1:11434"
+  },
+  "journey": {
+    "draft_valid": true,
+    "world_name": "星辰的低语",
+    "hero_name": "艾莉娅·斯通",
+    "run_created": true,
+    "choice_id": "rescue-lan",
+    "choice_label": "援手图南",
+    "after_revision": 1,
+    "narrative_completed_without_truncation": true,
+    "narrative_started_with_selected_choice_entity": true
+  },
+  "result": {
+    "player_score": 95,
+    "score_changed": false,
+    "note": "Mac 本地 Qwen 7B 新世界草案与首个选择回合闭环通过；不替代 macOS/Windows 安装包 GUI、Android 真机和跨设备回读门槛。"
+  }
+}
