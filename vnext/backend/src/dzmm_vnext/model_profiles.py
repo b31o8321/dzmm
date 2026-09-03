@@ -20,6 +20,7 @@ from .model_secrets import ModelSecretStore, default_model_secret_store
 from .narrative import available_choices, narrative_variation
 from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import (
+    NARRATIVE_LM_STUDIO_MAX_TOKENS,
     NARRATIVE_OLLAMA_NUM_PREDICT,
     NARRATIVE_OPENAI_MAX_TOKENS,
     NARRATIVE_SYSTEM_PROMPT,
@@ -734,7 +735,11 @@ def _narration_body(
         "model": profile.model_name,
         "messages": messages,
         "stream": stream,
-        "max_tokens": NARRATIVE_OPENAI_MAX_TOKENS,
+        "max_tokens": (
+            NARRATIVE_LM_STUDIO_MAX_TOKENS
+            if profile.provider_type is ProviderType.LM_STUDIO
+            else NARRATIVE_OPENAI_MAX_TOKENS
+        ),
         "temperature": 0.85,
         "top_p": 0.9,
     }

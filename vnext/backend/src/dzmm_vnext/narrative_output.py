@@ -11,6 +11,9 @@ from typing import Any
 # truncation before the player receives a finished hook.
 NARRATIVE_OLLAMA_NUM_PREDICT = 1024
 NARRATIVE_OPENAI_MAX_TOKENS = 480
+# OpenAI-compatible local models often append a private continuation marker
+# before stopping; leave enough room to finish the visible scene and marker.
+NARRATIVE_LM_STUDIO_MAX_TOKENS = 768
 
 NARRATIVE_SYSTEM_PROMPT = (
     "你是本地互动叙事游戏的 GM。Python 规则引擎负责骰子、资源、关系、章节、路线、数值和结局的硬校验；"

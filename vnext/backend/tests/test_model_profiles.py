@@ -432,7 +432,7 @@ def test_narrator_describes_validated_narrative_state_without_granting_state_aut
     payload = json.loads(seen["body"]["messages"][1]["content"].removeprefix("/no_think\n"))
     assert "不是状态裁判" in system
     assert "不得输出 JSON、标签、Markdown 标题、列表或状态摘要" in system
-    assert seen["body"]["max_tokens"] == 480
+    assert seen["body"]["max_tokens"] == 768
     assert seen["body"]["temperature"] == 0.85
     assert seen["body"]["top_p"] == 0.9
     assert payload["ruleset"] == "hybrid"
