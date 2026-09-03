@@ -1,0 +1,25 @@
+{
+  "phase": 188,
+  "date": "2026-09-03",
+  "host": "macOS local temporary sidecar",
+  "data_dir_isolated": true,
+  "model": "huihui_ai/qwen2.5-abliterate:7b",
+  "journey": {
+    "world_name": "星澜纪元",
+    "hero_name": "林若溪",
+    "turns_completed": 10,
+    "ending": "lan-dawn",
+    "all_turns_without_provider_truncation": true,
+    "average_turn_seconds": 32.8
+  },
+  "finding": {
+    "issue": "部分回合输出模型自检文本（choice_id/chapter_id/LaTeX），影响沉浸",
+    "fix_commit": "d1a4adc",
+    "regression": "test_narrative_cleanup_drops_model_self_analysis_and_latex"
+  },
+  "result": {
+    "player_score": 95,
+    "score_changed": false,
+    "note": "本地 7B 已能完成 10 回合并到达正式结局；过滤修复需在新进程/新回合继续确认，不替代三端安装包 GUI、Android 真机和跨设备回读。"
+  }
+}

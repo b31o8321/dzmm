@@ -663,3 +663,12 @@ Windows/macOS 可见 GUI 旅程、Android 真机和跨端回读，未达到合�
 叙事未被截断，且正文从所选角色开始承接。证据见
 `vnext/eval/evidence/phase187-mac-local-qwen-choice.json`。本轮只增加本地模型兼容性证据，
 玩家分数保持 **95/100**；安装包可见 GUI、Android 真机和跨设备回读仍未闭合。
+
+## Phase 188：Mac 本地 Qwen 7B 十回合与沉浸过滤
+
+在隔离临时 Host 中使用同一 Mac 本地 7B 完成 10 回合并到达 `lan-dawn` 正式结局，
+平均回合约 32.8 秒，未发生 provider 截断。回合 6–10 暴露模型偶发输出
+`choice_id`/`chapter_id`/LaTeX 等自检文本；已在 `d1a4adc` 增加通用叙事清理与回归测试，
+避免将这类内容直接展示给玩家。该修复尚需新进程回合确认，评分保持 **95/100**；三端安装包
+GUI、Android 真机和跨设备回读仍是替换门槛。证据见
+`vnext/eval/evidence/phase188-mac-local-qwen-10-turn.json`。
