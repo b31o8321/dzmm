@@ -1210,12 +1210,21 @@ class LocalCoreRuntime:
             ).fetchone()
         if profile is None:
             raise CoreRuntimeError("run model profile not found")
+        current_location = next(
+            (
+                str(item.get("name") or "").strip()
+                for item in definition.get("locations") or []
+                if isinstance(item, dict) and str(item.get("id")) == str(state.get("location_id"))
+            ),
+            "",
+        )
         body = request_narrative(
             {**dict(profile), "api_key": api_key},
             {
                 "world": definition["name"],
                 "hero": state["hero"]["name"],
                 "location_id": state.get("location_id"),
+                "current_location": current_location,
                 "chapter": _narrative_chapter_context(definition, state),
                 "ending": state.get("ending"),
                 "player_input": player_input,
@@ -1235,7 +1244,9 @@ class LocalCoreRuntime:
                 "narrative_guardrails": (
                     "叙事只能使用 world_entity_names 中的角色、NPC、地点、势力和事件名称；"
                     "world_material 只用于理解这些实体的动机和背景；"
-                    "不要把内部 ID、模板旧名或关系 ID（例如 lan）写进正文。"
+                    "不要把内部 ID、模板旧名或关系 ID（例如 lan）写进正文；"
+                    "本回合必须围绕 current_location 对应地点展开，除非 validated_outcomes 明确移动，"
+                    "不得凭空切换到未列出的地点或使用与当前地点冲突的空间描述。"
                 ),
             },
         )

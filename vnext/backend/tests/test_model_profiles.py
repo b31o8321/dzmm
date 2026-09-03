@@ -512,8 +512,10 @@ def test_narrator_context_includes_canonical_world_entities() -> None:
         "factions": [],
         "events": [],
     }
+    assert payload["current_location"] == "灯塔岛"
     assert payload["world_material"]["characters"][0]["details"] == "role：船长；description：寻找航图"
     assert "不要创造未列出的姓名" in payload["narrative_guardrails"]
+    assert "必须围绕 current_location" in payload["narrative_guardrails"]
     assert payload["available_choices"] == [
         {"id": "inspect", "label": "检查灯塔"},
         {"id": "leave", "label": "离开港口"},

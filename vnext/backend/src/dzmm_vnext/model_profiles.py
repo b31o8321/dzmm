@@ -650,6 +650,14 @@ def _narration_body(
     variation = narrative_variation(definition, state, variation_seed or "default-run")
     entity_names = narrative_entity_names(definition)
     world_material = narrative_world_material(definition)
+    current_location = next(
+        (
+            str(item.get("name") or "").strip()
+            for item in definition.get("locations") or []
+            if isinstance(item, dict) and str(item.get("id")) == str(state.get("location_id"))
+        ),
+        "",
+    )
     choice_context: list[dict[str, str]] = []
     story = definition.get("story")
     if isinstance(story, dict) and isinstance(story.get("chapters"), list):
@@ -686,6 +694,7 @@ def _narration_body(
                     "world": definition["name"],
                     "hero": state["hero"]["name"],
                     "location_id": state["location_id"],
+                    "current_location": current_location,
                     "ruleset": state.get("ruleset", {}).get("id"),
                     "chapter": state.get("chapter"),
                     "route": state.get("route"),
@@ -709,7 +718,9 @@ def _narration_body(
                     "narrative_guardrails": (
                         "叙事只能使用 world_entity_names 中的角色、NPC、地点、势力和事件名称；"
                         "world_material 只用于理解这些实体的动机和背景；"
-                        "不要创造未列出的姓名，也不要把内部 ID、模板旧名或关系 ID 写进正文。"
+                        "不要创造未列出的姓名，也不要把内部 ID、模板旧名或关系 ID 写进正文；"
+                        "本回合必须围绕 current_location 对应地点展开，除非 validated_outcomes 明确移动，"
+                        "不得凭空切换到未列出的地点或使用与当前地点冲突的空间描述。"
                     ),
                     "active_lore": [
                         {"id": entry["id"], "title": entry["title"], "body": entry["body"]}
