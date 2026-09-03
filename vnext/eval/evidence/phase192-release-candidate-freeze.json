@@ -1,0 +1,35 @@
+{
+  "phase": 192,
+  "title": "release candidate freeze and artifact fingerprints",
+  "status": "passed",
+  "branch": "feature/dzmm-vnext",
+  "commit": "af0fc4012bdb32ba7880273b912c23e7babb701e",
+  "pr": {
+    "number": 2,
+    "head": "af0fc4012bdb32ba7880273b912c23e7babb701e",
+    "merge_state": "CLEAN",
+    "checks": {
+      "test": "success",
+      "core-and-desktop": "success"
+    }
+  },
+  "artifacts": {
+    "android_release_apk": {
+      "path": "vnext/mobile/build/app/outputs/flutter-apk/app-release.apk",
+      "sha256": "47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0",
+      "size_bytes": 93742153
+    },
+    "macos_arm64_dmg": {
+      "path": "vnext/desktop/src-tauri/target/release/bundle/dmg/DZMM_0.1.0_aarch64.dmg",
+      "sha256": "735201e3e2d0ed151b09d2ee3c8a8edcabe2073bba9c88dcb40aa6039747d917",
+      "size_bytes": 29720062
+    }
+  },
+  "environment": {
+    "macos": "arm64",
+    "android_devices": [],
+    "android_avds": []
+  },
+  "scope": "candidate identity and CI/artifact integrity only; no GUI or emulator acceptance claimed",
+  "score_change": 0
+}
