@@ -710,7 +710,7 @@ macOS arm64 DMG SHA-256 为 `735201e3e2d0ed151b09d2ee3c8a8edcabe2073bba9c88dcb40
 
 ## Phase 193：macOS 当前候选可见 GUI 创建、游玩与新 Run 回放
 
-从 `feature/dzmm-vnext@90d9236` 重建当前 arm64 `DZMM.app`/DMG，并用精确 bundle 路径打开，避免误用
+从 `feature/dzmm-vnext@71ddea9` 重建当前 arm64 `DZMM.app`/DMG，并用精确 bundle 路径打开，避免误用
 旧版 `/Applications/dzmm.app`。Mac 本地 `ollama/qwen2.5:7b` 完成 AI 草案审阅、确认创建新世界、进入
 开场、执行首个选择并看到 `preparing/connecting/generating/applying` 阶段；回合保存了新章节、线索、
 关系变化和 NPC 主动联系。返回世界列表后，刚创建的世界显示世界书 2 条、角色卡 2 张、NPC 4 位，

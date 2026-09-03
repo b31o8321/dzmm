@@ -3,12 +3,12 @@
   "title": "macOS packaged visible GUI create, play, and new-run replay",
   "status": "partial_pass",
   "branch": "feature/dzmm-vnext",
-  "candidate_code_commit": "90d9236",
+  "candidate_code_commit": "71ddea9",
   "package": {
     "app_path": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM.app",
     "dmg_path": "vnext/desktop/src-tauri/target/release/bundle/dmg/DZMM_0.1.0_aarch64.dmg",
-    "dmg_sha256": "2e55e55cdc6f62f77b2791f575509591197afb2d68d07e6fe172190acd34a073",
-    "dmg_size_bytes": 29715229
+    "dmg_sha256": "ef5bbfc70beff34d15c426be91bd60fb99e0ac21326fda15a7101a8990d2f8eb",
+    "dmg_size_bytes": 29716221
   },
   "model": "Qwen 7B package journey / ollama / qwen2.5:7b",
   "journey": [
@@ -22,7 +22,7 @@
   ],
   "findings": [
     "The patched long-run bridge is topic-neutral (暂缓行动，等待更佳时机); the inspected current draft contained no雾港/潮门/雾灯 template terms.",
-    "The first generated turn still contains narrative continuity defects (for example, returning to港口 while the active location is废墟中的天文台) and an awkward NPC insertion; this remains a player-quality blocker.",
+    "After the current-location guardrail was rebuilt into the package, the first generated turn still contains continuity defects (for example, mentioning码头 while the active location is废墟中的天文台) and an awkward NPC insertion; this remains a player-quality blocker.",
     "The visible GUI path reached create, play and independent new-run replay, but a full visible 10-chapter ending and post-ending new-run replay were not completed in this run.",
     "Android emulator and Windows native GUI gates remain unverified."
   ],
