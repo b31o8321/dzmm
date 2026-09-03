@@ -98,7 +98,8 @@ _MODEL_CONTINUATION_HEADING = re.compile(
 _MODEL_META_PARAGRAPH = re.compile(
     r"(?:行动钩子|choice_id|chapter_id|motivation|\\boxed|根据(?:故事|情境|对话|之前的情节)"
     r".{0,24}(?:逻辑|分析|选择|发展)|接下来的(?:情节|情景)|因此[，,]?我选择|可以预测|"
-    r"状态描述为|请回答[，,]?(?:你们|接下来))",
+    r"状态描述为|请回答[，,]?(?:你们|接下来)|根据(?:语境|已知信息|叙述).{0,80}(?:选择|答案|理由|分析)|"
+    r"在转述中|作为答案|理由如下|因此[，,]?答案是|答案是[：:])",
     re.IGNORECASE,
 )
 
@@ -152,6 +153,18 @@ def _remove_model_continuation(value: str) -> str:
     return value
 
 
+def _is_model_meta_paragraph(paragraph: str) -> bool:
+    if _MODEL_META_PARAGRAPH.search(paragraph):
+        return True
+    lines = [line.strip() for line in paragraph.splitlines() if line.strip()]
+    if not lines or not all(_LIST_ITEM.match(line) for line in lines):
+        return False
+    return any(
+        re.search(r"(?:角色|负责|被称为|答案|choice_id|chapter_id|motivation)", line, re.IGNORECASE)
+        for line in lines
+    )
+
+
 def clean_narrative_output(content: str | None) -> str | None:
     """Remove provider wrappers and accidental technical summaries from prose."""
 
@@ -185,7 +198,7 @@ def clean_narrative_output(content: str | None) -> str | None:
         paragraph
         for paragraph in paragraphs
         if not _TECHNICAL_PARAGRAPH.search(paragraph)
-        and not _MODEL_META_PARAGRAPH.search(paragraph)
+        and not _is_model_meta_paragraph(paragraph)
     )
     return value.strip() or None
 

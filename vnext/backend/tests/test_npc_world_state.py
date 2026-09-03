@@ -183,6 +183,19 @@ def test_narrative_cleanup_drops_model_self_analysis_and_latex() -> None:
     assert clean_narrative_output(raw) == "艾尔文抬头看向碑石，指尖捕捉到一缕新出现的蓝光。"
 
 
+def test_narrative_cleanup_drops_qwen_context_analysis_and_role_lists() -> None:
+    raw = (
+        "苏墨把染血的钥匙推到你面前，低声说：‘门后有人。’\n\n"
+        "根据语境分析，答案是选择调查钥匙，理由如下：这符合角色动机。\n\n"
+        "- 林若兮：负责调查线索（choice_id: investigate）\n"
+        "- 苏墨：被称为守门人（chapter_id: gate）\n\n"
+        "在转述中，接下来应该前往旧礼堂。"
+    )
+    assert clean_narrative_output(raw) == (
+        "苏墨把染血的钥匙推到你面前，低声说：‘门后有人。’"
+    )
+
+
 def test_gm_actions_change_npc_reputation_with_hard_bounds() -> None:
     state = initial_state(_definition(), {"id": "hero", "name": "旅人", "profile": {}})
     state["revision"] = 4
