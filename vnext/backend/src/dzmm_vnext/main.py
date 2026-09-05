@@ -58,6 +58,7 @@ from .core import (
     validate_world_draft,
 )
 from .db import create_engine
+from .genre_presets import genre_preset_list
 from .world_templates import d20_frontier_template, fog_harbor_template
 
 
@@ -152,6 +153,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/v2/world-templates/d20-frontier")
     async def get_d20_frontier_template() -> dict[str, object]:
         return d20_frontier_template()
+
+    @app.get("/api/v2/genre-presets")
+    async def get_genre_presets() -> list[dict[str, object]]:
+        return genre_preset_list()
 
     @app.get("/api/v2/runs/{run_id}:export")
     async def export_run(run_id: str) -> dict[str, object]:

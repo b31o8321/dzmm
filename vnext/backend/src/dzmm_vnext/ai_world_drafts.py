@@ -9,6 +9,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from .contracts import contract_validator
 from .generated_world_repair import _unique_named_entities, extend_story_for_long_run
+from .genre_presets import resolve_genre
 from .model_profiles import ModelDraftGenerator, ModelProfileService, NarrationError
 from .narrative import NarrativeRuleError, validate_definition
 from .operation_control import OperationRegistry
@@ -416,7 +417,10 @@ def _generation_prompt(payload: AIWorldDraftInput) -> dict[str, Any]:
             "location_links 最多 4 项，每项只能含 from_location、to_location、direction、travel_turns。"
             "这些字段只能描述世界素材，不能写入状态、命令、规则、效果或脚本。所有文本用简洁中文。"
         ),
-        "brief": payload.model_dump(exclude={"model_profile_id", "request_id"}),
+        "brief": {
+            **payload.model_dump(exclude={"model_profile_id", "request_id"}),
+            "genre": resolve_genre(payload.genre),
+        },
         "first_slice": "给出三章节互动叙事素材，并补充 1 到 4 个有动机的 NPC、至少 1 个可追踪世界事件、"
         "可选势力和地点连接；Python 会独立生成所有 choice、Flag、关系事件和结局规则。",
     }
