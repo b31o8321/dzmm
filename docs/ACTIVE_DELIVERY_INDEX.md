@@ -29,6 +29,17 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 证据：`cd vnext/backend && uv run --extra dev pytest -q` → **169 passed**；ruff 全绿。
 遗留：桌面端 ai-compose/游玩页对 genre-presets 与 attack 命令的 UI 接线（Wave1 收尾项，随桌面改造进行）。
 
+## 2026-09-05 Wave2 gate 收尾进展
+
+按 [执行计划](superpowers/plans/2026-09-05-vnext-absorb-and-cutover.md) 推进三项验收证据（维护者决定：Windows 豁免、Android 以模拟器为标准）：
+
+- **③ cutover 回滚演练 PASS**（`ce9b098`）：从 `dzmm-legacy-v0.16.0-2026-08-30` 恢复旧版并以隔离 HOME 启动，/health 返回 v0.16.0，真实用户数据未动。步骤见 [acceptance/2026-09-05-cutover-rollback-drill.md](acceptance/2026-09-05-cutover-rollback-drill.md)。
+- **② Android 模拟器复验 PASS**（`22ef9bc`，[phase195](../vnext/eval/evidence/phase195-android-combat-merge-journey-reverify.json)）：combat 合入后的 release APK 重跑完整玩家旅程——AI 草案→compose→开场→10 回合（路线锁定/章节推进 2→7/NPC 主动）→120s 超时零写入→强停恢复→正式好结局（第10回合）→同 World 新旅程（新主角旅行者）。玩家评分暂记 92。
+- **① macOS 安装包 GUI 验收受阻（环境阻塞）**（[phase196](../vnext/eval/evidence/phase196-macos-package-rebuild-and-gui-blocked.json)）：候选 .app 已重建（sidecar 修复了 pyenv 环境缺 alembic 的问题，冒烟通过；应用内嵌 sidecar 在 8765 健康运行且携带更新后的 contracts）。但 ZCode 的辅助功能与屏幕录制 TCC 权限被拒，无法截图走查 GUI。**恢复条件**：系统设置→隐私与安全性→给 "ZCode Computer Use.app" 授予辅助功能与屏幕录制，完全重启 ZCode 后重跑 GUI 走查。**该 gate 项保持未验收，不得计入。**
+- DMG 打包脚本失败（.app 已产出）；恢复条件：有 Finder/AppleScript 自动化时重跑 `npm run tauri:build`。
+
+**对照 85 分门槛的差距**：桌面旅程 95（phase193，旧候选）→ 需在合并后候选上重验；Android 92（phase195）；macOS 待授权后走查。剩余阻断项 = macOS 可见 GUI 主路径 + Wave2 第 5 项（统一命名/数据目录 ADR，属 M3）。
+
 ## Canonical artifacts
 
 - [ADR-008：每个平台都是 Local Host](adr/ADR-008-local-host-on-every-platform.md)
