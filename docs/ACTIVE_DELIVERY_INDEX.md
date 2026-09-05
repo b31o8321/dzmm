@@ -17,6 +17,18 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 
 完成门槛：所有 P0 维度及整体成熟度均 >=85；正式代码、UI、测试、配置、依赖、迁移和发布产物中不再存在废弃的 remote/LAN/mDNS/QR/pairing/scope 能力。统一命名和旧版删除遵循 [ADR-010：单一 DZMM 受控替换](adr/ADR-010-single-dzmm-cutover.md)，在发布 gate 通过前不可执行不可逆删除。
 
+## 2026-09-05 Wave1 旧版精华吸收（后端完成）
+
+按 [执行计划](superpowers/plans/2026-09-05-vnext-absorb-and-cutover.md) 完成 Wave1 后端四项：
+
+- **A 战斗 capability**（`d17836b`）：`core/combat.py` 确定性 d20 结算（nat20/nat1/大在第 20 骰翻倍/HP 归零 defeated），默认公式可被 `ruleset.combat_rules` 与 NPC/Hero 定义级属性覆盖；`attack` 命令入引擎白名单，`combat` capability 门控（trpg/hybrid）。
+- **B D20 预设**（`94d3213`）：`d20_frontier_template`（`/api/v2/world-templates/d20-frontier`），hybrid 规则集 + 章节选择 + 双结局 + ruleset 级战斗数值覆盖示例；三个契约（turn_command/run_state/world_definition）同步 combat。
+- **C genre 预设**（`a7a3be8`）：五个 canonical genres（悬疑探案/英雄成长/政治阴谋/灾难求生/恋爱攻略）经 `GET /api/v2/genre-presets` 暴露，命中预设时向导 brief 展开引导，自由文本 genre 仍可用。
+- **D SillyTavern 互通深化**：v3 卡导入保留 alternate_greetings/creator_notes/creator/character_version/tags/system_prompt/post_history_instructions（此前全部忽略，现仅忽略 extensions），原生卡导出回填上述字段；新增真实 ST 样本的卡/世界书往返测试。
+
+证据：`cd vnext/backend && uv run --extra dev pytest -q` → **169 passed**；ruff 全绿。
+遗留：桌面端 ai-compose/游玩页对 genre-presets 与 attack 命令的 UI 接线（Wave1 收尾项，随桌面改造进行）。
+
 ## Canonical artifacts
 
 - [ADR-008：每个平台都是 Local Host](adr/ADR-008-local-host-on-every-platform.md)

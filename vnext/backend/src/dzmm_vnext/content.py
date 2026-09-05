@@ -202,18 +202,32 @@ def _native_character_card_to_v3(card: dict[str, Any]) -> dict[str, Any]:
     name = card.get("name")
     if not isinstance(name, str) or not name:
         raise TypeError("native character card has no name")
+    data: dict[str, Any] = {
+        "name": name,
+        "description": _mapped_text(mapped, "description"),
+        "personality": _mapped_text(mapped, "personality"),
+        "scenario": _mapped_text(mapped, "scenario"),
+        "first_mes": _mapped_text(mapped, "first_mes"),
+        "mes_example": _mapped_text(mapped, "mes_example"),
+        "character_book": {"entries": []},
+    }
+    for key in (
+        "creator_notes",
+        "creator",
+        "character_version",
+        "system_prompt",
+        "post_history_instructions",
+    ):
+        if _mapped_text(mapped, key):
+            data[key] = mapped[key]
+    if isinstance(mapped.get("alternate_greetings"), list) and mapped["alternate_greetings"]:
+        data["alternate_greetings"] = mapped["alternate_greetings"]
+    if isinstance(mapped.get("tags"), list) and mapped["tags"]:
+        data["tags"] = mapped["tags"]
     return {
         "spec": "chara_card_v3",
         "spec_version": "3.0",
-        "data": {
-            "name": name,
-            "description": _mapped_text(mapped, "description"),
-            "personality": _mapped_text(mapped, "personality"),
-            "scenario": _mapped_text(mapped, "scenario"),
-            "first_mes": _mapped_text(mapped, "first_mes"),
-            "mes_example": _mapped_text(mapped, "mes_example"),
-            "character_book": {"entries": []},
-        },
+        "data": data,
     }
 
 

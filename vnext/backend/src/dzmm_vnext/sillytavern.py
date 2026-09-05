@@ -14,6 +14,18 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 MAX_PNG_BYTES = 16 * 1024 * 1024
 MAX_METADATA_BYTES = 8 * 1024 * 1024
 
+# High-frequency chara_card_v3 fields preserved verbatim on import so a later
+# export can hand them back to SillyTavern without loss.
+_V3_PRESERVED_EXTRAS = (
+    "alternate_greetings",
+    "creator_notes",
+    "creator",
+    "character_version",
+    "tags",
+    "system_prompt",
+    "post_history_instructions",
+)
+
 
 class ImportReport(BaseModel):
     source_format: str
@@ -68,6 +80,11 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
         for key in ("description", "personality", "scenario", "first_mes", "mes_example")
         if _string(data.get(key))
     }
+    extras = {
+        key: data[key]
+        for key in _V3_PRESERVED_EXTRAS
+        if data.get(key) not in (None, "", [])
+    }
     return ImportedContent(
         suggested_hero={"name": name, "profile": profile},
         lorebook={"entries": lorebook_entries},
@@ -78,6 +95,7 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
                 "format": "sillytavern_v3",
                 "mapped": {
                     **profile,
+                    **extras,
                     "character_book_entry_ids": [entry["id"] for entry in lorebook_entries],
                 },
                 "source_payload": payload,
@@ -85,9 +103,19 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
         ],
         report=ImportReport(
             source_format="sillytavern_v3_character_card",
-            supported_fields=["data.name", "data.character_book.entries"],
-            preserved_fields=["data.description", "data.personality", "data.scenario", "entry raw fields"],
-            ignored_fields=["extensions", "alternate_greetings", "creator_notes"],
+            supported_fields=[
+                "data.name",
+                "data.character_book.entries",
+                *[f"data.{key}" for key in _V3_PRESERVED_EXTRAS],
+            ],
+            preserved_fields=[
+                "data.description",
+                "data.personality",
+                "data.scenario",
+                "v3 metadata fields",
+                "entry raw fields",
+            ],
+            ignored_fields=["extensions"],
             warnings=warnings,
         ),
     )
