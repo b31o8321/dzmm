@@ -1,6 +1,6 @@
 # DZMM replacement-candidate Active Delivery Index
 
-更新时间：2026-09-03
+更新时间：2026-09-05
 工作树：`.worktrees/dzmm-vnext`
 分支：`feature/dzmm-vnext`
 基线：`main` at `df38037`
@@ -30,6 +30,7 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 - [三端玩家能力与代码质量评分](reviews/2026-08-21-cross-platform-player-code-scorecard.md)
 - [玩家旅程验收清单](acceptance/2026-08-21-player-journey-acceptance.md)
 - [玩家闭环交互原型](prototypes/2026-08-21-player-loop.html)
+- [vNext 吸收旧版精华与单线化执行计划](superpowers/plans/2026-09-05-vnext-absorb-and-cutover.md)（2026-09-05 Proposed：Wave1 战斗 capability + genre 模板 → Wave2 gate 收尾 → 受控 cutover → Wave3 按需吸收多 Agent/RAG/TTS）
 
 历史 ADR、规格、截图和 evidence 不再作为当前能力证明；仍保留的历史快照已标记
 `historical-superseded`，不得计入当前矩阵。
