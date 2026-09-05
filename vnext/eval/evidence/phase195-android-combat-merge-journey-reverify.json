@@ -1,0 +1,52 @@
+{
+  "phase": 195,
+  "date": "2026-09-05",
+  "title": "Android emulator re-verification of the full player journey on the combat-merged candidate",
+  "branch": "feature/dzmm-vnext",
+  "candidate_code_commit": "a042d42",
+  "build": {
+    "apk": "vnext/mobile/build/app/outputs/flutter-apk/app-release.apk (93.8MB, flutter build apk --release)",
+    "python_core": "chaquopy embeds vnext/backend/src directly; the build therefore includes the combat capability, d20 template, genre presets and SillyTavern interop merges",
+    "emulator": "emulator-5554 (AVD dzmm-ux-api36, android-36, -no-window)"
+  },
+  "model": {
+    "provider": "ollama",
+    "model_name": "qwen2.5:7b",
+    "endpoint": "http://10.0.2.2:11434",
+    "probe": "passed via Android UI: 可用 · protocol response contains content"
+  },
+  "journey": [
+    "New AI world draft 潮汐之门 (theme/tone/conflict kept from the form) generated with qwen2.5:7b and passed local rule validation; the takeover banner confirmed chapters/choices/endings were engine-authored.",
+    "Confirmed the draft, composed the world and entered a new run as 林若兮; the opening story beat showed location, protagonist, NPC dialogue, objective, guidance and two choices.",
+    "Completed 10 model-backed turns: route lock (林若兮路线), chapter progression 线索推进 2→7, structured NPC initiatives (林若兮/李老渔/墨离/云影) with pending-interaction feedback and choices fixed at the bottom.",
+    "One turn exceeded the 120s model timeout; the failure banner showed 原状态未改变 / 没有写入结果 (zero-write boundary) with a retry action.",
+    "Retried the final-chapter choice; the model returned after the host slept, and after a force-stop + relaunch the completed run restored correctly showing 旅程完成·好结局 at 第10回合.",
+    "World list showed 潮汐之门 with the completed journey; 开始新旅程 created an independent second run with a different hero (旅行者) and opened a fresh opening beat with its own choices."
+  ],
+  "screens": [
+    "screens/phase195/01-model-profile-probe-pass.png",
+    "screens/phase195/02-draft-review-validated.png",
+    "screens/phase195/03-opening-story-beat.png",
+    "screens/phase195/04-turn3-route-and-chapter.png",
+    "screens/phase195/05-timeout-zero-write-error.png",
+    "screens/phase195/06-good-ending-after-force-stop-restart.png",
+    "screens/phase195/07-world-list.png",
+    "screens/phase195/08-same-world-new-run-opening.png"
+  ],
+  "verification": {
+    "combat_no_regression": "the whole journey ran on the merged core (chaquopy-embedded backend/src); engine-level combat coverage remains in vnext/backend tests (test_combat.py, test_d20_frontier.py). AI-drafted worlds do not enable the combat capability, matching the ruleset design.",
+    "timeout_zero_write": "observed on screen; retry succeeded without duplicating state",
+    "force_stop_recovery": "completed run restored after am force-stop + relaunch",
+    "formal_ending": "good ending reached at turn 10",
+    "same_world_new_run": "passed with a different hero"
+  },
+  "findings": [
+    "UI refresh gap: after the retried turn succeeded while the app stayed foreground during a host sleep, the play screen kept showing stale history until force-stop + relaunch; data was never lost (recovered from the local store). Registered as a desktop/mobile polish item, not a data-integrity defect.",
+    "NPC-initiative interstitials keep the choice area stable, which made adb coordinate tapping reliable."
+  ],
+  "score": {
+    "player": 92,
+    "change": -3,
+    "reason": "journey fully reproduced post-merge including failure and recovery paths; minor deduction for the stale-UI-after-background-refresh gap observed on the play screen."
+  }
+}
