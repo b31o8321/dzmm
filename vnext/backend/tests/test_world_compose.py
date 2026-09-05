@@ -64,6 +64,7 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
         "inventory": [],
         "entities": {},
         "events": {},
+        "combat": {"participants": {}},
         "location_state": {
             "harbor": {
                 "known": True,

@@ -1377,6 +1377,7 @@ def _validate_command(command: dict[str, Any]) -> None:
         "narrate",
         "offer_choices",
         "roll_dice",
+        "attack",
         "move",
         "set_entity_state",
         "set_event_state",

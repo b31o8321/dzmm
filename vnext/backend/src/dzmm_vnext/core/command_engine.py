@@ -17,6 +17,7 @@ from ..narrative import (
     choose_story_choice,
     evaluate_endings,
 )
+from .combat import apply_attack
 
 
 def apply_commands(
@@ -58,6 +59,12 @@ def apply_commands(
             if not isinstance(sides, int) or not 2 <= sides <= 100:
                 raise error_type("roll_dice requires sides from 2 to 100")
             outcomes.append({"type": "roll_dice", "sides": sides, "result": randbelow(sides) + 1})
+        elif command_type == "attack":
+            _require_capability(state, "combat", error_type)
+            try:
+                outcomes.append(apply_attack(state, definition, payload))
+            except NarrativeRuleError as error:
+                raise error_type(str(error)) from error
         elif command_type == "move":
             _require_capability(state, "trpg", error_type)
             location_id = payload.get("location_id")

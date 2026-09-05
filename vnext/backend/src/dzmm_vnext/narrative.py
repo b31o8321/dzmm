@@ -11,10 +11,10 @@ class NarrativeRuleError(ValueError):
 
 
 _CAPABILITIES_BY_RULESET = {
-    "trpg": {"trpg", "resources"},
+    "trpg": {"trpg", "resources", "combat"},
     "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
     "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
-    "hybrid": {"trpg", "chapters", "choices", "relationships", "routes", "endings", "resources"},
+    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources"},
 }
 
 
@@ -179,6 +179,7 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
         "inventory": [],
         "entities": {},
         "events": {},
+        "combat": {"participants": {}},
         "location_state": {
             location["id"]: {
                 "known": index == 0,
