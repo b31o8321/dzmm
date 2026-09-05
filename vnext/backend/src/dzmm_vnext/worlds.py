@@ -33,6 +33,7 @@ class HeroInput(BaseModel):
 
     name: str = Field(min_length=1, max_length=120)
     profile: dict[str, Any] = Field(default_factory=dict)
+    combat: dict[str, Any] | None = None
 
 
 class ComposeWorldInput(BaseModel):
@@ -471,10 +472,10 @@ class WorldComposer:
 
 
 def _initial_state(definition: dict[str, Any], hero_id: str, hero: HeroInput) -> dict[str, Any]:
-    return initial_state(
-        definition,
-        {"id": hero_id, "name": hero.name, "profile": hero.profile},
-    )
+    hero_state = {"id": hero_id, "name": hero.name, "profile": hero.profile}
+    if hero.combat is not None:
+        hero_state["combat"] = hero.combat
+    return initial_state(definition, hero_state)
 
 
 def _fingerprint(payload: ComposeWorldInput) -> str:

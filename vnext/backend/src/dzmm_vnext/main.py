@@ -58,7 +58,7 @@ from .core import (
     validate_world_draft,
 )
 from .db import create_engine
-from .world_templates import fog_harbor_template
+from .world_templates import d20_frontier_template, fog_harbor_template
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -148,6 +148,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/v2/world-templates/fog-harbor")
     async def get_fog_harbor_template() -> dict[str, object]:
         return fog_harbor_template()
+
+    @app.get("/api/v2/world-templates/d20-frontier")
+    async def get_d20_frontier_template() -> dict[str, object]:
+        return d20_frontier_template()
 
     @app.get("/api/v2/runs/{run_id}:export")
     async def export_run(run_id: str) -> dict[str, object]:

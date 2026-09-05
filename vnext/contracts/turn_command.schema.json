@@ -2,6 +2,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dzmm.local/contracts/turn-command/2026-08-17",
   "title": "TurnCommand", "type": "object", "required": ["type", "payload"],
-  "properties": {"type": {"enum": ["narrate", "offer_choices", "roll_dice", "move", "set_entity_state", "set_event_state", "inventory_change", "choose_story_choice", "advance_chapter", "evaluate_endings"]}, "payload": {"type": "object"}},
+  "properties": {"type": {"enum": ["narrate", "offer_choices", "roll_dice", "attack", "move", "set_entity_state", "set_event_state", "inventory_change", "choose_story_choice", "advance_chapter", "evaluate_endings"]}, "payload": {"type": "object"}},
   "additionalProperties": false
 }

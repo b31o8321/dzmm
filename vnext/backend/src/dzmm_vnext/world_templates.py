@@ -296,3 +296,116 @@ def fog_harbor_template() -> dict[str, Any]:
         },
     }
     return {"world_definition": deepcopy(definition), "hero": {"name": "米拉", "profile": {"origin": "水手"}}}
+
+
+def d20_frontier_template() -> dict[str, Any]:
+    """Return the deterministic d20-style TRPG sample exercising the combat capability.
+
+    Combat numbers come from ``ruleset.combat_rules`` overrides merged over the
+    engine defaults; the wounded scout keeps definition-level stats empty to
+    show plain NPCs fall back to role defaults.
+    """
+
+    definition = {
+        "schema_version": 3,
+        "name": "D20 边境前哨",
+        "lorebook": {
+            "entries": [
+                {
+                    "id": "frontier-law",
+                    "title": "边境法则",
+                    "body": "废墟的主人在夜里巡猎，火光是唯一的谈判筹码。",
+                    "activation": "always",
+                    "priority": 90,
+                }
+            ]
+        },
+        "character_cards": [],
+        "locations": [
+            {"id": "camp", "name": "边境营地"},
+            {"id": "ruins", "name": "哨塔废墟"},
+        ],
+        "factions": [],
+        "npcs": [
+            {
+                "id": "goblin-chief",
+                "name": "哥布林头目",
+                "location_id": "ruins",
+                "combat": {"max_hp": 14, "ac": 12, "attack_bonus": 3, "damage": {"count": 1, "sides": 6, "bonus": 1}},
+            },
+            {"id": "wounded-scout", "name": "受伤的斥候", "location_id": "camp"},
+        ],
+        "events": [],
+        "resources": [
+            {"id": "healing-herb", "name": "治疗草药"},
+            {"id": "iron-sword", "name": "铁剑"},
+        ],
+        "ruleset": {
+            "id": "hybrid",
+            "enabled_capabilities": [
+                "trpg",
+                "combat",
+                "chapters",
+                "choices",
+                "endings",
+                "resources",
+            ],
+            "combat_rules": {
+                "hero": {
+                    "max_hp": 22,
+                    "ac": 13,
+                    "attack_bonus": 4,
+                    "damage": {"count": 1, "sides": 10, "bonus": 2},
+                }
+            },
+        },
+        "story": {
+            "flags": [
+                {"id": "chief-confronted", "default": False, "writers": ["choice:confront-chief"]},
+                {"id": "ruins-avoided", "default": False, "writers": ["choice:avoid-ruins"]},
+            ],
+            "relationships": [],
+            "relationship_events": [],
+            "routes": [],
+            "chapters": [
+                {
+                    "id": "ch1",
+                    "title": "哨塔废墟之夜",
+                    "order": 1,
+                    "next_chapter_id": None,
+                    "choices": [
+                        {
+                            "id": "confront-chief",
+                            "label": "夜袭废墟，正面迎战头目",
+                            "effects": [{"type": "set_story_flag", "flag_id": "chief-confronted", "value": True}],
+                        },
+                        {
+                            "id": "avoid-ruins",
+                            "label": "护送斥候，绕开废墟",
+                            "effects": [{"type": "set_story_flag", "flag_id": "ruins-avoided", "value": True}],
+                        },
+                    ],
+                }
+            ],
+            "endings": [
+                {
+                    "id": "chief-felled",
+                    "kind": "good",
+                    "priority": 100,
+                    "narrative_key": "ending.chief_felled",
+                    "when": {"flag": "chief-confronted", "equals": True},
+                },
+                {
+                    "id": "quiet-frontier",
+                    "kind": "normal",
+                    "priority": 50,
+                    "narrative_key": "ending.quiet_frontier",
+                    "when": {"flag": "ruins-avoided", "equals": True},
+                },
+            ],
+        },
+    }
+    return {
+        "world_definition": deepcopy(definition),
+        "hero": {"name": "艾登", "profile": {"origin": "frontier-scout"}, "combat": {"max_hp": 22}},
+    }
