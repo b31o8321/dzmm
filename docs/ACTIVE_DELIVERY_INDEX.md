@@ -1,13 +1,28 @@
-# DZMM replacement-candidate Active Delivery Index
+# DZMM Active Delivery Index（cutover 后本文件即唯一交付索引）
 
-更新时间：2026-09-05
-工作树：`.worktrees/dzmm-vnext`
-分支：`feature/dzmm-vnext`
-基线：`main` at `df38037`
+更新时间：2026-09-06
+**规范检出**：`/Users/norman/development/dzmm` @ `main`（cutover 已合入，单一产品树：
+backend/ desktop/ mobile/ contracts/ eval/ packaging/）
+历史分支：`feature/dzmm-vnext`（工作树 `.worktrees/dzmm-vnext`，只读保留）；
+回滚资产：tag `dzmm-legacy-v0.16.0-2026-08-30`
+基线：cutover 合并提交 `2983a2e`（main，未推送远端、未打 tag）
 
-## 当前目标
+## 2026-09-06 M4 cutover 完成
 
-DZMM vNext 是“本地优先、状态驱动的互动叙事平台”。macOS、Windows、Android
+- 旧版 backend/（schema v2）与 frontend/ 移除；vnext 树提升为仓库根目录单一产品树（`304e2ca`）。
+- CI（release/backend-ci/e2e）、ARCHITECTURE.md、INDEX 路径引用已切换到新结构。
+- 全量验证（均在 cutover 分支执行）：backend 169 passed + ruff 全绿；desktop vitest 36/36 + build；
+  flutter 25/25；tauri build 产出 .app 并验证内嵌 sidecar `/health`（app=dzmm）。DMG 打包脚本仍 flaky（已知）。
+- main 合并以 `--no-ff` 完成（`2983a2e`），未推送远端、未打 tag、未发版——发布由维护者另行决定。
+- 已知遗留：①macOS Tauri 包装窗口的可见走查待 TCC 授权（phase196/197 已覆盖 sidecar+桌面 UI+Android）；②
+  旧版本地构建产物遗留（backend/.venv、backend/dist、frontend/node_modules 等，未删除，可手动清理）；
+  ③多题材健壮性增强（genre 参数化骨架、修复器补规则）见 docs/reviews/2026-09-06-multi-genre-diversity-review.md。
+
+## 2026-09-05 Wave2 gate 收尾进展
+
+### 当前目标（产品定位）
+
+DZMM 是“本地优先、状态驱动的互动叙事平台”：macOS、Windows、Android
 都是独立 Local Host：本机 SQLite、共享 Python 状态裁判和完整 ModelProfile。跨设备只允许
 用户明确执行的 portable export/import/clone，不做自动同步或同一 Run 双端写入。
 

@@ -2,6 +2,22 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [Unreleased] - cutover 至单一 DZMM
+
+**受控替换（ADR-010 第 5 步，维护者授权）**
+
+- 旧版 backend/（schema v2）与 frontend/ 从仓库移除；vnext 树提升为唯一产品树
+  （backend/ desktop/ mobile/ contracts/ eval/ packaging/），回滚资产：tag
+  `dzmm-legacy-v0.16.0-2026-08-30` 与 `feature/dzmm-vnext` 分支
+- 产品命名统一（ADR-011）：包 `dzmm`、二进制 `dzmm-backend`、/health `app=dzmm`、
+  默认数据目录 `~/.dzmm/`（库 `dzmm-v3.db`，旧 `dzmm.db` 不读不写不迁移）
+- 本地优先单人 AI TRPG 完整能力：AI 世界草案（genre 预设 + 确定性修复）、命令引擎
+  （骰子/战斗/物品/谓词）、多协议模型档案、流式回合、portable bundle、SillyTavern
+  互通、Tauri 桌面 + Flutter Android 双 Local Host、169 项后端测试与 evidence-first
+  成熟度评分
+- 遗留：macOS Tauri 包装窗口的可见走查待宿主屏幕录制/辅助功能授权后补验
+  （phase196/197 已覆盖 sidecar、桌面 UI 与 Android 旅程）
+
 ## [v0.16.0] - 2026-07-30
 
 **成熟度与运行态一致性**
