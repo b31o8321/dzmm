@@ -18,6 +18,15 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
   旧版本地构建产物遗留（backend/.venv、backend/dist、frontend/node_modules 等，未删除，可手动清理）；
   ③多题材健壮性增强（genre 参数化骨架、修复器补规则）见 docs/reviews/2026-09-06-multi-genre-diversity-review.md。
 
+## 2026-09-06 四题材真模型复验通过（远程 qwen3-14b）
+
+[证据](../eval/2026-09-06-four-genre-live-verification.json)：远程 LM Studio
+qwen3-14b 上四个题材草案全部通过校验并生成，章节名/选择标签按 genre 骨架互不相同
+（疑点追踪/资源消耗/暗流涌动/对抗升级）。修复链实测吞掉三类形状漂移（world_definition
+整体解包、lore 混事件字段、trigger_turn 越界）。草案生成 max_tokens 4096→8192 修复
+长草案 JSON 截断。已知模型侧问题：该 LM Studio 实例上下文偏小，悬疑题材长提示曾
+触发 Context size exceeded（非代码问题）。
+
 ## 2026-09-06 多题材健壮性增强完成（多样性评审三项落地）
 
 依据 [多样性评审](reviews/2026-09-06-multi-genre-diversity-review.md)：
