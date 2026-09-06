@@ -234,6 +234,76 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
     normalized = deepcopy(payload)
     repairs: list[str] = []
 
+    # 部分模型（qwen3-14b 实测）会跳过素材格式，直接输出最终 world_definition 形状。
+    # 解包其中可安全映射的创作素材，交给既有校验与骨架；不可救部分由校验兜底。
+    wrapper = normalized.get("world_definition")
+    if isinstance(wrapper, dict) and "world_name" not in normalized:
+        lore_entries = [
+            {"title": item.get("title") or "背景设定", "body": item.get("body") or ""}
+            for item in (wrapper.get("lorebook") or {}).get("entries") or []
+            if isinstance(item, dict) and str(item.get("body") or "").strip()
+        ]
+        characters = [
+            {
+                "name": card.get("name"),
+                "role": card.get("role") or card.get("origin") or "来历不明",
+                "description": card.get("description") or card.get("role") or "……",
+            }
+            for card in wrapper.get("character_cards") or []
+            if isinstance(card, dict) and str(card.get("name") or "").strip()
+        ]
+        hero_source = payload.get("hero") if isinstance(payload.get("hero"), dict) else {}
+        hero_name = str(hero_source.get("name") or "").strip()
+        hero_origin = str(
+            (hero_source.get("profile") or {}).get("origin")
+            if isinstance(hero_source.get("profile"), dict)
+            else ""
+        ).strip()
+        summary = lore_entries[0]["body"] if lore_entries else f"{wrapper.get('name') or '未知'}的原创故事。"
+        if not lore_entries:
+            lore_entries = [{"title": "背景设定", "body": summary}]
+        extracted = {
+            "world_name": wrapper.get("name"),
+            "summary": summary,
+            "hero": {"name": hero_name, "origin": hero_origin or "来历不明"},
+            "locations": [
+                str(item.get("name") or "").strip()
+                for item in wrapper.get("locations") or []
+                if isinstance(item, dict) and str(item.get("name") or "").strip()
+            ][:3],
+            "characters": characters,
+            "lore": lore_entries[:4],
+            "npcs": [
+                {
+                    key: value
+                    for key, value in npc.items()
+                    if key in {"name", "role", "description", "motivation", "location", "contact_cooldown_turns", "faction", "reputation"}
+                }
+                for npc in wrapper.get("npcs") or []
+                if isinstance(npc, dict) and str(npc.get("name") or "").strip()
+            ][:4],
+            "factions": [
+                {
+                    key: value
+                    for key, value in faction.items()
+                    if key in {"name", "description", "initial_tension", "passive_gain_per_turn", "threshold_conflict"}
+                }
+                for faction in wrapper.get("factions") or []
+                if isinstance(faction, dict) and str(faction.get("name") or "").strip()
+            ][:3],
+            "events": [
+                {
+                    key: value
+                    for key, value in event.items()
+                    if key in {"name", "summary", "location", "importance", "trigger_turn", "initial_active", "trigger", "completion"}
+                }
+                for event in wrapper.get("events") or []
+                if isinstance(event, dict) and str(event.get("name") or "").strip()
+            ][:4],
+        }
+        normalized = extracted
+        repairs.append("已从 world_definition 形状解包创作素材")
+
     factions = normalized.get("factions")
     if isinstance(factions, list):
         for index, faction in enumerate(factions):
@@ -735,6 +805,7 @@ def _rename_story_surface(
         world_name,
         locations,
         [character.name for character in characters],
+        skeleton=skeleton,
     )
 
 
