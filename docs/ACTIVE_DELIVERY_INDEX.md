@@ -18,6 +18,17 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
   旧版本地构建产物遗留（backend/.venv、backend/dist、frontend/node_modules 等，未删除，可手动清理）；
   ③多题材健壮性增强（genre 参数化骨架、修复器补规则）见 docs/reviews/2026-09-06-multi-genre-diversity-review.md。
 
+## 2026-09-06 M5 Director 长线节奏注入完成（ADR-012）
+
+[ADR-012](adr/ADR-012-director-pacing-injection.md) 已实施：每 6 个已提交回合由后台任务
+调用该 Run 的模型档案产出 `{"tension","hook"}` 节奏注释（白名单+120 字截断），存入
+`director_notes`（迁移 0013）；下个周期内注入 GM 请求 payload 的 `director_note` 字段，
+system prompt 标注为仅供参考。任何失败静默降级（单 GM 照常、回合零写入语义不变）。
+双路径接线：HTTP（turns.TurnCoordinator asyncio task）与内嵌（core_runtime daemon 线程，
+Android 共用）。回合关键路径零增加（后台执行）。
+验证：backend 177 passed（新增 8 项 Director 测试：解析/门控/新鲜度/请求预算/集成
+存储+注入/失败降级）+ ruff 全绿；desktop vitest 36/36。
+
 ## 2026-09-05 Wave2 gate 收尾进展
 
 ### 当前目标（产品定位）
