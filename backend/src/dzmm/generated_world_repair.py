@@ -11,6 +11,7 @@ def extend_story_for_long_run(
     world_name: str,
     locations: list[str],
     character_names: list[str],
+    skeleton: dict[str, Any] | None = None,
 ) -> bool:
     """Extend the compact three-chapter AI skeleton into a playable campaign."""
 
@@ -23,34 +24,40 @@ def extend_story_for_long_run(
         or not character_names
     ):
         return False
+    from .genre_presets import DEFAULT_SKELETON
+
+    labels = skeleton or DEFAULT_SKELETON
     terminal = deepcopy(chapters.pop())
     terminal["id"] = "ch10"
     terminal["order"] = 10
     terminal["next_chapter_id"] = None
-    terminal["title"] = f"{locations[1]}的最终决断"
-    terminal["choices"][0]["label"] = f"在{locations[1]}完成关键行动"
-    # Keep the long-run bridge topic-neutral.  “潮汐” belongs to the offline
-    # Fog Harbor example and leaking it into an AI-authored world makes the
-    # generated setting feel like a reskinned template.
-    terminal["choices"][1]["label"] = "暂缓行动，等待更佳时机"
+    terminal["title"] = labels["terminal_title"].format(location=locations[1])
+    terminal["choices"][0]["label"] = labels["terminal_choices"][0].format(
+        location=locations[1]
+    )
+    terminal["choices"][1]["label"] = labels["terminal_choices"][1]
     for order in range(3, 10):
         location = locations[(order - 1) % len(locations)]
         character = character_names[(order - 3) % len(character_names)]
         chapters.append(
             {
                 "id": f"ch{order}",
-                "title": f"{world_name}·线索推进 {order - 2}",
+                "title": labels["longrun_title"].format(world=world_name, n=order - 2),
                 "order": order,
                 "next_chapter_id": f"ch{order + 1}",
                 "choices": [
                     {
                         "id": f"investigate-{order}",
-                        "label": f"在{location}追查新线索",
+                        "label": labels["longrun_choices"][0].format(
+                            location=location, character=character
+                        ),
                         "effects": [],
                     },
                     {
                         "id": f"ask-{order}",
-                        "label": f"向{character}询问进展",
+                        "label": labels["longrun_choices"][1].format(
+                            location=location, character=character
+                        ),
                         "effects": [],
                     },
                 ],
