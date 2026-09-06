@@ -18,6 +18,20 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
   旧版本地构建产物遗留（backend/.venv、backend/dist、frontend/node_modules 等，未删除，可手动清理）；
   ③多题材健壮性增强（genre 参数化骨架、修复器补规则）见 docs/reviews/2026-09-06-multi-genre-diversity-review.md。
 
+## 2026-09-06 多题材健壮性增强完成（多样性评审三项落地）
+
+依据 [多样性评审](reviews/2026-09-06-multi-genre-diversity-review.md)：
+
+- 修复器新增确定性规则：characters 剥离 NPC 专属字段、lore 剥离事件字段、
+  events.trigger_turn clamp 到 [1,40]——多样性测试中灾难求生草案的两类真实失败
+  现在都被吞掉（新增 3 项针对性测试）。
+- 章节骨架按 genre 参数化：六个预设各带章节名模式与选择标签集（新增"蒸汽朋克西部"
+  预设），自由文本 genre 回退历史默认标签；ID 唯一性/flag 写入者/结局白名单语义不变。
+- 开场叙事与 NPC 首句台词按骨架提供变体，并按 世界名+主角名 确定性轮换（同一 Run
+  稳定、跨 Run 变化）。
+- 验收：新增 test_genre_robustness.py（修复器吞错 + 四题材两两分歧 + 契约校验 +
+  回退 + 变体轮换）；backend 185 passed + ruff 全绿；desktop vitest 36/36。
+
 ## 2026-09-06 M5 Director 长线节奏注入完成（ADR-012）
 
 [ADR-012](adr/ADR-012-director-pacing-injection.md) 已实施：每 6 个已提交回合由后台任务
