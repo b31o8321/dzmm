@@ -14,10 +14,10 @@ jobs:
         include:
           - os: macos-14
             label: macos-arm64
-            artifact_glob: 'vnext/desktop/src-tauri/target/release/bundle/dmg/*.dmg'
+            artifact_glob: 'desktop/src-tauri/target/release/bundle/dmg/*.dmg'
           - os: windows-latest
             label: windows-x64
-            artifact_glob: 'vnext/desktop/src-tauri/target/release/bundle/nsis/*.exe'
+            artifact_glob: 'desktop/src-tauri/target/release/bundle/nsis/*.exe'
 
     runs-on: ${{ matrix.os }}
     name: build (${{ matrix.label }})
@@ -44,11 +44,11 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            vnext/desktop/src-tauri/target
-          key: ${{ matrix.os }}-cargo-${{ hashFiles('vnext/desktop/src-tauri/Cargo.lock') }}
+            desktop/src-tauri/target
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
 
       - name: backend venv + deps
-        working-directory: vnext/backend
+        working-directory: backend
         shell: bash
         run: |
           python -m venv .venv
@@ -61,7 +61,7 @@ jobs:
           fi
 
       - name: backend tests
-        working-directory: vnext/backend
+        working-directory: backend
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -71,7 +71,7 @@ jobs:
           fi
 
       - name: build sidecar
-        working-directory: vnext/backend
+        working-directory: backend
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -81,11 +81,11 @@ jobs:
           fi
 
       - name: install desktop deps
-        working-directory: vnext/desktop
+        working-directory: desktop
         run: npm ci || npm install
 
       - name: tauri build
-        working-directory: vnext/desktop
+        working-directory: desktop
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DMG=$(find vnext/desktop/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -1)
+          DMG=$(find desktop/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -1)
           if [ -z "$DMG" ]; then
             echo "::error::no .dmg found"
             exit 1
@@ -148,7 +148,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXE=$(find vnext/desktop/src-tauri/target/release/bundle/nsis -name '*-setup.exe' | head -1)
+          EXE=$(find desktop/src-tauri/target/release/bundle/nsis -name '*-setup.exe' | head -1)
           if [ -z "$EXE" ]; then
             echo "::error::no NSIS .exe found"
             exit 1
@@ -183,7 +183,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SIDECAR="vnext/desktop/src-tauri/backend-runtime/dzmm-backend/dzmm-backend.exe"
+          SIDECAR="desktop/src-tauri/backend-runtime/dzmm-backend/dzmm-backend.exe"
           DATA_DIR="$RUNNER_TEMP/dzmm-windows-sidecar"
           PORT=18765
           mkdir -p "$DATA_DIR"
@@ -208,7 +208,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = Get-ChildItem 'vnext/desktop/src-tauri/target/release/bundle/nsis' -Filter '*-setup.exe' | Select-Object -First 1
+          $installer = Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis' -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'NSIS installer not found' }
           $installDir = Join-Path $env:RUNNER_TEMP 'dzmm-installed'
           $dataDir = Join-Path $env:RUNNER_TEMP 'dzmm-installed-data'

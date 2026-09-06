@@ -56,5 +56,5 @@
 
 ## 附图
 
-- `vnext/eval/evidence/screens/phase198-mystery-draft-review.png`（迷雾钟楼草案）
-- `vnext/eval/evidence/screens/phase198-mystery-opening.png`（开场）
+- `eval/evidence/screens/phase198-mystery-draft-review.png`（迷雾钟楼草案）
+- `eval/evidence/screens/phase198-mystery-opening.png`（开场）

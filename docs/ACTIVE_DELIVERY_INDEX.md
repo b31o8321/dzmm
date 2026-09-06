@@ -26,7 +26,7 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 - **C genre 预设**（`a7a3be8`）：五个 canonical genres（悬疑探案/英雄成长/政治阴谋/灾难求生/恋爱攻略）经 `GET /api/v2/genre-presets` 暴露，命中预设时向导 brief 展开引导，自由文本 genre 仍可用。
 - **D SillyTavern 互通深化**：v3 卡导入保留 alternate_greetings/creator_notes/creator/character_version/tags/system_prompt/post_history_instructions（此前全部忽略，现仅忽略 extensions），原生卡导出回填上述字段；新增真实 ST 样本的卡/世界书往返测试。
 
-证据：`cd vnext/backend && uv run --extra dev pytest -q` → **169 passed**；ruff 全绿。
+证据：`cd backend && uv run --extra dev pytest -q` → **169 passed**；ruff 全绿。
 遗留：桌面端 ai-compose/游玩页对 genre-presets 与 attack 命令的 UI 接线（Wave1 收尾项，随桌面改造进行）。
 
 ## 2026-09-05 Wave2 gate 收尾进展
@@ -34,9 +34,9 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 按 [执行计划](superpowers/plans/2026-09-05-vnext-absorb-and-cutover.md) 推进三项验收证据（维护者决定：Windows 豁免、Android 以模拟器为标准）：
 
 - **③ cutover 回滚演练 PASS**（`ce9b098`）：从 `dzmm-legacy-v0.16.0-2026-08-30` 恢复旧版并以隔离 HOME 启动，/health 返回 v0.16.0，真实用户数据未动。步骤见 [acceptance/2026-09-05-cutover-rollback-drill.md](acceptance/2026-09-05-cutover-rollback-drill.md)。
-- **② Android 模拟器复验 PASS**（`22ef9bc`，[phase195](../vnext/eval/evidence/phase195-android-combat-merge-journey-reverify.json)）：combat 合入后的 release APK 重跑完整玩家旅程——AI 草案→compose→开场→10 回合（路线锁定/章节推进 2→7/NPC 主动）→120s 超时零写入→强停恢复→正式好结局（第10回合）→同 World 新旅程（新主角旅行者）。玩家评分暂记 92。
-- **① macOS 安装包 GUI 验收受阻（环境阻塞）**（[phase196](../vnext/eval/evidence/phase196-macos-package-rebuild-and-gui-blocked.json)）：候选 .app 已重建（sidecar 修复了 pyenv 环境缺 alembic 的问题，冒烟通过；应用内嵌 sidecar 在 8765 健康运行且携带更新后的 contracts）。但 ZCode 的辅助功能与屏幕录制 TCC 权限被拒，无法截图走查 GUI。**恢复条件**：系统设置→隐私与安全性→给 "ZCode Computer Use.app" 授予辅助功能与屏幕录制，完全重启 ZCode 后重跑 GUI 走查。**该 gate 项保持未验收，不得计入。**
-- **① macOS 合并后候选的桌面旅程 — PASS（浏览器宿主）**（[phase197](../vnext/eval/evidence/phase197-desktop-ui-journey-on-packaged-sidecar.json)）：桌面 Vue UI（VITE_API_BASE 指向 8765）经 ZCode 内置浏览器驱动，对**打包 sidecar** 跑完主路径——星空之钥新旅程（凯拉）→开场→10 回合（雷欧路线/线索推进 2→最终决断/关系账本/物品）→**旅程完成·好结局（第10回合正式结算）**→同 World 新旅程（塞拉斯，独立存档）→设置页。玩家评分 93。**边界如实声明**：Tauri 包装窗口本身的走查仍因 TCC 授权缺失未做（phase196），授权后补跑即可关闭最后一个壳层检查。
+- **② Android 模拟器复验 PASS**（`22ef9bc`，[phase195](../eval/evidence/phase195-android-combat-merge-journey-reverify.json)）：combat 合入后的 release APK 重跑完整玩家旅程——AI 草案→compose→开场→10 回合（路线锁定/章节推进 2→7/NPC 主动）→120s 超时零写入→强停恢复→正式好结局（第10回合）→同 World 新旅程（新主角旅行者）。玩家评分暂记 92。
+- **① macOS 安装包 GUI 验收受阻（环境阻塞）**（[phase196](../eval/evidence/phase196-macos-package-rebuild-and-gui-blocked.json)）：候选 .app 已重建（sidecar 修复了 pyenv 环境缺 alembic 的问题，冒烟通过；应用内嵌 sidecar 在 8765 健康运行且携带更新后的 contracts）。但 ZCode 的辅助功能与屏幕录制 TCC 权限被拒，无法截图走查 GUI。**恢复条件**：系统设置→隐私与安全性→给 "ZCode Computer Use.app" 授予辅助功能与屏幕录制，完全重启 ZCode 后重跑 GUI 走查。**该 gate 项保持未验收，不得计入。**
+- **① macOS 合并后候选的桌面旅程 — PASS（浏览器宿主）**（[phase197](../eval/evidence/phase197-desktop-ui-journey-on-packaged-sidecar.json)）：桌面 Vue UI（VITE_API_BASE 指向 8765）经 ZCode 内置浏览器驱动，对**打包 sidecar** 跑完主路径——星空之钥新旅程（凯拉）→开场→10 回合（雷欧路线/线索推进 2→最终决断/关系账本/物品）→**旅程完成·好结局（第10回合正式结算）**→同 World 新旅程（塞拉斯，独立存档）→设置页。玩家评分 93。**边界如实声明**：Tauri 包装窗口本身的走查仍因 TCC 授权缺失未做（phase196），授权后补跑即可关闭最后一个壳层检查。
 - DMG 打包脚本失败（.app 已产出）；恢复条件：有 Finder/AppleScript 自动化时重跑 `npm run tauri:build`。
 
 **对照 85 分门槛的差距**：桌面旅程 93（phase197，合并后候选）、Android 92（phase195）；**剩余阻断项仅一项**：Tauri 包装窗口在本候选上的可见走查（等 TCC 授权）+ Wave2 第 5 项（统一命名/数据目录 ADR，属 M3）。
@@ -60,8 +60,8 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 - [全平台 Local Host 规格、矩阵与 Plan](superpowers/specs/2026-08-19-local-host-all-platforms.md)
 - [叙事规则集规格](superpowers/specs/2026-08-17-narrative-rulesets-interactive-story-platform.md)
 - [AI 世界创作向导规格](superpowers/specs/2026-08-17-ai-world-creation-wizard.md)
-- [共享 Experience Contract](../vnext/contracts/experience_contract.json)
-- [共享 Design Tokens](../vnext/contracts/design_tokens.json)
+- [共享 Experience Contract](../contracts/experience_contract.json)
+- [共享 Design Tokens](../contracts/design_tokens.json)
 - [玩家视角重定基线](reviews/2026-08-21-player-first-vnext-rebaseline.md)
 - [三端玩家能力与代码质量评分](reviews/2026-08-21-cross-platform-player-code-scorecard.md)
 - [玩家旅程验收清单](acceptance/2026-08-21-player-journey-acceptance.md)
@@ -89,8 +89,8 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 当前暂定玩家评分 **78/100**，仍然发布阻断：Windows 安装包和 Android 真机证据缺失，macOS 当前
 安装包虽然已完成 Host 级 30 回合重启恢复，但完整 WebView/可访问性和三端 30 回合验收尚未完成。
 phase77 的安装包 Host 恢复证据，以及 phase78 的跨端 operation stage 契约/构建证据，分别见
-`vnext/eval/evidence/phase77-macos-packaged-trpg-restart-recovery.json` 和
-`vnext/eval/evidence/phase78-operation-stage-contract-parity.json`。
+`eval/evidence/phase77-macos-packaged-trpg-restart-recovery.json` 和
+`eval/evidence/phase78-operation-stage-contract-parity.json`。
 
 本轮建立的交互原型已通过浏览器实点：desktop 与 390×844 无横向溢出；World 继续/新 Run、开场
 叙事、角色对话、选择/自由行动、`preparing/connecting/generating/applying`、慢模型、provider error、
@@ -107,15 +107,15 @@ phase77 的安装包 Host 恢复证据，以及 phase78 的跨端 operation stag
   只注入 schema validator 和错误类型，后续 Android runtime 将直接复用该 core。
 - 生命周期审计保留为本机能力，不再绑定设备身份。
 
-证据：`cd vnext/backend && .venv/bin/python -m pytest -q`（112 passed，包括 30 回合本机回读、协议 200/error recovery、Experience Contract stage parity、Android 模型后台线程边界、共享叙事清洗/截断防线、可执行模型超时/连接恢复提示、Android World 归档/恢复 parity、回滚记录语义和系统安全存储凭据边界、AI 草案取消后零写入、release package extra gate、桌面离线/键盘边界、sidecar 父进程退出监控、retired route-surface guard、choice stream 和干净打包迁移边界）、Ruff 通过。
+证据：`cd backend && .venv/bin/python -m pytest -q`（112 passed，包括 30 回合本机回读、协议 200/error recovery、Experience Contract stage parity、Android 模型后台线程边界、共享叙事清洗/截断防线、可执行模型超时/连接恢复提示、Android World 归档/恢复 parity、回滚记录语义和系统安全存储凭据边界、AI 草案取消后零写入、release package extra gate、桌面离线/键盘边界、sidecar 父进程退出监控、retired route-surface guard、choice stream 和干净打包迁移边界）、Ruff 通过。
 
 ### macOS / Windows 桌面
 
 - Tauri 只启动 `127.0.0.1` sidecar，无启动方式、LAN 开关、手机联动或配对页面。
 - Vue 设置页改为本机服务、模型和外观；API 类型中删除 remote/pairing 类型与函数。
 
-证据：`cd vnext/desktop && npm run build`、`src-tauri/cargo check` 通过；使用
-`vnext/backend/.venv/bin/python vnext/packaging/build_backend.py` 生成 macOS arm64 sidecar 成功。
+证据：`cd desktop && npm run build`、`src-tauri/cargo check` 通过；使用
+`backend/.venv/bin/python packaging/build_backend.py` 生成 macOS arm64 sidecar 成功。
 发布工作流已切换到 vNext 路径，并包含 macOS DMG 与 Windows NSIS 的 sidecar/runtime 内容检查；
 该 CI 配置尚未替代实际 Windows 打包运行证据。
 
@@ -133,116 +133,116 @@ phase77 的安装包 Host 恢复证据，以及 phase78 的跨端 operation stag
 phase68 又在不使用 adb reverse/TCP proxy 的情况下直连 PC LM Studio qwen3，完成草案到 rollback 的完整 Run。
 
 证据：`flutter analyze`、`flutter test`、`flutter build apk --debug`、
-`vnext/eval/evidence/phase56-android-embedded-python-spike.json`、
-`vnext/eval/evidence/phase57-shared-core-android-build-smoke.json`、
-`vnext/eval/evidence/phase58-android-local-host-vertical-slice.json`、
-`vnext/eval/evidence/phase59-android-direct-model-probe.json`、
-`vnext/eval/evidence/phase60-android-30-turn-local-ui.json`、
-`vnext/eval/evidence/phase61-android-portable-roundtrip.json`、
-`vnext/eval/evidence/phase62-android-ai-draft-direct-invalid-recovery.json`、
-`vnext/eval/evidence/phase63-android-ai-draft-cancel-ux.json`、
-`vnext/eval/evidence/phase64-experience-contract-parity.json`、
-  `vnext/eval/evidence/phase65-pc-qwen3-json-schema-gate.json`、
-`vnext/eval/evidence/phase66-pc-qwen3-full-journey.json`、
-`vnext/eval/evidence/phase67-android-pc-qwen3-ui-full-journey.json`、
-`vnext/eval/evidence/phase68-android-pc-qwen3-direct-lan.json`、
-`vnext/eval/evidence/phase69-model-protocol-200-error.json`、
-`vnext/eval/evidence/phase70-portable-cross-platform.json`、
-`vnext/eval/evidence/phase78-operation-stage-contract-parity.json`、
-`vnext/eval/evidence/phase79-android-operation-status-and-cancel.json`、
-`vnext/eval/evidence/phase80-formal-ending-narrative-parity.json`、
-`vnext/eval/evidence/phase81-model-profile-field-validation.json`、
-`vnext/eval/evidence/phase82-android-background-model-operations.json`、
-`vnext/eval/evidence/phase83-macos-vite-player-journey.json`、
-`vnext/eval/evidence/phase84-clean-package-runtime-and-exit.json`、
-`vnext/eval/evidence/phase85-shared-narrative-quality.json`、
-`vnext/eval/evidence/phase86-packaged-parent-exit-cleanup.json`、
-`vnext/eval/evidence/phase87-android-world-archive-parity.json`、
-`vnext/eval/evidence/phase88-android-world-export-entry.json`、
-`vnext/eval/evidence/phase89-desktop-loading-stage-parity.json`、
-`vnext/eval/evidence/phase90-android-action-mode-boundary.json`、
-`vnext/eval/evidence/phase91-player-surface-technical-leakage.json`。phase91 已从桌面游玩、桌面/Android
+`eval/evidence/phase56-android-embedded-python-spike.json`、
+`eval/evidence/phase57-shared-core-android-build-smoke.json`、
+`eval/evidence/phase58-android-local-host-vertical-slice.json`、
+`eval/evidence/phase59-android-direct-model-probe.json`、
+`eval/evidence/phase60-android-30-turn-local-ui.json`、
+`eval/evidence/phase61-android-portable-roundtrip.json`、
+`eval/evidence/phase62-android-ai-draft-direct-invalid-recovery.json`、
+`eval/evidence/phase63-android-ai-draft-cancel-ux.json`、
+`eval/evidence/phase64-experience-contract-parity.json`、
+  `eval/evidence/phase65-pc-qwen3-json-schema-gate.json`、
+`eval/evidence/phase66-pc-qwen3-full-journey.json`、
+`eval/evidence/phase67-android-pc-qwen3-ui-full-journey.json`、
+`eval/evidence/phase68-android-pc-qwen3-direct-lan.json`、
+`eval/evidence/phase69-model-protocol-200-error.json`、
+`eval/evidence/phase70-portable-cross-platform.json`、
+`eval/evidence/phase78-operation-stage-contract-parity.json`、
+`eval/evidence/phase79-android-operation-status-and-cancel.json`、
+`eval/evidence/phase80-formal-ending-narrative-parity.json`、
+`eval/evidence/phase81-model-profile-field-validation.json`、
+`eval/evidence/phase82-android-background-model-operations.json`、
+`eval/evidence/phase83-macos-vite-player-journey.json`、
+`eval/evidence/phase84-clean-package-runtime-and-exit.json`、
+`eval/evidence/phase85-shared-narrative-quality.json`、
+`eval/evidence/phase86-packaged-parent-exit-cleanup.json`、
+`eval/evidence/phase87-android-world-archive-parity.json`、
+`eval/evidence/phase88-android-world-export-entry.json`、
+`eval/evidence/phase89-desktop-loading-stage-parity.json`、
+`eval/evidence/phase90-android-action-mode-boundary.json`、
+`eval/evidence/phase91-player-surface-technical-leakage.json`。phase91 已从桌面游玩、桌面/Android
 World 入口和桌面创建确认中移除 revision、内部 ID 等技术字段，并由共享资源名称映射显示背包物品；当前 Android P0 计为 85，
 尚不能达到发布门槛。
 
 phase92 又把正式结局从“文本 + 回合数”补齐为玩家回顾：最终路线、持有物品、人物关系和最近三次
 关键行动在桌面与 Android 使用同一共享 Python presentation 投影显示。证据见
-`vnext/eval/evidence/phase92-formal-ending-recap-parity.json`；两端产物已重建，但安装后视觉验收仍不以自动化替代。
+`eval/evidence/phase92-formal-ending-recap-parity.json`；两端产物已重建，但安装后视觉验收仍不以自动化替代。
 
 phase93 统一了三端共享玩家术语：主路径使用“本机游戏服务、世界、内容版本、旅程、本机规则、本机存档”；
 Host、SQLite、Python、loopback 和 schema 等实现词只留在高级诊断或高级创作边界。证据见
-`vnext/eval/evidence/phase93-player-language-parity.json`。
+`eval/evidence/phase93-player-language-parity.json`。
 
 phase94 按 Web Interface Guidelines 补齐桌面跳过导航、可见焦点、模型 Probe live announcement、关键表单
 输入元数据和离线字体边界，并移除 Android 新旅程弹窗的强制 autofocus；后端新增防回退测试。证据见
-`vnext/eval/evidence/phase94-offline-keyboard-accessibility-boundary.json`。
+`eval/evidence/phase94-offline-keyboard-accessibility-boundary.json`。
 
 phase95 清除桌面模型草稿中的开发者局域网 IP/Huihui 默认值，首次启动直接展开中性本机模型配置；
 桌面和 Android 切换 provider 时同步更新完整协议预设，预设由 Experience Contract 锁定；桌面设置与
 AI 创作复用同一 `ModelProfileEditor`。证据见
-`vnext/eval/evidence/phase95-model-first-run-provider-parity.json`。
+`eval/evidence/phase95-model-first-run-provider-parity.json`。
 
 phase96 修复了 embedded runtime 的回滚记录语义：安卓结局回合数、最近行动和历史入口现在与桌面一致，
 旧本地库启动时会兼容补齐 `kind`。同时恢复 authenticated OpenAI-compatible 能力：桌面 API Key 进入系统
 密钥链，Android 进入 `flutter_secure_storage`，SQLite、Run export 和 portable bundle 不保存明文，Probe、
 AI 起草和回合请求只在内存中注入 Authorization。证据见
-`vnext/eval/evidence/phase96-rollback-and-credential-boundary.json`。
+`eval/evidence/phase96-rollback-and-credential-boundary.json`。
 
 phase97 为 AI 世界起草补上了与回合相同的请求身份和取消边界：桌面和 Android 在生成期间显示“取消本次起草”，后端/embedded runtime 只在进入校验前接受取消；模型晚到的结果会被丢弃，不会创建 World、Run 或半成品存档。证据见
-`vnext/eval/evidence/phase97-draft-cancellation-boundary.json`；本次重新构建的 Android APK SHA-256 为
+`eval/evidence/phase97-draft-cancellation-boundary.json`；本次重新构建的 Android APK SHA-256 为
 `25e21ffdc0f8c44d8a0c3ee595c46a04016bd31a3778cb8c6c1a2779c5f49c14`，macOS arm64 DMG SHA-256 为
 `b1145d46a08eb6ddaa085b4f2e933da1d922e7c6950ad74a1b9987b668a9fdb6`。
 
 phase98 又补齐了取消请求自身失败时的恢复语义：起草会立即停止等待并使晚到草案失效；正在处理的回合不会被假装取消，而是保留操作状态并说明旅程仍在处理中。Android widget 覆盖了起草取消传输失败和回合取消传输失败，证据见
-`vnext/eval/evidence/phase98-cancellation-transport-recovery.json`。
+`eval/evidence/phase98-cancellation-transport-recovery.json`。
 
 phase99 修复了发布工作流的真实依赖边界：macOS 和 Windows clean runner 在构建 sidecar 前都会安装声明的
 `.[dev,package]` extra，避免仅因开发机全局存在 PyInstaller 而让 release 误绿。证据见
-`vnext/eval/evidence/phase99-release-sidecar-dependency-gate.json`。
+`eval/evidence/phase99-release-sidecar-dependency-gate.json`。
 
 phase100 将归档语义补到玩家入口：桌面和 Android 仍可查看已归档世界中的既有旅程，但 Continue 和 New Run
 均明确禁用，必须先恢复世界才可游玩；这避免玩家点击后才收到后端拒绝。证据见
-`vnext/eval/evidence/phase100-archived-world-view-only-boundary.json`。
+`eval/evidence/phase100-archived-world-view-only-boundary.json`。
 
 phase101 为桌面和 Android 补上了 pending Run-operation 恢复标记：异常退出后重开会直接回到记住的 Run，
 清理未完成标记，并明确告知玩家没有写入半个回合；正常完成、失败或接受取消都会清理标记。只保存布尔状态，
-不保存叙事、请求内容或凭据。证据见 `vnext/eval/evidence/phase101-interrupted-run-recovery-marker.json`。
-phase102 又修复了桌面导入世界/复制旅程后未持久化 active Run 的恢复缺口，并将 active Run key 操作收敛为可测试 composable。证据见 `vnext/eval/evidence/phase102-imported-run-recovery.json`。
-phase103 将桌面自由行动和故事选择都接入 local-host SSE：模型生成中的玩家可见叙事会增量显示，只有 `turn_completed` 后才重新读取并展示已保存 Run；失败仍回到可重试状态，后端 choice stream 复用同一状态裁判和提交边界。证据见 `vnext/eval/evidence/phase103-desktop-narrative-stream.json`。
-phase104 将桌面 portable 导入的重复 ID、模板覆盖和报告合并提取到纯函数模块，页面只保留状态/导航编排；独立边界测试已通过。证据见 `vnext/eval/evidence/phase104-portable-content-boundary.json`。
-phase105 将模型超时/连接失败收敛为桌面和 Android 共享的玩家错误契约：Probe 明确等待 10 秒，叙事/草案明确等待 120 秒，并说明未写入结果、重试/换更快模型等恢复动作；Android 也不再暴露 Python 异常类名。证据见 `vnext/eval/evidence/phase105-player-model-timeout-feedback.json`。
-phase106 首次把当前 DMG 的 WebView 窗口作为独立 gate 实测：在 macOS 26.3.1 上从构建包和只读挂载的 DMG 启动时，sidecar 和 `/health` 正常，但主进程在 WindowServer/System Events 中始终是 0 个窗口，因此当前 macOS 安装包玩家入口判定为 P0 fail。同时修复了 Vite 监听 `::1`、Tauri 等待 `127.0.0.1` 导致 `tauri dev` 无限等待的独立问题。证据见 `vnext/eval/evidence/phase106-macos-packaged-webview-window-gate.json`。
-phase107 又在隔离副本中编译并运行 Tauri 2.11.5 / tao 0.35.3 / wry 0.55.1，仍得到进程存活、sidecar health 正常但 0 个 WindowServer 窗口；旧版 `/Applications/dzmm.app` 和 Calculator 控制应用在同一会话也无法被窗口枚举。因此 macOS gate 继续保持未通过，但根因尚不能归因到 DZMM 生命周期代码，暂不引入猜测性 native hack。证据见 `vnext/eval/evidence/phase107-macos-window-control-experiment.json`；下一次有效验收需要已知控制应用可见窗口的正常 macOS GUI 会话。
-phase108 又把模型“测试连接”纳入三端操作反馈边界：桌面使用共享 OperationStatus 显示连接/等待阶段、耗时和终态；Android 模型页显示同一组阶段和耗时，返回后保留可用/未通过结果。证据见 `vnext/eval/evidence/phase108-model-probe-loading-parity.json`；桌面 27 项测试、Flutter 20 项测试、分析和构建均通过；phase109 后桌面测试增至 28 项。
-phase109 将桌面模型档案列表从根 `App.vue` 提取为 `ModelProfileList.vue`：列表摘要、默认标记、Probe 结果和 CRUD 事件现在有独立的 typed component boundary，根页面只保留 use-case 编排；新增组件测试覆盖动作 payload。证据见 `vnext/eval/evidence/phase109-desktop-model-list-boundary.json`；桌面测试增至 28 项、共 12 个测试文件，构建通过。
-phase110 修复了 Android 自由行动与桌面规则能力不一致的缺口：当世界存在多个地点时，Android 现在显示目的地选择并在 `narrate` 前提交同一 Python 校验的 `move` 命令；单地点世界仍保持简洁输入。证据见 `vnext/eval/evidence/phase110-android-free-action-destination-parity.json`；Flutter 20 项测试和分析通过。
-phase111 又把桌面目的地选项从硬编码港口/灯塔改为当前 Run presentation 的全部地点，并在重开/回读时校正过期目的地；Android 和 desktop 现在共享同一 World location 映射。证据见 `vnext/eval/evidence/phase111-destination-presentation-parity.json`；桌面测试增至 29 项，构建和 Flutter 20 项测试均通过。
-phase112 进一步统一单地点世界的玩家界面：desktop 与 Android 都隐藏无意义的目的地控件，多地点世界仍保留动态地点选择。证据见 `vnext/eval/evidence/phase112-single-location-action-parity.json`；桌面测试增至 30 项，构建通过。
-phase113 修复跨 Run 的重试状态泄漏：桌面和 Android 在进入另一段旅程时都会清除捕获旧 Run 的重试动作，避免失败后的旧选择/行动被误提交到新旅程；桌面和 Android 新增纯边界测试。证据见 `vnext/eval/evidence/phase113-retry-run-boundary.json`；桌面 32 项测试、构建和 Flutter 21 项测试通过。
-phase114 修复桌面 `App.vue` 组件抽取后的无障碍回归：顶层玩家通知恢复 `role=status` 与 `aria-live=polite`，保存、取消、重试和恢复反馈会继续被键盘/辅助技术感知；Host 故障仍保持 alert。证据见 `vnext/eval/evidence/phase114-desktop-notice-live-region.json`；后端 112 项与 Ruff、桌面 32 项/构建、Flutter 21 项/analyze 均通过。
-phase115 将 Android OperationStatusCard 补为显式 TalkBack live region：阶段、耗时和“模型可能仍在加载”的反馈不再只依赖视觉文本；新增 Semantics 测试。证据见 `vnext/eval/evidence/phase115-android-operation-live-region.json`；Flutter 22 项测试/analyze、桌面 32 项/构建和后端 112 项/Ruff 通过。
-phase116 生成了包含 phase113–115 修复的最新 Android debug APK（SHA-256 `1b108e7bcfbd77d1e879f45b08d092d76b83ae4cd58fac15dd32a15312624dfe`）和 macOS release `.app`；`tauri build --bundles app` 通过，但完整 DMG 在当前环境的 `bundle_dmg.sh` 最后一步失败，因此旧 DMG 不作为最新产物替代。证据见 `vnext/eval/evidence/phase116-latest-package-artifacts.json`。
-phase117 启动了 `dzmm-ux-api36` Android 模拟器并安装最新 APK，通过 `adb reverse tcp:11434 tcp:11434` 连接本机 Ollama；默认 `qwen2.5:7b` Probe 返回可用。模拟器保留既有测试世界并停在 World 列表，交由玩家人工体验；这不是物理 Android A-F 或 30 回合完成证据。证据见 `vnext/eval/evidence/phase117-android-emulator-qwen7b-session.json`。
-phase118 按玩家反馈重排 Android 游玩界面：历史叙事留在唯一主滚动区，最新场景、操作阶段和选项/自由行动输入固定在底部；常驻状态进入可收起的“当前状态”，状态反馈和回合记录进入独立的“事件与行动记录”。Flutter analyze、22 项测试和 APK 构建通过；新 Run 在模拟器中已安装并人工确认开场叙事与底部选项可见。APK SHA-256 为 `80706d7e2242e1ea158b21dafd7fd435e4c20ed2259c818cfd80a2c731e8860b`。phase118 当时核实剧情仍是固定规则图 + 模型正文；该边界已由 phase119 的每 Run 变化契约继续推进。证据见 `vnext/eval/evidence/phase118-mobile-play-surface-and-plot-boundary.json`。
-phase119 参考老版 DZMM 的 GM 回合边界，补上 vNext 的叙事变化契约：章节/选项继续由 Python 校验硬效果，但章节选项不再阻断 `narrate`/`move` 自由行动；每个 Run 以独立 Run ID 作为变化种子，保存最近 6 回合的玩家输入、叙事和机械结果，向模型注入新的场景/NPC/线索压力点；Ollama、LM Studio 和 OpenAI-compatible 叙事请求启用非零采样。后端全量 113 项测试和 Ruff 通过，新增自由行动与 `narrative_context` 回读断言。证据见 `vnext/eval/evidence/phase119-emergent-gm-narrative-contract.json`。当前仍需用本地 qwen 7B 重开同一世界两次，人工确认不同 Run 的剧情钩子、NPC反应和可追查线索出现差异；硬状态/结局一致性仍由 Python 规则边界负责。
-phase120 按老版 DZMM 的运行时概念补齐 Next 第一批世界运行层：RunState 新增地点访问状态、NPC 动态状态、活跃世界事件、剧情线容器和待回应互动；NPC 在叙事中被遇见/发言后会被 Python 记录，满足地点/相遇/冷却条件时排队一次主动联系；预定义世界事件支持按回合门槛激活；StoryBeat 和桌面/Android 支持多段结构化 NPC 对话与主动事件反馈。后端全量 116 项测试、Ruff、桌面 32 项测试/构建、Flutter 22 项/analyze 通过。最新 Android APK SHA-256 为 `1338c8fc5be88440191a979c5449689f11e867d519e9032cc9021d287aa39aed`，已安装到 `emulator-5554`。证据见 `vnext/eval/evidence/phase120-world-runtime-npc-initiative.json`。尚未实现 LLM 结构化 `gm_actions` 对剧情线/隐藏事件的自由创建与解决，下一阶段再接入 Python allowlist。
-phase121 将 `gm_actions` 接入 desktop 与 embedded 两条回合链路：模型可在不可见尾部标记中提出新剧情线、隐藏事件及其解决意图；Python 只接受有限类型、合法 ID、长度/枚举/目标检查，重复或越权动作不会写入 RunState。正文清洗、流式增量、旧 narrator seam 和取消/失败零写入语义保持兼容。后端全量 117 项测试、Ruff、desktop 32 项/构建、Flutter 22 项/analyze 通过；Android debug APK 已重新构建，SHA-256 为 `1a77b99d4c10110930e327e52ae33a90befc91614c4a15db803ff0dfa71675d6`，但当前 adb 无在线设备，尚未安装。证据见 `vnext/eval/evidence/phase121-gm-actions-allowlist.json`。
-phase122 扩展 AI 世界草案的安全创作边界：模型可以提供 NPC、势力、世界事件和地点连接；Python 负责安全 ID、数量/长度/枚举限制、地点引用解析，并将角色卡同步为可跟踪的运行时 NPC。embedded 生成失败的安全骨架也保留描述性 NPC/事件/势力，不再把所有动态实体丢弃。后端全量 119 项测试、Ruff 通过；Android debug APK 已重新构建，SHA-256 为 `3171ba53f5c9dfa26f2b131efdd2357fb09b9d9a7922f54ef682897b1f374409`，但当前 adb 仍无在线设备。证据见 `vnext/eval/evidence/phase122-ai-world-runtime-material.json`。
-phase123 将老 DZMM 的结构化事件谓词迁移到 Next 的纯 RunState：支持地点到达、NPC 状态、物品拥有、旗标、势力张力和 `all/any` 组合；势力按回合由 Python 增长并限幅，事件满足 `trigger_conditions` 后才激活，同一 revision 不会重复推进。LLM 只看到状态并提出叙事，不获得直接写入权。后端全量 120 项测试、Ruff 通过；Android debug APK SHA-256 为 `26fc9e2f24bfacb99a03fe34840d66f4b6ee2c16715a204d62ab4ffb976075e6`，当前 adb 无在线设备。证据见 `vnext/eval/evidence/phase123-runtime-event-predicates.json`。
-phase124 又补上老 DZMM 的事件完成和 Campaign/Phase 最小运行层：事件可声明 Python 可验证的 `completion_conditions`，完成后进入 resolved；Campaign 记录当前阶段、已完成事件和已完成阶段，并在关键事件达到 required_count 后推进下一阶段；NPC 运行时状态补上所属势力与初始声誉。事件、阶段和势力状态同时注入 GM 上下文。后端全量 121 项测试、Ruff 通过；本地 `dzmm-ux-api36` Android 36 模拟器已启动，最新 APK 已安装并成功打开 `local.dzmm.dzmm_next_mobile/.MainActivity`，SHA-256 为 `9b8f667cee1209e50b30cbd65421420fb52ee086f2296bf751f54f4fcb161ce8`。证据见 `vnext/eval/evidence/phase124-campaign-event-completion-emulator.json`。
-phase125 用本地 `dzmm-ux-api36` 模拟器接入本机 `qwen2.5:7b` 完成了 3 回合玩家旅程：Loading 阶段可见，模型缺少结构化 `available_choices` 时 Android 不再因快照投影异常停在旧画面，而是安全进入自由行动分支；最终正式结局摘要正常显示，并从同一 World 成功开始新 Run、显示新的开场叙事和选项。进一步用相同世界和相同首个选择重开第二个 Run，Qwen 7B 生成了不同的叙事，并出现沈砚主动联系、灰潮线索和新的回应钩子。Flutter 24 项测试、analyze、APK 构建通过；APK SHA-256 为 `874ec1d5dfd21b42077c7f6d0ef434e70684f548bf0c7b371faaa278ce7cd9aa`。本地模拟器证据下玩家评分由 78 提升至 85（+7）；证据见 `vnext/eval/evidence/phase125-local-emulator-qwen7b-player-journey.json`。下一轮只继续做高收益 P1；若评分不再明显提升则结束 Goal。
+不保存叙事、请求内容或凭据。证据见 `eval/evidence/phase101-interrupted-run-recovery-marker.json`。
+phase102 又修复了桌面导入世界/复制旅程后未持久化 active Run 的恢复缺口，并将 active Run key 操作收敛为可测试 composable。证据见 `eval/evidence/phase102-imported-run-recovery.json`。
+phase103 将桌面自由行动和故事选择都接入 local-host SSE：模型生成中的玩家可见叙事会增量显示，只有 `turn_completed` 后才重新读取并展示已保存 Run；失败仍回到可重试状态，后端 choice stream 复用同一状态裁判和提交边界。证据见 `eval/evidence/phase103-desktop-narrative-stream.json`。
+phase104 将桌面 portable 导入的重复 ID、模板覆盖和报告合并提取到纯函数模块，页面只保留状态/导航编排；独立边界测试已通过。证据见 `eval/evidence/phase104-portable-content-boundary.json`。
+phase105 将模型超时/连接失败收敛为桌面和 Android 共享的玩家错误契约：Probe 明确等待 10 秒，叙事/草案明确等待 120 秒，并说明未写入结果、重试/换更快模型等恢复动作；Android 也不再暴露 Python 异常类名。证据见 `eval/evidence/phase105-player-model-timeout-feedback.json`。
+phase106 首次把当前 DMG 的 WebView 窗口作为独立 gate 实测：在 macOS 26.3.1 上从构建包和只读挂载的 DMG 启动时，sidecar 和 `/health` 正常，但主进程在 WindowServer/System Events 中始终是 0 个窗口，因此当前 macOS 安装包玩家入口判定为 P0 fail。同时修复了 Vite 监听 `::1`、Tauri 等待 `127.0.0.1` 导致 `tauri dev` 无限等待的独立问题。证据见 `eval/evidence/phase106-macos-packaged-webview-window-gate.json`。
+phase107 又在隔离副本中编译并运行 Tauri 2.11.5 / tao 0.35.3 / wry 0.55.1，仍得到进程存活、sidecar health 正常但 0 个 WindowServer 窗口；旧版 `/Applications/dzmm.app` 和 Calculator 控制应用在同一会话也无法被窗口枚举。因此 macOS gate 继续保持未通过，但根因尚不能归因到 DZMM 生命周期代码，暂不引入猜测性 native hack。证据见 `eval/evidence/phase107-macos-window-control-experiment.json`；下一次有效验收需要已知控制应用可见窗口的正常 macOS GUI 会话。
+phase108 又把模型“测试连接”纳入三端操作反馈边界：桌面使用共享 OperationStatus 显示连接/等待阶段、耗时和终态；Android 模型页显示同一组阶段和耗时，返回后保留可用/未通过结果。证据见 `eval/evidence/phase108-model-probe-loading-parity.json`；桌面 27 项测试、Flutter 20 项测试、分析和构建均通过；phase109 后桌面测试增至 28 项。
+phase109 将桌面模型档案列表从根 `App.vue` 提取为 `ModelProfileList.vue`：列表摘要、默认标记、Probe 结果和 CRUD 事件现在有独立的 typed component boundary，根页面只保留 use-case 编排；新增组件测试覆盖动作 payload。证据见 `eval/evidence/phase109-desktop-model-list-boundary.json`；桌面测试增至 28 项、共 12 个测试文件，构建通过。
+phase110 修复了 Android 自由行动与桌面规则能力不一致的缺口：当世界存在多个地点时，Android 现在显示目的地选择并在 `narrate` 前提交同一 Python 校验的 `move` 命令；单地点世界仍保持简洁输入。证据见 `eval/evidence/phase110-android-free-action-destination-parity.json`；Flutter 20 项测试和分析通过。
+phase111 又把桌面目的地选项从硬编码港口/灯塔改为当前 Run presentation 的全部地点，并在重开/回读时校正过期目的地；Android 和 desktop 现在共享同一 World location 映射。证据见 `eval/evidence/phase111-destination-presentation-parity.json`；桌面测试增至 29 项，构建和 Flutter 20 项测试均通过。
+phase112 进一步统一单地点世界的玩家界面：desktop 与 Android 都隐藏无意义的目的地控件，多地点世界仍保留动态地点选择。证据见 `eval/evidence/phase112-single-location-action-parity.json`；桌面测试增至 30 项，构建通过。
+phase113 修复跨 Run 的重试状态泄漏：桌面和 Android 在进入另一段旅程时都会清除捕获旧 Run 的重试动作，避免失败后的旧选择/行动被误提交到新旅程；桌面和 Android 新增纯边界测试。证据见 `eval/evidence/phase113-retry-run-boundary.json`；桌面 32 项测试、构建和 Flutter 21 项测试通过。
+phase114 修复桌面 `App.vue` 组件抽取后的无障碍回归：顶层玩家通知恢复 `role=status` 与 `aria-live=polite`，保存、取消、重试和恢复反馈会继续被键盘/辅助技术感知；Host 故障仍保持 alert。证据见 `eval/evidence/phase114-desktop-notice-live-region.json`；后端 112 项与 Ruff、桌面 32 项/构建、Flutter 21 项/analyze 均通过。
+phase115 将 Android OperationStatusCard 补为显式 TalkBack live region：阶段、耗时和“模型可能仍在加载”的反馈不再只依赖视觉文本；新增 Semantics 测试。证据见 `eval/evidence/phase115-android-operation-live-region.json`；Flutter 22 项测试/analyze、桌面 32 项/构建和后端 112 项/Ruff 通过。
+phase116 生成了包含 phase113–115 修复的最新 Android debug APK（SHA-256 `1b108e7bcfbd77d1e879f45b08d092d76b83ae4cd58fac15dd32a15312624dfe`）和 macOS release `.app`；`tauri build --bundles app` 通过，但完整 DMG 在当前环境的 `bundle_dmg.sh` 最后一步失败，因此旧 DMG 不作为最新产物替代。证据见 `eval/evidence/phase116-latest-package-artifacts.json`。
+phase117 启动了 `dzmm-ux-api36` Android 模拟器并安装最新 APK，通过 `adb reverse tcp:11434 tcp:11434` 连接本机 Ollama；默认 `qwen2.5:7b` Probe 返回可用。模拟器保留既有测试世界并停在 World 列表，交由玩家人工体验；这不是物理 Android A-F 或 30 回合完成证据。证据见 `eval/evidence/phase117-android-emulator-qwen7b-session.json`。
+phase118 按玩家反馈重排 Android 游玩界面：历史叙事留在唯一主滚动区，最新场景、操作阶段和选项/自由行动输入固定在底部；常驻状态进入可收起的“当前状态”，状态反馈和回合记录进入独立的“事件与行动记录”。Flutter analyze、22 项测试和 APK 构建通过；新 Run 在模拟器中已安装并人工确认开场叙事与底部选项可见。APK SHA-256 为 `80706d7e2242e1ea158b21dafd7fd435e4c20ed2259c818cfd80a2c731e8860b`。phase118 当时核实剧情仍是固定规则图 + 模型正文；该边界已由 phase119 的每 Run 变化契约继续推进。证据见 `eval/evidence/phase118-mobile-play-surface-and-plot-boundary.json`。
+phase119 参考老版 DZMM 的 GM 回合边界，补上 vNext 的叙事变化契约：章节/选项继续由 Python 校验硬效果，但章节选项不再阻断 `narrate`/`move` 自由行动；每个 Run 以独立 Run ID 作为变化种子，保存最近 6 回合的玩家输入、叙事和机械结果，向模型注入新的场景/NPC/线索压力点；Ollama、LM Studio 和 OpenAI-compatible 叙事请求启用非零采样。后端全量 113 项测试和 Ruff 通过，新增自由行动与 `narrative_context` 回读断言。证据见 `eval/evidence/phase119-emergent-gm-narrative-contract.json`。当前仍需用本地 qwen 7B 重开同一世界两次，人工确认不同 Run 的剧情钩子、NPC反应和可追查线索出现差异；硬状态/结局一致性仍由 Python 规则边界负责。
+phase120 按老版 DZMM 的运行时概念补齐 Next 第一批世界运行层：RunState 新增地点访问状态、NPC 动态状态、活跃世界事件、剧情线容器和待回应互动；NPC 在叙事中被遇见/发言后会被 Python 记录，满足地点/相遇/冷却条件时排队一次主动联系；预定义世界事件支持按回合门槛激活；StoryBeat 和桌面/Android 支持多段结构化 NPC 对话与主动事件反馈。后端全量 116 项测试、Ruff、桌面 32 项测试/构建、Flutter 22 项/analyze 通过。最新 Android APK SHA-256 为 `1338c8fc5be88440191a979c5449689f11e867d519e9032cc9021d287aa39aed`，已安装到 `emulator-5554`。证据见 `eval/evidence/phase120-world-runtime-npc-initiative.json`。尚未实现 LLM 结构化 `gm_actions` 对剧情线/隐藏事件的自由创建与解决，下一阶段再接入 Python allowlist。
+phase121 将 `gm_actions` 接入 desktop 与 embedded 两条回合链路：模型可在不可见尾部标记中提出新剧情线、隐藏事件及其解决意图；Python 只接受有限类型、合法 ID、长度/枚举/目标检查，重复或越权动作不会写入 RunState。正文清洗、流式增量、旧 narrator seam 和取消/失败零写入语义保持兼容。后端全量 117 项测试、Ruff、desktop 32 项/构建、Flutter 22 项/analyze 通过；Android debug APK 已重新构建，SHA-256 为 `1a77b99d4c10110930e327e52ae33a90befc91614c4a15db803ff0dfa71675d6`，但当前 adb 无在线设备，尚未安装。证据见 `eval/evidence/phase121-gm-actions-allowlist.json`。
+phase122 扩展 AI 世界草案的安全创作边界：模型可以提供 NPC、势力、世界事件和地点连接；Python 负责安全 ID、数量/长度/枚举限制、地点引用解析，并将角色卡同步为可跟踪的运行时 NPC。embedded 生成失败的安全骨架也保留描述性 NPC/事件/势力，不再把所有动态实体丢弃。后端全量 119 项测试、Ruff 通过；Android debug APK 已重新构建，SHA-256 为 `3171ba53f5c9dfa26f2b131efdd2357fb09b9d9a7922f54ef682897b1f374409`，但当前 adb 仍无在线设备。证据见 `eval/evidence/phase122-ai-world-runtime-material.json`。
+phase123 将老 DZMM 的结构化事件谓词迁移到 Next 的纯 RunState：支持地点到达、NPC 状态、物品拥有、旗标、势力张力和 `all/any` 组合；势力按回合由 Python 增长并限幅，事件满足 `trigger_conditions` 后才激活，同一 revision 不会重复推进。LLM 只看到状态并提出叙事，不获得直接写入权。后端全量 120 项测试、Ruff 通过；Android debug APK SHA-256 为 `26fc9e2f24bfacb99a03fe34840d66f4b6ee2c16715a204d62ab4ffb976075e6`，当前 adb 无在线设备。证据见 `eval/evidence/phase123-runtime-event-predicates.json`。
+phase124 又补上老 DZMM 的事件完成和 Campaign/Phase 最小运行层：事件可声明 Python 可验证的 `completion_conditions`，完成后进入 resolved；Campaign 记录当前阶段、已完成事件和已完成阶段，并在关键事件达到 required_count 后推进下一阶段；NPC 运行时状态补上所属势力与初始声誉。事件、阶段和势力状态同时注入 GM 上下文。后端全量 121 项测试、Ruff 通过；本地 `dzmm-ux-api36` Android 36 模拟器已启动，最新 APK 已安装并成功打开 `local.dzmm.dzmm_next_mobile/.MainActivity`，SHA-256 为 `9b8f667cee1209e50b30cbd65421420fb52ee086f2296bf751f54f4fcb161ce8`。证据见 `eval/evidence/phase124-campaign-event-completion-emulator.json`。
+phase125 用本地 `dzmm-ux-api36` 模拟器接入本机 `qwen2.5:7b` 完成了 3 回合玩家旅程：Loading 阶段可见，模型缺少结构化 `available_choices` 时 Android 不再因快照投影异常停在旧画面，而是安全进入自由行动分支；最终正式结局摘要正常显示，并从同一 World 成功开始新 Run、显示新的开场叙事和选项。进一步用相同世界和相同首个选择重开第二个 Run，Qwen 7B 生成了不同的叙事，并出现沈砚主动联系、灰潮线索和新的回应钩子。Flutter 24 项测试、analyze、APK 构建通过；APK SHA-256 为 `874ec1d5dfd21b42077c7f6d0ef434e70684f548bf0c7b371faaa278ce7cd9aa`。本地模拟器证据下玩家评分由 78 提升至 85（+7）；证据见 `eval/evidence/phase125-local-emulator-qwen7b-player-journey.json`。下一轮只继续做高收益 P1；若评分不再明显提升则结束 Goal。
 
-phase126 改为从零创建新世界验收，而不是复用既有世界：Android AI 世界向导通过本机 Qwen 7B 生成“潮汐之门”，保留 2 个角色、2 个地点、4 个运行时 NPC、2 个势力和 2 个事件素材；针对 7B 容易输出 `chapter_1` 紧凑 JSON 的事实，embedded world draft 使用紧凑素材协议和较小输出预算，Python 再映射到受控 hybrid 规则骨架。新世界开场已实测显示生成地点“月光港”、角色“艾莉/杰克”和对应推荐“援手艾莉 / 替杰克保守秘密”；首个选择后，Qwen 正文引用“月光港、艾莉、老渔夫汤姆”和小巷线索，并触发“艾莉主动找到了你”的待回应互动，下一组推荐也跟随生成角色重写。另修复主角与首角色同名时开场对话自言自语的边界，并补充 compact story、描述性 NPC 和 opening speaker 测试。后端 126 项测试、Ruff、Flutter 24 项/analyze、APK 构建通过；最新 APK SHA-256 为 `15e9be4a358c4bb4c9002cd978391c0510e4c424addb561ce2336ba6748069a7`。玩家评分 85→86（+1）；证据见 `vnext/eval/evidence/phase126-new-world-qwen7b-quality.json`。当前剩余主要是“模型素材 + Python 规则骨架”的边界、Android 草案摘要信息层级和三端安装包验收，不再把本轮 Goal 扩展为大规模视觉重构。
+phase126 改为从零创建新世界验收，而不是复用既有世界：Android AI 世界向导通过本机 Qwen 7B 生成“潮汐之门”，保留 2 个角色、2 个地点、4 个运行时 NPC、2 个势力和 2 个事件素材；针对 7B 容易输出 `chapter_1` 紧凑 JSON 的事实，embedded world draft 使用紧凑素材协议和较小输出预算，Python 再映射到受控 hybrid 规则骨架。新世界开场已实测显示生成地点“月光港”、角色“艾莉/杰克”和对应推荐“援手艾莉 / 替杰克保守秘密”；首个选择后，Qwen 正文引用“月光港、艾莉、老渔夫汤姆”和小巷线索，并触发“艾莉主动找到了你”的待回应互动，下一组推荐也跟随生成角色重写。另修复主角与首角色同名时开场对话自言自语的边界，并补充 compact story、描述性 NPC 和 opening speaker 测试。后端 126 项测试、Ruff、Flutter 24 项/analyze、APK 构建通过；最新 APK SHA-256 为 `15e9be4a358c4bb4c9002cd978391c0510e4c424addb561ce2336ba6748069a7`。玩家评分 85→86（+1）；证据见 `eval/evidence/phase126-new-world-qwen7b-quality.json`。当前剩余主要是“模型素材 + Python 规则骨架”的边界、Android 草案摘要信息层级和三端安装包验收，不再把本轮 Goal 扩展为大规模视觉重构。
 
-phase127 在同一条玩家路径上继续收口：Android AI 世界草案确认前新增生成素材摘要，明确展示地点、角色/NPC、势力、事件，并说明本机 hybrid 规则接管边界；Flutter widget test 覆盖摘要和确认前零写入。随后用本机 Qwen 7B 从零创建“潮汐之门”新世界，完成 3 回合并持久化正式结局，再从同一 World 开始新 Run。叙事上下文改为向模型提供生成实体的玩家名称、章节/结局显示标签和禁止内部 ID/旧模板名的 guardrail；复测中正文使用“艾莉森、墨菲斯托、老船长”并触发主动 NPC 联系，不再把内部关系 ID `lan` 写成旧名“兰”。后端 127 项测试、Ruff、Flutter 23 项/analyze、APK 构建通过；最新 APK SHA-256 为 `e84207e9592fc90bf1d30008d50d5a97ea50c364a542c4b788de4d5270e8063b`。玩家评分 86→87（+1）；证据见 `vnext/eval/evidence/phase127-next-goal-draft-review-and-context-grounding.json`。本 Goal 到此停止：剩余主要是 Windows/macOS/Android 发布环境与真机验收门槛。
+phase127 在同一条玩家路径上继续收口：Android AI 世界草案确认前新增生成素材摘要，明确展示地点、角色/NPC、势力、事件，并说明本机 hybrid 规则接管边界；Flutter widget test 覆盖摘要和确认前零写入。随后用本机 Qwen 7B 从零创建“潮汐之门”新世界，完成 3 回合并持久化正式结局，再从同一 World 开始新 Run。叙事上下文改为向模型提供生成实体的玩家名称、章节/结局显示标签和禁止内部 ID/旧模板名的 guardrail；复测中正文使用“艾莉森、墨菲斯托、老船长”并触发主动 NPC 联系，不再把内部关系 ID `lan` 写成旧名“兰”。后端 127 项测试、Ruff、Flutter 23 项/analyze、APK 构建通过；最新 APK SHA-256 为 `e84207e9592fc90bf1d30008d50d5a97ea50c364a542c4b788de4d5270e8063b`。玩家评分 86→87（+1）；证据见 `eval/evidence/phase127-next-goal-draft-review-and-context-grounding.json`。本 Goal 到此停止：剩余主要是 Windows/macOS/Android 发布环境与真机验收门槛。
 
-phase128 处理本轮玩家反馈的整组 P0/P1：世界详情新增永久删除入口，删除会级联旅程、回合和历史并要求二次确认；Android 操作阶段改为单行横向滚动；草案审阅只显示玩家可理解的素材摘要和可玩性结论，不再暴露 `mechanics`/`canonical` 等修复路径，不可玩草案阻止创建。安全世界映射清理雾港 lorebook、雾灯和旧章节文本，叙事上下文改为当前世界的生成实体；离线模板则明确标注为固定雾港示例。Android 游玩页把历史、当前新内容和选项拆成独立阅读区域，长正文可展开全文；当前卡片的折叠阈值进一步收紧后，模拟器截图已同时看到长文摘要和底部选项。后端 129 项测试、Ruff、Flutter 24 项/analyze、桌面 32 项/构建通过；最新 Android debug APK SHA-256 为 `cff89639321830fd338072fec48e33fd42ad50689226a0edadb32fc19ca338b1`。本地 `dzmm-ux-api36` 已安装并打开该 APK；PC-qwen3-direct 本轮在 120 秒内无返回，界面正确保留单行等待状态且未写入半成品，离线模板草案审阅流程正常。玩家评分暂不变，交由用户用响应的 Qwen 配置人工验收新世界叙事关联性和长历史滚动。证据见 `vnext/eval/evidence/phase128-player-feedback-world-integrity-and-mobile-reading.json`。
+phase128 处理本轮玩家反馈的整组 P0/P1：世界详情新增永久删除入口，删除会级联旅程、回合和历史并要求二次确认；Android 操作阶段改为单行横向滚动；草案审阅只显示玩家可理解的素材摘要和可玩性结论，不再暴露 `mechanics`/`canonical` 等修复路径，不可玩草案阻止创建。安全世界映射清理雾港 lorebook、雾灯和旧章节文本，叙事上下文改为当前世界的生成实体；离线模板则明确标注为固定雾港示例。Android 游玩页把历史、当前新内容和选项拆成独立阅读区域，长正文可展开全文；当前卡片的折叠阈值进一步收紧后，模拟器截图已同时看到长文摘要和底部选项。后端 129 项测试、Ruff、Flutter 24 项/analyze、桌面 32 项/构建通过；最新 Android debug APK SHA-256 为 `cff89639321830fd338072fec48e33fd42ad50689226a0edadb32fc19ca338b1`。本地 `dzmm-ux-api36` 已安装并打开该 APK；PC-qwen3-direct 本轮在 120 秒内无返回，界面正确保留单行等待状态且未写入半成品，离线模板草案审阅流程正常。玩家评分暂不变，交由用户用响应的 Qwen 配置人工验收新世界叙事关联性和长历史滚动。证据见 `eval/evidence/phase128-player-feedback-world-integrity-and-mobile-reading.json`。
 
-phase129 按玩家体验 Goal 连续做了三轮可感知改进：当前回合先显示主要结果并把其他变化收进可展开入口；叙事请求增加最近行动、未完成剧情线、活动事件和按关键词触发的世界书分层记忆；Android“当前状态”集中展示地点、路线、物品、人物关系和线索；NPC 主动联系时紧凑当前卡仍保留“正在等待回应”和下一步提示。真实模拟器截图、回合状态面板和 NPC StoryBeat 契约均有证据；后端 132 项测试、Ruff、Flutter analyze/24 项测试、APK 构建通过，最新 APK SHA-256 为 `e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad`，已安装至 `emulator-5554`。玩家体验评分由 87 提升至 90（+3）；本轮未触发连续两轮无提升，后续若新世界真实体验连续两轮不加分则停止 Goal。证据见 `vnext/eval/evidence/phase129-player-experience-goal.json`。
-phase130 以本地 `dzmm-ux-api36` 模拟器和本机 `qwen2.5:7b` 从创建新世界开始验收：修复 Android 保存模型后的 `setState` 异步回调 P0，并以 commit `699b325` 推送；模型 Probe 最终返回“可用 · protocol response contains content”。新世界草案/开场/前两回合中，地点、角色、NPC 主动联系、线索、路线锁定和下一步选项保持可理解因果；第三回合显示模型截断边界但未写入半回合，随后世界详情与正式好结局页可回顾 3 回合、关键行动、关系/物品，并成功从同一世界创建新 Run。Flutter analyze 和 24 项测试通过，APK SHA-256 为 `bc4600db200c5357d13eb7e03c3ee5535582a265d7991f32d0362a792819b92f`。玩家评分 90→91（+1）；10–30 回合长局、不同题材去模板化和三端安装证据仍未通过。证据见 `vnext/eval/evidence/phase130-new-world-qwen7b-longrun-replay.json`。
-phase131 修复 AI 世界三章即结束的长局阻断：桌面 AI 草案与 Android embedded 安全映射共用 `extend_story_for_long_run`，三章 compact story 扩为 `ch1`–`ch10`，中间章节只提供地点追查/NPC 询问桥接选项，最后一章才允许结局；离线固定雾港模板保持兼容。后端 132 项测试、Ruff、Flutter 24 项/analyze 通过；最新 APK SHA-256 为 `d73306bdba9f365263fd8443272db9986fbceb41d739af7adc4ffd7a102d13e1`，已安装模拟器。新世界真实 Android 验收第三回合仍显示“线索推进 2”和两个下一步选项，玩家评分 91→92（+1）；完整 10–30 回合、不同题材和三端安装包证据仍待完成。证据见 `vnext/eval/evidence/phase131-ai-world-long-run-extension.json`。
+phase129 按玩家体验 Goal 连续做了三轮可感知改进：当前回合先显示主要结果并把其他变化收进可展开入口；叙事请求增加最近行动、未完成剧情线、活动事件和按关键词触发的世界书分层记忆；Android“当前状态”集中展示地点、路线、物品、人物关系和线索；NPC 主动联系时紧凑当前卡仍保留“正在等待回应”和下一步提示。真实模拟器截图、回合状态面板和 NPC StoryBeat 契约均有证据；后端 132 项测试、Ruff、Flutter analyze/24 项测试、APK 构建通过，最新 APK SHA-256 为 `e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad`，已安装至 `emulator-5554`。玩家体验评分由 87 提升至 90（+3）；本轮未触发连续两轮无提升，后续若新世界真实体验连续两轮不加分则停止 Goal。证据见 `eval/evidence/phase129-player-experience-goal.json`。
+phase130 以本地 `dzmm-ux-api36` 模拟器和本机 `qwen2.5:7b` 从创建新世界开始验收：修复 Android 保存模型后的 `setState` 异步回调 P0，并以 commit `699b325` 推送；模型 Probe 最终返回“可用 · protocol response contains content”。新世界草案/开场/前两回合中，地点、角色、NPC 主动联系、线索、路线锁定和下一步选项保持可理解因果；第三回合显示模型截断边界但未写入半回合，随后世界详情与正式好结局页可回顾 3 回合、关键行动、关系/物品，并成功从同一世界创建新 Run。Flutter analyze 和 24 项测试通过，APK SHA-256 为 `bc4600db200c5357d13eb7e03c3ee5535582a265d7991f32d0362a792819b92f`。玩家评分 90→91（+1）；10–30 回合长局、不同题材去模板化和三端安装证据仍未通过。证据见 `eval/evidence/phase130-new-world-qwen7b-longrun-replay.json`。
+phase131 修复 AI 世界三章即结束的长局阻断：桌面 AI 草案与 Android embedded 安全映射共用 `extend_story_for_long_run`，三章 compact story 扩为 `ch1`–`ch10`，中间章节只提供地点追查/NPC 询问桥接选项，最后一章才允许结局；离线固定雾港模板保持兼容。后端 132 项测试、Ruff、Flutter 24 项/analyze 通过；最新 APK SHA-256 为 `d73306bdba9f365263fd8443272db9986fbceb41d739af7adc4ffd7a102d13e1`，已安装模拟器。新世界真实 Android 验收第三回合仍显示“线索推进 2”和两个下一步选项，玩家评分 91→92（+1）；完整 10–30 回合、不同题材和三端安装包证据仍待完成。证据见 `eval/evidence/phase131-ai-world-long-run-extension.json`。
 phase132 将 Legacy 边界变成玩家可见的设置说明：macOS/Windows 与 Android 都明确旧版 DZMM 存档不会自动迁移或覆盖 Next，跨设备通过世界包/旅程快照主动携带；Android widget 测试覆盖该提示，桌面 32 项测试和生产构建通过。该轮没有改变核心游玩能力，玩家评分保持 92；完整长局、不同题材与三端冷启动/恢复证据仍是发布门槛。
-phase133 用当前代码重新构建 PyInstaller sidecar 和 macOS release `.app`，从实际应用二进制冷启动后 `/health` 返回 `app=dzmm-next`、`api_version=2`、`storage=local`、`foreign_keys=true`；桌面 32 项测试、生产构建和 sidecar package smoke 通过。Windows 原生 installer、Android 真机/发布包仍未验证，玩家评分保持 92。phase132 与 phase133 连续两轮无明显提升，按 Goal 退出机制停止继续改动。证据见 `vnext/eval/evidence/phase133-macos-package-health.json`。
+phase133 用当前代码重新构建 PyInstaller sidecar 和 macOS release `.app`，从实际应用二进制冷启动后 `/health` 返回 `app=dzmm-next`、`api_version=2`、`storage=local`、`foreign_keys=true`；桌面 32 项测试、生产构建和 sidecar package smoke 通过。Windows 原生 installer、Android 真机/发布包仍未验证，玩家评分保持 92。phase132 与 phase133 连续两轮无明显提升，按 Goal 退出机制停止继续改动。证据见 `eval/evidence/phase133-macos-package-health.json`。
 
 ### Portable bundle slice
 
@@ -252,18 +252,18 @@ phase133 用当前代码重新构建 PyInstaller sidecar 和 macOS release `.app
   导入/克隆，`LocalHostPort` 与 embedded core 已声明同一组操作；phase61 已在 Android 取 Run
   export→system picker→clone→重开回读证据。
 
-证据：`vnext/backend/tests/test_portable.py`（world round-trip、Run clone 与损坏包拒绝），桌面生产构建通过；
-Android direct model 与 portable 取证见 `vnext/eval/evidence/phase59-android-direct-model-probe.json`、
-`vnext/eval/evidence/phase61-android-portable-roundtrip.json`。
+证据：`backend/tests/test_portable.py`（world round-trip、Run clone 与损坏包拒绝），桌面生产构建通过；
+Android direct model 与 portable 取证见 `eval/evidence/phase59-android-direct-model-probe.json`、
+`eval/evidence/phase61-android-portable-roundtrip.json`。
 损坏包零写入已有后端保护；Android↔desktop 双向安装后 UI 取证仍是 P0 缺口。
 
 ## Phase 134：Qwen 7B 长局与移动端操作区复验
 
 本机 Qwen 7B 已从新世界创建开始完成 10 回合并正式结局；Android 长正文操作区修复为正文内部滚动、选项固定在底部，并提高 Ollama 生成预算、清理 Qwen Markdown/选择元话术。玩家评分暂为 93/100。不同题材世界、Android release/真机和 Windows 原生安装仍未通过；若后续两轮评分无提升，停止本 Goal。
-证据见 `vnext/eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
+证据见 `eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
 
 phase135–136 尝试不同题材和复核发布 gate，但没有取得可复核的新玩家分值；连续两轮保持 93，按退出机制停止本 Goal。后续需在可控输入环境、Android release/真机和 Windows 原生环境补齐证据后再开启新 Goal。
-证据见 `vnext/eval/evidence/phase135-genre-and-release-gate-review.json`、`vnext/eval/evidence/phase136-no-score-exit-review.json`。
+证据见 `eval/evidence/phase135-genre-and-release-gate-review.json`、`eval/evidence/phase136-no-score-exit-review.json`。
 
 ## Phase 144：替换旧版的工程安全网与 cutover 决策
 
@@ -302,7 +302,7 @@ release workflow 的 macOS/Windows 资源检查已与实际 `dzmm-next-backend` 
 当前 worktree 已成功生成 `DZMM.app`，Info.plist 的展示名为 `DZMM`，包内 sidecar 资源存在；
 clean sidecar build 与 health smoke 通过。Android 模拟器经直接启动后已在线，当前 DZMM debug APK
 已安装并打开 `MainActivity`，但本轮没有重新跑完整 Qwen 旅程，因此玩家评分仍为 **93/100**；
-Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/evidence/phase146-package-and-emulator-gate.json`。
+Windows 原生 installer 仍不在本机可用环境中。证据见 `eval/evidence/phase146-package-and-emulator-gate.json`。
 
 这不是 Goal 退出条件：阻塞点从代码缺陷转为可控的发布/观察环境。下一步安全动作是使用已知可见
 窗口的 macOS GUI 会话、Windows runner 和在线 Android 模拟器补齐主旅程证据；在此之前不删除旧版
@@ -318,7 +318,7 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 迁移资源中不存在，sidecar 因此退出。新增窄范围回锚逻辑，只在 `alembic_version` 精确匹配该
 旧 revision 且 `lifecycle_audit_events` 表存在时改为现行 `0009_lifecycle_audit_events`，随后
 正常执行到 `0012_model_credentials`；其他数据库版本保持不变。复制当前本地库做迁移回归已通过，
-后端 137 项测试与 Ruff 全绿。证据见 `vnext/eval/evidence/phase148-packaged-migration-repair.json`。
+后端 137 项测试与 Ruff 全绿。证据见 `eval/evidence/phase148-packaged-migration-repair.json`。
 
 这是安装/升级可靠性修复，玩家评分仍为 **93/100**。下一步重新构建并启动 DZMM 包，确认旧版
 端口共存时 Host 能就绪；完整玩家旅程、Windows installer 和 Android release 仍是替换门槛。
@@ -328,7 +328,7 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 按正确顺序重建 PyInstaller sidecar 和 `DZMM.app` 后，新包在旧版进程继续占用 8765 的情况下
 成功启动，自动选择 `127.0.0.1:50909`；持久化 `dzmm.log` 记录了旧 revision 回锚并完成到
 `0012_model_credentials`，`/health` 返回 `app=dzmm-next`、本地存储和外键开启，世界列表 API
-返回空数组而非启动错误。证据见 `vnext/eval/evidence/phase149-packaged-macos-startup.json`。
+返回空数组而非启动错误。证据见 `eval/evidence/phase149-packaged-macos-startup.json`。
 
 本轮仍不增加玩家分数（**93/100**），因为没有新的完整创建→游玩→结局旅程。macOS 的安装启动
 阻断已解除，但可见 GUI 主路径仍需观察，Windows 原生 installer、Android release 冷启动/恢复
@@ -338,7 +338,7 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 
 在 `dzmm-ux-api36`（API 36，`emulator-5554`）上构建并安装 `app-release.apk`，强制停止后重新
 启动 `MainActivity` 成功，系统顶层 Activity 可见；截图确认品牌为 DZMM，当前内容、历史/重新
-读取入口和底部选项同时可见。证据见 `vnext/eval/evidence/phase150-android-release-cold-start.json`。
+读取入口和底部选项同时可见。证据见 `eval/evidence/phase150-android-release-cold-start.json`。
 
 本轮仍保持 **93/100**：只是 release 冷启动和布局证据，没有新增完整玩家旅程。Android 真机、后台
 恢复/失败重试、30 回合 Qwen 旅程和 Windows 原生 installer 仍是替换门槛。
@@ -350,7 +350,7 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 计算一次端口并返回实际 origin，前端轮询与 sidecar 使用同一地址。`cargo fmt --check`、`cargo check`、
 桌面 36 项测试通过；重建并启动包后，sidecar 在 `127.0.0.1:53308` 健康，窗口显示“本机游戏服务
 已就绪”，日志记录 `/health` 和模型列表请求均为 200。证据见
-`vnext/eval/evidence/phase151-macos-host-port-return.json`。
+`eval/evidence/phase151-macos-host-port-return.json`。
 
 这是首屏可玩性/跨端安装可靠性的实际提升，玩家评分由 **93/100 提升至 94/100**；尚未证明该
 安装包的完整创建世界→游玩→结局→新 Run 旅程，Windows installer 和 Android 后台恢复仍待验证。
@@ -363,7 +363,7 @@ Windows 原生 installer 仍不在本机可用环境中。证据见 `vnext/eval/
 installer 内容检查确认 `dzmm-next-backend.exe` 与 Python `_internal` 存在，打包 sidecar 的
 Local Host `/health` 也通过；同一 run 的 macOS job 完成 DMG `.app + backend + _internal` smoke。
 artifact 为 `dzmm-windows-x64`（22,770,763 bytes）和 `dzmm-macos-arm64`（31,012,067 bytes）。
-证据见 `vnext/eval/evidence/phase152-windows-release-ci.json`。
+证据见 `eval/evidence/phase152-windows-release-ci.json`。
 
 这轮只证明构建与安装包内容，未在 Windows 桌面上执行安装后可见玩家流程，因此评分保持
 **94/100**。Windows 安装后完整创建世界→游玩→结局→新 Run、Android 后台恢复/真机和
@@ -373,7 +373,7 @@ artifact 为 `dzmm-windows-x64`（22,770,763 bytes）和 `dzmm-macos-arm64`（31
 
 在 `emulator-5554` 上对 release APK 执行 `am force-stop` 后重新启动 `MainActivity`，系统顶层
 Activity 恢复成功；截图显示 DZMM 游玩页仍保留当前场景、叙事内容、历史重新读取入口和底部
-操作。证据见 `vnext/eval/evidence/phase153-android-release-recovery.json`。
+操作。证据见 `eval/evidence/phase153-android-release-recovery.json`。
 
 本轮没有新的完整创建/游玩旅程，评分保持 **94/100**。Android 真机、模型失败重试、跨端回读和
 Windows 安装后的玩家路径仍未完成。
@@ -384,7 +384,7 @@ Windows 安装后的玩家路径仍未完成。
 `rescue-lan → lan-testimony → open-tide-gate` 三次选择，得到 `lan-dawn / good` 正式结局
 （revision 3、4 个 story beats），随后从同一 World 创建第二个 Run，并成功重开回读 opening
 （revision 0、1 个 opening beat）。三次模型叙事调用均返回 201，耗时约 21.9/23.1/30.7 秒。
-证据见 `vnext/eval/evidence/phase154-macos-packaged-player-loop.json`。
+证据见 `eval/evidence/phase154-macos-packaged-player-loop.json`。
 
 这证明 macOS 打包 sidecar 的真实模型生命周期可完成，但本轮通过 API 而非可见 GUI 点击，故玩家
 评分保持 **94/100**。仍需桌面可见创建/游玩/结局/新 Run、Windows 安装后 GUI、Android 真机
@@ -396,7 +396,7 @@ Windows 安装后的玩家路径仍未完成。
 因此 phase154 的打包 API 闭环和现有窗口截图不能被扩大解释为完整可见 GUI 验收；本轮评分保持
 **94/100**。待用户接管或授予 GUI 观察权限后，继续验证桌面创建/选择/结局/新 Run；其余
 Windows 安装后 GUI、Android 真机和跨端回读门槛不变。证据见
-`vnext/eval/evidence/phase155-macos-gui-observation-boundary.json`。
+`eval/evidence/phase155-macos-gui-observation-boundary.json`。
 
 ## Phase 156：Android 模型端点可达性提示
 
@@ -405,7 +405,7 @@ Android release 模拟器的真实操作暴露出一个此前被 API/冷启动�
 `127.0.0.1` 不是电脑。模型设置现在按平台提供默认地址：Android 模拟器使用 `10.0.2.2`，桌面
 仍使用 `127.0.0.1`；已有 loopback 档案会显示迁移提示，并说明真机局域网 IP 和服务监听要求。
 Flutter analyze、相关 widget 测试、release APK 构建/安装均通过，截图确认提示在模型列表可见。
-证据见 `vnext/eval/evidence/phase156-android-model-endpoint-guidance.json`。
+证据见 `eval/evidence/phase156-android-model-endpoint-guidance.json`。
 
 这是设置可理解性和失败恢复的实际修复，但尚未增加玩家分数（保持 **94/100**）：Ollama 当前仅
 监听宿主机 `127.0.0.1:11434`，Android release 尚未完成“配置可达模型→创建世界→完整游玩→结局→新
@@ -419,7 +419,7 @@ Run”的可见闭环。下一步先建立受控的宿主机可达模型端点�
 完成 10 个可见回合。每回合都有叙事、NPC 主动联系、状态结果和可选行动；最终回合显示正式的隐藏
 结局，重新进入已完成旅程可看到“10 个回合”、路线、关系与物品。回到世界详情后，界面显示该旅程已
 完成，并在同一世界创建第二段旅程，看到新的主角和新的开场内容。证据见
-`vnext/eval/evidence/phase157-android-release-new-world-journey.json`。
+`eval/evidence/phase157-android-release-new-world-journey.json`。
 
 这是新的完整玩家闭环，评分由 **94/100 提升至 95/100**。Qwen 7B 在模拟器单回合约 35–90 秒，
 虽然阶段和耗时反馈可见，但仍是明显的沉浸/节奏风险；真实 Android 设备、Windows 安装后 GUI、
@@ -429,7 +429,7 @@ macOS 可见 GUI 和跨设备回读仍未通过，因此不执行老版删除或
 
 在 phase157 已完成的真实 10 回合隐藏结局上执行 Android release `force-stop` 并重新启动
 `MainActivity`，应用恢复到第 10 回合、隐藏结局和结算内容，未丢失旅程状态。证据见
-`vnext/eval/evidence/phase158-android-release-recovery-after-journey.json`。
+`eval/evidence/phase158-android-release-recovery-after-journey.json`。
 
 这是持久化恢复的确认性证据，评分保持 **95/100**；不重复计分。下一步只处理尚未通过的
 macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Android 模拟器回归推动分数。
@@ -439,7 +439,7 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 真实 Android loading 截图显示阶段标签虽未换行，但右侧会被裁切，需要额外横向滑动。现在将四个
 阶段改为等宽紧凑条，每个阶段在自己的单元格内单行显示并以省略号处理极窄空间；不再依赖隐藏的
 横向滚动。Flutter analyze、相关 widget 测试和 release APK 构建均通过。证据见
-`vnext/eval/evidence/phase159-android-operation-strip.json`。
+`eval/evidence/phase159-android-operation-strip.json`。
 
 这是对执行状态可读性的修复，评分保持 **95/100**，不重复计算已有 loading 能力。待 macOS/Windows
 可见安装包 gate 可用后，再补一次真实生成操作的视觉确认。
@@ -449,7 +449,7 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 完成 `DZMM`、`dzmm-next`、`dzmm_vnext`、`.dzmm-vnext-v3`、sidecar 文件名、包标识和本地
 存储键的引用清单，明确这些标识不能在迁移策略和桌面安装包验收前直接替换。清单见
 `docs/reviews/2026-08-30-cutover-name-inventory.md`，结构化证据见
-`vnext/eval/evidence/phase160-cutover-name-audit.json`。本阶段不改变玩家评分，且不执行旧版
+`eval/evidence/phase160-cutover-name-audit.json`。本阶段不改变玩家评分，且不执行旧版
 删除；下一步是 macOS/Windows 可见 GUI gate 与迁移/回滚策略。
 
 ## Phase 161：桌面首次进入的存储边界提示
@@ -458,13 +458,13 @@ macOS 可见 GUI、Windows 安装后 GUI 和替换审计，不再以重复 Andro
 不会自动迁移或覆盖，并指向主动导入世界包/旅程快照的路径；首次无模型仍优先引导模型
 设置，恢复中的旅程提示不被覆盖。`npm run build` 通过。本阶段不改变玩家评分，仍需在
 安装包 GUI 中确认提示与主流程的视觉位置。结构化证据见
-`vnext/eval/evidence/phase161-desktop-storage-boundary-notice.json`。
+`eval/evidence/phase161-desktop-storage-boundary-notice.json`。
 
 ## Phase 162：替换边界回归验证
 
 桌面 13 个测试文件/36 项测试、后端 sidecar 与便携边界 13 项测试全部通过；覆盖新库迁移、
 不兼容预览库拒绝、世界/旅程导入边界以及 active/pending Run 键兼容。仅有既存
-Starlette/httpx 弃用警告，不影响结果。证据见 `vnext/eval/evidence/phase162-cutover-boundary-regression.json`。
+Starlette/httpx 弃用警告，不影响结果。证据见 `eval/evidence/phase162-cutover-boundary-regression.json`。
 本阶段评分保持 **95/100**，下一步仍是安装包 GUI 证据与迁移/回滚最终决策。
 
 ## Phase 163：首个替换版本迁移策略冻结
@@ -473,14 +473,14 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 数据目录，玩家通过世界包或旅程快照主动带入内容，源数据不被改写。桌面和 Android
 均已有对应的玩家说明，sidecar 对不兼容预览库保持拒绝并零写入。该策略完成了“可理解的
 不迁移边界”门槛，但旧版归档 tag、恢复演练和最终 cutover 仍未完成，评分保持 **95/100**。
-结构化证据见 `vnext/eval/evidence/phase163-migration-policy-freeze.json`。
+结构化证据见 `eval/evidence/phase163-migration-policy-freeze.json`。
 
 ## Phase 166：运行时数据备份与恢复演练
 
 新增回归测试，在临时 vNext 数据目录中创建可玩世界，执行 SQLite 备份、模拟数据库丢失、
 恢复备份并重新启动 API，成功通过 `/api/v2/worlds` 回读世界。后端全量测试 **138 passed**，
 仅有既存 Starlette/httpx 弃用警告；没有触碰真实用户数据。证据见
-`vnext/eval/evidence/phase166-runtime-data-restore-rehearsal.json`。这是数据恢复演练，
+`eval/evidence/phase166-runtime-data-restore-rehearsal.json`。这是数据恢复演练，
 仍不等同于 macOS/Windows 安装包 GUI 验收，评分保持 **95/100**。
 
 ## Phase 172：发布交接清单
@@ -494,7 +494,7 @@ ADR-010 已冻结首个替换版本的迁移策略：不自动复制、覆盖或
 已从推送后的当前候选运行 `33314492033`：macOS arm64 与 Windows x64 构建均成功，生成未过期
 artifacts（分别约 31.0MB、22.8MB）；`release` 发布 job 因非 `v*` tag 按设计跳过。构建产物
 现在可用于安装验收，但不能替代 Windows 原生 GUI 或 macOS 可见玩家旅程。证据见
-`vnext/eval/evidence/phase174-release-workflow-current-candidate.json`，评分保持 **95/100**。
+`eval/evidence/phase174-release-workflow-current-candidate.json`，评分保持 **95/100**。
 
 ## Phase 175：GitHub 授权后 Draft PR 与校验闭环
 
@@ -503,7 +503,7 @@ artifacts（分别约 31.0MB、22.8MB）；`release` 发布 job 因非 `v*` tag 
 PR 保持 Draft，未合并、未删除旧版。PR 的 backend-ci 与 E2E smoke 均通过；E2E 之前因
 Ubuntu runner 缺少 `gobject-2.0`/`gio-2.0` 失败，补充 `libwebkit2gtk-4.1-dev`、
 `libappindicator3-dev`、`librsvg2-dev`、`patchelf` 后恢复通过。证据见
-`vnext/eval/evidence/phase175-github-draft-pr-and-checks.json`。这解决的是交付校验环境问题，
+`eval/evidence/phase175-github-draft-pr-and-checks.json`。这解决的是交付校验环境问题，
 不增加玩家评分，当前仍为 **95/100**；macOS/Windows 可见 GUI 与最终 cutover 门槛继续保持未闭合。
 
 ## Phase 176：PC Qwen3 创作兼容与世界实体一致性
@@ -514,7 +514,7 @@ Ubuntu runner 缺少 `gobject-2.0`/`gio-2.0` 失败，补充 `libwebkit2gtk-4.1-
 NPC 的情况，增加了安全归一化；未知字段仍由严格 CreativeSource 校验阻止创建。桌面创建审阅、
 确认页和世界详情现在展示“会在游玩中出现”的 NPC，避免正文引入未告知角色。后端全量
 `144 passed`、Ruff、桌面测试/生产构建通过；macOS release 包已重建并在可见 GUI 中确认世界详情
-显示 NPC。证据见 `vnext/eval/evidence/phase176-pc-qwen3-draft-compatibility.json`。
+显示 NPC。证据见 `eval/evidence/phase176-pc-qwen3-draft-compatibility.json`。
 
 这是模型兼容性与信息透明度改进，尚未改变玩家总分（仍为 **95/100**）；Windows 安装后 GUI、
 Android 真机和最终命名/切换门槛仍未通过，PR #2 保持 Draft。
@@ -526,7 +526,7 @@ Android 真机和最终命名/切换门槛仍未通过，PR #2 保持 Draft。
 角色卡人物仍会参与对话和主动事件，但额外 NPC 区不再重复列出角色卡。引用不存在地点时，后端
 会在可容纳时把该地点加入素材，超过容量则阻止创建而不是静默指向其他地点。后端全量 `146 passed`、
 Ruff、桌面 `36 passed` 和生产构建通过。证据见
-`vnext/eval/evidence/phase177-local-qwen-draft-review-consistency.json`，代码提交为 `f10f69c`，当前文档头为 `99c8c22`。
+`eval/evidence/phase177-local-qwen-draft-review-consistency.json`，代码提交为 `f10f69c`，当前文档头为 `99c8c22`。
 
 本轮改善了草案可理解性和创建前一致性，但没有改变玩家总分（仍为 **95/100**）。Windows 安装后
 GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续保持 Draft。
@@ -537,7 +537,7 @@ GUI、Android 真机以及最终命名/切换仍是发布门槛；PR #2 继续�
 首次冷启动草案超时后，补充 LM Studio `json_schema` 结构化输出约束并重建，第二次草案在 20.7 秒
 进入确认前审阅，状态为有效。草案生成 `潮汐回廊`、3 个地点、2 张角色卡和 2 个额外 NPC；越界的
 数值字段被安全归一化，确认前没有写入世界或旅程。证据见
-`vnext/eval/evidence/phase179-pc-qwen-structured-draft.json`。本轮提升了 PC 模型可用性，但玩家
+`eval/evidence/phase179-pc-qwen-structured-draft.json`。本轮提升了 PC 模型可用性，但玩家
 总分暂保持 **95/100**，Windows 安装后 GUI 与完整 macOS 游玩旅程仍未验收。
 
 ## Phase 180：最新 PC 模型修复版跨平台产物
@@ -579,26 +579,26 @@ release workflow `33526060462`。macOS arm64 与 Windows x64 均成功：后端�
 重新检查当前 macOS 安装包：`dzmm-next-desktop` 进程存在，但 WindowServer 对该进程返回
 可见窗口数为 0；同时旧版 `/Applications/dzmm.app` sidecar 仍在运行。按证据纪律，
 进程/sidecar 健康不能替代玩家可见窗口，因此 macOS GUI gate 仍未通过，评分保持 **95/100**。
-证据见 `vnext/eval/evidence/phase167-macos-gui-gate-recheck.json`。
+证据见 `eval/evidence/phase167-macos-gui-gate-recheck.json`。
 
 ## Phase 168：macOS Computer Use 权限复核
 
 普通系统截图可以看到安装包窗口，但 `@oai/sky` 读取/操作应用时仍返回“Computer Use permissions
 are not granted”。因此本轮没有执行或伪造任何 GUI 点击证据；macOS 安装包 gate 继续保持未通过。
-证据见 `vnext/eval/evidence/phase168-macos-computer-use-permission-recheck.json`，评分保持 **95/100**。
+证据见 `eval/evidence/phase168-macos-computer-use-permission-recheck.json`，评分保持 **95/100**。
 
 ## Phase 169：发布流水线新鲜度审计
 
 最新成功 release workflow `33299415557` 的 head 为 `7a25ec8`，虽是当前分支祖先，但不包含
 最近的 Android 模型端点/单行状态、桌面存储提示和运行时恢复测试改动。现有 Windows/macOS
 产物只能作为历史 smoke 证据，必须从当前 cutover 候选重新运行 release workflow 后才能验收。
-本轮不直接触发发布，评分保持 **95/100**。证据见 `vnext/eval/evidence/phase169-release-ci-freshness-audit.json`。
+本轮不直接触发发布，评分保持 **95/100**。证据见 `eval/evidence/phase169-release-ci-freshness-audit.json`。
 
 ## Phase 171：远端候选新鲜度前置条件
 
 核对发现远端 `origin/feature/dzmm-vnext` 仍在 `6068dbb`，本地候选已前进到 `5edf0dc`，
 本地领先 12 个提交。远端 release workflow 无法验证这些未推送提交；按外部写入边界，
-本轮不自行 push。证据见 `vnext/eval/evidence/phase171-remote-candidate-freshness.json`，
+本轮不自行 push。证据见 `eval/evidence/phase171-remote-candidate-freshness.json`，
 评分保持 **95/100**。
 
 ## Phase 170：当前候选本地打包复核
@@ -607,13 +607,13 @@ are not granted”。因此本轮没有执行或伪造任何 GUI 点击证据；
 `desktop/src-tauri` 的 `cargo check`，均通过；仅先前一次命令因目录错误失败，修正后没有
 代码错误。该证据只证明当前代码可构建，不替代远端 release workflow、Windows 原生安装或
 macOS 完整可见旅程验收。评分保持 **95/100**。证据见
-`vnext/eval/evidence/phase170-current-candidate-package-build.json`。
+`eval/evidence/phase170-current-candidate-package-build.json`。
 
 ## Phase 164：旧版归档 tag 固定
 
 已在旧版 `main@df38037` 上建立本地归档 tag
 `dzmm-legacy-v0.16.0-2026-08-30`，作为 cutover 前的回滚锚点；未修改旧版提交内容，
-也未将 vNext 合入 `main`。结构化证据见 `vnext/eval/evidence/phase164-legacy-archive-tag.json`。
+也未将 vNext 合入 `main`。结构化证据见 `eval/evidence/phase164-legacy-archive-tag.json`。
 恢复演练、桌面安装包 GUI gate 和最终命名收敛仍待完成，评分保持 **95/100**。
 
 ## Phase 165：旧版归档源码恢复演练
@@ -621,7 +621,7 @@ macOS 完整可见旅程验收。评分保持 **95/100**。证据见
 从 `dzmm-legacy-v0.16.0-2026-08-30` 创建隔离 detached worktree，确认恢复到
 `df38037b6e3510d2e035e20600f49bd1f48ff077`、关键旧版源码存在且工作区干净，随后只删除
 本轮创建的临时 worktree；当前 vNext、`main` 和归档 tag 均未改变。结构化证据见
-`vnext/eval/evidence/phase165-legacy-restore-rehearsal.json`。这是源码回滚演练，运行时数据
+`eval/evidence/phase165-legacy-restore-rehearsal.json`。这是源码回滚演练，运行时数据
 恢复仍未声称完成，评分保持 **95/100**。
 
 ## Phase 147：macOS 包窗口与旧版端口共存复核
@@ -631,7 +631,7 @@ macOS 完整可见旅程验收。评分保持 **95/100**。证据见
 仍占用 `127.0.0.1:8765` 与通配端口，导致新包完整启动旅程不能作为通过证据。为降低过渡期冲突，
 Tauri host 现在在未显式设置 `DZMM_NEXT_PORT` 时优先 8765、被占用则选择空闲 loopback 端口；
 显式端口仍原样使用。该改动已 cargo check 通过，证据见
-`vnext/eval/evidence/phase147-macos-window-and-port-collision.json`。
+`eval/evidence/phase147-macos-window-and-port-collision.json`。
 
 玩家评分保持 **93/100**：这是发布可靠性改进，不是新的可玩性分数。下一步需要在关闭旧版
 sidecar 或全新用户目录的干净 GUI 会话重跑包内创建→游玩→结局→新 Run，随后再补 Windows
@@ -669,7 +669,7 @@ runtime 拆出；desktop 与 embedded runtime 现共用叙事提示、输出预�
 ## Phase 183：Android release 代码侧复核
 
 在当前候选上重新执行 `flutter analyze` 与 `flutter build apk --release`，均通过；生成
-`vnext/mobile/build/app/outputs/flutter-apk/app-release.apk`（93.7 MB）。构建输出提示
+`mobile/build/app/outputs/flutter-apk/app-release.apk`（93.7 MB）。构建输出提示
 `file_picker`/`share_plus` 仍使用旧 Kotlin Gradle Plugin 接入方式，这是依赖升级事项，不影响
 本次构建；由于 `adb devices` 为空，本轮不增加真机安装或玩家分数证据。
 ## Phase 184：Windows 安装后 Host 启动 smoke
@@ -698,7 +698,7 @@ Windows/macOS 可见 GUI 旅程、Android 真机和跨端回读，未达到合�
 “AI 草案→确认创建世界→创建 Run→选择首个故事选项”的真实闭环。草案有效，世界为
 `星辰的低语`，主角为 `艾莉娅·斯通`，选择 `援手图南` 后回合提交到 revision 1；
 叙事未被截断，且正文从所选角色开始承接。证据见
-`vnext/eval/evidence/phase187-mac-local-qwen-choice.json`。本轮只增加本地模型兼容性证据，
+`eval/evidence/phase187-mac-local-qwen-choice.json`。本轮只增加本地模型兼容性证据，
 玩家分数保持 **95/100**；安装包可见 GUI、Android 真机和跨设备回读仍未闭合。
 
 ## Phase 188：Mac 本地 Qwen 7B 十回合与沉浸过滤
@@ -708,7 +708,7 @@ Windows/macOS 可见 GUI 旅程、Android 真机和跨端回读，未达到合�
 `choice_id`/`chapter_id`/LaTeX 等自检文本；已在 `d1a4adc` 增加通用叙事清理与回归测试，
 避免将这类内容直接展示给玩家。该修复尚需新进程回合确认，评分保持 **95/100**；三端安装包
 GUI、Android 真机和跨设备回读仍是替换门槛。证据见
-`vnext/eval/evidence/phase188-mac-local-qwen-10-turn.json`。
+`eval/evidence/phase188-mac-local-qwen-10-turn.json`。
 
 ## Phase 189：Mac 本地 Qwen 7B 过滤后路线矩阵
 
@@ -718,7 +718,7 @@ GUI、Android 真机和跨设备回读仍是替换门槛。证据见
 第二章且结局重新解锁。回合耗时 10.2–24.3 秒，中位数 15.6 秒。新增的“根据语境/答案是/角色
 列表/在转述中”等自检段落清理规则由单测与该真实矩阵共同覆盖。该轮仍未完成安装包可见 GUI、
 Android 真机和跨设备回读，玩家评分保持 **95/100**。
-证据见 `vnext/eval/evidence/phase189-mac-local-qwen-filtered-matrix.json`。
+证据见 `eval/evidence/phase189-mac-local-qwen-filtered-matrix.json`。
 
 ## Phase 190：当前候选 Android release 构建
 
@@ -726,7 +726,7 @@ Android 真机和跨设备回读，玩家评分保持 **95/100**。
 `flutter build apk --release`，全部通过。生成 APK 为 93.7 MB，SHA-256 为
 `47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0`。本轮没有连接模拟器，
 因此不把构建证据扩大解释为安装或玩家旅程验收；评分保持 **95/100**。证据见
-`vnext/eval/evidence/phase190-current-android-release-build.json`。
+`eval/evidence/phase190-current-android-release-build.json`。
 
 ## Phase 191：当前候选 macOS 安装包 Host smoke
 
@@ -734,7 +734,7 @@ Android 真机和跨设备回读，玩家评分保持 **95/100**。
 `18773` 冷启动包内二进制；`/health` 返回 `app=dzmm-next`、`api_version=2`、
 `storage=local`、`host=127.0.0.1`、`foreign_keys=true`。由于 Mac 仍处于锁屏，本轮只记录
 当前安装包 Host 启动，不扩大解释为可见 GUI 玩家旅程，评分保持 **95/100**。证据见
-`vnext/eval/evidence/phase191-current-macos-package-health.json`。
+`eval/evidence/phase191-current-macos-package-health.json`。
 
 ## Phase 192：发布候选冻结与产物指纹
 
@@ -743,7 +743,7 @@ Android 真机和跨设备回读，玩家评分保持 **95/100**。
 SHA-256 为 `47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0`，当前
 macOS arm64 DMG SHA-256 为 `735201e3e2d0ed151b09d2ee3c8a8edcabe2073bba9c88dcb40aa6039747d917`。
 本机当前没有连接 Android 设备或 AVD，因此本阶段只冻结候选身份和产物完整性，不宣称 GUI/模拟器
-验收，评分保持 **95/100**。证据见 `vnext/eval/evidence/phase192-release-candidate-freeze.json`。
+验收，评分保持 **95/100**。证据见 `eval/evidence/phase192-release-candidate-freeze.json`。
 
 ## Phase 193：macOS 当前候选可见 GUI 创建、游玩与新 Run 回放
 
@@ -756,4 +756,4 @@ macOS arm64 DMG SHA-256 为 `735201e3e2d0ed151b09d2ee3c8a8edcabe2073bba9c88dcb40
 本轮还确认题材中立修复已进入当前产物：长回合桥接选项为“暂缓行动，等待更佳时机”，草案中没有
 `雾港`/`潮门`/`雾灯`模板词。但首回合正文仍出现“回到港口”等地点连续性和 NPC 插入不自然问题；
 本轮未完成 10 章可见结局及结局后新 Run 回放，因此 macOS gate 记为 partial pass，玩家评分保持
-**95/100**。证据见 `vnext/eval/evidence/phase193-macos-packaged-visible-gui.json`。
+**95/100**。证据见 `eval/evidence/phase193-macos-packaged-visible-gui.json`。

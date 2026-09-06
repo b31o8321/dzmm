@@ -1,34 +1,26 @@
 [project]
-name = "dzmm"
-version = "0.15.0"
-description = "AI dynamic TRPG text game backend"
+name = "dzmm-backend"
+version = "0.1.0"
+description = "Local backend for DZMM"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
-    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.14",
     "aiosqlite>=0.19",
-    "httpx>=0.27",
-    "pydantic>=2.6",
-    "keyring>=24.0",
-    "sse-starlette>=2.0",
-    "python-multipart>=0.0.9",
-    "langchain-text-splitters>=0.3",
-    "langchain-core>=0.3",
-    "chromadb>=0.5",
-    "langgraph>=0.2",
-    "edge-tts>=6.1",
-    "kokoro-onnx>=0.4",
-    "soundfile>=0.12",
+    "fastapi>=0.110",
+    "jsonschema>=4.23",
+    "keyring>=25.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "uvicorn[standard]>=0.27",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "httpx>=0.27",
     "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "respx>=0.21",
-    "ruff>=0.3",
-    "pyinstaller>=6.0",
+    "ruff>=0.8",
+]
+package = [
+    "pyinstaller>=6.10",
 ]
 
 [build-system]
@@ -39,7 +31,6 @@ build-backend = "hatchling.build"
 packages = ["src/dzmm"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
 

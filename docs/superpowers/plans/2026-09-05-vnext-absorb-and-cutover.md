@@ -94,5 +94,5 @@ M5  Wave3 Director 注入 ADR + 按需吸收 RAG/TTS
 - vnext backend 146 tests passed（Index 记录，候选 `de1a2f8`）；桌面 Vitest 36、
   Flutter 25。
 - 旧版归档 tag 已存在：`dzmm-legacy-v0.16.0-2026-08-30`。
-- 两个 worktree 工作区均干净（dzmm-vnext 仅 `vnext/desktop/src/style.css` 一处
+- 两个 worktree 工作区均干净（dzmm-vnext 仅 `desktop/src/style.css` 一处
   未提交改动，非本轮产生，保留）。

@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: vnext/backend
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: vnext/backend/pyproject.toml
+          cache-dependency-path: backend/pyproject.toml
 
       - name: install backend dependencies
         run: |

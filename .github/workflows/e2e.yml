@@ -31,22 +31,22 @@ jobs:
             patchelf
 
       - name: install vNext backend
-        working-directory: vnext/backend
+        working-directory: backend
         run: |
           python -m venv .venv
           ./.venv/bin/python -m pip install --upgrade pip
           ./.venv/bin/python -m pip install -e '.[dev]'
 
       - name: run vNext core tests
-        working-directory: vnext/backend
+        working-directory: backend
         run: ./.venv/bin/python -m pytest -q
 
       - name: install desktop dependencies
-        working-directory: vnext/desktop
+        working-directory: desktop
         run: npm ci
 
       - name: build desktop renderer and Tauri host
-        working-directory: vnext/desktop
+        working-directory: desktop
         run: |
           npm run build
           cargo check --manifest-path src-tauri/Cargo.toml

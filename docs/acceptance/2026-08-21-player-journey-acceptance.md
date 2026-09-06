@@ -22,34 +22,34 @@
 - `pass`：后端 112 tests + Ruff、桌面 28 tests/生产构建、Flutter 20 tests/analyze、debug APK 构建、macOS arm64 app/DMG 产物；Android 游玩、模型 Probe 和 AI 起草均有共享阶段/耗时/取消组件覆盖，模型生成/校验/Probe 已移出 Android UI 线程；桌面与 Android 现共用叙事提示、输出预算、技术摘要清洗、截断判定和模型超时/连接恢复文案，Probe 在 10 秒、叙事/草案在 120 秒边界后明确说明未写入结果与重试/换模型动作；同一真实 Ollama 模型的普通回合与正式结局均已完整输出；桌面自由行动和故事选择现消费 local-host SSE 叙事增量，只有状态提交完成后才刷新 Run；portable 内容合并已从页面编排器提取为纯函数边界；World 归档/恢复已在共享 Android bridge 实运行，归档世界的既有旅程保持查看但不可继续；choice 与自由行动入口仅在各自有效时显示；玩家主界面不再展示 revision、内部 Run/WorldVersion ID 或资源 ID；回滚记录已从正式回合数/关键行动中排除；AI 草案取消后不会创建 World、旅程或存档，取消传输失败时仍能恢复；桌面和 Android 重开时会解释未完成 Run 操作没有写入半个回合；release workflow 已锁定 PyInstaller package extra；桌面已有跳过导航、可见焦点、reduced motion、离线字体和 live announcement 防回退，Android 新旅程弹窗不再强制唤起键盘；当前 macOS 包已清除退役迁移缓存，并验证正常退出与父进程异常终止后 sidecar 都会同步关闭。
 
 仍为 `blocked` / `not-run`：Windows 安装包真实旅程、Android 物理设备 A-F 旅程、三端安装包 30 回合与
-重启恢复。当前 macOS 26.3.1 的 DMG 另已判定 `fail`：Host 正常但 WindowServer 中没有玩家可见窗口。机器证据记录在 `vnext/eval/evidence/phase72-player-first-implementation.json`、
-`vnext/eval/evidence/phase78-operation-stage-contract-parity.json` 和
-`vnext/eval/evidence/phase79-android-operation-status-and-cancel.json`、
-`vnext/eval/evidence/phase80-formal-ending-narrative-parity.json`、
-`vnext/eval/evidence/phase81-model-profile-field-validation.json`、
-`vnext/eval/evidence/phase82-android-background-model-operations.json`、
-`vnext/eval/evidence/phase83-macos-vite-player-journey.json`、
-`vnext/eval/evidence/phase84-clean-package-runtime-and-exit.json`、
-`vnext/eval/evidence/phase85-shared-narrative-quality.json`、
-`vnext/eval/evidence/phase86-packaged-parent-exit-cleanup.json`、
-`vnext/eval/evidence/phase87-android-world-archive-parity.json`、
-`vnext/eval/evidence/phase88-android-world-export-entry.json`、
-`vnext/eval/evidence/phase89-desktop-loading-stage-parity.json`、
-`vnext/eval/evidence/phase90-android-action-mode-boundary.json`、
-`vnext/eval/evidence/phase91-player-surface-technical-leakage.json`、
-`vnext/eval/evidence/phase92-formal-ending-recap-parity.json`、
-`vnext/eval/evidence/phase93-player-language-parity.json`、
-`vnext/eval/evidence/phase94-offline-keyboard-accessibility-boundary.json`、
-`vnext/eval/evidence/phase95-model-first-run-provider-parity.json`、`vnext/eval/evidence/phase96-rollback-and-credential-boundary.json`、
-`vnext/eval/evidence/phase97-draft-cancellation-boundary.json`、`vnext/eval/evidence/phase98-cancellation-transport-recovery.json`、
-`vnext/eval/evidence/phase99-release-sidecar-dependency-gate.json`、`vnext/eval/evidence/phase100-archived-world-view-only-boundary.json`、
-`vnext/eval/evidence/phase101-interrupted-run-recovery-marker.json`、`vnext/eval/evidence/phase102-imported-run-recovery.json`、`vnext/eval/evidence/phase103-desktop-narrative-stream.json`、`vnext/eval/evidence/phase104-portable-content-boundary.json`、`vnext/eval/evidence/phase105-player-model-timeout-feedback.json`、`vnext/eval/evidence/phase106-macos-packaged-webview-window-gate.json`、`vnext/eval/evidence/phase107-macos-window-control-experiment.json`。
-`vnext/eval/evidence/phase101-interrupted-run-recovery-marker.json`、`vnext/eval/evidence/phase102-imported-run-recovery.json`、`vnext/eval/evidence/phase103-desktop-narrative-stream.json`、`vnext/eval/evidence/phase104-portable-content-boundary.json`、`vnext/eval/evidence/phase105-player-model-timeout-feedback.json`、`vnext/eval/evidence/phase106-macos-packaged-webview-window-gate.json`、`vnext/eval/evidence/phase107-macos-window-control-experiment.json`、`vnext/eval/evidence/phase108-model-probe-loading-parity.json`、`vnext/eval/evidence/phase109-desktop-model-list-boundary.json`、`vnext/eval/evidence/phase110-android-free-action-destination-parity.json`、`vnext/eval/evidence/phase111-destination-presentation-parity.json`、`vnext/eval/evidence/phase112-single-location-action-parity.json`。
-`vnext/eval/evidence/phase113-retry-run-boundary.json`。
-`vnext/eval/evidence/phase114-desktop-notice-live-region.json`。
-`vnext/eval/evidence/phase115-android-operation-live-region.json`。
-`vnext/eval/evidence/phase116-latest-package-artifacts.json`。
-`vnext/eval/evidence/phase117-android-emulator-qwen7b-session.json`。
+重启恢复。当前 macOS 26.3.1 的 DMG 另已判定 `fail`：Host 正常但 WindowServer 中没有玩家可见窗口。机器证据记录在 `eval/evidence/phase72-player-first-implementation.json`、
+`eval/evidence/phase78-operation-stage-contract-parity.json` 和
+`eval/evidence/phase79-android-operation-status-and-cancel.json`、
+`eval/evidence/phase80-formal-ending-narrative-parity.json`、
+`eval/evidence/phase81-model-profile-field-validation.json`、
+`eval/evidence/phase82-android-background-model-operations.json`、
+`eval/evidence/phase83-macos-vite-player-journey.json`、
+`eval/evidence/phase84-clean-package-runtime-and-exit.json`、
+`eval/evidence/phase85-shared-narrative-quality.json`、
+`eval/evidence/phase86-packaged-parent-exit-cleanup.json`、
+`eval/evidence/phase87-android-world-archive-parity.json`、
+`eval/evidence/phase88-android-world-export-entry.json`、
+`eval/evidence/phase89-desktop-loading-stage-parity.json`、
+`eval/evidence/phase90-android-action-mode-boundary.json`、
+`eval/evidence/phase91-player-surface-technical-leakage.json`、
+`eval/evidence/phase92-formal-ending-recap-parity.json`、
+`eval/evidence/phase93-player-language-parity.json`、
+`eval/evidence/phase94-offline-keyboard-accessibility-boundary.json`、
+`eval/evidence/phase95-model-first-run-provider-parity.json`、`eval/evidence/phase96-rollback-and-credential-boundary.json`、
+`eval/evidence/phase97-draft-cancellation-boundary.json`、`eval/evidence/phase98-cancellation-transport-recovery.json`、
+`eval/evidence/phase99-release-sidecar-dependency-gate.json`、`eval/evidence/phase100-archived-world-view-only-boundary.json`、
+`eval/evidence/phase101-interrupted-run-recovery-marker.json`、`eval/evidence/phase102-imported-run-recovery.json`、`eval/evidence/phase103-desktop-narrative-stream.json`、`eval/evidence/phase104-portable-content-boundary.json`、`eval/evidence/phase105-player-model-timeout-feedback.json`、`eval/evidence/phase106-macos-packaged-webview-window-gate.json`、`eval/evidence/phase107-macos-window-control-experiment.json`。
+`eval/evidence/phase101-interrupted-run-recovery-marker.json`、`eval/evidence/phase102-imported-run-recovery.json`、`eval/evidence/phase103-desktop-narrative-stream.json`、`eval/evidence/phase104-portable-content-boundary.json`、`eval/evidence/phase105-player-model-timeout-feedback.json`、`eval/evidence/phase106-macos-packaged-webview-window-gate.json`、`eval/evidence/phase107-macos-window-control-experiment.json`、`eval/evidence/phase108-model-probe-loading-parity.json`、`eval/evidence/phase109-desktop-model-list-boundary.json`、`eval/evidence/phase110-android-free-action-destination-parity.json`、`eval/evidence/phase111-destination-presentation-parity.json`、`eval/evidence/phase112-single-location-action-parity.json`。
+`eval/evidence/phase113-retry-run-boundary.json`。
+`eval/evidence/phase114-desktop-notice-live-region.json`。
+`eval/evidence/phase115-android-operation-live-region.json`。
+`eval/evidence/phase116-latest-package-artifacts.json`。
+`eval/evidence/phase117-android-emulator-qwen7b-session.json`。
 
 phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35.3 / wry 0.55.1 隔离构建仍为 0 个窗口；旧版 `dzmm.app` 与 Calculator 控制应用在同一会话也为 0 个窗口。因此当前 macOS gate 继续算 `fail`，但不能据此认定是 DZMM 生命周期代码；需要在已知控制应用可见的正常 GUI 会话中重跑 A-F。
 
@@ -134,7 +134,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 已确认剧情规则是固定章节图，模型只生成正文；相同选择序列会复现结构与结局。
 - [x] per-Run 变化（Run seed/场景变体/变化提示）已在 phase119 实现；qwen 7B 双 Run 的人工差异验收仍待完成。
 
-证据：`vnext/eval/evidence/phase118-mobile-play-surface-and-plot-boundary.json`。
+证据：`eval/evidence/phase118-mobile-play-surface-and-plot-boundary.json`。
 
 ## Phase 119：老版 GM 回合边界与每 Run 叙事变化
 
@@ -145,7 +145,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端全量 113 项测试、Ruff 通过；新增自由行动和 `narrative_context` 持久化测试。
 - [ ] 尚未完成 qwen 7B 双 Run 人工对照；必须确认同世界重开后的钩子、NPC 反应和叙事路径有差异，并确认硬状态无越权。
 
-证据：`vnext/eval/evidence/phase119-emergent-gm-narrative-contract.json`。
+证据：`eval/evidence/phase119-emergent-gm-narrative-contract.json`。
 
 ## Phase 120：地点/NPC/世界事件运行时概念迁移
 
@@ -156,7 +156,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端 116 项测试/Ruff、desktop 32 项/构建、Flutter 22 项/analyze 通过；最新 APK 已安装模拟器。
 - [ ] LLM 结构化 `gm_actions` 尚未开放给模型自由创建/解决剧情线和隐藏事件，需下一阶段加 Python allowlist、去重和回滚测试。
 
-证据：`vnext/eval/evidence/phase120-world-runtime-npc-initiative.json`。
+证据：`eval/evidence/phase120-world-runtime-npc-initiative.json`。
 
 ## Phase 121：受限 GM actions 与世界动态演化
 
@@ -167,7 +167,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端全量 117 项测试、Ruff、desktop 32 项/构建、Flutter 22 项/analyze 通过；Android debug APK 已重新构建。
 - [ ] 当前 `adb devices` 为空，APK 尚未安装到模拟器/真机；安装验证待设备上线。
 
-证据：`vnext/eval/evidence/phase121-gm-actions-allowlist.json`。
+证据：`eval/evidence/phase121-gm-actions-allowlist.json`。
 
 ## Phase 122：AI 世界素材与老 DZMM 运行时概念对齐
 
@@ -178,7 +178,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端全量 119 项测试、Ruff 通过；Android debug APK 已重新构建。
 - [ ] 当前 `adb devices` 为空，APK 尚未安装到模拟器/真机。
 
-证据：`vnext/eval/evidence/phase122-ai-world-runtime-material.json`。
+证据：`eval/evidence/phase122-ai-world-runtime-material.json`。
 
 ## Phase 123：结构化世界事件谓词与势力张力
 
@@ -189,7 +189,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端全量 120 项测试、Ruff 通过；Android debug APK 已重新构建。
 - [ ] 当前 `adb devices` 为空，APK 尚未安装到模拟器/真机。
 
-证据：`vnext/eval/evidence/phase123-runtime-event-predicates.json`。
+证据：`eval/evidence/phase123-runtime-event-predicates.json`。
 
 ## Phase 124：事件完成与 Campaign / Phase 推进
 
@@ -201,7 +201,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端全量 121 项测试、Ruff 通过。
 - [x] 本地 `dzmm-ux-api36` Android 36 模拟器已启动，APK 已安装并打开主 Activity。
 
-证据：`vnext/eval/evidence/phase124-campaign-event-completion-emulator.json`。
+证据：`eval/evidence/phase124-campaign-event-completion-emulator.json`。
 
 ## Phase 125：本地 Qwen 7B 玩家旅程与缺少选项恢复
 
@@ -213,7 +213,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 相同世界、相同首个选择的两个 Run 产生不同叙事，并出现 NPC 主动事件；本地模拟器验收评分由 78 提升至 85。
 - [ ] 若后续一轮不再明显提升，则停止 Goal。
 
-证据：`vnext/eval/evidence/phase125-local-emulator-qwen7b-player-journey.json`。
+证据：`eval/evidence/phase125-local-emulator-qwen7b-player-journey.json`。
 
 ## Phase 126：从零创建新世界与 NPC/事件对话验收
 
@@ -224,7 +224,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 修复 compact story、直接描述性 NPC 素材和主角与首角色同名时的开场对话边界；后端 124 项测试、Ruff、Flutter 24 项/analyze、APK 构建均通过。
 - [x] 本轮玩家评分由 85 提升至 86；若下一轮不再有明显分值提升，停止 Goal。
 
-证据：`vnext/eval/evidence/phase126-new-world-qwen7b-quality.json`。
+证据：`eval/evidence/phase126-new-world-qwen7b-quality.json`。
 
 ## Phase 127：Android 草案审阅与叙事上下文收口
 
@@ -235,7 +235,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 后端 127 项测试、Ruff、Flutter 23 项/analyze、APK 构建通过；最新 APK SHA-256 为 `e84207e9592fc90bf1d30008d50d5a97ea50c364a542c4b788de4d5270e8063b`。
 - [x] 玩家评分由 86 提升至 87（+1）。由于剩余事项主要是 Windows/macOS/Android 发布环境和真机验收门槛，本 Goal 按退出机制停止。
 
-证据：`vnext/eval/evidence/phase127-next-goal-draft-review-and-context-grounding.json`。
+证据：`eval/evidence/phase127-next-goal-draft-review-and-context-grounding.json`。
 
 ## Phase 128：玩家反馈整组修复与移动端阅读层
 
@@ -248,7 +248,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 模拟器验证模型起草的单行等待/超时反馈和离线模板审阅；Qwen 7B 本轮 120 秒无响应，因此不把新世界叙事质量标记为人工通过。
 - [ ] 用户用响应的本机 Qwen 配置从创建新世界开始，验收素材一致性、对话/选项因果关系、历史滚动和删除二次确认。
 
-证据：`vnext/eval/evidence/phase128-player-feedback-world-integrity-and-mobile-reading.json`。
+证据：`eval/evidence/phase128-player-feedback-world-integrity-and-mobile-reading.json`。
 
 ## Phase 129：玩家体验 Goal 评分推进
 
@@ -274,7 +274,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 当前 macOS release `.app` 和 PyInstaller sidecar 冷启动健康检查通过；`/health` 返回 vNext local host 的完整关键字段。
 - [x] Windows 原生 installer、Android 真机/发布包仍未验证；phase132 与 phase133 连续两轮评分保持 92，按 Goal 退出机制停止。
 
-证据：`vnext/eval/evidence/phase129-player-experience-goal.json`。
+证据：`eval/evidence/phase129-player-experience-goal.json`。
 
 ## Phase 134：Qwen 7B 长局与移动端操作区复验
 
@@ -285,7 +285,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 玩家评分由 92 提升至 93（+1）。
 - [ ] 不同题材新世界、Android release/真机和 Windows 原生安装仍是发布前门槛。
 
-证据：`vnext/eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
+证据：`eval/evidence/phase134-qwen7b-long-run-and-mobile-action-layout.json`。
 
 ## Phase 135–136：去模板化与 Goal 退出
 
@@ -293,7 +293,7 @@ phase107 进一步验证了当前观察会话的边界：Tauri 2.11.5 / tao 0.35
 - [x] 复核 Android release/真机和 Windows 原生安装门槛；当前仍只有 Android debug 模拟器和 macOS 包证据。
 - [x] Phase 135、136 连续两轮玩家评分保持 93；按退出机制停止继续改动。
 
-证据：`vnext/eval/evidence/phase135-genre-and-release-gate-review.json`、`vnext/eval/evidence/phase136-no-score-exit-review.json`。
+证据：`eval/evidence/phase135-genre-and-release-gate-review.json`、`eval/evidence/phase136-no-score-exit-review.json`。
 
 ## 评分规则
 

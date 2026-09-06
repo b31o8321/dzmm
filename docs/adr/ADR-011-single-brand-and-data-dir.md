@@ -64,4 +64,4 @@ vNext 分支内部仍使用预览命名：Python 包 `dzmm_vnext`、发行名 `d
 - cutover（ADR-010 第 5 步）剩余动作收敛为：删旧版 `backend/`+`frontend/`、归档
   tag 复核、合入 main——均需人工确认。
 - 构建脚本必须隔离继承的 `PYTHONPATH`（本仓库同时存在旧版 `backend/src/dzmm` 与
-  新 `vnext/backend/src/dzmm`，同名包不可让旧路径抢先解析）。
+  新 `backend/src/dzmm`，同名包不可让旧路径抢先解析）。
