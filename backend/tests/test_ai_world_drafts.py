@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 from copy import deepcopy
 from pathlib import Path
@@ -604,3 +605,18 @@ def test_normalize_clamps_event_trigger_turn() -> None:
     assert turns == [1, 40]
     assert any("trigger_turn 已按安全范围规范化" in repair for repair in repairs)
     CreativeSource.model_validate(normalized)
+
+
+def test_normalize_unwraps_world_definition_shape() -> None:
+    """真实案例（qwen3-14b）：模型直接输出最终 world_definition 形状而非素材格式。"""
+
+    raw = json.loads(
+        (Path(__file__).parent / "fixtures" / "genre_raw_world_definition.json").read_text()
+    )
+    normalized, repairs = _normalize_creative_source_payload(raw)
+    assert any("world_definition 形状解包" in repair for repair in repairs)
+    source = CreativeSource.model_validate(normalized)
+    assert source.world_name == "摄政王的夜宴"
+    assert source.hero.name  # 模型自拟主角名
+    assert len(source.locations) >= 2 and len(source.characters) >= 2
+    assert len(source.npcs) >= 1 and len(source.events) >= 1

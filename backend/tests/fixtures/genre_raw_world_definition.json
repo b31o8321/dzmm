@@ -1,0 +1,78 @@
+{
+ "world_definition": {
+  "schema_version": 2,
+  "name": "摄政王的夜宴",
+  "lorebook": {
+   "entries": [
+    {
+     "title": "背景设定",
+     "body": "摄政王的夜宴的背景故事。"
+    }
+   ]
+  },
+  "character_cards": [
+   {
+    "name": "伊蕾娜·维斯特",
+    "role": "老掌玺官",
+    "description": "她曾见证三任摄政王的兴衰，如今只求安稳退休。"
+   },
+   {
+    "name": "卡洛斯·铁拳",
+    "role": "雇佣兵队长",
+    "description": "他带领的铁骑曾在边境战役中立下赫赫战功。"
+   }
+  ],
+  "locations": [
+   {
+    "name": "紫晶宫"
+   },
+   {
+    "name": "银月湖畔"
+   },
+   {
+    "name": "黑石堡"
+   }
+  ],
+  "npcs": [
+   {
+    "name": "艾德里安·维斯特",
+    "role": "摄政王的顾问",
+    "description": "他总在关键时刻提出令人意外的建议。",
+    "motivation": "确保新皇顺利登基，避免旧贵族反扑。",
+    "location": "紫晶宫",
+    "reputation": null
+   },
+   {
+    "name": "莉娜·铁拳",
+    "role": "卡洛斯的副手",
+    "description": "她擅长在战场上鼓舞士气。",
+    "motivation": "证明自己足以继承铁拳之名。",
+    "location": "黑石堡",
+    "reputation": null
+   }
+  ],
+  "events": [
+   {
+    "name": "夜宴密谋",
+    "summary": "在紫晶宫举行的夜宴中，暗藏杀机。",
+    "trigger_turn": 5
+   }
+  ],
+  "factions": [
+   {
+    "name": "维斯特家族",
+    "description": "掌玺官的旧家，以文书和契约闻名。"
+   },
+   {
+    "name": "铁拳佣兵团",
+    "description": "边境战功赫赫的佣兵集团，以实力说话。"
+   }
+  ]
+ },
+ "hero": {
+  "name": "艾莉娅·晨星",
+  "profile": {
+   "origin": "紫晶宫档案馆"
+  }
+ }
+}

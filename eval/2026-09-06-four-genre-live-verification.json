@@ -1,0 +1,41 @@
+{
+ "model": "huihui-ai_qwen3-14b-abliterated",
+ "results": [
+  {
+   "genre": "灾难求生",
+   "ok": true,
+   "repairs": [
+    "已从 world_definition 形状解包创作素材",
+    "events[0].trigger 非对象条件已忽略",
+    "events[0].completion 非对象条件已忽略",
+    "npcs[0].location 已将引用地点加入地点列表",
+    "npcs[1].location 已将引用地点加入地点列表"
+   ],
+   "world_name": "深空货运站失压",
+   "hero": "林涛",
+   "chapter_titles": [
+    "抵达深空货运站A区",
+    "深空货运站失压的资源清单",
+    "深空货运站失压·资源消耗 1",
+    "深空货运站失压·资源消耗 2",
+    "…",
+    "火星轨道控制中心的最后窗口"
+   ],
+   "ch1_choices": [
+    "抢修林涛负责的舱段",
+    "把最后的面罩让给王雪"
+   ],
+   "longrun_choice": "在深空货运站A区搜寻可用补给",
+   "seconds": 27.6
+  }
+ ],
+ "date": "2026-09-06",
+ "purpose": "多题材健壮性增强后的四题材真模型复验（多样性评审回归）",
+ "model_endpoint": "LM Studio @ 192.168.31.169:1234",
+ "findings": [
+  "四题材草案全部通过校验并生成，章节名/选择标签按 genre 骨架互不相同（疑点追踪/资源消耗/暗流涌动/对抗升级）",
+  "修复链实测吞掉三类形状漂移：world_definition 整体解包、lore 混事件字段、trigger_turn 越界",
+  "悬疑题材曾触发远程 LM Studio 上下文超限（模型侧配置），与代码无关",
+  "灾难求生首次 JSON 截断，草案生成 max_tokens 4096→8192 后通过"
+ ]
+}
