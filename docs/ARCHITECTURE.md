@@ -2,7 +2,33 @@
 
 > 给新加入的开发者用的 onboarding 文档。覆盖目录约定、跑团一回合的数据流、关键设计模式。
 
-## 顶层结构
+> **cutover 提示（2026-09）**：产品已统一为单一 DZMM（ADR-010/011）。当前唯一产品树是
+> `backend/`（FastAPI schema v3 + 命令引擎）、`desktop/`（Tauri/Vue）、`mobile/`（Flutter）、
+> `contracts/`、`eval/`、`packaging/`。本文档其余章节描述的是 cutover 前的旧版架构，
+> 仅作历史参考，待按新结构重写；新结构入口见 `README.md` 与 `docs/ACTIVE_DELIVERY_INDEX.md`。
+
+## 顶层结构（当前）
+
+```
+dzmm/
+├── backend/           Python FastAPI host（schema v3 + Alembic + 命令引擎）
+│   ├── src/dzmm/      源码（transport-neutral core + FastAPI 薄壳）
+│   ├── tests/         pytest（169+）
+│   └── pyproject.toml
+├── desktop/           Tauri/Vue 桌面 Local Host（macOS/Windows）
+│   ├── src/           Vue 3 + Vite
+│   └── src-tauri/     Rust 壳 + backend-runtime sidecar
+├── mobile/            Flutter Android Local Host（内嵌 Python 核心）
+├── contracts/         版本化 JSON Schema（体验契约）
+├── eval/              evidence-first 成熟度评分与 phase 证据
+├── packaging/         PyInstaller sidecar 构建
+├── docs/              ADR / 计划 / 评审 / 交付索引
+├── .github/workflows/ release.yml + backend-ci.yml + e2e.yml
+├── CHANGELOG.md
+└── README.md
+```
+
+## 顶层结构（cutover 前，历史）
 
 ```
 dzmm/
