@@ -1,0 +1,70 @@
+{
+  "phase": 127,
+  "title": "Android draft review and fresh-world Qwen 7B context grounding",
+  "scope": [
+    "review generated locations, NPCs, factions and events before confirming an AI world",
+    "create a brand-new world on the local Android emulator",
+    "complete three turns with Qwen 7B, including a formal ending and a new Run",
+    "verify generated entity names and proactive NPC interaction remain grounded without internal IDs"
+  ],
+  "verification": {
+    "emulator": {
+      "avd": "dzmm-ux-api36",
+      "android_api": 36,
+      "serial": "emulator-5554",
+      "package": "local.dzmm.dzmm_next_mobile",
+      "apk_sha256": "e84207e9592fc90bf1d30008d50d5a97ea50c364a542c4b788de4d5270e8063b",
+      "model": "qwen2.5:7b",
+      "adb_reverse": "host-16 tcp:11434 tcp:11434",
+      "launch": "passed"
+    },
+    "draft_review": {
+      "world_name": "潮汐之门",
+      "hero_name": "艾莉森",
+      "locations": ["风暴之眼", "月光港"],
+      "characters": ["艾莉森", "墨菲斯托"],
+      "runtime_npcs": ["艾莉森", "墨菲斯托", "老船长", "海妖莉娅"],
+      "factions": ["守护者联盟", "暗影海盗团"],
+      "events": ["风暴突袭", "潮门重开"],
+      "review_surface": "Android 草案确认前显示生成素材摘要，并明确模型素材与本机 hybrid 规则的边界；Flutter widget test 覆盖地点、NPC、势力、事件摘要和零写入前审阅。"
+    },
+    "player_flow": {
+      "world_id": "2393052f-b456-4f25-8bac-36468441de39",
+      "world_creation": "passed; created from the Android AI world wizard rather than reusing an existing world",
+      "completed_run_id": "2703de19-cca0-43a5-b2d8-02eb98e1ab26",
+      "completed_run": {
+        "turns": 3,
+        "choices": ["援手艾莉森", "把证词交给艾莉森", "点亮雾灯"],
+        "ending": "passed; formal ending lan-dawn persisted and Run status completed",
+        "world_return_and_new_run": "passed"
+      },
+      "context_fixed_run_id": "9b20cf4d-24f6-43d1-b0dd-5476b8913994",
+      "context_fixed_turn": "passed; narrative used 艾莉森、墨菲斯托 and 老船长, showed proactive NPC contact, and did not expose the internal relationship ID lan or stale name 兰",
+      "loading": "passed; preparing/connecting/generating/applying operation stages remain visible during Qwen generation"
+    },
+    "backend_tests": "127 passed, 1 warning",
+    "backend_ruff": "passed",
+    "flutter_test": "23 passed",
+    "flutter_analyze": "passed",
+    "apk_build": "passed"
+  },
+  "change": {
+    "problem": "The Android AI world draft did not make generated material easy to review, and a 7B narrative could see internal IDs and turn them into stale player-facing names.",
+    "fix": "Added a pre-confirmation material summary for locations, NPCs, factions and events; added narrative context mapping and guardrails so the model receives display names and is told not to emit internal IDs or template names."
+  },
+  "score": {
+    "previous": 86,
+    "current": 87,
+    "delta": 1,
+    "basis": "fresh-world play now has a clearer review surface and the context-grounded replay removes a player-visible stale-name failure while preserving the Python-owned ending and Run lifecycle"
+  },
+  "residual": [
+    "The model still provides prose and suggestions; chapters, effects, relationships, routes and endings remain intentionally owned by the Python hybrid rules.",
+    "Windows package, macOS visible-window gate, physical Android A-F and long-run/restart acceptance remain release blockers.",
+    "The next round should not expand this Goal unless a platform package or player-facing P0/P1 issue can be tested in the available environment."
+  ],
+  "artifacts": {
+    "screenshots": ["/tmp/dzmm-goal-context-fix-turn.png"],
+    "ui_dumps": ["/tmp/dzmm-goal-draft-summary-retry.xml"]
+  }
+}

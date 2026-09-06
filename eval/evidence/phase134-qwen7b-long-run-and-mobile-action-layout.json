@@ -1,0 +1,45 @@
+{
+  "phase": 134,
+  "title": "本机 Qwen 7B 十回合长局与 Android 长正文操作区验收",
+  "date": "2026-08-24",
+  "scope": [
+    "使用本机 qwen7b / Ollama qwen2.5:7b 从新世界创建开始完成长局",
+    "验证 NPC 主动事件、地点/线索推进、世界事件、正式结局和重开存档",
+    "验证长正文下方选项固定可见、模型阶段和耗时可见"
+  ],
+  "artifacts": {
+    "emulator": "emulator-5554 / dzmm-ux-api36",
+    "apk": "vnext/mobile/build/app/outputs/apk/debug/app-debug.apk",
+    "screenshots": [
+      "/tmp/dzmm-goal-next-world-created.png",
+      "/tmp/dzmm-goal-next-turn5-1024.png",
+      "/tmp/dzmm-goal-next-after-second.png"
+    ]
+  },
+  "verification": {
+    "model_probe": "可用 · protocol response contains content",
+    "long_run": "正式结算为好结局，共完成 10 个回合；包含潮汐之岛/月光港追查、NPC 主动联系、航图争夺战迹象和关系/线索摘要",
+    "qwen_truncation": "384 token 预算会截断；1024 token 预算完成后续回合，仍存在 Qwen 7B 延迟",
+    "player_loading": "生成期间显示生成叙事、耗时和取消入口，选项保持禁用直到回合完成",
+    "mobile_action_layout": "当前故事卡在固定高度操作区内滚动，选项位于卡片下方；长正文不会把按钮推到导航栏下",
+    "narrative_cleanup": "共享清理器去除 Markdown 标题、重复选择/结果段落和模型元话术；新回合生效，既有历史不回写",
+    "tests": {
+      "backend_pytest": "134 passed, 1 warning",
+      "backend_ruff": "passed",
+      "mobile_analyze": "passed",
+      "mobile_flutter_test": "24 passed",
+      "mobile_debug_build": "passed"
+    }
+  },
+  "score": {
+    "previous": 92,
+    "current": 93,
+    "delta": 1,
+    "reason": "长正文阅读/选项可达性和 Qwen 截断恢复得到玩家可感知提升；旧历史脏文本和 Qwen 7B 内容冗长仍限制沉浸分。"
+  },
+  "residual_risk": [
+    "尚未完成第二个不同题材世界的真实玩家旅程。",
+    "Android release APK、物理真机和 Windows 原生安装仍未提供证据。",
+    "历史内容不会自动重写，旧回合可能继续显示模型生成的模板段落。"
+  ]
+}

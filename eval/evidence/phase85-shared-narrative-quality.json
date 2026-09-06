@@ -1,0 +1,51 @@
+{
+  "phase": "phase85",
+  "date": "2026-08-21",
+  "status": "shared-narrative-quality-live-provider-verified",
+  "surface": "shared Python narrator used by desktop Local Host and Android embedded Local Host",
+  "model": "ollama / sakura-eclipse-12b-32k:latest at http://127.0.0.1:11434",
+  "regression_observed": {
+    "technical_state_leak": "雾港浏览器： - 当前章节：第2章（正在进行） - 主角：第二位旅人 - 目的地：海港 - 特殊物品：迷雾灯",
+    "truncated_ending": "身后海浪翻滚的声音逐渐接近，似乎"
+  },
+  "shared_boundary": [
+    "Desktop and Android now share the same narration prompt, token limits, wrapper cleanup, technical-summary cleanup, and provider truncation detection.",
+    "Ollama done_reason=length and OpenAI-compatible finish_reason=length reject the turn instead of committing incomplete prose.",
+    "The output budget is 384 tokens for Ollama and 480 tokens for OpenAI-compatible providers."
+  ],
+  "live_replay": [
+    {
+      "case": "chapter-turn",
+      "status": "accepted",
+      "elapsed_seconds": 23.3,
+      "checks": [
+        "complete ending",
+        "no technical field list",
+        "no game-system or rule-engine paragraph",
+        "scene, NPC dialogue, and action continuity present"
+      ],
+      "narrative": "第二位旅人举起了手中的迷雾灯，轻拧开机关，温暖而柔和的光芒顿时驱散了笼罩在港口上空的薄雾。\n\n此时，岚正站在码头边缘眺望着远方。听到身后响起灯亮的声音，他转过身来看向第二位旅人。随着迷雾散去，潮门那巨大而古朴的轮廓也逐渐清晰地呈现在两人的眼前。\n\n“跟我来吧。”岚招呼道，迈开步伐朝着码头深处走去。\n\n第二位旅人紧随其后，在昏黄的灯火映照下踩过吱呀作响的木质甲板，朝着潮门那高耸入云的巨大舷梯走去。"
+    },
+    {
+      "case": "formal-ending",
+      "status": "accepted",
+      "elapsed_seconds": 38.13,
+      "checks": [
+        "provider completion accepted",
+        "formal ending prose is complete",
+        "NPC dialogue and world resolution present",
+        "no internal ending_id or state summary"
+      ],
+      "narrative": "在第二位旅人和岚的合力下，厚重的潮门终于徐徐打开。海风夹带着咸湿的气息扑面而来，伴随着第一缕晨光倾洒进雾港。朦胧水汽在阳光照射下迅速消散，露出了潮门背后壮美的景色。\n\n岚深吸一口气，闭上眼睛感受着这久违的清新空气与暖洋洋的日光。他转头看着第二位旅人，脸上满是难以抑制的喜悦和解脱：\"我们终于让雾港重见天日了！谢谢你，真心的谢谢。\"\n\n晨曦中再次洗礼过后的雾港看起来格外生机勃勃，人们纷纷走出家门好奇地打量着这新奇的世界。孩子们欢快地奔跑嬉闹，老人则欣慰地笑着聊天。\n\n一切都在迎接黎明般熠熠生辉，而你与岚站在这历史性时刻，见证了雾港新篇章的开启。阳光洒落你们身上，似乎也驱散了一直以来笼罩着大家心头的迷雾。\n\n雾尽天明，一段旅程走到尾声。你与岚共同完成了这场伟大的探索，开启了属于新时代的篇章。"
+    }
+  ],
+  "automated_checks": {
+    "backend": "95 passed",
+    "focused_narrative_tests": "19 passed",
+    "ruff": "passed"
+  },
+  "not_proven": [
+    "This verifies the shared model boundary and live provider output, not a packaged WebView or physical-device player journey.",
+    "Windows native package, macOS packaged WebView A-F, and Android physical-device A-F remain open gates."
+  ]
+}

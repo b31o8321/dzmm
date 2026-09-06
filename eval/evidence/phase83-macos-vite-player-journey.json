@@ -1,0 +1,34 @@
+{
+  "phase": "phase83",
+  "date": "2026-08-21",
+  "status": "local-player-journey-verified",
+  "surface": "macOS browser against the vNext desktop Vue app (Vite 5182) and isolated vNext Local Host (127.0.0.1:18781)",
+  "data_dir": "/tmp/dzmm-vnext-browser-journey.EDTOCR/data",
+  "model": "ollama / sakura-eclipse-12b-32k:latest at http://127.0.0.1:11434",
+  "journey": [
+    "Empty World Center explains the first action and opens manual world creation.",
+    "Model settings show field-level validation, edit, default, and Probe result (可用 · protocol response contains content).",
+    "World creation produces a World detail page with content assets and an explicit first-turn action.",
+    "Opening shows location, scene, character dialogue, objective/guidance, and actionable choices before the first turn.",
+    "Existing World exposes continue-latest and start-new-Run controls; the second Run has a new hero, fresh revision 0, and its own opening.",
+    "Real Ollama choice generation shows elapsed time, preparing/connecting/generating/applying/completed stages, slow-model explanation, and cancel action; the committed result preserves the revision transition and narrative feedback.",
+    "Three real model-backed choices reach a formal good ending with narrative/dialogue, completed turn count, and actions to return to World or start a new Run.",
+    "Reloading the active Run restores the opening/story state from the isolated database."
+  ],
+  "screenshots": [
+    "vnext/eval/evidence/screens/phase83-macos-vite-player-journey/01-world-center-two-runs.png",
+    "vnext/eval/evidence/screens/phase83-macos-vite-player-journey/04-formal-ending.png",
+    "vnext/eval/evidence/screens/phase83-macos-vite-player-journey/05-new-run-opening.png",
+    "vnext/eval/evidence/screens/phase83-macos-vite-player-journey/06-loading-cancel.png"
+  ],
+  "screenshot_sha256": {
+    "01-world-center-two-runs.png": "eed043b0b341f30ea6a935cb0b3d9945f56032c3f25302789bcfac18cfb8336f",
+    "04-formal-ending.png": "d1e3b42902314e0cd65080acd13bd3b9fa02f8d33d95c3c4c7165da5b9c9d3b7",
+    "05-new-run-opening.png": "ec4954087d97050de2a33846e279bcbce96e80d6ed6ab41deecb9f1a196a3e0b",
+    "06-loading-cancel.png": "bc74951d02cea836c228dffff0d6f510ccec5ccfcf79884a24e3f12ddc0bad8d"
+  },
+  "not_proven": [
+    "This is a Vite browser journey, not the packaged macOS WebView gate.",
+    "Windows native package and Android physical-device journey remain unavailable."
+  ]
+}

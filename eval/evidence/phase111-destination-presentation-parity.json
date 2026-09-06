@@ -1,0 +1,21 @@
+{
+  "phase": "phase111",
+  "date": "2026-08-21",
+  "status": "desktop-android-destination-presentation-parity",
+  "player_change": [
+    "Desktop free-action destination options now come from the current Run presentation instead of hard-coded harbor/lighthouse IDs.",
+    "Run recovery synchronizes the selected destination with the current World location map, preventing a stale destination from being sent after opening a custom or imported World.",
+    "Android and desktop now both use the validated World location presentation for free-action movement."
+  ],
+  "automated_checks": {
+    "desktop_tests": "29 passed across 12 files",
+    "desktop_build": "passed",
+    "flutter_tests": "20 passed",
+    "flutter_analyze": "passed",
+    "git_diff_check": "passed"
+  },
+  "not_proven": [
+    "Custom-world destination movement remains unrun in an installed Android package because adb devices is empty.",
+    "Windows and macOS packaged visual journeys remain unproven."
+  ]
+}

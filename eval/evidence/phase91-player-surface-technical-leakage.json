@@ -1,0 +1,34 @@
+{
+  "phase": "phase91",
+  "date": "2026-08-21",
+  "status": "player-surface-technical-leakage-removed",
+  "scope": "desktop and Android player-facing World and Play surfaces",
+  "player_behavior": [
+    "Desktop Play no longer displays chapter IDs, state revision numbers, or before/after revision transitions.",
+    "Inventory entries resolve resource IDs through the World presentation map and display natural resource names.",
+    "Relationship audit reason keys stay internal; missing relationship, route, resource, and chapter labels use natural fallback copy instead of raw IDs.",
+    "Rollback records resolve their target to a natural turn number instead of exposing a Turn ID prefix.",
+    "Desktop and Android World details describe saved Runs as journeys in progress or completed, without exposing revision or Run ID fragments.",
+    "Desktop compose confirmation describes saved world content and a prepared first journey instead of showing aggregate IDs."
+  ],
+  "contract_change": {
+    "run_presentation_resources": "RunSnapshot.presentation now includes the shared resource ID to display-name map; revision remains available internally for optimistic concurrency."
+  },
+  "automated_checks": {
+    "backend_tests": "100 passed",
+    "backend_ruff": "passed",
+    "desktop_tests": "12 passed",
+    "desktop_build": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "13 passed",
+    "packages": {
+      "android_debug_apk_sha256": "6ba2d1faa27abaf3bab8ef667626ad9db791a62809d5e7195c660b2cb7fd5506",
+      "macos_arm64_dmg_sha256": "f8073b2d0656718fce0e14287bc682d223459da2d2bd191354473871c51da433"
+    }
+  },
+  "not_proven": [
+    "The rebuilt macOS packaged WebView has not completed visual A-F acceptance.",
+    "Android physical-device visual and TalkBack behavior remain open because adb has no connected device.",
+    "Windows native packaging and player journey remain open."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "phase": "phase90",
+  "date": "2026-08-21",
+  "status": "android-action-mode-boundary-verified",
+  "scope": "Android Play page choice versus free-action presentation",
+  "player_behavior": [
+    "When valid choices exist, the Play page shows only those choices and hides the free-action text field.",
+    "When no valid choices exist and the Run has not ended, the Play page shows 记录行动 and 提交行动.",
+    "An ended Run continues to show neither input mode and instead presents formal replay/return actions."
+  ],
+  "reason": "Players should not be offered an input mode that the current ruleset cannot apply; this matches the desktop PlayScene boundary.",
+  "automated_checks": {
+    "flutter_analyze": "passed",
+    "flutter_tests": "13 passed",
+    "debug_apk": {
+      "status": "built",
+      "sha256": "71e2e3c2339ea44c7699ecb9346b850e14f971fc3d84074d89b31ff94b75399c"
+    }
+  },
+  "not_proven": [
+    "Android physical-device touch, keyboard, and TalkBack behavior remain open because adb has no connected device."
+  ]
+}

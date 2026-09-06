@@ -1,0 +1,24 @@
+{
+  "commit": "edf4ac1",
+  "environment": "Python 3.13.3; fresh temporary SQLite database; Vite desktop browser E2E; deterministic narrator for UI flow; prior live LM Studio Huihui 14B evidence retained",
+  "evidence": {
+    "domain_lifecycle": "Archive is idempotent, blocks new turns, purge requires a current manifest token, deletes the full aggregate, and reports zero SQL orphans.",
+    "game_loop": "Python validates commands/revisions, stores after-state snapshots, and appends idempotent rollback audit turns. Browser flow verified two turns, rollback, and refresh recovery; real-model flow previously verified four turns.",
+    "creation_content": "A two-location desktop creation flow exists, but Lorebook and ST import/export do not.",
+    "model_stream": "Ollama and OpenAI-compatible contract probes are tested; LM Studio HTTP 200 error bodies fail; one real LM Studio model narrates turns.",
+    "desktop_ux": "Vite production build plus local browser Create -> Confirm -> Turn -> Rollback -> Refresh recovery passed; no packaged Tauri evidence.",
+    "mobile_recovery": "Not implemented in vNext.",
+    "long_play_performance": "No long-play measurement yet.",
+    "engineering_release": "Fresh migrations, backend tests, lint, and desktop production build pass; no signed release artifacts."
+  },
+  "scores": {
+    "domain_lifecycle": 60,
+    "game_loop": 65,
+    "creation_content": 35,
+    "model_stream": 55,
+    "desktop_ux": 60,
+    "mobile_recovery": 0,
+    "long_play_performance": 0,
+    "engineering_release": 50
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "phase": 120,
+  "title": "world runtime concepts and NPC initiative",
+  "status": "implemented_first_batch",
+  "migrated_concepts": {
+    "locations": "location_state tracks known, visits, last visit and scene state",
+    "npcs": "npc_state tracks met, location, favor, emotion, seen/spoken turns and initiative cooldown",
+    "world_events": "active_events supports initial_active/trigger_turn activation and lifecycle status",
+    "plot_threads": "plot_threads container is persisted for the upcoming structured GM action boundary",
+    "npc_initiative": "Python queues one pending npc_initiative interaction after a qualifying turn",
+    "dialogue": "StoryBeat and recent narrative memory retain multiple speaker/text pairs"
+  },
+  "verification": {
+    "backend_tests": "116 passed, 1 warning",
+    "ruff": "passed",
+    "desktop_tests": "32 passed",
+    "desktop_build": "passed",
+    "flutter_tests": "22 passed",
+    "flutter_analyze": "passed",
+    "android_apk": {
+      "sha256": "1338c8fc5be88440191a979c5449689f11e867d519e9032cc9021d287aa39aed",
+      "installed_on": "emulator-5554",
+      "ollama_reverse": "tcp:11434 -> tcp:11434"
+    },
+    "new_regressions": [
+      "test_npc_initiative_is_queued_once_and_respects_cooldown",
+      "test_npc_dialogue_is_recorded_as_structured_memory",
+      "test_authored_world_event_activates_once_at_its_turn_gate"
+    ]
+  },
+  "residual_risk": "The model cannot yet create or resolve plot_threads/active_events through a structured gm_actions channel; only authored turn-gated events and Python-scheduled NPC interactions are active in this phase."
+}

@@ -1,0 +1,15 @@
+{
+  "phase": "diagnostics-export-interim",
+  "environment": "macOS arm64; fresh temporary DZMM_NEXT_DATA_DIR; freshly rebuilt PyInstaller onedir sidecar and Tauri debug .app; loopback port 29855",
+  "implementation": {
+    "endpoint": "GET /api/v2/diagnostics returns application/API/contract identity, isolated-storage marker, anonymous database aggregate counts and the zero-orphan integrity result.",
+    "desktop": "The Mac desktop header exports the response as dzmm-next-diagnostics.json without reading game content or filesystem logs."
+  },
+  "verification": {
+    "backend": "52 pytest cases and Ruff passed; the regression test asserts the fresh aggregate counts and rejects data_dir, base_url, token_hash, narrative and player_input fields.",
+    "desktop": "vue-tsc and Vite production build passed.",
+    "packaged_host": "Launching DZMM Next.app/Contents/MacOS/dzmm-next-desktop reached the isolated Host in 1.791 seconds. The package endpoint returned the expected five top-level keys, zero aggregate counts and clean integrity; sensitive fields were absent from serialized JSON.",
+    "packaging": "Fresh PyInstaller build and CI=true npx tauri build --debug passed."
+  },
+  "boundary": "This is a safe support snapshot, not an export of player saves or logs. It improves the engineering-release evidence but does not provide a signed RC, release checklist, packaged UI accessibility journey, Android acceptance, or a maturity-score increase."
+}

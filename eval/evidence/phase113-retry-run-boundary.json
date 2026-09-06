@@ -1,0 +1,18 @@
+{
+  "phase": "phase113-retry-run-boundary",
+  "date": "2026-08-21",
+  "objective": "Prevent a failed action retry from crossing into another Run after resume, world navigation, or starting a new journey.",
+  "changes": [
+    "Android clears the captured retry action, active request marker, and destination when loading a different Run.",
+    "Desktop clears lastTurnAction when recoverRun crosses a Run boundary.",
+    "Desktop and Android boundary decisions are covered by pure tests."
+  ],
+  "verification": {
+    "desktop_tests": "32 passed across 13 files",
+    "desktop_build": "passed",
+    "flutter_tests": "21 passed",
+    "flutter_analyze": "no issues found",
+    "adb_devices": "no devices attached"
+  },
+  "status": "implemented; physical Android and packaged A-F evidence remain pending"
+}

@@ -1,0 +1,24 @@
+{
+  "phase": 143,
+  "title": "P0 Goal 最终发布门槛复核",
+  "date": "2026-08-25",
+  "scope": [
+    "复跑后端与 Android 源码回归",
+    "确认 macOS release Host 证据和 GUI 窗口阻塞仍然独立存在",
+    "按玩家评分退出规则决定是否继续 Goal"
+  ],
+  "verification": {
+    "backend": "ruff passed; 136 backend tests passed",
+    "android_source": "Flutter 25 tests passed; flutter analyze passed",
+    "macos": "release .app bundled Host health passed on isolated port; visible GUI window remains unverified/not visible",
+    "android_emulator": "本轮没有运行中的 emulator-5554，未新增模拟器截图证据",
+    "windows": "没有 Windows 原生构建/安装环境，仍不宣称通过"
+  },
+  "score": {
+    "previous": 95,
+    "current": 95,
+    "delta": 0,
+    "reason": "代码和回归质量稳定，但发布平台证据没有新增，玩家评分不变。此前 phase142 已为一次无提升，本轮再次无提升，触发停止规则。"
+  },
+  "decision": "连续两轮无明显玩家评分提升，停止本 Goal；不继续堆叠功能。"
+}

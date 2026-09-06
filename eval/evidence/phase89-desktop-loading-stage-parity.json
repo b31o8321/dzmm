@@ -1,0 +1,19 @@
+{
+  "phase": "phase89",
+  "date": "2026-08-21",
+  "status": "desktop-loading-stage-parity-verified",
+  "scope": "desktop Vue player actions for choice and free-action turns",
+  "change": "Both desktop action paths now enter connecting before generating, matching Android's visible preparing/connecting/generating/applying lifecycle.",
+  "player_effect": [
+    "The player sees a meaningful connection stage instead of an unexplained jump from preparation to generation.",
+    "The same stage labels remain governed by the shared experience contract and operation status component."
+  ],
+  "automated_checks": {
+    "desktop_tests": "11 passed",
+    "desktop_build": "passed",
+    "git_diff_check": "passed"
+  },
+  "not_proven": [
+    "Packaged macOS WebView and Windows native UI still require installation-level A-F evidence."
+  ]
+}

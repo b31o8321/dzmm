@@ -1,0 +1,23 @@
+{
+  "phase": 156,
+  "date": "2026-08-30",
+  "scope": "Android release model endpoint guidance",
+  "observations": [
+    "Android emulator player action failed with a clear zero-write model connection error when the saved profile pointed at 127.0.0.1:11434.",
+    "The model settings page now defaults new Ollama and LM Studio profiles to 10.0.2.2 on Android.",
+    "Existing Android loopback profiles display an actionable warning to use 10.0.2.2 for an emulator or the computer LAN IP for a physical device.",
+    "The form also explains that the host model service must listen beyond 127.0.0.1."
+  ],
+  "verification": {
+    "flutter_analyze": "passed",
+    "targeted_widget_tests": "passed",
+    "release_apk": "built and installed on emulator-5554",
+    "visible_screenshot": "/tmp/dzmm-android-model-page.png"
+  },
+  "score": {
+    "player_experience": 94,
+    "change": 0,
+    "reason": "This removes an Android setup trap, but a complete release create-play-ending-new-run journey with a host-reachable model is still not verified."
+  },
+  "remaining_gate": "Configure a host-reachable Ollama endpoint (or an Android-local model), then run the complete Android release player journey and failure/retry recovery."
+}

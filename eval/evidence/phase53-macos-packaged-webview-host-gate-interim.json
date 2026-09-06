@@ -1,0 +1,53 @@
+{
+  "phase": "phase53-macos-packaged-webview-host-gate-interim",
+  "captured_at": "2026-08-18",
+  "status": "verified-packaged-webview-host-gate-only",
+  "scope": "Fresh debug Tauri macOS app bundle with the rebuilt PyInstaller sidecar and an isolated data directory.",
+  "package": {
+    "app": "vnext/desktop/src-tauri/target/debug/bundle/macos/DZMM Next.app",
+    "sidecar": "Contents/Resources/backend-runtime/dzmm-next-backend/dzmm-next-backend",
+    "sidecar_rebuilt_at": "2026-08-18 21:47 local",
+    "port": 28911
+  },
+  "webview_result": {
+    "before": "The packaged app kept showing the 20-second desktop Host unavailable message although its sidecar health endpoint responded.",
+    "change": "FastAPI CORS now permits the three Tauri origins used by the packaged WebView: https://tauri.localhost, http://tauri.localhost and tauri://localhost.",
+    "after": "The rebuilt package renders the World Center with the visible status '桌面 Host 已就绪'.",
+    "screenshot": "screens/phase53-macos-packaged-ai-draft-review/01-packaged-host-ready.png"
+  },
+  "host_evidence": {
+    "health": {
+      "url": "http://127.0.0.1:28911/health",
+      "result": "app=dzmm-next, api_version=2, storage=isolated, foreign_keys=true"
+    },
+    "model_profile_created_from_packaged_webview": {
+      "name": "OllamaUX2",
+      "provider_type": "ollama",
+      "base_url": "http://127.0.0.1:11434",
+      "model_name": "qwen2.5:7b",
+      "id": "fc9a1bc6-6de3-47ec-bde2-215e9612dc79"
+    },
+    "model_probe": {
+      "endpoint": "http://127.0.0.1:11434/api/chat",
+      "result": "protocol response contains content",
+      "settings_screenshot": "screens/phase53-macos-packaged-ai-draft-review/02-model-host-probe.png"
+    }
+  },
+  "verification": [
+    "vnext/backend: .venv/bin/python -m pytest -q tests/test_phase0.py => 7 passed",
+    "vnext/backend: .venv/bin/python -m ruff check src tests => passed",
+    "vnext/backend: .venv/bin/python ../packaging/build_backend.py => passed",
+    "vnext/desktop: npm run tauri:build -- --debug --bundles app => passed"
+  ],
+  "limits": [
+    "This proves that the rebuilt packaged macOS WebView can call its bundled Host; a sidecar health response alone was not treated as proof.",
+    "The captured probe response proves the complete Ollama profile and protocol response, but the visual capture does not independently show a completed probe success state.",
+    "The packaged Mac AI draft review, invalid-JSON restore, atomic compose, three choices, ending, rollback and restart-reentry journey is still unverified.",
+    "No Android interaction was performed in this phase. This evidence must not raise Android or overall maturity."
+  ],
+  "maturity": {
+    "overall_platform": {"before": 66.25, "after": 66.25},
+    "mac_pc_creation_and_play_ux": {"before": 68, "after": 68},
+    "android_remote_complete_experience": {"before": 46, "after": 46}
+  }
+}

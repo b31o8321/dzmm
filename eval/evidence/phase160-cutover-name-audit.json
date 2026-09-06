@@ -1,0 +1,27 @@
+{
+  "phase": 160,
+  "title": "cutover naming and data-boundary inventory",
+  "branch": "feature/dzmm-vnext",
+  "commit_before": "6068dbb",
+  "status": "inventory_complete",
+  "findings": {
+    "user_visible_product_name": "DZMM in Tauri productName; remaining surfaces require audit",
+    "health_protocol": "dzmm-next",
+    "python_package": "dzmm_vnext",
+    "default_data_dir": "~/.dzmm-vnext-v3",
+    "database_file": "dzmm-next.db",
+    "sidecar_names": ["dzmm-next-backend", "dzmm-next-backend.exe"],
+    "desktop_identifier": "local.dzmm.next",
+    "frontend_package": "@dzmm-next/desktop",
+    "storage_keys": ["dzmm-next-active-run", "dzmm-next-pending-run-operation", "dzmm-next-theme"]
+  },
+  "decision": "Do not rename or delete before macOS/Windows GUI gates and explicit migration or no-migration rollback policy.",
+  "evidence": [
+    "vnext/backend/src/dzmm_vnext/config.py",
+    "vnext/backend/src/dzmm_vnext/__init__.py",
+    "vnext/desktop/src-tauri/tauri.conf.json",
+    "vnext/desktop/src-tauri/src/lib.rs",
+    "vnext/desktop/package.json",
+    "vnext/desktop/src/host.ts"
+  ]
+}

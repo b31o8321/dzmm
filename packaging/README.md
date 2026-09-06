@@ -1,57 +1,32 @@
-# 打包目录
+# vNext packaging
 
-把整体打包流程集中在这里，最终产物落在 `packaging/dist/`。
+All vNext artifacts use a distinct application identifier and user-data path
+until the release matrix is complete. No v0.x installation is overwritten.
 
-## 一键打包
+## Desktop sidecar
 
-```bash
-# macOS / Linux
-python packaging/build.py
-
-# Windows（PowerShell）
-.\packaging\build.ps1
-```
-
-`build.py` 是跨平台脚本，依次完成：
-1. 检查 `python` / `node` / `cargo`
-2. 必要时给 `backend/` 建 venv 并 `pip install -e .[dev]`
-3. 必要时跑 `npm install`
-4. `backend/build_sidecar.py`：PyInstaller `--onedir` 打 `dzmm-backend` → `frontend/src-tauri/backend-runtime/`
-5. `frontend/`：`npm run tauri:build`（Rust release）
-6. 把 `frontend/src-tauri/target/release/bundle/{dmg,nsis,msi,deb,appimage}/*` 拷到 `packaging/dist/`
-
-## 单独运行某一段
+From `vnext/backend`, install the `package` extra, then build the executable:
 
 ```bash
-# 只重打后端 sidecar（约 30 秒）
-backend/.venv/bin/python backend/build_sidecar.py
-
-# 只跑 tauri build（沿用上次的 backend-runtime/，约 1-3 分钟）
-cd frontend && npm run tauri:build
+.venv/bin/python -m pip install -e '.[package]'
+.venv/bin/python ../packaging/build_backend.py
 ```
 
-## 产出物去向
+The output is the directory `vnext/desktop/src-tauri/backend-runtime/dzmm-backend/`
+with the `dzmm-backend` executable inside it. It bundles the Alembic migration
+scripts and migrates the isolated
+`DZMM_DATA_DIR` before binding the loopback host. The executable is
+intentionally not committed. The build command starts the frozen executable against
+temporary data and requires a valid local `/health` response, which guards lazy shared-core
+imports and migration packaging; a packaged `.app` must still pass its own
+create/play/archive/recovery acceptance gate.
 
-| 平台 | 文件 | 路径 |
-|---|---|---|
-| macOS arm64 | `dzmm_x.y.z_aarch64.dmg` | `packaging/dist/` |
-| macOS arm64 | `dzmm.app/`（运行时拷贝） | `packaging/dist/` |
-| Windows x64 | `dzmm_x.y.z_x64-setup.exe` | `packaging/dist/` |
-| Linux x64 | `*.deb` / `*.AppImage` | `packaging/dist/` |
+Migration files are copied through a clean staging directory before PyInstaller runs.
+`__pycache__`, bytecode, and retired pairing/remote/confirmation migrations are rejected
+from the runtime so deleted preview behavior cannot survive inside a newly built installer.
 
-`packaging/dist/` 已 gitignore，不会进 git。
-
-## CI 打包
-
-`.github/workflows/release.yml` 在推 `v*` tag 时自动打 macOS DMG + Windows NSIS，跑 artifact smoke check（v0.9 加），通过后发 GitHub Release。
-本地脚本只是给开发者验证用的，CI 才是发版唯一来源。
-
-## 依赖
-
-| 工具 | macOS | Windows |
-|---|---|---|
-| Python 3.11+ | `brew install python@3.13` | `winget install Python.Python.3.13` |
-| Node 18+ | `brew install node` | `winget install OpenJS.NodeJS` |
-| Rust stable | `brew install rust` | `winget install Rustlang.Rustup; rustup default stable-x86_64-pc-windows-msvc` |
-| MSVC 链接器 | — | `winget install Microsoft.VisualStudio.2022.BuildTools` |
-| Ollama（运行时） | `brew install ollama` | `winget install Ollama.Ollama` |
+Build each desktop platform on that platform. The macOS and Windows Tauri apps
+ship the same loopback sidecar API; Windows produces an NSIS installer
+through `npm run tauri:build:windows` in `vnext/desktop` after this sidecar
+build. Do not cross-compile a sidecar: PyInstaller packages its native Python
+runtime and the Tauri Host selects `dzmm-backend.exe` only on Windows.

@@ -1,0 +1,28 @@
+{
+  "phase": 196,
+  "date": "2026-09-05",
+  "title": "macOS packaged candidate rebuilt with Wave1 merges; visible-GUI journey blocked by host TCC grants",
+  "branch": "feature/dzmm-vnext",
+  "candidate_code_commit": "22ef9bc",
+  "status": "blocked_environment",
+  "build": {
+    "sidecar": "vnext/packaging/build_backend.py via `uv run --extra dev --with pyinstaller` (the bare pyenv python lacked alembic and produced a dead binary on the first attempt — fixed and smoke-passed)",
+    "app": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM.app (tauri build)",
+    "dmg": "FAILED: bundle_dmg.sh error after the .app was bundled; .app is sufficient for the visible-GUI gate. Recovery: rerun `npm run tauri:build` or bundle dmg separately once Finder/AppleScript automation is available."
+  },
+  "verified": {
+    "sidecar_from_packaged_app": {
+      "pid": 45105,
+      "listen": "127.0.0.1:8765",
+      "health": {"app": "dzmm-next", "api_version": 2, "contract_version": "2026-08-17-content-boundary", "storage": "local", "host": "127.0.0.1", "foreign_keys": true},
+      "note": "the .app spawned its embedded backend-runtime sidecar successfully and it serves the updated contracts (run_state/turn_command include combat)"
+    }
+  },
+  "blocked": {
+    "what": "visible WebView window journey with screenshots",
+    "why": "ZCode Computer Use helper lacks macOS Accessibility and Screen Recording TCC grants; get_app_state/list_windows/screenshot and `screencapture` CLI all fail (`could not create image from display`)",
+    "attempts": 2,
+    "recovery_condition": "In System Settings > Privacy & Security, grant Accessibility and Screen Recording to 'ZCode Computer Use.app', fully quit and reopen ZCode so the helper restarts, then relaunch DZMM.app and drive: model profile probe -> new run from world -> opening -> >=5 turns -> formal ending -> same-world new run, screenshotting each stage into eval/evidence/screens/phase196/."
+  },
+  "not_claimed": "macOS visible-GUI player journey remains UNVERIFIED in this run; do not count it toward the cutover gates."
+}

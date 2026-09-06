@@ -15,7 +15,7 @@ __pycache__/
 node_modules/
 
 # Tauri build
-frontend/src-tauri/target/
+desktop/src-tauri/target/
 
 # Project-local DB / logs
 *.db

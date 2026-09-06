@@ -1,0 +1,19 @@
+{
+  "phase": 167,
+  "title": "macOS packaged GUI gate recheck",
+  "status": "not_passed",
+  "observed": {
+    "package": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM.app",
+    "desktop_process": "dzmm-next-desktop is running",
+    "window_server_window_count": 0,
+    "visible_player_window": false,
+    "legacy_sidecars": "legacy /Applications/dzmm.app sidecars are also running"
+  },
+  "verification": [
+    "pgrep -fl 'DZMM|dzmm-next|dzmm.app'",
+    "System Events query for process dzmm-next-desktop windows returned count 0"
+  ],
+  "decision": "Do not claim packaged macOS GUI acceptance from a running process or sidecar health alone.",
+  "score_change": 0,
+  "next_action": "requires a user-unlocked GUI session with Accessibility/Screen Recording permission, then repeat the visible create-play-end-new-run flow"
+}

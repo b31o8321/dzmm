@@ -1,0 +1,22 @@
+{
+  "phase": "phase116-latest-package-artifacts",
+  "date": "2026-08-21",
+  "objective": "Prepare current Android and macOS artifacts containing the phase113-115 player fixes for the next real-device/package acceptance run.",
+  "artifacts": {
+    "android_debug_apk": {
+      "path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "1b108e7bcfbd77d1e879f45b08d092d76b83ae4cd58fac15dd32a15312624dfe",
+      "build": "flutter build apk --debug passed"
+    },
+    "macos_app": {
+      "path": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM Next.app",
+      "executable_sha256": "a5b40952b03e894bf1237bd52a398445a6d95a8d6c34d6345834649d9c2c4448",
+      "build": "tauri build --bundles app passed"
+    }
+  },
+  "dmg": {
+    "build": "tauri build failed in the generated bundle_dmg.sh final step on the current macOS GUI/packaging environment",
+    "not_accepted_as_artifact": true
+  },
+  "next_gate": "Install the APK on a physical Android device and rerun the macOS DMG build/visible-window A-F gate in a normal GUI session."
+}

@@ -1,0 +1,19 @@
+{
+  "phase": "phase109",
+  "date": "2026-08-21",
+  "status": "desktop-model-list-boundary-extracted",
+  "change": [
+    "Desktop model profile list presentation and CRUD/Probe/default/delete events now live in ModelProfileList.vue instead of the root App.vue orchestration page.",
+    "The component keeps player-facing status, provider/model summary and action availability in one reusable typed boundary; App.vue retains only use-case handlers and operation state.",
+    "A component test covers default badge, probe result, in-flight label and all action event payloads."
+  ],
+  "automated_checks": {
+    "desktop_tests": "28 passed across 12 files",
+    "desktop_build": "passed",
+    "git_diff_check": "passed"
+  },
+  "not_proven": [
+    "Windows native package and Android physical-device package journeys remain unavailable.",
+    "macOS DMG visible-window gate still requires a usable GUI observation session."
+  ]
+}

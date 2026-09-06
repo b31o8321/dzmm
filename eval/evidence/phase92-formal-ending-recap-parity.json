@@ -1,0 +1,45 @@
+{
+  "phase": "phase92",
+  "date": "2026-08-21",
+  "status": "formal-ending-recap-parity-verified",
+  "scope": "desktop and Android completed-Run player recap",
+  "player_behavior": [
+    "A completed journey shows its ending title and narrative before replay actions.",
+    "The recap includes the final route, held resources, named relationship dimensions, the last three player actions, and completed-turn count.",
+    "Desktop and Android resolve route, resource, and relationship IDs through the same transport-free Python presentation projection.",
+    "Internal ending keys, revision transitions, audit reason keys, and aggregate IDs remain absent from the player recap."
+  ],
+  "code_boundary": {
+    "shared_module": "dzmm_vnext.run_presentation.build_run_presentation",
+    "desktop_adapter": "FastAPI RunSnapshot presentation",
+    "android_adapter": "LocalCoreRuntime RunSnapshot presentation"
+  },
+  "automated_checks": {
+    "backend_tests": "100 passed",
+    "backend_ruff": "passed",
+    "desktop_tests": "12 passed",
+    "desktop_build": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "13 passed",
+    "packages": {
+      "android_debug_apk_sha256": "fff54dde99c172a29488d27f4fb1cfba937f08b9804145e54fde11eb1d1a384f",
+      "macos_arm64_dmg_sha256": "7548bec3672db41766a15153589f22ad12ce0c52047f60bc1db2490b7fdce428"
+    }
+  },
+  "macos_packaged_probe": {
+    "isolated_data": true,
+    "isolated_port": 18765,
+    "health": "passed",
+    "window_server": "main window present at 1254x784",
+    "visual_capture": "blocked by current screen-recording and accessibility permissions; not counted as WebView acceptance"
+  },
+  "device_gate": {
+    "adb_devices": [],
+    "android_physical_device": "not run"
+  },
+  "not_proven": [
+    "macOS packaged WebView A-F visual interaction remains open.",
+    "Android physical-device A-F and TalkBack remain open.",
+    "Windows native package and A-F remain open."
+  ]
+}

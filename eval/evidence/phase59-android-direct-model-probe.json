@@ -1,0 +1,37 @@
+{
+  "phase": "phase59-android-direct-model-probe",
+  "captured_at": "2026-08-20",
+  "status": "verified-android-emulator-direct-local-ollama",
+  "counted_in_current_matrix": true,
+  "device": {
+    "serial": "emulator-5554",
+    "avd": "dzmm-ux-api36",
+    "android_api": 36,
+    "apk_sha256": "98542b7327e8f8c56124ef5a31e14ba34462b0982e2321cef83d134aab5ac795"
+  },
+  "journey": [
+    "Created a model profile in the Android app with Ollama, emulator host mapping http://10.0.2.2:11434, and sakura-eclipse-12b-32k:latest.",
+    "Saved the profile without a red-screen or host/pairing flow.",
+    "Tapped direct Probe; the embedded CPython runtime issued POST /api/chat and displayed 可用 · protocol response contains content after the local model warm-up.",
+    "The first 12-second probe timed out visibly; the bounded probe was raised to 30 seconds to accommodate local 12B warm-up without hiding provider failures."
+  ],
+  "sqlite_readback": {
+    "database": "run-as local.dzmm.dzmm_next_mobile files/dzmm.db",
+    "model_profiles": 1,
+    "provider_type": "ollama",
+    "base_url": "http://10.0.2.2:11434",
+    "model_name": "sakura-eclipse-12b-32k:latest"
+  },
+  "screenshots": [
+    "screens/phase59-android-direct-model/01-ollama-probe-success.png"
+  ],
+  "limits": [
+    "This proves protocol reachability and non-empty content, not a 30-turn AI narrative run.",
+    "LM Studio/OpenAI-compatible and provider cancellation remain open."
+  ],
+  "maturity": {
+    "android_local_host": {"before": 62, "after": 68},
+    "model_integration": {"before": 65, "after": 76},
+    "overall": {"before": 61, "after": 63}
+  }
+}

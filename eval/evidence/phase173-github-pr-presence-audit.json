@@ -1,0 +1,14 @@
+{
+  "phase": 173,
+  "title": "GitHub PR and branch publication audit",
+  "status": "no_pr_and_remote_stale",
+  "repository": "https://github.com/b31o8321/dzmm",
+  "visibility": "PUBLIC",
+  "default_branch": "main",
+  "feature_prs": [],
+  "remote_feature_head": "6068dbb0164a9ecbad7a1f27cdfc6ef741311239",
+  "local_candidate": "1e92bd7",
+  "decision": "No remote CI/PR evidence can represent the current candidate until the feature branch is explicitly pushed.",
+  "score_change": 0,
+  "next_action": "explicit authorization to push feature/dzmm-vnext, then open or inspect the resulting PR"
+}

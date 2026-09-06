@@ -1,0 +1,47 @@
+{
+  "phase": 141,
+  "title": "Qwen 7B 新题材世界 10 回合长局",
+  "date": "2026-08-25",
+  "scope": [
+    "用 Ollama 原生 Profile 生成全新非雾港题材世界",
+    "确认生成素材进入 Run 并完成 10 个真实叙事回合",
+    "检查 SSE、revision、Turn 持久化和是否提前结局"
+  ],
+  "environment": {
+    "database": "isolated temporary DZMM_NEXT_DATA_DIR",
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "genre": "solar-punk ecological mystery",
+    "theme": "the city garden network is erasing memories"
+  },
+  "world": {
+    "name": "记忆之森",
+    "locations": ["记忆花园", "鸟语林"],
+    "draft": "valid=true after safe normalization; no Fog Harbor/Tide Gate names"
+  },
+  "run": {
+    "turns_requested": 10,
+    "turns_completed": 10,
+    "persisted_turns": 10,
+    "revision": 10,
+    "ending": null,
+    "narrative_delta": "turns 1-8 emitted narrative_delta; turns 9-10 completed without a delta event and require follow-up investigation",
+    "latency_seconds": {
+      "min": 40.5,
+      "median": 62.85,
+      "max": 130.7
+    }
+  },
+  "score": {
+    "previous": 94,
+    "current": 95,
+    "delta": 1,
+    "reason": "真实 Qwen 7B 新题材草案进入 Run，并完成 10 回合持久化且未提前结局；慢模型尾段无 narrative_delta 仍限制沉浸评分。"
+  },
+  "remaining_gates": [
+    "调查 turns 9-10 无 narrative_delta 但 turn_completed 的原因，确保玩家不会看到空回合",
+    "用相同生成世界验证正式结局、结局回顾和同世界新 Run",
+    "解决 macOS release .app 可见窗口门槛",
+    "Windows 原生安装与 Android 真机验收仍不在当前范围"
+  ]
+}

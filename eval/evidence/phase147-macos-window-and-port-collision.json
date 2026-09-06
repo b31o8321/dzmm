@@ -1,0 +1,19 @@
+{
+  "phase": 147,
+  "name": "macos-window-and-port-collision",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 93,
+    "change": 0,
+    "reason": "包窗口可见性得到新证据，但本机已有旧版 sidecar 占用 8765，未完成完整安装后旅程"
+  },
+  "verification": {
+    "macos_app_bundle": "DZMM.app builds successfully and has a visible DZMM WebView window in the current GUI session",
+    "packaged_sidecar_direct": "passed on an isolated port; health app=dzmm-next, api_version=2, storage=local",
+    "installed_old_version": "legacy /Applications/dzmm.app sidecars occupy 127.0.0.1:8765 and wildcard :8765",
+    "packaged_full_journey": "blocked by coexistence/startup observation; requires retry after port fallback build in a clean GUI session"
+  },
+  "change": "Tauri host now keeps an explicit DZMM_NEXT_PORT when supplied and otherwise selects an available loopback port when 8765 is occupied.",
+  "boundary": "This permits transition-period coexistence; final cutover still uses 8765 once the legacy app is retired."
+}

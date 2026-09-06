@@ -1,0 +1,32 @@
+{
+  "phase": "phase69-model-protocol-200-error",
+  "captured_at": "2026-08-21",
+  "status": "verified-http-200-provider-error-and-empty-content-recovery",
+  "counted_in_current_matrix": true,
+  "test": "vnext/backend/tests/test_core_runtime.py::test_model_probe_rejects_http_200_error_and_empty_protocol_content",
+  "observations": [
+    {
+      "provider_type": "ollama",
+      "endpoint": "/api/chat",
+      "http_status": 200,
+      "body": {"error": "unexpected endpoint or method"},
+      "ui_safe_detail": "protocol response error: unexpected endpoint or method",
+      "state_mutation": false
+    },
+    {
+      "provider_type": "lm_studio",
+      "endpoint": "/v1/chat/completions",
+      "http_status": 200,
+      "body": {"choices": [{"message": {"content": ""}}]},
+      "ui_safe_detail": "protocol response contains no content",
+      "state_mutation": false
+    }
+  ],
+  "verification": {
+    "backend_tests": "66 passed",
+    "ruff": "passed"
+  },
+  "limits": [
+    "The fixture reproduces the provider protocol boundary; it is not a claim that every LM Studio build emits the same exact error string."
+  ]
+}

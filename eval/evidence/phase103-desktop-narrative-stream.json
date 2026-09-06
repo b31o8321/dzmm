@@ -1,0 +1,27 @@
+{
+  "phase": "phase103",
+  "date": "2026-08-21",
+  "status": "desktop-choice-and-free-action-narrative-stream-verified",
+  "player_behavior": [
+    "Desktop free-action and story-choice turns consume local-host SSE endpoints and show player-visible narrative_delta text while the model is still generating.",
+    "Streaming text is preview-only: the Run is not refreshed or presented as committed until turn_completed and a persisted Run reload succeed.",
+    "A turn_failed event becomes the existing retryable failure state; both stream paths commit only after the validated turn reaches the state-application boundary."
+  ],
+  "automated_checks": {
+    "backend_full_tests": "108 passed; Ruff passed",
+    "backend_stream_contract_tests": "22 passed in test_world_compose.py and test_narrative_rulesets.py",
+    "flutter_tests": "18 passed",
+    "flutter_analyze": "passed",
+    "desktop_tests": "25 passed across 10 files",
+    "desktop_build": "passed",
+    "cargo_check": "passed",
+    "git_diff_check": "passed",
+    "sse_chunk_boundary_test": "passed",
+    "packaged_macos_sidecar_health": "passed (local-only storage, 127.0.0.1 host)",
+    "macos_arm64_dmg_sha256": "de55d967cc5aad7fc8021082e198ce33489ef43c961f079ccb3b0d288fa344a4"
+  },
+  "not_proven": [
+    "Android embedded runtime still exposes operation stages but does not yet expose a cross-platform narrative stream callback.",
+    "Physical Android, Windows native package and packaged macOS WebView visual acceptance remain unrun."
+  ]
+}

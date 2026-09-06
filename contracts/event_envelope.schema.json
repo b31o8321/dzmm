@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dzmm.local/contracts/event-envelope/2026-08-16",
+  "title": "EventEnvelope",
+  "type": "object",
+  "required": ["id", "type", "run_id", "payload"],
+  "properties": {
+    "id": {"type": "integer", "minimum": 1},
+    "type": {"enum": ["turn_started", "narrative_delta", "command_applied", "turn_completed", "turn_failed", "event_gap"]},
+    "run_id": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

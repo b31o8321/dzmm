@@ -1,0 +1,24 @@
+{
+  "phase": 150,
+  "name": "android-release-cold-start",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 93,
+    "change": 0,
+    "reason": "release 冷启动与可见布局验证没有新增完整创建/游玩旅程"
+  },
+  "verification": {
+    "avd": "dzmm-ux-api36",
+    "device": "emulator-5554",
+    "api_level": 36,
+    "apk": "app-release.apk",
+    "install": "adb install -r succeeded",
+    "cold_start": "MainActivity topResumedActivity after force-stop/start",
+    "visible_brand": "DZMM",
+    "visible_layout": "current content, history/reload entry, and bottom choices/actions visible in screenshot",
+    "apk_sha256": "496750db303f34de4dff1c4c1b564732aad9f92f3a6cdadf93a5efec57dd0584",
+    "screenshot": "/tmp/dzmm-phase150-android-release.png"
+  },
+  "boundary": "仅本地 API 36 模拟器 release 冷启动；真实模型调用、30 回合、后台恢复、真机和 Windows installer 仍未验证。"
+}

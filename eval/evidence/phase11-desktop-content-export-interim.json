@@ -1,0 +1,19 @@
+{
+  "commit": "working tree before commit",
+  "environment": "macOS; fresh temporary DZMM_NEXT_DATA_DIR; source FastAPI at loopback; Vite at 127.0.0.1:5182; Chromium at 1600x900; no legacy data or API",
+  "journey": [
+    "Open Fog Harbor creation, import a V3 card with one character-book entry, and create the WorldVersion with normal UI input.",
+    "On the visible confirmation page, verify the content-assets summary shows World Info with two entries and Character Cards with the template cards plus the imported card.",
+    "Use the visible World Info export and imported Character Card export controls, then inspect the downloaded JSON files."
+  ],
+  "result": {
+    "world_info_download": "Suggested filename was 雾港-world-info.json. The downloaded World Info had two entries, including the imported entry body.",
+    "character_card_download": "Suggested filename was card.json. The downloaded JSON preserved spec=chara_card_v3 and the original imported character name.",
+    "visibility": "The confirmation page showed the asset counts, native card names, export controls and first-turn action. At 1600x900 the assets block was wholly visible; there was no horizontal overflow or obscured control."
+  },
+  "verification": {
+    "desktop": "npm run build passed.",
+    "browser": "Normal mouse/keyboard browser journey completed creation and both actual downloads against a fresh host."
+  },
+  "boundary": "This gives creation-time asset visibility and export only. It does not create a persistent world-center/editor, export native cards without an external source payload, prove a packaged Tauri WebView journey, replace real PNG filechooser coverage, or change the 65.00 maturity score."
+}

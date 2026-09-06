@@ -1,0 +1,20 @@
+{
+  "matrix_version": "narrative-platform-v2",
+  "commit": "d914ae6",
+  "environment": "Python 3.13.3; fresh temporary SQLite database; FastAPI TestClient; no legacy data or API",
+  "evidence": {
+    "state_command_safety": "36 backend tests pass. Narrative and hybrid rulesets reject raw HTTP turn commands and raw SSE commands before state mutation; only the server-planned choice route may invoke the internal command executor. The same policy applies to authenticated Android gameplay; its choice route is capability-authenticated and idempotent. TRPG raw turns remain covered by existing recovery and stream tests.",
+    "score_boundary": "Only state_command_safety rises from 70 to 75. Content, desktop, engineering, mobile, long-play and narrative scores retain the prior conservative evidence boundary: a debug packaged sidecar/DMG is not a WebView journey, signed release or physical Android/LAN acceptance."
+  },
+  "scores": {
+    "domain_lifecycle": 65,
+    "state_command_safety": 75,
+    "narrative_integrity": 75,
+    "content_authoring": 60,
+    "model_stream": 75,
+    "desktop_ux": 70,
+    "mobile_recovery": 0,
+    "long_play_performance": 75,
+    "engineering_release": 60
+  }
+}

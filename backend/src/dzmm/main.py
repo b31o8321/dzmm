@@ -1,222 +1,521 @@
-# main.py — FastAPI 应用的「工厂」模块
-# 本文件负责两件事：
-#   1. create_app()：接收一个数据库会话工厂，组装完整的 FastAPI 实例（注册中间件、路由、依赖注入）
-#   2. build_default_app()：真正用于生产的入口，负责初始化数据库、植入种子数据、再调用 create_app()
-# 把「创建」和「初始化」分开，是为了在测试时可以传入内存数据库，而不必改动路由逻辑。
+from __future__ import annotations
 
-import os
-from collections.abc import AsyncIterator  # 异步迭代器类型，用于标注「yield 型」依赖函数的返回值
-from pathlib import Path                   # 跨平台路径操作，比 os.path 更易读
+import json
+from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI                             # FastAPI 框架核心类，所有路由都挂在它上面
-from fastapi.middleware.cors import CORSMiddleware      # 跨域资源共享中间件，允许浏览器从不同源访问 API
-from fastapi.staticfiles import StaticFiles             # 让 FastAPI 能直接托管静态文件（HTML/JS/CSS）
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # SQLAlchemy 异步会话相关类型
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-# 导入各业务模块的路由，每个 routes_xxx 文件定义一组相关 API 接口
-from dzmm.api import (
-    routes_assets,      # 素材（图片、音频等）的增删改查 + 上传
-    routes_characters,  # 角色管理
-    routes_factions,    # 派系管理
-    routes_models,      # AI 模型配置
-    routes_screenplay,  # 单个剧本的操作（生成、查看等）
-    routes_screenplays, # 剧本列表
-    routes_sessions,    # 游戏会话（跑团局）管理
-    routes_system,      # 系统信息、健康检查
-    routes_tts,         # 文字转语音代理
-    routes_wizard,      # 新手向导（引导建档）
-    routes_worlds,      # 世界观/世界设定管理
+from . import API_VERSION, APP_NAME
+from .config import Settings
+from .contracts import contract_manifest
+from .core import (
+    AIWorldDraftGenerationError,
+    AIWorldDraftInput,
+    AIWorldDraftReviewInput,
+    AIWorldDraftService,
+    ChoiceTurnInput,
+    ComposeWorldInput,
+    ContentNotFoundError,
+    ContentService,
+    CreateRunInput,
+    DomainValidationError,
+    IdempotencyConflictError,
+    LorebookPromotionInput,
+    LorebookSelectionInput,
+    ModelProber,
+    ModelProfileConflictError,
+    ModelProfileInput,
+    ModelProfileService,
+    NarrationError,
+    PortableBundleError,
+    PortableImportInput,
+    PortableRunCloneInput,
+    PortableService,
+    PurgeConfirmation,
+    PurgeConfirmationError,
+    RevisionConflictError,
+    RunModelProfileConflictError,
+    RunModelProfileInput,
+    RunNotFoundError,
+    SillyTavernImportInput,
+    TurnCoordinator,
+    TurnIdempotencyConflictError,
+    TurnInput,
+    TurnResult,
+    TurnRollbackInput,
+    WorldComposer,
+    WorldLifecycle,
+    WorldNotFoundError,
+    WorldVersionConflictError,
+    WorldVersionInput,
+    diagnostic_snapshot,
+    integrity_scan,
+    validate_world_draft,
 )
-# 数据库底层工具：async_session 创建会话工厂，get_engine 创建数据库连接，init_db 建表
-from dzmm.db.base import async_session, get_engine, init_db
+from .db import create_engine
+from .genre_presets import genre_preset_list
+from .world_templates import d20_frontier_template, fog_harbor_template
 
 
-# ─────────────────────────────────────────────
-# create_app：纯组装函数，不做任何 I/O 操作
-# 参数 session_maker：外部传入的数据库会话工厂（可以是生产库也可以是测试用内存库）
-# 返回值：配置好的 FastAPI 实例
-# ─────────────────────────────────────────────
-def create_app(session_maker: async_sessionmaker[AsyncSession]) -> FastAPI:
-    # 延迟导入，避免模块循环依赖（logging_config 间接依赖 config，config 不依赖 main）
-    from dzmm.logging_config import setup_logging
-    setup_logging()  # 初始化日志系统：把所有日志同时写入文件和终端，且只初始化一次
+def create_app(settings: Settings | None = None) -> FastAPI:
+    resolved_settings = settings or Settings.from_env()
 
-    app = FastAPI(title="dzmm")  # 创建 FastAPI 实例，title 会显示在自动生成的 /docs 页面
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        resolved_settings.ensure_layout()
+        app.state.settings = resolved_settings
+        app.state.contracts = contract_manifest()
+        app.state.engine = create_engine(resolved_settings)
+        app.state.sessions = async_sessionmaker(app.state.engine, expire_on_commit=False)
+        app.state.world_composer = WorldComposer(app.state.sessions)
+        app.state.portable = PortableService(app.state.sessions, app.state.world_composer)
+        app.state.turn_coordinator = TurnCoordinator(app.state.sessions)
+        app.state.model_profiles = ModelProfileService(app.state.sessions)
+        app.state.ai_world_drafts = AIWorldDraftService(app.state.model_profiles)
+        app.state.model_prober = ModelProber()
+        app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
+        app.state.content = ContentService(app.state.sessions)
+        try:
+            yield
+        finally:
+            await app.state.engine.dispose()
 
-    # ── 跨域中间件（CORS）──────────────────────────────────────────────────
-    # 问题背景：浏览器的同源策略会阻止网页向「与自身来源不同的域名/端口」发送请求。
-    # 本应用是本地桌面应用：前端（Vite 开发服务器跑在 localhost:5173，Tauri webview 是 tauri://）
-    # 和后端（uvicorn 跑在 localhost:8765）来源不同，所以需要允许跨域。
-    # allow_origins=["*"] 表示接受任意来源的请求（本地应用不需要精细控制）。
-    # allow_credentials=False：不允许跨域携带 cookie（本应用不用 cookie 鉴权，避免安全问题）。
-    # 注：Vite 的 proxy 虽然也能解决跨域，但它会缓冲 SSE 响应，导致流式输出失效，所以直接开 CORS。
+    app = FastAPI(title="DZMM Local Host", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],      # 允许所有来源
-        allow_credentials=False,  # 不允许携带 cookie
-        allow_methods=["*"],      # 允许所有 HTTP 方法（GET/POST/PUT/DELETE 等）
-        allow_headers=["*"],      # 允许所有请求头
+        allow_origin_regex=(
+            r"^(http://(127\.0\.0\.1|localhost):\d+|"
+            r"https?://tauri\.localhost|tauri://localhost)$"
+        ),
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["content-type"],
     )
 
-    # ── 请求日志中间件：方便排查前端报错 ────────────────────────────────────
-    # uvicorn 的 access log 默认走 stdout，没进入 ~/.dzmm/dzmm.log，
-    # 排查"前端报错但日志只看到 LLM 调用"时很难定位。这里记录所有 wizard/
-    # sessions 写操作的入站请求和响应状态码到 dzmm.log。
-    import logging as _logging
-    import time as _time
-    _req_log = _logging.getLogger("dzmm.requests")
+    @app.get("/health")
+    async def health() -> dict[str, object]:
+        async with app.state.engine.connect() as connection:
+            foreign_keys = (await connection.execute(text("PRAGMA foreign_keys"))).scalar_one()
+        return {
+            "app": APP_NAME,
+            "api_version": API_VERSION,
+            "contract": app.state.contracts,
+            "storage": "local",
+            "host": "127.0.0.1",
+            "foreign_keys": bool(foreign_keys),
+        }
 
-    @app.middleware("http")
-    async def _request_logger(request, call_next):
-        path = request.url.path
-        # 只记录关键路径，避免 SSE / state 轮询噪音
-        interesting = (
-            path.startswith("/wizard")
-            or path.startswith("/worlds")
-            or path.startswith("/characters")
-            or path.startswith("/model_configs")
-            or (path.startswith("/sessions") and request.method != "GET")
-        )
-        if not interesting:
-            return await call_next(request)
-        started = _time.perf_counter()
+    @app.post("/api/v2/worlds:compose")
+    async def compose_world(payload: ComposeWorldInput) -> JSONResponse:
         try:
-            response = await call_next(request)
-        except Exception:
-            _req_log.exception("%s %s — UNHANDLED EXCEPTION", request.method, path)
-            raise
-        elapsed_ms = int((_time.perf_counter() - started) * 1000)
-        level = _logging.WARNING if response.status_code >= 400 else _logging.INFO
-        _req_log.log(
-            level,
-            "%s %s -> %d (%dms)",
-            request.method, path, response.status_code, elapsed_ms,
+            result = await app.state.world_composer.compose(payload)
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except IdempotencyConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return JSONResponse(
+            status_code=201 if result.created else 200,
+            content=result.model_dump(mode="json"),
         )
-        return response
 
-    # ── 依赖注入：把「获取数据库会话」的函数注入给各路由 ────────────────────
-    # FastAPI 的「依赖注入」机制：路由函数可以声明参数 session: AsyncSession = Depends(get_session_dep)，
-    # FastAPI 会自动调用 get_session_dep()，把它的返回值传给路由函数，无需路由函数自己创建数据库连接。
-    # 这里用 async with ... yield 的模式，保证每个请求用完数据库会话后自动关闭，不会泄漏连接。
-    async def get_session_dep() -> AsyncIterator[AsyncSession]:
-        # async with session_maker() as s：打开一个数据库会话（自动处理提交/回滚/关闭）
-        # yield s：把会话传给路由函数；路由函数执行完后，with 块负责清理
-        async with session_maker() as s:
-            yield s
+    @app.post("/api/v2/worlds/{world_id}/runs")
+    async def create_run(world_id: str, payload: CreateRunInput) -> JSONResponse:
+        try:
+            result = await app.state.world_composer.create_run(world_id, payload)
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except IdempotencyConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return JSONResponse(
+            status_code=201 if result.created else 200,
+            content=result.model_dump(mode="json"),
+        )
 
-    # 某些路由需要直接拿到 session_maker 本身（例如需要在子任务里自己创建会话），
-    # 所以单独提供一个依赖函数，直接返回工厂对象。
-    def get_session_maker_dep() -> async_sessionmaker[AsyncSession]:
-        return session_maker
+    @app.post("/api/v2/ai-world-drafts:generate")
+    async def generate_ai_world_draft(payload: AIWorldDraftInput) -> dict[str, object]:
+        try:
+            return (await app.state.ai_world_drafts.generate(payload)).model_dump(mode="json")
+        except AIWorldDraftGenerationError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
 
-    # ── 批量注册「需要数据库」的路由模块 ────────────────────────────────────
-    # app.dependency_overrides 是 FastAPI 的「依赖替换」字典：
-    # key = 路由模块里声明的「占位依赖函数」，value = 实际要调用的函数。
-    # 这样做的好处：各路由模块里的 get_session_dep 只是一个「声明」，
-    # 实际使用哪个数据库由这里的 override 决定，测试时可以换成内存库而无需改路由代码。
-    for module in (
-        routes_worlds,
-        routes_characters,
-        routes_models,
-        routes_sessions,
-        routes_screenplay,
-        routes_screenplays,
-        routes_wizard,
-    ):
-        # routes_screenplay reuses routes_sessions.get_session_dep (same function
-        # object), so the override applied while iterating routes_sessions also
-        # covers it. Iterating routes_screenplay just adds an idempotent override
-        # by the same key — keeps the loop uniform and resilient if it ever
-        # introduces its own dep.
-        # getattr(module, "get_session_dep", get_session_dep)：
-        #   尝试获取模块自己定义的 get_session_dep；
-        #   如果模块没有定义（比如 routes_screenplay 直接复用 routes_sessions 的），
-        #   则回退到本文件里刚定义的 get_session_dep，保证 override 键存在。
-        dep = getattr(module, "get_session_dep", get_session_dep)
-        app.dependency_overrides[dep] = get_session_dep  # 用真正的数据库会话替换占位函数
-        app.include_router(module.router)                # 把该模块的所有路由注册到 app 上
+    @app.post("/api/v2/ai-world-drafts:validate")
+    async def validate_ai_world_draft(payload: AIWorldDraftReviewInput) -> dict[str, object]:
+        return validate_world_draft(payload.world_definition, payload.hero).model_dump(mode="json")
 
-    # ── 不需要数据库的路由，直接注册 ────────────────────────────────────────
-    # System routes don't need DB session.
-    app.include_router(routes_system.router)        # /system/info 等系统信息接口
-    app.include_router(routes_system.health_router) # /health 健康检查接口（供 Tauri/运维监控调用）
+    @app.get("/api/v2/world-templates/fog-harbor")
+    async def get_fog_harbor_template() -> dict[str, object]:
+        return fog_harbor_template()
 
-    # TTS proxy route.
-    app.include_router(routes_tts.router)  # /tts/... 文字转语音代理接口，转发给第三方 TTS 服务
+    @app.get("/api/v2/world-templates/d20-frontier")
+    async def get_d20_frontier_template() -> dict[str, object]:
+        return d20_frontier_template()
 
-    # ── 单独注册「需要数据库但不在上面循环里」的路由 ─────────────────────────
-    # Assets CRUD + upload + serve + attach.
-    app.dependency_overrides[routes_assets.get_session_dep] = get_session_dep
-    app.include_router(routes_assets.router)  # /assets/... 素材管理（上传图片、音频、头像等）
+    @app.get("/api/v2/genre-presets")
+    async def get_genre_presets() -> list[dict[str, object]]:
+        return genre_preset_list()
 
-    # Factions API.
-    app.dependency_overrides[routes_factions.get_session_dep] = get_session_dep
-    app.include_router(routes_factions.router)  # /factions/... 派系增删改查
+    @app.get("/api/v2/runs/{run_id}:export")
+    async def export_run(run_id: str) -> dict[str, object]:
+        bundle = await app.state.portable.export_run(run_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return bundle
 
-    # v0.10 T11: Debug "Agents" tab (per-stream prompt + history).
-    # 调试用路由，放在应用内部（不对外暴露），用于查看每个 AI Agent 的历史对话和 prompt
-    from dzmm.api.routes_debug_agents import (
-        router as debug_agents_router,
-        get_session_dep as debug_agents_get_session_dep,
-    )
-    app.dependency_overrides[debug_agents_get_session_dep] = get_session_dep
-    app.include_router(debug_agents_router)
+    @app.get("/api/v2/runs/{run_id}")
+    async def get_run(run_id: str) -> dict[str, object]:
+        snapshot = await app.state.world_composer.load_run(run_id)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return snapshot.model_dump(mode="json")
 
-    # 让 routes_sessions 里需要 session_maker 的依赖也能拿到正确的工厂实例
-    app.dependency_overrides[routes_sessions.get_session_maker_dep] = get_session_maker_dep
+    @app.post("/api/v2/runs:clone")
+    async def clone_run(payload: PortableRunCloneInput) -> JSONResponse:
+        try:
+            result = await app.state.portable.clone_run(payload)
+        except (PortableBundleError, DomainValidationError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=201, content=result.model_dump(mode="json"))
 
-    # ── 可选：托管前端静态文件 ──────────────────────────────────────────────
-    # If DZMM_FRONTEND_DIST points at a directory of built frontend files,
-    # mount it at "/" so a phone on the LAN can fetch the UI from the same
-    # backend that serves the API. Mount LAST so API routes win.
-    # 如果环境变量 DZMM_FRONTEND_DIST 指向一个已构建的前端目录（npm run build 的输出），
-    # 就把整个目录挂载到 "/"，让后端同时充当前端服务器。
-    # 「挂载在最后」是关键：FastAPI 路由匹配是按注册顺序来的，先注册的 API 路由优先匹配，
-    # 静态文件兜底，避免 /api/xxx 被当成静态文件路径。
-    dist = os.environ.get("DZMM_FRONTEND_DIST")
-    if dist and Path(dist).is_dir():
-        # html=True：未找到对应文件时返回 index.html，支持前端单页应用（SPA）的路由
-        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+    @app.get("/api/v2/runs/{run_id}/model-profile")
+    async def get_run_model_profile(run_id: str) -> dict[str, str | None]:
+        try:
+            model_profile_id = await app.state.world_composer.run_model_profile_id(run_id)
+        except RunModelProfileConflictError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"run_id": run_id, "model_profile_id": model_profile_id}
+
+    @app.post("/api/v2/runs/{run_id}/model-profile")
+    async def set_run_model_profile(run_id: str, payload: RunModelProfileInput) -> dict[str, str]:
+        try:
+            model_profile_id = await app.state.world_composer.set_run_model_profile(run_id, payload)
+        except RunModelProfileConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return {"run_id": run_id, "model_profile_id": model_profile_id}
+
+    @app.post("/api/v2/worlds/{world_id}:archive")
+    async def archive_world(world_id: str) -> dict[str, str]:
+        try:
+            status = await app.state.world_lifecycle.archive(world_id)
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"world_id": world_id, "status": status}
+
+    @app.post("/api/v2/worlds/{world_id}:restore")
+    async def restore_world(world_id: str) -> dict[str, str]:
+        try:
+            status = await app.state.world_lifecycle.restore(world_id)
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"world_id": world_id, "status": status}
+
+    @app.get("/api/v2/worlds")
+    async def list_worlds() -> list[dict[str, object]]:
+        return [
+            world.model_dump(mode="json") for world in await app.state.world_lifecycle.list_worlds()
+        ]
+
+    @app.get("/api/v2/worlds/{world_id}:export")
+    async def export_world(world_id: str) -> dict[str, object]:
+        bundle = await app.state.portable.export_world(world_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="world not found")
+        return bundle
+
+    @app.post("/api/v2/worlds:import")
+    async def import_world(payload: PortableImportInput) -> JSONResponse:
+        try:
+            result = await app.state.portable.import_world(payload)
+        except (PortableBundleError, DomainValidationError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=201, content=result.model_dump(mode="json"))
+
+    @app.get("/api/v2/worlds/{world_id}")
+    async def get_world(world_id: str) -> dict[str, object]:
+        try:
+            return (await app.state.world_lifecycle.get_world(world_id)).model_dump(mode="json")
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/api/v2/worlds/{world_id}/versions")
+    async def create_world_version(world_id: str, payload: WorldVersionInput) -> dict[str, object]:
+        try:
+            return (await app.state.world_lifecycle.create_version(world_id, payload)).model_dump(
+                mode="json"
+            )
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except WorldVersionConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except DomainValidationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.get("/api/v2/worlds/{world_id}/purge-manifest")
+    async def world_purge_manifest(world_id: str) -> dict[str, object]:
+        try:
+            return (await app.state.world_lifecycle.manifest(world_id)).model_dump(mode="json")
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/v2/worlds/{world_id}")
+    async def purge_world(world_id: str, payload: PurgeConfirmation) -> dict[str, object]:
+        try:
+            return (await app.state.world_lifecycle.purge(world_id, payload)).model_dump(
+                mode="json"
+            )
+        except WorldNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except PurgeConfirmationError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/api/v2/integrity")
+    async def get_integrity() -> dict[str, object]:
+        orphans = await integrity_scan(app.state.sessions)
+        return {"orphans": orphans, "clean": not any(orphans.values())}
+
+    @app.get("/api/v2/diagnostics")
+    async def get_diagnostics() -> dict[str, object]:
+        return {
+            "app": APP_NAME,
+            "api_version": API_VERSION,
+            "contract": app.state.contracts,
+            "storage": "local",
+            "database": await diagnostic_snapshot(app.state.sessions),
+        }
+
+    @app.post("/api/v2/content/sillytavern:import")
+    async def import_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:
+        try:
+            return app.state.content.import_sillytavern(payload).model_dump(mode="json")
+        except (TypeError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/api/v2/world-versions/{world_version_id}/lorebook:select")
+    async def select_world_lorebook(
+        world_version_id: str, payload: LorebookSelectionInput
+    ) -> dict[str, object]:
+        try:
+            return (await app.state.content.select_lorebook(world_version_id, payload)).model_dump(
+                mode="json"
+            )
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/api/v2/worlds/{world_id}/lorebook/{entry_id}:promote")
+    async def promote_world_lorebook_entry(
+        world_id: str, entry_id: str, payload: LorebookPromotionInput
+    ) -> dict[str, object]:
+        try:
+            return (
+                await app.state.content.promote_lorebook_entry(world_id, entry_id, payload)
+            ).model_dump(mode="json")
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.get("/api/v2/world-versions/{world_version_id}/character-cards/{character_card_id}:export")
+    async def export_character_card(
+        world_version_id: str, character_card_id: str
+    ) -> dict[str, object]:
+        try:
+            return await app.state.content.export_character_card(
+                world_version_id, character_card_id
+            )
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except TypeError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.get("/api/v2/world-versions/{world_version_id}/lorebook:export")
+    async def export_lorebook(world_version_id: str) -> dict[str, object]:
+        try:
+            return await app.state.content.export_lorebook(world_version_id)
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    async def play_turn(run_id: str, payload: TurnInput) -> TurnResult:
+        if not app.state.turn_coordinator.begin_operation(payload.request_id):
+            raise HTTPException(status_code=409, detail="operation is already running")
+        try:
+            return await app.state.turn_coordinator.play(run_id, payload)
+        except RunNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except NarrationError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+        except (RevisionConflictError, TurnIdempotencyConflictError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        finally:
+            app.state.turn_coordinator.finish_operation(payload.request_id)
+
+    async def play_rollback(run_id: str, payload: TurnRollbackInput) -> TurnResult:
+        try:
+            return await app.state.turn_coordinator.rollback(run_id, payload)
+        except RunNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (RevisionConflictError, TurnIdempotencyConflictError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    async def play_choice(run_id: str, payload: ChoiceTurnInput) -> TurnResult:
+        if not app.state.turn_coordinator.begin_operation(payload.request_id):
+            raise HTTPException(status_code=409, detail="operation is already running")
+        try:
+            return await app.state.turn_coordinator.play_choice(run_id, payload)
+        except RunNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except NarrationError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+        except (RevisionConflictError, TurnIdempotencyConflictError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        finally:
+            app.state.turn_coordinator.finish_operation(payload.request_id)
+
+    @app.post("/api/v2/operations/{request_id}:cancel")
+    async def cancel_operation(request_id: str) -> dict[str, object]:
+        accepted = (
+            app.state.turn_coordinator.cancel_operation(request_id)
+            or app.state.ai_world_drafts.cancel_operation(request_id)
+        )
+        return {
+            "request_id": request_id,
+            "accepted": accepted,
+            "detail": (
+                "cancellation accepted; the original Run state will be preserved"
+                if accepted
+                else "operation is no longer cancellable"
+            ),
+        }
+
+    @app.post("/api/v2/runs/{run_id}/turns")
+    async def create_turn(run_id: str, payload: TurnInput) -> JSONResponse:
+        result = await play_turn(run_id, payload)
+        return JSONResponse(
+            status_code=201 if result.created else 200, content=result.model_dump(mode="json")
+        )
+
+    @app.post("/api/v2/runs/{run_id}/choices")
+    async def choose_turn(run_id: str, payload: ChoiceTurnInput) -> JSONResponse:
+        result = await play_choice(run_id, payload)
+        return JSONResponse(
+            status_code=201 if result.created else 200, content=result.model_dump(mode="json")
+        )
+
+    @app.post("/api/v2/runs/{run_id}/rollbacks")
+    async def rollback_turn(run_id: str, payload: TurnRollbackInput) -> JSONResponse:
+        result = await play_rollback(run_id, payload)
+        return JSONResponse(
+            status_code=201 if result.created else 200, content=result.model_dump(mode="json")
+        )
+
+    async def stream_turn_events(
+        run_id: str,
+        payload: TurnInput,
+        *,
+        planned_choice: bool = False,
+        choice_id: str | None = None,
+    ) -> StreamingResponse:
+        async def events():
+            if not app.state.turn_coordinator.begin_operation(payload.request_id):
+                yield _sse(
+                    1,
+                    "turn_failed",
+                    {"category": "state", "detail": "operation is already running"},
+                )
+                return
+            event_id = 1
+            try:
+                async for event_type, event_payload in app.state.turn_coordinator.stream(
+                    run_id,
+                    payload,
+                    planned_choice=planned_choice,
+                    choice_id=choice_id,
+                ):
+                    yield _sse(event_id, event_type, event_payload)
+                    event_id += 1
+            finally:
+                app.state.turn_coordinator.finish_operation(payload.request_id)
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
+    @app.post("/api/v2/runs/{run_id}/turns:stream")
+    async def stream_turn(run_id: str, payload: TurnInput) -> StreamingResponse:
+        return await stream_turn_events(run_id, payload)
+
+    @app.post("/api/v2/runs/{run_id}/choices:stream")
+    async def stream_choice(run_id: str, payload: ChoiceTurnInput) -> StreamingResponse:
+        return await stream_turn_events(
+            run_id,
+            TurnInput(
+                request_id=payload.request_id,
+                expected_revision=payload.expected_revision,
+                player_input=payload.player_input,
+                commands=[
+                    {"type": "choose_story_choice", "payload": {"choice_id": payload.choice_id}}
+                ],
+            ),
+            planned_choice=True,
+            choice_id=payload.choice_id,
+        )
+
+    @app.post("/api/v2/model-profiles")
+    async def create_model_profile(payload: ModelProfileInput) -> JSONResponse:
+        try:
+            profile = await app.state.model_profiles.create(payload)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=201, content=profile.model_dump(mode="json"))
+
+    @app.get("/api/v2/model-profiles")
+    async def list_model_profiles() -> list[dict[str, object]]:
+        return [item.model_dump(mode="json") for item in await app.state.model_profiles.list()]
+
+    @app.put("/api/v2/model-profiles/{profile_id}")
+    async def update_model_profile(
+        profile_id: str, payload: ModelProfileInput
+    ) -> dict[str, object]:
+        try:
+            return (await app.state.model_profiles.update(profile_id, payload)).model_dump(
+                mode="json"
+            )
+        except ModelProfileConflictError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/api/v2/model-profiles/{profile_id}:default")
+    async def set_default_model_profile(profile_id: str) -> dict[str, object]:
+        try:
+            return (await app.state.model_profiles.set_default(profile_id)).model_dump(mode="json")
+        except ModelProfileConflictError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/v2/model-profiles/{profile_id}", status_code=204)
+    async def delete_model_profile(profile_id: str) -> None:
+        try:
+            await app.state.model_profiles.delete(profile_id)
+        except ModelProfileConflictError as error:
+            status = 409 if "used by" in str(error) else 404
+            raise HTTPException(status_code=status, detail=str(error)) from error
+
+    @app.post("/api/v2/model-profiles/{profile_id}:probe")
+    async def probe_model_profile(profile_id: str) -> dict[str, object]:
+        profile = await app.state.model_profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="model profile not found")
+        return (await app.state.model_prober.probe(profile)).model_dump(mode="json")
 
     return app
 
 
-# ─────────────────────────────────────────────
-# build_default_app：生产环境真正使用的启动函数
-# 负责完整的初始化流程：建库 → 种子数据 → 素材目录 → NPC 记忆系统 → 创建 app
-# 是 async 函数，因为数据库初始化是异步 I/O 操作
-# ─────────────────────────────────────────────
-async def build_default_app() -> FastAPI:
-    import logging
-    from dzmm.config import APP_DIR               # 用户数据目录（~/.dzmm）
-    from dzmm.seed_data import seed_if_empty      # 如果数据库是空的，植入初始世界/角色数据
-    from dzmm.service.assets import init_paths as init_asset_paths, seed_builtin_assets  # 素材目录初始化
+app = create_app()
 
-    log = logging.getLogger(__name__)  # 获取以当前模块名（dzmm.main）命名的 logger，便于日志定位
 
-    engine = get_engine()         # 创建 SQLAlchemy 异步数据库引擎（连接池 + 驱动配置）
-    await init_db(engine)         # 对比当前数据库结构和 ORM 模型定义，自动建表/升级（idempotent，可重复调用）
-    session_maker = async_session(engine)  # 创建「会话工厂」：每次调用 session_maker() 都会产生一个新的数据库会话
-    await seed_if_empty(session_maker)     # 如果数据库里没有任何世界/角色，植入示例数据让用户有东西可玩
-
-    # ── 确定内置素材目录的路径 ────────────────────────────────────────────
-    # __file__ 是本文件（main.py）的绝对路径，.resolve() 转成真实路径（解析符号链接）
-    # .parent.parent.parent.parent 往上走 4 层目录，到达仓库根目录（repo root）
-    # 内置素材放在 packaging/assets/builtin/，随应用打包分发
-    _pkg_root = Path(__file__).resolve().parent.parent.parent.parent  # repo root
-    builtin_dir = _pkg_root / "packaging" / "assets" / "builtin"
-    # 告诉素材服务：用户上传的素材放在 APP_DIR，内置素材在 builtin_dir
-    init_asset_paths(APP_DIR, builtin_dir)
-
-    # 初始化 NPC 长期记忆系统（把记忆文件存储目录设置为 APP_DIR 下的子目录）
-    from dzmm.service.npc_memory import init_npc_memory
-    init_npc_memory(APP_DIR)
-
-    # ── 植入内置素材（幂等操作，已存在则跳过）────────────────────────────────
-    # async with session_maker() as _seed_session：打开一个临时数据库会话，用完自动关闭
-    async with session_maker() as _seed_session:
-        n_seeded = await seed_builtin_assets(_seed_session)  # 把 builtin_dir 里的素材写入数据库
-        if n_seeded > 0:
-            log.info("seeded %d builtin assets", n_seeded)  # 记录日志，说明本次启动植入了多少条素材
-
-    return create_app(session_maker)  # 所有初始化完成，创建并返回 FastAPI 实例
+def _sse(event_id: int, event_type: str, payload: dict[str, Any]) -> str:
+    return (
+        f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    )

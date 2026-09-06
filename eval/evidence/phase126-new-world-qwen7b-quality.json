@@ -1,0 +1,75 @@
+{
+  "phase": 126,
+  "title": "new-world Qwen 7B creation and NPC/event grounded play",
+  "scope": [
+    "create a brand-new world from the Android AI world wizard",
+    "review the generated world material and Python repair boundary",
+    "start a Run from that new world",
+    "verify opening location, NPC dialogue and recommendations use generated names",
+    "verify a first choice produces grounded NPC/event dialogue and a proactive interaction"
+  ],
+  "verification": {
+    "emulator": {
+      "avd": "dzmm-ux-api36",
+      "android_api": 36,
+      "serial": "emulator-5554",
+      "package": "local.dzmm.dzmm_next_mobile",
+      "apk_sha256": "15e9be4a358c4bb4c9002cd978391c0510e4c424addb561ce2336ba6748069a7",
+      "model": "qwen2.5:7b",
+      "adb_reverse": "host-16 tcp:11434 tcp:11434",
+      "launch": "passed"
+    },
+    "draft": {
+      "world_name": "潮汐之门",
+      "hero_name": "艾莉",
+      "character_cards": ["艾莉", "杰克"],
+      "locations": ["月光港", "潮汐之眼"],
+      "runtime_npcs": ["艾莉", "杰克", "老渔夫汤姆", "神秘女子莉娜"],
+      "factions": ["月光港渔民协会", "黑暗势力"],
+      "events": ["月圆之夜的秘密", "潮门的守护者"],
+      "chapters": 3,
+      "draft_status": "valid after controlled hybrid mapping",
+      "repair_boundary": [
+        "compact Qwen story normalized to reviewable chapters",
+        "model names and descriptive material preserved",
+        "Python-owned mechanics retained",
+        "story titles, route labels and choice labels rewritten from generated names"
+      ]
+    },
+    "player_flow": {
+      "new_world": "passed; world id 5c7ac001-4047-4d27-a173-f8cf37faf52e created after this run's AI wizard",
+      "opening": "passed; location 月光港, generated NPC 艾莉 dialogue, and generated recommendations 援手艾莉 / 替杰克保守秘密",
+      "same_world_new_run": "passed; new Run opened from the created world",
+      "first_choice": "援手艾莉",
+      "grounded_turn": "passed; Qwen narrative referenced 月光港, 艾莉, 汤姆老渔夫 and an unexplored alley clue",
+      "npc_initiative": "passed; 艾莉主动找到了你 and the UI asked the player to respond",
+      "next_recommendations": "passed; recommendations became 把证词交给艾莉 / 帮助杰克坦白 / 独自追查潮门 / 让艾莉与杰克共同作证",
+      "loading": "operation status remains visible during model generation; the Qwen draft used compact 768-token request budget"
+    },
+    "backend_tests": "126 passed, 1 warning",
+    "backend_ruff": "passed",
+    "focused_repair_tests": "11 passed",
+    "flutter_test": "24 passed",
+    "flutter_analyze": "passed",
+    "apk_build": "passed"
+  },
+  "change": {
+    "problem": "A 7B model often emits compact story keys such as chapter_1 instead of the full canonical schema, and generated names could leave old template labels or make the hero speak to themselves.",
+    "fix": "Qwen/Ollama world drafting now uses a compact material prompt and smaller output budget; the safe mapper normalizes compact chapters, preserves direct NPC descriptions, rewrites player-facing story labels, and chooses a non-hero cast member for opening dialogue when possible."
+  },
+  "score": {
+    "previous": 85,
+    "current": 86,
+    "delta": 1,
+    "basis": "new-world creation and one-turn replay now show generated world/NPC/event material flowing into dialogue, proactive NPC contact and recommendations; the increase is intentionally limited because mechanics still come from the vetted hybrid skeleton"
+  },
+  "residual": [
+    "Qwen 7B generated mechanics remain intentionally replaced by the Python hybrid skeleton",
+    "Android draft review shows repair text but not yet a first-class NPC/faction/event summary card",
+    "Windows package, macOS visible-window gate and full 30-turn cross-platform acceptance remain outside this local emulator run"
+  ],
+  "screenshots": [
+    "/tmp/dzmm-goal-created-world.png",
+    "/tmp/dzmm-goal-newworld-turn1.png"
+  ]
+}

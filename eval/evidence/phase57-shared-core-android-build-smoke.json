@@ -1,0 +1,46 @@
+{
+  "phase": "phase57-shared-core-android-build-smoke",
+  "captured_at": "2026-08-20",
+  "status": "shared-core-source-and-desktop-smoke-verified",
+  "scope": "The same pure-Python core runtime source is included in Chaquopy and exercised on the desktop test interpreter.",
+  "implementation": {
+    "shared_modules": [
+      "vnext/backend/src/dzmm_vnext/core/command_engine.py",
+      "vnext/backend/src/dzmm_vnext/core_runtime.py",
+      "vnext/backend/src/dzmm_vnext/narrative.py",
+      "vnext/backend/src/dzmm_vnext/world_templates.py"
+    ],
+    "android_source_set": "vnext/mobile/android/app/build.gradle.kts -> ../../../backend/src",
+    "bridge_operations": [
+      "runtime_health",
+      "list_worlds",
+      "world_template",
+      "compose_world",
+      "get_run",
+      "choose",
+      "play_turn",
+      "rollback",
+      "generate_ai_world_draft",
+      "validate_ai_world_draft",
+      "export_world",
+      "import_world",
+      "export_run",
+      "clone_run"
+    ]
+  },
+  "verification": [
+    "PYTHONPATH=backend/src: backend core smoke: Fog Harbor compose -> 3 choices -> good ending -> rollback -> ending cleared",
+    "vnext/mobile: flutter build apk --debug => passed; APK sha256 7e77db06bad7f48d57b56e34565d577a766747c31fd12be70a3136edce64714d",
+    "vnext/backend: 63 tests and Ruff => passed"
+  ],
+  "limits": [
+    "No Android emulator or physical device was connected during capture.",
+    "Android direct model HTTP, AI draft provider failures and force-stop/reopen are not yet proven; rollback is only proven in the shared-core desktop smoke.",
+    "Portable export/import/clone is implemented in the shared runtime and Flutter settings UI but has no Android device proof yet."
+  ],
+  "maturity": {
+    "python_state_truth": {"before": 75, "after": 75},
+    "android_local_host": {"before": 0, "after": 0},
+    "overall": {"before": 54, "after": 54}
+  }
+}

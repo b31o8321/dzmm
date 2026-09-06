@@ -1,0 +1,36 @@
+{
+  "phase": 154,
+  "name": "macos-packaged-qwen-player-loop",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 94,
+    "current": 94,
+    "change": 0,
+    "reason": "完成打包 API 闭环但未完成可见 GUI 点击录制，不把接口证据直接折算为体验加分"
+  },
+  "environment": {
+    "artifact": "rebuilt DZMM.app",
+    "host": "127.0.0.1:53308",
+    "model": "qwen2.5:7b via local Ollama",
+    "world_id": "68b14bd0-cd02-4dbe-938f-20c37fb4319b"
+  },
+  "journey": {
+    "create_profile": "Qwen 7B package journey saved as default",
+    "create_world": "Fog Harbor template composed with hero 包装验收者",
+    "first_run": "0781efcc-373e-4919-9b91-6571ba605e86",
+    "choices": ["rescue-lan", "lan-testimony", "open-tide-gate"],
+    "ending": "lan-dawn / good",
+    "completed_revision": 3,
+    "story_beats": 4,
+    "new_run": "4ee011a0-e94a-4f54-8221-82f6c19e2378",
+    "new_run_opening": "persisted opening rendered with second hero and revision 0",
+    "model_turn_latency_seconds": [21.9, 23.1, 30.7]
+  },
+  "verification": {
+    "health": "app=dzmm-next, storage=local, foreign_keys=true",
+    "final_run_status": "completed",
+    "new_run_reopen": "active, revision 0, one opening story beat",
+    "model_narration": "all three choice calls returned HTTP 201 with ending state"
+  },
+  "boundary": "打包 API/sidecar 生命周期已通过；仍需可见桌面 GUI 创建/选择/结局/新 Run、Windows 安装后 GUI、Android 真机与跨端回读。"
+}

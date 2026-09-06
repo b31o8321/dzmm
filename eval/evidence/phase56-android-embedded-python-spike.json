@@ -1,0 +1,29 @@
+{
+  "phase": "phase56-android-embedded-python-spike",
+  "captured_at": "2026-08-20",
+  "status": "build-verified-runtime-spike",
+  "scope": "Android Local Host bridge only; no remote PC, LAN discovery, QR or pairing.",
+  "implementation": {
+    "runtime": "Chaquopy 17.0",
+    "python": "3.11",
+    "abis": ["arm64-v8a", "x86_64"],
+    "storage": "app-private SQLite marker",
+    "bridge": "MethodChannel dzmm/local_host"
+  },
+  "verification": [
+    "vnext/mobile: flutter analyze => no issues",
+    "vnext/mobile: flutter test => 2 passed",
+    "vnext/mobile: flutter build apk --debug => passed",
+    "MainActivity starts embedded Python and exposes runtime_health/list_worlds/list_model_profiles"
+  ],
+  "limits": [
+    "The Python module is a spike and does not yet bundle the shared DZMM domain core.",
+    "No emulator or physical Android device was connected during capture.",
+    "No model HTTP call, AI draft, compose, choice, ending or rollback was performed.",
+    "This evidence does not raise Android Local Host or overall maturity scores."
+  ],
+  "maturity": {
+    "android_local_host": {"before": 0, "after": 0},
+    "overall": {"before": 54, "after": 54}
+  }
+}

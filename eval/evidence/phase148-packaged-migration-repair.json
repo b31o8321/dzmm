@@ -1,0 +1,21 @@
+{
+  "phase": 148,
+  "name": "packaged-migration-repair",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 93,
+    "change": 0,
+    "reason": "修复的是安装/升级阻断，不是新的可感知剧情旅程"
+  },
+  "problem": "现有本地数据库的 alembic_version 为 0011_lifecycle_audit_events，但当前打包迁移图中该 revision 已被规范为 0009_lifecycle_audit_events，sidecar 启动直接失败。",
+  "fix": "sidecar 在 Alembic upgrade 前仅对存在 lifecycle_audit_events 表且精确匹配旧 revision 的数据库执行回锚；其他版本不改动。",
+  "verification": {
+    "fixture": "copy of current local.dzmm.next/v3/dzmm-next.db",
+    "migration": "0009_lifecycle_audit_events -> 0010_run_lifecycle -> 0011_model_management -> 0012_model_credentials",
+    "final_revision": "0012_model_credentials",
+    "backend_tests": "137 passed",
+    "ruff": "passed"
+  },
+  "boundary": "Original user database was not mutated; copied fixture only."
+}

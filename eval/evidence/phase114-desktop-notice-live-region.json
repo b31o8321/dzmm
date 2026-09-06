@@ -1,0 +1,15 @@
+{
+  "phase": "phase114-desktop-notice-live-region",
+  "date": "2026-08-21",
+  "objective": "Keep player-visible save, cancel, retry, and recovery notices announced to keyboard and assistive-technology users after the desktop App shell extraction.",
+  "change": "Restored role=status and aria-live=polite on the desktop top-level notice region while keeping host failures as alert regions.",
+  "verification": {
+    "backend_tests": "112 passed",
+    "backend_ruff": "all checks passed",
+    "desktop_tests": "32 passed across 13 files",
+    "desktop_build": "passed",
+    "flutter_tests": "21 passed",
+    "flutter_analyze": "no issues found"
+  },
+  "status": "implemented; packaged and physical-device acceptance remains pending"
+}

@@ -1,0 +1,60 @@
+{
+  "phase": 72,
+  "name": "player-first-implementation-and-mac-package",
+  "date": "2026-08-21",
+  "status": "implementation-verified-release-gates-blocked",
+  "working_tree": {
+    "path": "/Users/norman/development/dzmm/.worktrees/dzmm-vnext",
+    "branch": "feature/dzmm-vnext",
+    "base_commit": "4c43edc",
+    "note": "Evidence is from the intentionally dirty player-first working tree; unrelated user changes were preserved."
+  },
+  "player_score_provisional": {
+    "total": 77,
+    "breakdown": {
+      "first_setup": 11,
+      "world_run_lifecycle": 13,
+      "opening_and_immersion": 24,
+      "llm_feedback_and_recovery": 12,
+      "ending_and_replay": 13,
+      "three_platform_and_install_evidence": 4
+    },
+    "cap_reason": "Windows installer and Android physical-device acceptance are not available in this environment."
+  },
+  "verified": {
+    "backend_tests": "76 passed; ruff clean",
+    "desktop_build": "npm run build passed",
+    "mobile": "flutter test (10 passed), flutter analyze clean, flutter build apk --debug passed",
+    "macos_package": {
+      "tauri_build": "pass",
+      "bundled_sidecar_health": "pass against isolated DZMM_NEXT_DATA_DIR and port 18766",
+      "packaged_app_host_boot": "pass: DZMM Next.app launched its bundled sidecar on isolated port 18767; /health reported app=dzmm-next, storage=local; the sidecar stopped with the app",
+      "regression_guard": "build_backend.py now collects lazy dzmm_vnext modules and automatically starts the frozen sidecar until /health reports local storage",
+      "artifacts": [
+      "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM Next.app",
+      "vnext/desktop/src-tauri/target/release/bundle/macos/rw.34291.DZMM Next_0.1.0_aarch64.dmg",
+      "vnext/desktop/src-tauri/target/release/bundle/dmg/DZMM Next_0.1.0_aarch64.dmg"
+      ]
+    },
+    "desktop_browser_real_backend": {
+      "opening_scene_dialogue_guidance": "pass",
+      "slow_model_stage_elapsed_cancel": "pass",
+      "cancel_keeps_original_revision_and_turn_count": "pass",
+      "completed_turn_story_dialogue_state_feedback": "pass",
+      "ending_same_world_new_run": "pass",
+      "model_edit_default_delete_controls": "pass"
+    },
+    "android_automated": {
+      "model_crud_default": "pass",
+      "opening_ending_new_run": "pass",
+      "cancel_retry_zero_write": "pass"
+    },
+    "adb_devices": []
+  },
+  "remaining_release_gates": [
+    "Build and install the Windows installer, then run the same A-F journey.",
+    "Reconnect an Android physical device and install app-debug.apk for A-F journey evidence.",
+    "Run installed-package restart/recovery and 30-turn checks on macOS, Windows, and Android.",
+    "Resolve any P0/P1 found by those package/device checks before marking the goal complete."
+  ]
+}

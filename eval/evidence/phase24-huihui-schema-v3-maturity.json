@@ -1,0 +1,28 @@
+{
+  "matrix_version": "narrative-platform-v2",
+  "commit_context": "schema v3 feature/dzmm-vnext after 88179c7; this evidence is scored against the current clean-slate contracts only",
+  "environment": "macOS arm64; fresh temporary DZMM_NEXT_DATA_DIR per run; LM Studio at 192.168.31.169:1234/v1; huihui-ai_qwen3-14b-abliterated",
+  "evidence": {
+    "domain_lifecycle": "Existing schema-v3 temporary-DB compose/archive/purge/rollback/integrity coverage remains at 65: no repeated packaged desktop lifecycle plus failure-injection journey.",
+    "state_command_safety": "Existing schema-v3 fail-closed command, relationship once/cooldown, revision and audit rollback coverage remains at 75: the new real-model run is not a full disconnect/failure replay proof.",
+    "narrative_integrity": "phase23 ran two complete rounds of all five Fog Harbor routes with Huihui 14B: 30 non-empty narrative choices reached both named good endings, neutral, bad and hidden endings, then every Run rolled back to ch2 and reopened without an ending. This confirms the existing 80 score; it is TestClient evidence rather than a manual playable 85-point review.",
+    "content_authoring": "Existing content import/export and browser evidence remains 65: no packaged Mac import-edit-export round trip.",
+    "model_stream": "phase21/22 prove current Huihui 14B non-empty narrative choices and 50 successful streamed turns; deterministic protocol/error tests remain. Score stays 75 because intentional narrative degradation/rejection is not exercised with the real provider.",
+    "desktop_ux": "Current packaged Host boot and browser flows remain 75: no complete packaged WebView keyboard and screen-reader acceptance journey.",
+    "mobile_recovery": "No physical Android or LAN recovery evidence exists, so this remains 0.",
+    "long_play_performance": "phase22 executed 50 real Huihui 14B streamed turns on the current schema v3 with zero retries, min/median/max 0.358/0.709/3.134 seconds and persisted revision/count recovery. phase16 separately reopened 500 schema-v3 turns in 0.005 seconds at 165475 bytes with no state loss. This meets the 80-point local evidence threshold, not the 85-point target-device 100-turn disconnect soak.",
+    "engineering_release": "Fresh-db migrations, contract/backend coverage, Vue production build and the safe diagnostics export are current and verified. This reaches the 80-point engineering evidence threshold; signed Mac/Android RC and release checklist are still absent."
+  },
+  "scores": {
+    "domain_lifecycle": 65,
+    "state_command_safety": 75,
+    "narrative_integrity": 80,
+    "content_authoring": 65,
+    "model_stream": 75,
+    "desktop_ux": 75,
+    "mobile_recovery": 0,
+    "long_play_performance": 80,
+    "engineering_release": 80
+  },
+  "boundary": "Weighted score improves only where current schema-v3 evidence satisfies the stated 80-point condition. All P0 dimensions must still reach 80 and the weighted score must reach 85 before release."
+}

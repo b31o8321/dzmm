@@ -1,0 +1,7 @@
+{
+  "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; deterministic narrator",
+  "persisted_turns": 500,
+  "reopen_seconds": 0.004,
+  "response_bytes": 165312,
+  "recovery": "reopened state revision and persisted turn count matched benchmark"
+}

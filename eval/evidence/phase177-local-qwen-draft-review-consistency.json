@@ -1,0 +1,33 @@
+{
+  "phase": 177,
+  "date": "2026-09-01",
+  "environment": "macOS release DZMM.app; local Qwen 7B; existing local data left unchanged",
+  "model": "qwen2.5:7b",
+  "probe": {
+    "success": true,
+    "detail": "protocol response contains content",
+    "elapsed_seconds": 5.4
+  },
+  "draft_generation": {
+    "success": true,
+    "elapsed_seconds": 56.2,
+    "world": "潮汐迷雾",
+    "locations": ["晨曦港", "暗礁之眼"],
+    "characters": ["艾莉森", "戈登"],
+    "extra_npcs_visible_in_review": ["玛丽安", "维克多"],
+    "review_surface": [
+      "审阅页展示全部生成地点，并说明这些地点会进入可移动世界地图",
+      "角色卡人物不再在额外 NPC 区重复显示",
+      "草案通过规则校验后仍停留在确认前，未创建世界、旅程或存档"
+    ],
+    "consistency": "本次生成的 NPC 和世界书内容均引用已列出的晨曦港/暗礁之眼；未触发未知地点阻断。"
+  },
+  "verification": {
+    "backend_tests": 146,
+    "desktop_tests": 36,
+    "desktop_build": true,
+    "ruff": true
+  },
+  "player_score_change": 0,
+  "note": "本机模型切换和草案审阅一致性已在打包 macOS 应用复测；不替代 Windows 安装后 GUI、Android 真机和最终 cutover 验收。"
+}

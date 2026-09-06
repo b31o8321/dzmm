@@ -1,0 +1,50 @@
+{
+  "phase": "phase67-android-pc-qwen3-ui-full-journey",
+  "captured_at": "2026-08-20",
+  "status": "verified-android-local-host-qwen3-draft-review-compose-three-choice-ending-rollback",
+  "counted_in_current_matrix": true,
+  "device": {
+    "target": "emulator-5554",
+    "api": 36,
+    "apk_sha256": "d54b7b9d2e2b7d423d0ba2bf7eade3aeef303b0018360a67a04d4188c5afb2c5"
+  },
+  "provider": {
+    "provider_type": "lm_studio",
+    "model_name": "huihui-ai_qwen3-14b-abliterated",
+    "profile": "PC-qwen3-reverse",
+    "base_url": "http://127.0.0.1:31234/v1",
+    "transport_note": "For this emulator run, adb reverse and a temporary localhost TCP proxy forwarded the Android loopback port to the authorized PC LM Studio endpoint 192.168.31.169:1234. This is test routing evidence, not a claim of direct LAN discovery."
+  },
+  "journey": [
+    "Android model settings selected the PC qwen3 LM Studio profile and Probe reported protocol response contains content.",
+    "Android generated a real draft; Python validation reported the draft as valid after the explicitly shown controlled hybrid skeleton mapping and repairs.",
+    "User edited the generated world name (潮汐之门-PC-Q3), revalidated it, and confirmed creation; only then were World, WorldVersion, Hero, Run and RunState created.",
+    "The Android gameplay UI applied three Python-planned choices and displayed the bad ending as locked at revision 3.",
+    "The UI rollback action restored the state after the second choice; the final screen showed revision 6 with no ending banner, and the state was readable after the rollback chain."
+    ,"After force-stop and relaunch, the Worlds screen still showed 潮汐之门-PC-Q3 with one playable Run, confirming persisted local recovery."
+  ],
+  "screenshots": [
+    "screens/phase67-android-pc-qwen3/01-draft-approved-mapped.png",
+    "screens/phase67-android-pc-qwen3/02-run-created.png",
+    "screens/phase67-android-pc-qwen3/03-revision-3-ending.png",
+    "screens/phase67-android-pc-qwen3/06-rollback-ending-null.png",
+    "screens/phase67-android-pc-qwen3/07-reopen-recovered.png"
+  ],
+  "sqlite_readback": {
+    "database": "/tmp/phase67-android-qwen3-final.db",
+    "world_id": "cb97bf69-c0e4-4e84-b3c5-f6ae79d4b6cb",
+    "world_name": "潮汐之门-PC-Q3",
+    "run_id": "ffc27a3d-3ed9-4edd-a14d-87f60052d9b8",
+    "world_versions_for_run": 1,
+    "heroes_for_run": 1,
+    "turns_for_run": 6,
+    "revision_after_rollback": 6,
+    "ending_after_rollback": null,
+    "schema_version": 3
+  },
+  "limits": [
+    "The proxy was used only to route the emulator to the PC model; Android direct LAN connectivity without a test forwarder remains unverified.",
+    "The model-authored mechanics were rejected and replaced by the Python-owned safe hybrid skeleton; arbitrary model rules are not accepted.",
+    "This proves Android UI plus embedded local core behavior, but not a packaged Windows journey or direct LAN connectivity without test forwarding."
+  ]
+}

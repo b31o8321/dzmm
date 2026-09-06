@@ -1,0 +1,45 @@
+{
+  "phase": 157,
+  "date": "2026-08-30",
+  "scope": "Android release emulator new-world player journey",
+  "model": {
+    "provider": "ollama",
+    "model_name": "qwen2.5:7b",
+    "endpoint": "http://10.0.2.2:11434",
+    "host_binding": "0.0.0.0:11434"
+  },
+  "journey": [
+    "Created a new world from player-authored theme, tone and conflict; the draft used Moonshadow Harbor and Secret Island instead of the Fog Harbor template.",
+    "Reviewed and confirmed the draft, entering a new run with the generated hero.",
+    "Completed 10 visible model-backed turns with narrative, NPC active contacts, state feedback and choices.",
+    "Reached and reopened a formal hidden ending; the completed run showed 10 settled turns, route, relationships and inventory.",
+    "Returned to the world detail, which showed the completed run, then created a second run in the same world and opened its fresh scene with a different hero."
+  ],
+  "evidence": {
+    "draft": "/tmp/dzmm-android-world-draft-now.png",
+    "loading": "/tmp/dzmm-android-turn1-now.png",
+    "new_world_story": "/tmp/dzmm-android-turn1-after.png",
+    "completed_run": "/tmp/dzmm-android-completed-run-reopen.png",
+    "same_world_two_runs": "/tmp/dzmm-android-world-detail-two-runs.png",
+    "new_run_opening": "/tmp/dzmm-android-new-run-opening.png"
+  },
+  "verification": {
+    "release_apk": "built and installed on emulator-5554",
+    "model_probe": "passed via Android UI",
+    "visible_loading_stage": "passed",
+    "visible_formal_ending": "passed",
+    "visible_same_world_new_run": "passed"
+  },
+  "score": {
+    "player_experience": 95,
+    "change": 1,
+    "reason": "Android now has a complete new-world, 10-turn, ending and same-world replay journey with a reachable Qwen 7B endpoint."
+  },
+  "remaining_gates": [
+    "Android physical device endpoint and recovery",
+    "Windows installed GUI journey",
+    "macOS visible GUI journey",
+    "cross-device import/readback",
+    "reduce or better communicate 35-90 second Qwen 7B turn latency"
+  ]
+}

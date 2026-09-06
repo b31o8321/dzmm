@@ -1,0 +1,21 @@
+{
+  "phase": 166,
+  "title": "runtime data backup and restore rehearsal",
+  "status": "passed",
+  "steps": [
+    "created a playable world in an isolated temporary vNext data directory",
+    "copied the SQLite database to a backup file",
+    "removed the active database to simulate loss",
+    "restored the backup file",
+    "restarted the FastAPI app and read the world through /api/v2/worlds"
+  ],
+  "regression_test": "tests/test_data_restore_rehearsal.py::test_runtime_database_backup_restore_reopens_world",
+  "verification": "pytest -q: 138 passed, 1 warning",
+  "source_data_touched": false,
+  "score_change": 0,
+  "remaining": [
+    "complete packaged macOS GUI gate",
+    "complete native Windows GUI gate",
+    "final naming/default-path cutover audit"
+  ]
+}

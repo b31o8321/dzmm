@@ -1,0 +1,20 @@
+{
+  "commit": "working tree before commit",
+  "environment": "macOS; fresh temporary DZMM_NEXT_DATA_DIR; source FastAPI at loopback; Vite at 127.0.0.1:5182; Chromium at 1600x900; no legacy data or API",
+  "implementation": {
+    "world_center": "API v2 exposes a World-root list and latest-version detail, archive, restore, purge manifest and permanent purge. The desktop center treats World as the management root and labels its current version, Runs, Lorebook entries and Character Cards.",
+    "safe_purge": "Permanent purge requires both a manifest-derived token and exact typed world name. The name participates in the token, so stale manifests fail closed after a version/name change.",
+    "version_contract": "POST /worlds/{id}/versions validates a complete WorldDefinition, requires the current base WorldVersion id and appends one version in a transaction. Existing Runs retain their previous WorldVersion id; stale and archived saves fail closed."
+  },
+  "journey": [
+    "Open empty World Center and create a Fog Harbor world through normal UI controls.",
+    "Return to World Center, inspect one playable world and its aggregate counts, then archive and restore it.",
+    "Open purge manifest, verify the delete action stays disabled for blank or wrong typed names, then type the exact name and purge. The center returns to its empty state."
+  ],
+  "verification": {
+    "backend": "pytest -q: 45 passed; ruff check src tests: passed. Lifecycle coverage proves list/detail, restore, version append, stale version rejection, archived version rejection, existing-run version fixation and wrong typed purge-name rejection.",
+    "desktop": "npm run build: passed.",
+    "browser": "Normal browser actions completed empty -> create -> center -> archive -> restore -> typed purge -> empty. The settled center view was inspected at 1600x900 with no horizontal overflow or hidden primary control."
+  },
+  "boundary": "This does not include a visible WorldDefinition editor or a packaged Tauri/WebView lifecycle journey. The generic version API is proven by backend tests, not by an author editing UI. It is interim evidence and does not raise the current 65.00 maturity score."
+}

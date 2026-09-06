@@ -1,0 +1,66 @@
+{
+  "phase": 73,
+  "name": "player-code-modularization",
+  "date": "2026-08-21",
+  "status": "source-and-real-browser-verified",
+  "changes": {
+    "android": {
+      "main_dart_before_lines": 1649,
+      "main_dart_after_lines": 738,
+      "extracted": [
+        "lib/app_theme.dart",
+        "lib/pages/models_page.dart",
+        "lib/pages/play_page.dart",
+        "lib/pages/settings_page.dart",
+        "lib/widgets/runtime_error.dart"
+      ]
+    },
+    "desktop": {
+      "extracted": [
+        "src/composables/useModelProfiles.ts",
+        "src/components/PlayScene.vue",
+        "src/components/OperationStatus.vue"
+      ],
+      "boundary": "App orchestrates navigation and player use cases; model persistence, play presentation, and operation/loading feedback no longer live inline in the root component."
+    },
+    "shared_backend": {
+      "core_runtime_before_lines": 1445,
+      "core_runtime_after_lines": 1288,
+      "extracted": [
+        "src/dzmm_vnext/model_protocol.py",
+        "src/dzmm_vnext/embedded_model_profiles.py",
+        "src/dzmm_vnext/core_runtime_errors.py"
+      ],
+      "boundary": "Desktop and embedded hosts share provider endpoint and response parsing; embedded SQLite model-profile CRUD/probe no longer lives in the runtime orchestrator."
+    }
+  },
+  "verification": {
+    "flutter_analyze": "pass",
+    "flutter_test": "10 passed",
+    "android_debug_apk": "pass after modularization",
+    "backend": "82 passed; ruff clean",
+    "desktop_build": "pass",
+    "macos_tauri_bundle": "pass after modularization",
+    "macos_packaged_app_host": "pass on isolated data and port 18770 after the final desktop component extraction; /health reported app=dzmm-next and storage=local",
+    "desktop_real_browser": {
+      "world_center": "pass",
+      "model_list_default_edit_form": "pass",
+      "continued_run_opening_dialogue_state_feedback_choices": "pass"
+    },
+    "git_diff_check": "pass"
+  },
+  "contract_hardening": {
+    "provider_protocol": "Desktop and embedded runtimes share endpoint validation and response parsing.",
+    "android_operations": "Dart constants and Kotlin supported-operation set must exactly match Experience Contract operations in test_experience_contract.py.",
+    "packaging": "PyInstaller frozen-sidecar automatic health smoke passed after the new modules were introduced."
+  },
+  "score": {
+    "code_quality": 82,
+    "release_threshold": 85,
+    "remaining": [
+      "Further split desktop App.vue and backend core_runtime.py.",
+      "Generate Android operation types from the Experience Contract; exact Dart/Kotlin set parity is already tested.",
+      "Add desktop component tests and three-platform packaged journey gates."
+    ]
+  }
+}

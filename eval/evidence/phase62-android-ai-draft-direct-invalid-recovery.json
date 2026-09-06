@@ -1,0 +1,39 @@
+{
+  "phase": "phase62-android-ai-draft-direct-invalid-recovery",
+  "captured_at": "2026-08-20",
+  "status": "verified-android-direct-ollama-draft-validation-gate",
+  "counted_in_current_matrix": true,
+  "device": {
+    "serial": "emulator-5554",
+    "avd": "dzmm-ux-api36",
+    "android_api": 36,
+    "apk_sha256": "c5e567deaa3090a743321fb2ddde2ca02d4561f43488ae20f760fdd533027ab8"
+  },
+  "journey": [
+    "Configured an Android-local Ollama profile for qwen2.5:7b at http://10.0.2.2:11434 and verified non-empty protocol content with direct Probe.",
+    "Entered the AI world creator; the selected model profile is now propagated into generate_ai_world_draft instead of silently falling back to the deterministic template.",
+    "The real local model returned a draft that failed WorldDefinition schema_version validation; the app rendered 草案需要修复 with the precise Python validation message and disabled confirmation.",
+    "The invalid draft did not create or mutate any World/Run; SQLite remained at 2 worlds and 2 runs from the earlier portable journey."
+  ],
+  "sqlite_readback": {
+    "database": "run-as local.dzmm.dzmm_next_mobile files/dzmm.db",
+    "model_profiles": 1,
+    "worlds_after_invalid_draft": 2,
+    "runs_after_invalid_draft": 2,
+    "real_state_mutation": false
+  },
+  "screenshots": [
+    "screens/phase62-android-ai-draft/01-model-profile.png",
+    "screens/phase62-android-ai-draft/02-qwen-probe.png",
+    "screens/phase62-android-ai-draft/03-invalid-draft-recovery.png"
+  ],
+  "limits": [
+    "This is direct-model validation/error evidence, not a successful arbitrary-model compose journey; qwen2.5:7b did not emit schema v3 on this prompt.",
+    "The UI still needs a visible restore/edit path for a previously valid draft and provider cancellation/timeout recovery evidence."
+  ],
+  "maturity": {
+    "model_protocol_and_recovery": {"before": 80, "after": 83},
+    "ai_world_authoring": {"before": 62, "after": 70},
+    "overall": {"before": 70, "after": 72}
+  }
+}

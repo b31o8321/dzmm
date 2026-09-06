@@ -1,0 +1,35 @@
+{
+  "phase": "phase95",
+  "date": "2026-08-21",
+  "status": "model-first-run-provider-parity-verified",
+  "scope": "desktop and Android first model configuration",
+  "player_behavior": [
+    "Desktop first launch opens the empty model editor instead of requiring an extra 添加模型档案 click.",
+    "Release defaults no longer contain a developer LAN address, a Huihui model name, or another machine-specific profile.",
+    "Selecting Ollama or LM Studio updates the protocol and local Base URL together; OpenAI-compatible deliberately requires an explicit Base URL.",
+    "Android applies the same provider presets and updates the Base URL immediately when the provider changes.",
+    "The settings and AI-world flows now reuse one typed desktop ModelProfileEditor with the same validation and accessibility behavior."
+  ],
+  "contract_boundary": {
+    "experience_contract": "model_provider_presets",
+    "ollama": "http://127.0.0.1:11434",
+    "lm_studio": "http://127.0.0.1:1234/v1",
+    "openai_compat": "explicit player input"
+  },
+  "automated_checks": {
+    "backend_tests": "101 passed",
+    "backend_ruff": "passed",
+    "desktop_tests": "16 passed across 6 files",
+    "desktop_build": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "14 passed",
+    "packages": {
+      "android_debug_apk_sha256": "7c402745c73f33f71f57d51a00168840742ee53116d388323051dd2adf9ef5b2",
+      "macos_arm64_dmg_sha256": "23e9a3d980f2f42bfe68c25f12453e27db935f6a501bda7647b3a084a19edaf0"
+    }
+  },
+  "not_proven": [
+    "The 3-minute first-run model setup target still needs macOS packaged WebView, Windows native, and Android physical-device timing.",
+    "Android physical-device IME behavior and TalkBack remain unrun because adb has no device."
+  ]
+}

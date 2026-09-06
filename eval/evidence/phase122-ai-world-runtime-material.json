@@ -1,0 +1,32 @@
+{
+  "phase": 122,
+  "title": "AI world draft runtime material alignment",
+  "changes": [
+    "CreativeSource accepts descriptive npcs, factions, events and location_links",
+    "Python maps names to safe IDs and bounded runtime fields",
+    "character cards also become location-aware runtime NPC definitions",
+    "embedded safe story skeleton preserves descriptive runtime entities"
+  ],
+  "verification": {
+    "backend_pytest": "119 passed, 1 warning",
+    "backend_ruff": "passed",
+    "new_tests": [
+      "AI draft projects NPCs, factions, events, three locations and links",
+      "unsafe full-schema draft repair preserves descriptive entities while replacing mechanics"
+    ],
+    "android_debug_apk": {
+      "path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "3171ba53f5c9dfa26f2b131efdd2357fb09b9d9a7922f54ef682897b1f374409",
+      "install": "blocked: adb devices returned no online device"
+    }
+  },
+  "boundary": {
+    "model_can_author": "names, descriptions, motivations, location references, event summaries and timing hints",
+    "python_decides": "IDs, limits, location resolution, hard choices, relationships, resources, routes and endings"
+  },
+  "residual": [
+    "event predicates and faction tension still need a full old-DZMM runtime migration",
+    "qwen 7B manual world-generation and two-Run comparison remains pending",
+    "Android package install awaits an online emulator or device"
+  ]
+}

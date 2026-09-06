@@ -1,0 +1,37 @@
+{
+  "phase": 133,
+  "title": "macOS release 包冷启动与 sidecar 健康检查",
+  "date": "2026-08-24",
+  "scope": [
+    "使用当前 feature/dzmm-vnext 重新构建 PyInstaller sidecar 和 macOS .app",
+    "从实际 DZMM Next.app 二进制启动窗口和本机 sidecar",
+    "验证退出前后不依赖旧版数据目录"
+  ],
+  "artifacts": {
+    "app": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM Next.app",
+    "sidecar_build": "vnext/packaging/build_backend.py",
+    "frontend_build": "npm run build"
+  },
+  "verification": {
+    "launch_command": "DZMM_NEXT_PORT=18791 DZMM_NEXT_DATA_DIR=<temporary> DZMM Next.app/Contents/MacOS/dzmm-next-desktop",
+    "health": {
+      "app": "dzmm-next",
+      "api_version": 2,
+      "storage": "local",
+      "host": "127.0.0.1",
+      "foreign_keys": true
+    },
+    "desktop_tests": "32 passed",
+    "desktop_build": "passed",
+    "backend_package_smoke": "passed",
+    "windows_installer": "not runnable on this macOS host; requires native Windows build",
+    "android": "debug APK installed on emulator-5554; physical-device/release acceptance not claimed"
+  },
+  "score": {
+    "previous": 92,
+    "current": 92,
+    "delta": 0,
+    "reason": "macOS 包健康检查通过，但跨端发布能力仍被 Windows 原生构建和 Android 真机/发布包证据限制，没有增加玩家体验分。"
+  },
+  "stop_rule": "phase132 与 phase133 连续两轮玩家评分均为 92；按 Goal 退出机制停止继续改动。"
+}

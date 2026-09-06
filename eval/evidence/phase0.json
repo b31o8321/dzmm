@@ -1,0 +1,14 @@
+{
+  "commit": "feature/dzmm-vnext Phase 0 baseline",
+  "environment": "Python 3.13.3; fresh temporary DZMM_NEXT_DATA_DIR; no legacy database",
+  "scores": {
+    "domain_lifecycle": 0,
+    "game_loop": 0,
+    "creation_content": 0,
+    "model_stream": 0,
+    "desktop_ux": 0,
+    "mobile_recovery": 0,
+    "long_play_performance": 0,
+    "engineering_release": 0
+  }
+}

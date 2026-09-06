@@ -1,0 +1,125 @@
+{
+  "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real local provider",
+  "provider": "lm_studio",
+  "model": "huihui-ai_qwen3-14b-abliterated",
+  "base_url": "http://192.168.31.169:1234/v1",
+  "cycles": 2,
+  "routes": {
+    "lan_good": [
+      {
+        "choices": [
+          "rescue-lan",
+          "lan-testimony",
+          "open-tide-gate"
+        ],
+        "ending": "lan-dawn",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      },
+      {
+        "choices": [
+          "rescue-lan",
+          "lan-testimony",
+          "open-tide-gate"
+        ],
+        "ending": "lan-dawn",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "shen_good": [
+      {
+        "choices": [
+          "hide-chart",
+          "shen-confession",
+          "open-tide-gate"
+        ],
+        "ending": "shen-low-tide",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      },
+      {
+        "choices": [
+          "hide-chart",
+          "shen-confession",
+          "open-tide-gate"
+        ],
+        "ending": "shen-low-tide",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "neutral": [
+      {
+        "choices": [
+          "hide-chart",
+          "neutral-lead",
+          "open-tide-gate"
+        ],
+        "ending": "neutral-harbor",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      },
+      {
+        "choices": [
+          "hide-chart",
+          "neutral-lead",
+          "open-tide-gate"
+        ],
+        "ending": "neutral-harbor",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "bad": [
+      {
+        "choices": [
+          "hide-chart",
+          "neutral-lead",
+          "miss-the-tide"
+        ],
+        "ending": "fog-drowned",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      },
+      {
+        "choices": [
+          "hide-chart",
+          "neutral-lead",
+          "miss-the-tide"
+        ],
+        "ending": "fog-drowned",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ],
+    "hidden": [
+      {
+        "choices": [
+          "rescue-lan",
+          "unite-witnesses",
+          "open-tide-gate"
+        ],
+        "ending": "bell-beyond-fog",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      },
+      {
+        "choices": [
+          "rescue-lan",
+          "unite-witnesses",
+          "open-tide-gate"
+        ],
+        "ending": "bell-beyond-fog",
+        "non_empty_narratives": 3,
+        "rollback": "restored ch2 with ending unlocked after persisted reopen"
+      }
+    ]
+  },
+  "total_choice_turns": 30,
+  "latency_seconds": {
+    "min": 0.462,
+    "median": 2.008,
+    "max": 3.367
+  }
+}

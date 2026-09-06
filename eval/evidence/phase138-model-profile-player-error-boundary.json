@@ -1,0 +1,50 @@
+{
+  "phase": 138,
+  "title": "本地模型 Profile 与世界草案错误的玩家边界",
+  "date": "2026-08-24",
+  "scope": [
+    "在 Android API 36 本地模拟器中使用新增的本地模型 Profile",
+    "验证 Probe 可用性与世界创建失败时的玩家可理解提示",
+    "确认模型解析异常不会直接泄漏到玩家界面"
+  ],
+  "artifacts": {
+    "emulator": "dzmm-ux-api36 / emulator-5554",
+    "screenshots": [
+      "/tmp/dzmm-abl-probe-result.png",
+      "/tmp/dzmm-abl-draft.png",
+      "/tmp/dzmm-collective-probe-result.png",
+      "/tmp/dzmm-collective-draft-safe-error.png"
+    ],
+    "profiles": [
+      {
+        "name": "abliterate7b",
+        "model": "huihui_ai/qwen2.5-abliterate:7b",
+        "probe": "passed",
+        "creation": "blocked: generated material omitted required factions/events"
+      },
+      {
+        "name": "collective8b",
+        "model": "collective-chinese-roleplay-8b",
+        "probe": "passed",
+        "creation": "blocked: model returned incomplete JSON"
+      }
+    ]
+  },
+  "verification": {
+    "player_error": "玩家看到模型返回的世界草案格式不完整，未创建世界。请重试或切换模型；没有看到 JSON parser exception",
+    "guardrail": "世界未创建，既没有半成品世界也没有半回合存档",
+    "tests": "Flutter tests: 25 passed",
+    "build": "Debug APK built and installed on emulator"
+  },
+  "score": {
+    "previous": 94,
+    "current": 94,
+    "delta": 0,
+    "reason": "错误提示边界更适合玩家，但 Collective/Abliterate 仍不能稳定生成可创建世界；Qwen 仍是当前世界创建基准。"
+  },
+  "remaining_gates": [
+    "为非 Qwen 模型增加结构化输出约束或 JSON 修复层后再做同场景比较",
+    "第二题材 10 回合以上长局与正式结局",
+    "macOS/Windows 安装包和 Android 真机证据仍不在当前范围"
+  ]
+}

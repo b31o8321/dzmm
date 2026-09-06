@@ -1,0 +1,11 @@
+{
+  "phase": 135,
+  "title": "不同题材去模板化与发布门槛复盘",
+  "date": "2026-08-24",
+  "verification": {
+    "different_genre": "未通过：模拟器创建向导的多行字段在 adb 文本替换时无法可靠清空/替换，未创建或声称通过第二题材世界",
+    "release": "Android 当前为 debug APK；物理设备和 Windows 原生安装仍无可复核证据",
+    "player_score": 93
+  },
+  "decision": "不做猜测性代码变更；保留缺口作为发布前 gate。"
+}

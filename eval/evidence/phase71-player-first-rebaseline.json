@@ -1,0 +1,37 @@
+{
+  "phase": 71,
+  "name": "player-first-vnext-rebaseline",
+  "date": "2026-08-21",
+  "status": "baseline-not-release-evidence",
+  "baseline": {
+    "legacy": "/Users/norman/development/dzmm main@df38037",
+    "vnext": "/Users/norman/development/dzmm/.worktrees/dzmm-vnext feature/dzmm-vnext@4c43edc",
+    "player_playability_score": 30
+  },
+  "artifacts": [
+    "docs/reviews/2026-08-21-player-first-vnext-rebaseline.md",
+    "docs/acceptance/2026-08-21-player-journey-acceptance.md",
+    "docs/prototypes/2026-08-21-player-loop.html",
+    "docs/ACTIVE_DELIVERY_INDEX.md"
+  ],
+  "browser_verification": {
+    "url": "http://127.0.0.1:4179/docs/prototypes/2026-08-21-player-loop.html",
+    "viewports": ["default desktop", "390x844"],
+    "horizontal_overflow_390x844": false,
+    "console_warnings_or_errors": [],
+    "journeys": {
+      "world_continue_and_new_run": "pass",
+      "opening_narrative_dialogue_guidance": "pass",
+      "turn_progress_and_stream_preview": "pass",
+      "provider_error_zero_write_explanation": "pass",
+      "cancel_and_retry_restore": "pass",
+      "model_edit_and_probe": "pass",
+      "ending_to_new_run": "pass"
+    }
+  },
+  "limitations": [
+    "Interactive prototype only; no production API or persistence wiring is claimed.",
+    "Browser screenshots were visually inspected during the run but are not packaged app evidence.",
+    "Windows package and Android physical-device acceptance remain not run."
+  ]
+}

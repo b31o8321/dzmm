@@ -1,0 +1,92 @@
+{
+  "phase": "phase55-macos-packaged-full-journey",
+  "captured_at": "2026-08-19",
+  "status": "verified-packaged-macos-webview-full-journey",
+  "goal": "Prove the packaged macOS app, rather than a source browser or direct API client, can complete the AI draft review recovery and narrative vertical slice against its own isolated Host and SQLite database.",
+  "environment": {
+    "worktree": ".worktrees/dzmm-vnext",
+    "branch": "feature/dzmm-vnext",
+    "app": "DZMM Next.app debug bundle",
+    "app_path": "vnext/desktop/src-tauri/target/debug/bundle/macos/DZMM Next.app",
+    "host": "http://127.0.0.1:28915",
+    "data_dir": "/tmp/dzmm-vnext-mac-p0.hyMa8K",
+    "database": "/tmp/dzmm-vnext-mac-p0.hyMa8K/dzmm-next.db",
+    "model_profile": {
+      "name": "本机 Ollama Qwen 7B",
+      "provider_type": "ollama",
+      "base_url": "http://127.0.0.1:11434",
+      "model_name": "qwen2.5:7b",
+      "probe": "success: protocol response contains content"
+    }
+  },
+  "interaction_boundary": {
+    "desktop": "All create, validation-recovery, choice and rollback actions were real CGEvent mouse interactions in the running Tauri WebView. The Host API and SQLite were only used after actions as state authority/readback.",
+    "draft_safety": "The invalid JSON was rejected before compose; Restore last valid draft restored the Host-validated draft; only the explicit UI confirmation composed the World aggregate.",
+    "state_authority": "The packaged app submits choice IDs and rollback targets. Python persisted every state transition and determined the ending; no command or state JSON was entered by the evaluator."
+  },
+  "journey": [
+    {
+      "step": "AI draft creation and structured review",
+      "result": "The packaged creator selected the complete Ollama profile and generated a schema-v3 draft with three chapters, two relationships, routes and endings."
+    },
+    {
+      "step": "Invalid review recovery",
+      "result": "Clearing WorldDefinition and clicking Validate edits produced JSON Parse error: Unexpected EOF. Restore last valid draft returned a valid draft and re-enabled explicit creation."
+    },
+    {
+      "step": "Explicit compose",
+      "result": "The packaged UI created World 潮汐之港, WorldVersion 8b5eda13, Hero 林语曦 and Run eba75a36."
+    },
+    {
+      "step": "Three actual choices",
+      "result": "The UI selected 援手顾长明, 把证词交给顾长明 and 点亮雾灯. The Host committed revisions 0→1→2→3 and locked the good ending."
+    },
+    {
+      "step": "UI rollback",
+      "result": "The UI chose Restore after turn 2. The Host appended an audit rollback Turn 4 (revision 3→4) and restored the pre-ending state: chapter ch3 active, route lan-route locked, ending null."
+    },
+    {
+      "step": "Packaged app restart",
+      "result": "Only the packaged desktop process and its sidecar were stopped. The same .app relaunched against the same isolated data directory; /health succeeded and the WebView reopened Run eba75a36 at revision 4 with the post-rollback state."
+    }
+  ],
+  "sqlite_readback": {
+    "run": {
+      "id": "eba75a36-8301-4e8f-91b2-f3b0841f99a8",
+      "state_revision": 4,
+      "status": "active",
+      "restored_state": {
+        "chapter": "ch3 active",
+        "route": "lan-route locked",
+        "ending": null,
+        "flags_include": ["lan-rescued", "chart-recovered", "lan-kept-faith"],
+        "relationship_lan": {"affection": 45, "trust": 40}
+      }
+    },
+    "turns": [
+      {"sequence": 1, "kind": "turn", "before_revision": 0, "after_revision": 1, "input": "援手顾长明"},
+      {"sequence": 2, "kind": "turn", "before_revision": 1, "after_revision": 2, "input": "把证词交给顾长明"},
+      {"sequence": 3, "kind": "turn", "before_revision": 2, "after_revision": 3, "input": "点亮雾灯"},
+      {"sequence": 4, "kind": "rollback", "before_revision": 3, "after_revision": 4, "input": "Rollback to turn 2", "rollback_target_id_prefix": "833363f5"}
+    ]
+  },
+  "screenshots": {
+    "directory": "screens/phase55-macos-packaged-full-journey/",
+    "coverage": [
+      "01-packaged-world-center.png",
+      "04-profile-saved-selected.png",
+      "07-packaged-model-probe-result.png",
+      "09-choice-ch1.png",
+      "10-choice-ch2.png",
+      "11-choice-ch3.png",
+      "12-ending-locked.png",
+      "13-rollback.png",
+      "14-restart-recovery.png"
+    ]
+  },
+  "limits": [
+    "This is a debug-signed macOS bundle, not a notarized release artifact or Windows desktop acceptance.",
+    "The model-profile probe had packaged UI evidence, but the healthy Ollama profile was seeded in the isolated Host before this run; this is not evidence that a user created that profile through the packaged settings form.",
+    "This evidence does not replace Android physical-device validation, LAN discovery/pairing or a real-model long-play quality assessment."
+  ]
+}

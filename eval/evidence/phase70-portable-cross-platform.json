@@ -1,0 +1,45 @@
+{
+  "phase": "phase70-portable-cross-platform",
+  "captured_at": "2026-08-21",
+  "status": "verified-android-desktop-android-run-bundle-roundtrip",
+  "counted_in_current_matrix": true,
+  "source": {
+    "platform": "Android embedded core",
+    "database": "/tmp/phase68-android-direct-journey.db",
+    "run_id": "af3eb864-4214-4c07-a92a-69d93a7940a9",
+    "revision": 4,
+    "turns": 4,
+    "ending": null
+  },
+  "desktop": {
+    "adapter": "FastAPI loopback Local Host",
+    "database": "/tmp/phase70-portable-cross-platform/desktop-data/dzmm-next.db",
+    "run_id": "69eb52a3-f695-4e5d-bdc7-89069161fdc1",
+    "revision": 4,
+    "turns": 4,
+    "ending": null,
+    "new_id": true,
+    "counts": {
+      "worlds": 1,
+      "world_versions": 1,
+      "heroes": 1,
+      "runs": 1,
+      "turns": 4
+    }
+  },
+  "return_to_android": {
+    "adapter": "embedded CPython LocalHostPort core",
+    "database": "/tmp/phase70-portable-cross-platform/android-roundtrip.db",
+    "run_id": "ecc0dbf3-f0c7-4801-9acd-fdb057510754",
+    "revision": 4,
+    "turns": 4,
+    "ending": null,
+    "new_id": true
+  },
+  "policy": {
+    "automatic_sync": false,
+    "same_run_dual_write": false,
+    "new_ids_on_clone": true,
+    "model_credentials_transferred": false
+  }
+}

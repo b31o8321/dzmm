@@ -1,0 +1,61 @@
+{
+  "phase": 129,
+  "title": "玩家体验 Goal：因果反馈、分层记忆与 NPC 主动事件",
+  "date": "2026-08-23",
+  "scope": [
+    "当前回合直接显示一次主要状态结果，其他变化可展开查看",
+    "模型叙事上下文增加最近行动、未完成剧情线、活动事件和按关键词触发的世界书层",
+    "Android 当前状态面板集中展示常驻状态、人物关系和线索/事件",
+    "NPC 主动联系时，当前故事卡不再隐藏回应原因和下一步提示"
+  ],
+  "player_rounds": [
+    {
+      "round": 1,
+      "focus": "行动到结果的因果链",
+      "evidence": [
+        "/tmp/dzmm-goal-round1-causal-final3.png",
+        "/tmp/dzmm-goal-round1-after-choice2.png"
+      ],
+      "observation": "选择后当前卡直接显示“结果：路线锁定：中立路线”，两个下一步选项仍可见；模型生成期间显示阶段和耗时，点击没有被误认为卡死。",
+      "score": {"previous": 87, "current": 88, "delta": 1}
+    },
+    {
+      "round": 2,
+      "focus": "长局记忆与常驻状态",
+      "evidence": [
+        "/tmp/dzmm-goal-memory-expanded.png",
+        "vnext/backend/tests/test_core_runtime.py::test_narrative_memory_layers_keep_worldbook_and_open_threads_player_safe"
+      ],
+      "observation": "真实 Android 游玩路径中，展开“当前状态”即可看到场景、路线、物品、人物关系和可追踪线索；模型上下文将最近行动、活动事件和触发的世界书分层注入。",
+      "score": {"previous": 88, "current": 89, "delta": 1}
+    },
+    {
+      "round": 3,
+      "focus": "NPC 主动目标与回应引导",
+      "evidence": [
+        "vnext/backend/tests/test_npc_world_state.py::test_npc_initiative_story_beat_explains_that_player_should_respond",
+        "vnext/mobile/lib/pages/play_page.dart",
+        "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk"
+      ],
+      "observation": "NPC 主动联系进入当前 StoryBeat 后，移动端即使使用紧凑当前卡，也会保留“主动找到了你，正在等待回应”和回应提示；不要求玩家猜测为什么选项突然出现。",
+      "score": {"previous": 89, "current": 90, "delta": 1}
+    }
+  ],
+  "verification": {
+    "backend_tests": "132 passed, 1 warning",
+    "backend_ruff": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "24 passed",
+    "apk_build": "passed",
+    "apk_sha256": "e3f1b3b679e3a88f2c5e947bb720ac963c42f059436c76e5693b50e5fc8742ad",
+    "apk_path": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "emulator": "dzmm-ux-api36 / emulator-5554",
+    "apk_installed": true
+  },
+  "score": {
+    "previous": 87,
+    "current": 90,
+    "reason": "三轮均有玩家可感知的改善：行动结果更易理解、常驻记忆可回看、NPC 主动联系给出明确回应上下文。未把代码测试单独折算为分数；新世界 Qwen 长局一致性仍需人工用响应模型复测。"
+  },
+  "stop_rule": "本轮未触发连续两轮无提升；后续若真实新世界体验连续两轮评分不变，停止 Goal。"
+}

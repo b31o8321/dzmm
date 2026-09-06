@@ -1,0 +1,32 @@
+{
+  "phase": 144,
+  "name": "cutover-engineering-safety-net",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 93,
+    "change": 0,
+    "reason": "本轮只补工程安全网和替换决策边界，没有改变可感知玩家旅程"
+  },
+  "changes": [
+    "新增 backend-ci workflow，固定安装 dev 依赖、Ruff 和 pytest",
+    "桌面 SSE 提取共享 consumeSseStream，覆盖 CRLF、chunk 边界和无尾分隔符",
+    "桌面回合与 AI 世界起草请求传递 AbortSignal；切换/取消/卸载中止旧请求",
+    "新增 ADR-010，规定单一 DZMM 的受控 cutover 和旧版归档/删除门槛"
+  ],
+  "verification": {
+    "backend_pytest": "136 passed",
+    "backend_ruff": "passed",
+    "desktop_vitest": "34 passed",
+    "desktop_build": "passed",
+    "flutter_test": "25 passed",
+    "flutter_analyze": "passed"
+  },
+  "release_blockers": [
+    "macOS packaged visible WebView full player journey",
+    "Windows native installer player journey",
+    "Android release cold-start/recovery evidence",
+    "formal naming/data archive cutover"
+  ],
+  "boundary": "No merge into main or destructive deletion of legacy implementation is authorized by this phase."
+}

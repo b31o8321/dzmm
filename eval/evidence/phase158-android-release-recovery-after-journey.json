@@ -1,0 +1,18 @@
+{
+  "phase": 158,
+  "date": "2026-08-30",
+  "scope": "Android release force-stop recovery after a real completed journey",
+  "verification": {
+    "device": "emulator-5554",
+    "action": "force-stop and relaunch",
+    "top_activity": "local.dzmm.dzmm_next_mobile/.MainActivity",
+    "recovered_state": "月影港 run at round 10 with hidden ending",
+    "visible_evidence": "/tmp/dzmm-android-new-run-recovery.png"
+  },
+  "score": {
+    "player_experience": 95,
+    "change": 0,
+    "reason": "This confirms persistence/recovery for the already completed journey; it does not add a new player capability beyond phase157."
+  },
+  "remaining_gate": "Windows installed GUI and macOS visible GUI remain unverified; Android physical-device addressing is optional for the local emulator target but remains a release risk."
+}

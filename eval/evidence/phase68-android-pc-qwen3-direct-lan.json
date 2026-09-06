@@ -1,0 +1,50 @@
+{
+  "phase": "phase68-android-pc-qwen3-direct-lan",
+  "captured_at": "2026-08-21",
+  "status": "verified-android-embedded-python-direct-lan-qwen3-draft-compose-three-choice-ending-rollback",
+  "counted_in_current_matrix": true,
+  "device": {
+    "target": "emulator-5554",
+    "api": 36,
+    "apk_sha256": "415560e3df03e53b1a285e6a65d64843de7b496ccd40f9acc50b7552cf6169f9",
+    "network_check": "emulator nc connection to 192.168.31.169:1234 succeeded",
+    "proxy": "none"
+  },
+  "provider": {
+    "profile": "PC-qwen3-direct",
+    "provider_type": "lm_studio",
+    "base_url": "http://192.168.31.169:1234/v1",
+    "model_name": "huihui-ai_qwen3-14b-abliterated"
+  },
+  "journey": [
+    "The Android model profile was pointed directly at the PC LM Studio LAN address; no adb reverse or TCP proxy was running.",
+    "The Android creation screen selected PC-qwen3-direct and generated a real draft through the embedded Python runtime.",
+    "The UI displayed Python schema approval, controlled hybrid skeleton mapping and repair explanations, with editable world and hero fields.",
+    "The draft remained a draft until explicit confirmation; after confirmation the same Android UI completed three Python choices, locked the bad ending, and rolled back to the second choice with ending null.",
+    "The final direct-LAN run was force-stoppable and its local state remained readable from SQLite after relaunch."
+  ],
+  "screenshots": [
+    "screens/phase68-android-pc-qwen3-direct/09-direct-probe-result.png",
+    "screens/phase68-android-pc-qwen3-direct/02-direct-draft.png",
+    "screens/phase68-android-pc-qwen3-direct/03-direct-compose.png",
+    "screens/phase68-android-pc-qwen3-direct/04-direct-run.png",
+    "screens/phase68-android-pc-qwen3-direct/07-direct-ending.png",
+    "screens/phase68-android-pc-qwen3-direct/08-direct-rollback.png"
+  ],
+  "sqlite_readback": {
+    "database": "/tmp/phase68-android-direct-journey.db",
+    "profile_base_url": "http://192.168.31.169:1234/v1",
+    "run_id": "af3eb864-4214-4c07-a92a-69d93a7940a9",
+    "world_name": "潮汐之谜",
+    "turns_for_run": 4,
+    "revision_after_rollback": 4,
+    "ending_before_rollback": "fog-drowned/bad",
+    "ending_after_rollback": null,
+    "schema_version": 3,
+    "state_mutation_before_compose": false
+  },
+  "limits": [
+    "This proves direct LAN model generation from the Android emulator; a physical Android device on the same LAN is still unverified.",
+    "The qwen3 mechanics were rejected and replaced by the Python-owned safe skeleton; arbitrary model-authored rules remain disallowed."
+  ]
+}

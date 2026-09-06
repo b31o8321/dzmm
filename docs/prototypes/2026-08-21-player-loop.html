@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DZMM Next · 玩家闭环原型</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --night: #071615;
+      --forest: #0e2927;
+      --moss: #1e4540;
+      --mist: #dbe8e0;
+      --muted: #8ea69d;
+      --brass: #d4b277;
+      --ember: #d88372;
+      --success: #83c6a0;
+      --danger: #e08b82;
+      --line: rgba(219, 232, 224, .13);
+      --surface: rgba(14, 41, 39, .84);
+      --surface-strong: #102f2d;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .32);
+      --display: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+      --body: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --utility: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 22% 4%, rgba(72, 122, 108, .24), transparent 30rem),
+        radial-gradient(circle at 78% 88%, rgba(212, 178, 119, .08), transparent 26rem),
+        var(--night);
+      color: var(--mist);
+      font-family: var(--body);
+      line-height: 1.55;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid rgba(212, 178, 119, .42);
+      outline-offset: 3px;
+    }
+    [hidden] { display: none !important; }
+
+    .review-bar {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #061211;
+      color: var(--muted);
+      font: 12px/1.3 var(--utility);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .review-bar strong { color: var(--brass); font-weight: 600; margin-right: auto; }
+    .review-bar button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .review-bar button:hover { border-color: var(--brass); color: var(--brass); }
+
+    .app-shell {
+      min-height: calc(100vh - 42px);
+      display: grid;
+      grid-template-columns: 222px minmax(0, 1fr);
+    }
+    .rail {
+      padding: 30px 18px;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(7, 22, 21, .98), rgba(9, 29, 27, .88));
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(212, 178, 119, .4);
+      border-radius: 50%;
+      color: var(--brass);
+      font-family: var(--display);
+      box-shadow: inset 0 0 18px rgba(212, 178, 119, .09);
+    }
+    .brand b { display: block; font: 600 18px/1 var(--display); letter-spacing: .12em; }
+    .brand small { color: var(--muted); font-size: 11px; }
+    .nav { display: grid; gap: 6px; }
+    .nav button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      padding: 11px 12px;
+      color: var(--muted);
+      text-align: left;
+      cursor: pointer;
+    }
+    .nav button::before { content: ""; width: 6px; height: 6px; border: 1px solid currentColor; transform: rotate(45deg); }
+    .nav button.active { color: var(--mist); background: rgba(219, 232, 224, .08); }
+    .nav button.active::before { border-color: var(--brass); background: var(--brass); box-shadow: 0 0 12px var(--brass); }
+    .local-fact {
+      margin-top: auto;
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .local-fact i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--success); margin-right: 7px; }
+
+    .main { min-width: 0; position: relative; }
+    .screen { display: none; min-height: calc(100vh - 42px); }
+    .screen.active { display: block; }
+    .page {
+      width: min(1180px, calc(100% - 64px));
+      margin: 0 auto;
+      padding: 62px 0 100px;
+    }
+    .eyebrow {
+      color: var(--brass);
+      font: 11px/1 var(--utility);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 820px; margin-bottom: 18px; font: 500 clamp(36px, 5vw, 68px)/1.08 var(--display); letter-spacing: -.025em; }
+    h2 { font: 500 28px/1.2 var(--display); }
+    h3 { font-size: 16px; }
+    .lede { max-width: 680px; color: var(--muted); font-size: 16px; }
+    .page-head { display: flex; justify-content: space-between; align-items: end; gap: 30px; margin-bottom: 34px; }
+    .page-head > div:first-child { max-width: 780px; }
+
+    .primary, .secondary, .quiet, .danger {
+      border-radius: 999px;
+      min-height: 42px;
+      padding: 9px 17px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+    .primary { background: var(--brass); color: #10211e; font-weight: 700; }
+    .primary:hover { transform: translateY(-1px); background: #e2c58e; }
+    .secondary { background: rgba(219, 232, 224, .07); border-color: var(--line); }
+    .secondary:hover, .quiet:hover { border-color: rgba(212, 178, 119, .5); }
+    .quiet { background: transparent; border-color: var(--line); color: var(--muted); }
+    .danger { background: transparent; border-color: rgba(224, 139, 130, .35); color: var(--danger); }
+    button:disabled { opacity: .45; cursor: wait; transform: none !important; }
+
+    .world-layout { display: grid; grid-template-columns: minmax(260px, .78fr) minmax(420px, 1.45fr); gap: 18px; }
+    .world-list { display: grid; align-content: start; gap: 10px; }
+    .world-row {
+      width: 100%;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 41, 39, .48);
+      text-align: left;
+      cursor: pointer;
+    }
+    .world-row.active { border-color: rgba(212, 178, 119, .42); background: rgba(30, 69, 64, .56); }
+    .world-row b { display: block; margin-bottom: 5px; font: 500 20px/1.2 var(--display); }
+    .world-row small { color: var(--muted); }
+    .world-card {
+      min-height: 510px;
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(30, 69, 64, .72), rgba(8, 28, 27, .88)),
+        var(--surface);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .world-card::after {
+      content: "雾港";
+      position: absolute;
+      right: -10px;
+      top: 5px;
+      color: rgba(219, 232, 224, .035);
+      font: 500 150px/1 var(--display);
+      writing-mode: vertical-rl;
+      pointer-events: none;
+    }
+    .world-card h2 { font-size: 40px; margin: 10px 0 12px; }
+    .world-summary { max-width: 640px; color: #b9cbc3; }
+    .world-meta { display: flex; gap: 22px; flex-wrap: wrap; margin: 26px 0 34px; }
+    .world-meta div { min-width: 100px; }
+    .world-meta b { display: block; font: 500 24px/1 var(--display); }
+    .world-meta small { color: var(--muted); }
+    .run-resume {
+      padding: 18px;
+      border-left: 2px solid var(--brass);
+      background: rgba(7, 22, 21, .5);
+      border-radius: 0 14px 14px 0;
+      margin-bottom: 24px;
+    }
+    .run-resume p { color: var(--muted); margin: 5px 0 12px; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .play-screen { min-height: calc(100vh - 42px); background: linear-gradient(90deg, rgba(7, 22, 21, .6), transparent 45%); }
+    .play-layout {
+      width: min(1240px, calc(100% - 56px));
+      margin: 0 auto;
+      padding: 42px 0 120px;
+      display: grid;
+      grid-template-columns: 240px minmax(0, 720px) minmax(200px, 1fr);
+      gap: 34px;
+    }
+    .chapter-panel, .run-panel { position: sticky; top: 74px; align-self: start; }
+    .chapter-panel h2 { margin: 12px 0 8px; }
+    .chapter-panel p, .run-panel p { color: var(--muted); font-size: 13px; }
+    .chapter-progress { height: 2px; background: var(--line); margin: 18px 0; }
+    .chapter-progress i { display: block; height: 100%; width: 34%; background: var(--brass); }
+    .run-panel { padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(14, 41, 39, .5); }
+    .run-panel dl { display: grid; gap: 12px; margin: 0; }
+    .run-panel div { display: flex; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 9px; }
+    .run-panel dt { color: var(--muted); }
+    .run-panel dd { margin: 0; text-align: right; }
+
+    .story-head { margin-bottom: 30px; }
+    .story-head h1 { font-size: clamp(34px, 5vw, 54px); margin: 8px 0; }
+    .story-head p { color: var(--muted); }
+    .story-thread { position: relative; padding-left: 35px; }
+    .story-thread::before { content: ""; position: absolute; left: 8px; top: 8px; bottom: 0; width: 1px; background: linear-gradient(var(--brass), rgba(212, 178, 119, .05)); }
+    .beat { position: relative; padding: 0 0 32px; }
+    .beat::before {
+      content: "";
+      position: absolute;
+      width: 11px;
+      height: 11px;
+      left: -32px;
+      top: 7px;
+      border-radius: 50%;
+      background: var(--night);
+      border: 2px solid var(--brass);
+      box-shadow: 0 0 18px rgba(212, 178, 119, .4);
+    }
+    .beat-label { color: var(--muted); font: 10px/1 var(--utility); letter-spacing: .12em; text-transform: uppercase; }
+    .narration { font: 400 18px/1.95 var(--display); letter-spacing: .015em; color: #e4eee8; }
+    .dialogue {
+      margin: 18px 0;
+      padding: 18px 20px;
+      border-left: 2px solid var(--ember);
+      background: rgba(216, 131, 114, .07);
+      border-radius: 0 12px 12px 0;
+    }
+    .dialogue b { display: block; color: var(--ember); font-size: 13px; margin-bottom: 5px; }
+    .player-beat { color: #b7cbc1; font-size: 14px; }
+    .outcome { display: inline-flex; gap: 7px; align-items: center; color: var(--success); font-size: 12px; }
+    .outcome::before { content: "✓"; }
+
+    .turn-box { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: rgba(14, 41, 39, .68); }
+    .turn-box h3 { margin-bottom: 6px; }
+    .turn-box > p { color: var(--muted); font-size: 13px; }
+    .choice-list { display: grid; gap: 9px; margin-top: 18px; }
+    .choice {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(219, 232, 224, .035);
+      text-align: left;
+      cursor: pointer;
+    }
+    .choice:hover { border-color: rgba(212, 178, 119, .48); background: rgba(212, 178, 119, .06); }
+    .choice span { display: grid; place-items: center; flex: 0 0 24px; height: 24px; border-radius: 50%; background: rgba(212, 178, 119, .12); color: var(--brass); font: 11px/1 var(--utility); }
+    .free-action { display: flex; gap: 8px; margin-top: 12px; }
+    .free-action input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px; background: rgba(7, 22, 21, .7); color: var(--mist); padding: 10px 15px; }
+
+    .operation {
+      margin: 18px 0 28px;
+      border: 1px solid rgba(212, 178, 119, .35);
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(7, 22, 21, .88);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
+    }
+    .operation-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+    .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--brass); box-shadow: 0 0 0 0 rgba(212, 178, 119, .5); animation: pulse 1.5s infinite; }
+    .operation-head b { font-size: 14px; }
+    .operation-head time { margin-left: auto; color: var(--muted); font: 11px/1 var(--utility); }
+    .operation-body { padding: 16px 18px; }
+    .stage-line { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 12px; }
+    .stage-line i { height: 3px; border-radius: 3px; background: var(--line); }
+    .stage-line i.done, .stage-line i.active { background: var(--brass); }
+    .operation-body p { margin-bottom: 12px; color: var(--muted); font-size: 13px; }
+    .stream-preview { min-height: 28px; font-family: var(--display); color: #dfeae4; }
+    .cursor { display: inline-block; width: 6px; height: 16px; background: var(--brass); vertical-align: -2px; animation: blink .9s infinite; }
+    .operation-foot { display: flex; justify-content: space-between; align-items: center; padding: 0 18px 16px; color: var(--muted); font-size: 11px; }
+
+    .model-grid { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 14px; }
+    .model-card { padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+    .model-top { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+    .model-card h3 { margin: 3px 0; font-family: var(--display); font-size: 22px; }
+    .model-card code { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; margin: 13px 0 18px; }
+    .badge { display: inline-flex; border-radius: 999px; padding: 3px 8px; background: rgba(212, 178, 119, .12); color: var(--brass); font-size: 10px; }
+    .probe-result { color: var(--success); font-size: 12px; margin-bottom: 12px; }
+
+    .ending {
+      min-height: calc(100vh - 42px);
+      display: grid;
+      place-items: center;
+      padding: 48px 22px;
+      text-align: center;
+      background: radial-gradient(circle, rgba(212, 178, 119, .11), transparent 36rem);
+    }
+    .ending-inner { max-width: 720px; }
+    .ending-seal { width: 78px; height: 78px; margin: 0 auto 22px; display: grid; place-items: center; border: 1px solid var(--brass); border-radius: 50%; color: var(--brass); font: 500 34px/1 var(--display); }
+    .ending h1 { margin-inline: auto; }
+    .ending-copy { color: #c5d5cc; font: 400 18px/1.9 var(--display); }
+    .ending-stats { display: flex; justify-content: center; gap: 34px; margin: 28px 0; }
+    .ending-stats b { display: block; font: 500 26px/1 var(--display); }
+    .ending-stats small { color: var(--muted); }
+    .ending .actions { justify-content: center; }
+
+    .dialog-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(2, 10, 9, .72); backdrop-filter: blur(8px); }
+    .dialog { width: min(560px, 100%); max-height: calc(100vh - 40px); overflow: auto; padding: 28px; border: 1px solid rgba(212, 178, 119, .3); border-radius: 22px; background: #0d2826; box-shadow: var(--shadow); }
+    .dialog h2 { margin-bottom: 7px; }
+    .dialog > p { color: var(--muted); }
+    .field { display: grid; gap: 6px; margin: 15px 0; }
+    .field span { color: #b8cbc1; font-size: 12px; }
+    .field input, .field select { width: 100%; border: 1px solid var(--line); border-radius: 11px; background: #071a18; color: var(--mist); padding: 11px 12px; }
+    .dialog .actions { justify-content: flex-end; margin-top: 22px; }
+
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 100; max-width: 360px; padding: 13px 16px; border: 1px solid rgba(131, 198, 160, .35); border-radius: 12px; background: #102f2d; box-shadow: var(--shadow); color: var(--success); transform: translateY(120px); opacity: 0; transition: .25s ease; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    .mobile-nav { display: none; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 9px rgba(212, 178, 119, 0); } 100% { box-shadow: 0 0 0 0 rgba(212, 178, 119, 0); } }
+    @keyframes blink { 50% { opacity: .15; } }
+
+    @media (max-width: 920px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .rail { display: none; }
+      .page { width: min(100% - 34px, 720px); padding-top: 38px; }
+      .page-head { align-items: start; flex-direction: column; }
+      .world-layout { grid-template-columns: 1fr; }
+      .world-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .play-layout { width: min(100% - 32px, 720px); grid-template-columns: 1fr; padding-top: 28px; }
+      .chapter-panel { position: static; }
+      .run-panel { display: none; }
+      .mobile-nav { position: fixed; z-index: 60; left: 10px; right: 10px; bottom: 10px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 6px; border: 1px solid var(--line); border-radius: 18px; background: rgba(7, 22, 21, .94); backdrop-filter: blur(16px); box-shadow: var(--shadow); }
+      .mobile-nav button { border: 0; border-radius: 12px; background: transparent; color: var(--muted); padding: 8px 4px; font-size: 11px; }
+      .mobile-nav button.active { background: rgba(212, 178, 119, .1); color: var(--brass); }
+      .model-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .review-bar { display: none; }
+      .app-shell, .screen, .play-screen, .ending { min-height: 100vh; }
+      .page { width: calc(100% - 28px); padding-bottom: 110px; }
+      h1 { font-size: 38px; }
+      .world-list { grid-template-columns: 1fr; }
+      .world-card { min-height: 0; padding: 24px; }
+      .world-card h2 { font-size: 32px; }
+      .play-layout { width: calc(100% - 26px); padding-bottom: 120px; }
+      .story-thread { padding-left: 28px; }
+      .beat::before { left: -25px; }
+      .free-action { flex-direction: column; }
+      .stage-line { gap: 3px; }
+      .ending-stats { gap: 18px; }
+      .ending .actions { display: grid; }
+      .dialog { padding: 22px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="review-bar" aria-label="原型评审工具">
+    <strong>PLAYER LOOP PROTOTYPE · 2026-08-21</strong>
+    <button type="button" data-review="worlds">世界</button>
+    <button type="button" data-review="play">开场</button>
+    <button type="button" id="slowReview">模拟慢模型</button>
+    <button type="button" id="failureReview">模拟失败</button>
+    <button type="button" data-review="ending">跳到结局</button>
+  </div>
+
+  <div class="app-shell">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">叙</span><div><b>DZMM</b><small>一人一世界</small></div></div>
+      <nav class="nav" aria-label="主要导航">
+        <button class="active" data-nav="worlds">世界</button>
+        <button data-nav="play">游玩</button>
+        <button data-nav="models">模型</button>
+        <button data-nav="settings">设置</button>
+      </nav>
+      <div class="local-fact"><i></i>所有故事和模型配置都保存在这台设备</div>
+    </aside>
+
+    <main class="main">
+      <section class="screen active" id="screen-worlds">
+        <div class="page">
+          <header class="page-head">
+            <div><p class="eyebrow">你的世界</p><h1>回到一个故事，或让同一片雾再次升起。</h1><p class="lede">世界保存舞台、人物和规则；每个 Run 都是一段独立旅程。旧故事不会被新开局覆盖。</p></div>
+            <button class="primary" id="createWorld">创建世界</button>
+          </header>
+          <div class="world-layout">
+            <div class="world-list">
+              <button class="world-row active"><b>潮痕下的雾港</b><small>1 个进行中 · 昨天游玩</small></button>
+              <button class="world-row"><b>空钟修道院</b><small>尚未开始 Run</small></button>
+            </div>
+            <article class="world-card">
+              <p class="eyebrow">悬疑 · 关系叙事</p>
+              <h2>潮痕下的雾港</h2>
+              <p class="world-summary">每逢退潮，旧港区就会露出一条不在地图上的石阶。守灯人说，沿着它走下去的人，会听见自己尚未说出口的名字。</p>
+              <div class="world-meta"><div><b>3</b><small>章节</small></div><div><b>4</b><small>关键角色</small></div><div><b>2</b><small>可能结局</small></div></div>
+              <div class="run-resume"><span class="badge">进行中</span><h3>灯塔下的第三封信</h3><p>第 1 章 · 6 回合 · 阿岚正在旧码头等待</p><div class="actions"><button class="primary" data-nav="play">继续上次 Run</button><button class="quiet">查看记录</button></div></div>
+              <div class="actions"><button class="secondary" id="newRun">开始新 Run</button><button class="quiet">编辑世界</button><button class="quiet">导出</button></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen play-screen" id="screen-play">
+        <div class="play-layout">
+          <aside class="chapter-panel"><p class="eyebrow">第一章</p><h2>潮线之外</h2><p>找到失踪航图的第一条线索。</p><div class="chapter-progress"><i></i></div><button class="quiet" data-nav="worlds">返回世界</button></aside>
+          <section class="story-column">
+            <header class="story-head"><p class="eyebrow">潮痕下的雾港</p><h1>灯塔下的第三封信</h1><p>现在 · 旧码头 · 细雨</p></header>
+            <div class="story-thread" id="storyThread">
+              <article class="beat"><span class="beat-label">开场</span><p class="narration">雨水沿着生锈的吊臂滴落。你站在封锁十二年的旧码头，手里那封没有署名的信正被海风一点点吹开。远处，灯塔明明已经停用，却亮起了第三次短促的白光。</p><div class="dialogue"><b>阿岚 · 守灯人的女儿</b>“你比信里约定的时间晚了七分钟。”她没有回头，只把一枚沾着盐霜的铜钥匙放在栏杆上，“现在决定还来得及——拿上它，或者当作从没来过。”</div><p class="narration">你的目标很清楚：在涨潮前找到失踪航图。第一条线索，就在阿岚和那枚钥匙之间。</p><span class="outcome">目标已记录：找到失踪航图</span></article>
+            </div>
+            <div class="operation" id="operation" hidden>
+              <div class="operation-head"><span class="pulse"></span><b id="operationTitle">正在连接叙事模型</b><time id="elapsed">0.0s</time></div>
+              <div class="operation-body"><div class="stage-line"><i class="active"></i><i></i><i></i><i></i></div><p id="operationHelp">故事尚未写入。你可以安全取消。</p><div class="stream-preview" id="streamPreview"><span class="cursor"></span></div></div>
+              <div class="operation-foot"><span id="operationFact">使用默认模型 · 雾港本地 Qwen</span><button class="quiet" id="cancelOperation">取消本次行动</button></div>
+            </div>
+            <section class="turn-box" id="turnBox"><h3>你准备怎么做？</h3><p>选择会推进章节。你也可以用自己的话描述行动。</p><div class="choice-list"><button class="choice" data-choice="拿起钥匙，问阿岚灯塔为何会再次亮起"><span>1</span>拿起钥匙，问阿岚灯塔为何会再次亮起</button><button class="choice" data-choice="先检查信纸上的盐痕和暗纹"><span>2</span>先检查信纸上的盐痕和暗纹</button><button class="choice" data-choice="拒绝钥匙，绕到仓库后方观察"><span>3</span>拒绝钥匙，绕到仓库后方观察</button></div><form class="free-action" id="freeAction"><input aria-label="描述自己的行动" placeholder="或者描述自己的行动…" /><button class="secondary">行动</button></form></section>
+          </section>
+          <aside class="run-panel"><p class="eyebrow">旅程</p><dl><div><dt>角色</dt><dd>林默</dd></div><div><dt>目标</dt><dd>寻找航图</dd></div><div><dt>随身</dt><dd>旧信、火柴</dd></div><div><dt>关系</dt><dd>阿岚 · 陌生</dd></div></dl></aside>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-models">
+        <div class="page"><header class="page-head"><div><p class="eyebrow">模型</p><h1>先确认讲故事的人能够回应。</h1><p class="lede">默认模型用于新 Run 和 AI 创作。每个 Run 仍可选择自己的模型，不影响旧故事。</p></div><button class="primary" id="addModel">添加模型</button></header>
+          <div class="model-grid">
+            <article class="model-card"><div class="model-top"><div><span class="badge">默认模型</span><h3>雾港本地 Qwen</h3></div><button class="quiet" data-edit-model>编辑</button></div><code>LM Studio · qwen3-30b · http://192.168.1.8:1234/v1</code><p class="probe-result" id="probeResult">上次测试成功 · 今天 16:42</p><div class="actions"><button class="secondary" id="probeModel">测试连接</button><button class="danger" id="deleteModel">删除</button></div></article>
+            <article class="model-card"><div class="model-top"><div><span class="badge" style="color:var(--muted);background:rgba(219,232,224,.06)">备用</span><h3>轻量 Ollama</h3></div><button class="quiet" data-edit-model>编辑</button></div><code>Ollama · qwen2.5:7b · http://localhost:11434</code><p class="probe-result" style="color:var(--muted)">尚未测试</p><div class="actions"><button class="secondary">设为默认</button><button class="quiet">测试连接</button><button class="danger">删除</button></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-settings"><div class="page"><p class="eyebrow">设置</p><h1>故事留在这台设备。</h1><p class="lede">本机 SQLite 已就绪。诊断、导入导出和外观设置放在这里，不打断游玩。</p></div></section>
+
+      <section class="screen" id="screen-ending">
+        <div class="ending"><div class="ending-inner"><div class="ending-seal">潮</div><p class="eyebrow">普通结局 · 潮声仍在</p><h1>灯熄灭以后，海终于记住了你的名字。</h1><p class="ending-copy">你把航图交还给阿岚，也让那条石阶永远沉入了下一次潮汐。雾港没有因此变得明亮，但守灯的人第一次可以在夜里合上眼睛。</p><div class="ending-stats"><div><b>12</b><small>回合</small></div><div><b>2</b><small>关键选择</small></div><div><b>信任</b><small>阿岚关系</small></div></div><div class="actions"><button class="primary" id="endingNewRun">在这个世界开始新 Run</button><button class="secondary" data-nav="worlds">回到世界</button><button class="quiet" data-nav="play">回看旅程</button></div></div></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="移动端主要导航"><button class="active" data-nav="worlds">世界</button><button data-nav="play">游玩</button><button data-nav="models">模型</button><button data-nav="settings">设置</button></nav>
+
+  <div class="dialog-backdrop" id="runDialog" hidden><form class="dialog" id="runForm"><p class="eyebrow">开始新 Run</p><h2>同一个世界，新的旅程</h2><p>旧 Run 会保留。确认后才创建新 Run 并生成开场。</p><label class="field"><span>旅程名称</span><input value="潮汐之后" required /></label><label class="field"><span>主角</span><select><option>林默 · 调查记者</option><option>创建新主角…</option></select></label><label class="field"><span>叙事模型</span><select><option>默认 · 雾港本地 Qwen</option><option>轻量 Ollama</option></select></label><div class="actions"><button class="quiet" type="button" data-close-dialog>取消</button><button class="primary">创建并生成开场</button></div></form></div>
+
+  <div class="dialog-backdrop" id="modelDialog" hidden><form class="dialog" id="modelForm"><p class="eyebrow">模型档案</p><h2 id="modelDialogTitle">编辑模型</h2><p>协议、地址和模型名共同决定如何连接。保存后会先测试，不会修改正在进行的 Run。</p><label class="field"><span>档案名称</span><input value="雾港本地 Qwen" required /></label><label class="field"><span>协议</span><select><option>LM Studio / OpenAI-compatible</option><option>Ollama</option></select></label><label class="field"><span>Base URL</span><input value="http://192.168.1.8:1234/v1" required /></label><label class="field"><span>模型名</span><input value="qwen3-30b" required /></label><div class="actions"><button class="quiet" type="button" data-close-dialog>取消</button><button class="primary">保存并测试</button></div></form></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const screens = [...document.querySelectorAll('.screen')]
+    const navs = [...document.querySelectorAll('[data-nav]')]
+    const toast = document.getElementById('toast')
+    let timer = null
+    let elapsedTimer = null
+    let failureMode = false
+    let slowMode = false
+
+    function showToast(message, danger = false) {
+      toast.textContent = message
+      toast.style.color = danger ? 'var(--danger)' : 'var(--success)'
+      toast.classList.add('show')
+      window.setTimeout(() => toast.classList.remove('show'), 2800)
+    }
+
+    function openScreen(name) {
+      screens.forEach((screen) => screen.classList.toggle('active', screen.id === `screen-${name}`))
+      document.querySelectorAll('[data-nav]').forEach((item) => item.classList.toggle('active', item.dataset.nav === name))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    navs.forEach((button) => button.addEventListener('click', () => openScreen(button.dataset.nav)))
+    document.querySelectorAll('[data-review]').forEach((button) => button.addEventListener('click', () => openScreen(button.dataset.review)))
+
+    function openDialog(id) { document.getElementById(id).hidden = false }
+    function closeDialogs() { document.querySelectorAll('.dialog-backdrop').forEach((item) => item.hidden = true) }
+    document.getElementById('newRun').addEventListener('click', () => openDialog('runDialog'))
+    document.getElementById('endingNewRun').addEventListener('click', () => openDialog('runDialog'))
+    document.getElementById('addModel').addEventListener('click', () => { document.getElementById('modelDialogTitle').textContent = '添加模型'; openDialog('modelDialog') })
+    document.querySelectorAll('[data-edit-model]').forEach((button) => button.addEventListener('click', () => { document.getElementById('modelDialogTitle').textContent = '编辑模型'; openDialog('modelDialog') }))
+    document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', closeDialogs))
+
+    document.getElementById('runForm').addEventListener('submit', (event) => { event.preventDefault(); closeDialogs(); openScreen('play'); showToast('新 Run 已创建，正在生成开场'); })
+    document.getElementById('modelForm').addEventListener('submit', (event) => { event.preventDefault(); closeDialogs(); showToast('模型档案已保存，连接测试成功'); })
+    document.getElementById('createWorld').addEventListener('click', () => showToast('创建世界流程将在下一版原型接入'))
+    document.getElementById('probeModel').addEventListener('click', (event) => { event.currentTarget.disabled = true; event.currentTarget.textContent = '正在连接…'; document.getElementById('probeResult').textContent = '连接模型并验证响应内容…'; setTimeout(() => { event.currentTarget.disabled = false; event.currentTarget.textContent = '测试连接'; document.getElementById('probeResult').textContent = '测试成功 · 协议响应包含内容'; showToast('模型可以正常生成内容'); }, 1200) })
+    document.getElementById('deleteModel').addEventListener('click', () => showToast('这是默认模型。请先设置另一个默认模型再删除。', true))
+
+    document.getElementById('slowReview').addEventListener('click', (event) => { slowMode = !slowMode; event.currentTarget.textContent = slowMode ? '慢模型：开' : '模拟慢模型'; showToast(slowMode ? '下一回合会停留更久并显示恢复说明' : '恢复正常生成速度') })
+    document.getElementById('failureReview').addEventListener('click', (event) => { failureMode = !failureMode; event.currentTarget.textContent = failureMode ? '失败：开' : '模拟失败'; showToast(failureMode ? '下一回合会模拟 provider error' : '关闭失败模拟', failureMode) })
+
+    const operation = document.getElementById('operation')
+    const turnBox = document.getElementById('turnBox')
+    const operationTitle = document.getElementById('operationTitle')
+    const operationHelp = document.getElementById('operationHelp')
+    const streamPreview = document.getElementById('streamPreview')
+    const elapsed = document.getElementById('elapsed')
+    const stages = [...operation.querySelectorAll('.stage-line i')]
+
+    function resetOperation() {
+      clearTimeout(timer)
+      clearInterval(elapsedTimer)
+      operation.hidden = true
+      turnBox.hidden = false
+      streamPreview.innerHTML = '<span class="cursor"></span>'
+      stages.forEach((stage, index) => { stage.className = index === 0 ? 'active' : '' })
+    }
+
+    function startTurn(action) {
+      clearTimeout(timer)
+      clearInterval(elapsedTimer)
+      turnBox.hidden = true
+      operation.hidden = false
+      operationTitle.textContent = '正在准备这次行动'
+      operationHelp.textContent = '故事尚未写入。你可以安全取消。'
+      streamPreview.innerHTML = '<span class="cursor"></span>'
+      let start = performance.now()
+      elapsedTimer = setInterval(() => { elapsed.textContent = `${((performance.now() - start) / 1000).toFixed(1)}s` }, 100)
+      const pace = slowMode ? 2.7 : 1
+
+      timer = setTimeout(() => {
+        operationTitle.textContent = '正在连接叙事模型'
+        stages[0].className = 'done'; stages[1].className = 'active'
+        operationHelp.textContent = slowMode ? '本地模型首次响应可能较慢。已等待较久，仍可取消且不会写入本回合。' : '正在确认模型能够返回有效叙事。'
+      }, 450 * pace)
+
+      timer = setTimeout(() => {
+        if (failureMode) {
+          clearInterval(elapsedTimer)
+          operationTitle.textContent = '模型没有返回有效内容'
+          operationHelp.textContent = '本次行动没有写入，故事仍停在原处。你可以重试或去模型页检查连接。'
+          streamPreview.textContent = 'Provider 返回了 error body；revision 未变化。'
+          operation.querySelector('.pulse').style.background = 'var(--danger)'
+          document.getElementById('cancelOperation').textContent = '返回并重试'
+          return
+        }
+        operationTitle.textContent = '正在生成后续故事'
+        stages[1].className = 'done'; stages[2].className = 'active'
+        operationHelp.textContent = '文字正在到达；状态尚未提交。'
+        const copy = '阿岚的手指在钥匙上停了一瞬。'
+        let index = 0
+        streamPreview.innerHTML = '<span class="cursor"></span>'
+        const type = setInterval(() => {
+          index += 1
+          streamPreview.innerHTML = `${copy.slice(0, index)}<span class="cursor"></span>`
+          if (index >= copy.length) clearInterval(type)
+        }, 70 * pace)
+      }, 1050 * pace)
+
+      timer = setTimeout(() => {
+        if (failureMode) return
+        operationTitle.textContent = '正在保存故事进展'
+        stages[2].className = 'done'; stages[3].className = 'active'
+        operationHelp.textContent = 'Python 正在校验选择和状态；完成前不会覆盖原状态。'
+      }, 2500 * pace)
+
+      timer = setTimeout(() => {
+        if (failureMode) return
+        clearInterval(elapsedTimer)
+        stages[3].className = 'done'
+        const beat = document.createElement('article')
+        beat.className = 'beat'
+        beat.innerHTML = `<span class="beat-label">你的行动</span><p class="player-beat">${action}</p><p class="narration">阿岚的手指在钥匙上停了一瞬。你拿起它时，铜齿间落下一小片卷紧的纸。那不是航图，却画着灯塔内部一段被封死的楼梯。</p><div class="dialogue"><b>阿岚</b>“灯不是我点的。”她终于看向你，眼里没有惊讶，只有确认，“但每次它亮起来，都会有人收到一封信。”</div><span class="outcome">获得线索：灯塔暗梯 · 阿岚信任 +1</span>`
+        document.getElementById('storyThread').appendChild(beat)
+        resetOperation()
+        turnBox.querySelector('h3').textContent = '线索已经出现。下一步呢？'
+        showToast('回合已完成并保存')
+        beat.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 3400 * pace)
+    }
+
+    document.querySelectorAll('[data-choice]').forEach((button) => button.addEventListener('click', () => startTurn(button.dataset.choice)))
+    document.getElementById('freeAction').addEventListener('submit', (event) => { event.preventDefault(); const input = event.currentTarget.querySelector('input'); if (input.value.trim()) { startTurn(input.value.trim()); input.value = '' } })
+    document.getElementById('cancelOperation').addEventListener('click', () => { document.getElementById('cancelOperation').textContent = '取消本次行动'; operation.querySelector('.pulse').style.background = 'var(--brass)'; resetOperation(); showToast('本次行动已取消，没有写入故事') })
+  </script>
+</body>
+</html>

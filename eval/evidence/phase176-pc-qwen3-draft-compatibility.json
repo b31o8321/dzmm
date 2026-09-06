@@ -1,0 +1,59 @@
+{
+  "phase": 176,
+  "date": "2026-08-31",
+  "environment": "isolated temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; PC LM Studio",
+  "provider": "lm_studio",
+  "base_url": "http://192.168.31.169:1234/v1",
+  "model": "huihui-ai_qwen3-14b-abliterated",
+  "probe": {
+    "success": true,
+    "endpoint": "http://192.168.31.169:1234/v1/chat/completions",
+    "detail": "protocol response contains content"
+  },
+  "draft": {
+    "http_status": 200,
+    "valid": true,
+    "world": "幽影学院",
+    "locations": ["档案馆", "地下实验室", "学院庭院"],
+    "characters": ["陈书仪", "夜巡者"],
+    "npcs": ["陈书仪", "夜巡者"],
+    "events": ["实验记录重现"],
+    "npc_names_unique": true,
+    "repairs": [
+      "normalized non-standard JSON whitespace",
+      "factions[1].passive_gain_per_turn 已修正字段名称",
+      "events[0].trigger 非对象条件已忽略",
+      "events[0].completion 非对象条件已忽略",
+      "npcs[0].reputation 已按安全范围规范化",
+      "npcs[1].reputation 已按安全范围规范化"
+    ]
+  },
+  "packaged_ui": {
+    "application": "macOS release DZMM.app",
+    "model_profile": "PC Qwen3 14B",
+    "probe": {
+      "success": true,
+      "detail": "protocol response contains content",
+      "elapsed_seconds": 0.3
+    },
+    "draft_generation": {
+      "success": true,
+      "elapsed_seconds": 26.0,
+      "world": "潮汐之门",
+      "locations": ["潮汐港", "夜影礁"],
+      "characters": ["苏婉儿", "守夜人阿衡"],
+      "npcs": ["苏婉儿", "守夜人阿衡", "海商陈掌柜", "迷雾谷的幽灵"],
+      "worldbook_entries": ["潮汐之谜", "夜影礁的守夜人"],
+      "event_summary": "审阅页未将事件素材单独列为玩家字段，需后续改善素材分类可见性",
+      "validation": "已通过规则校验；未确认前没有创建世界、旅程或存档",
+      "observations": [
+        "素材与输入的潮汐悬疑题材、地点和角色保持一致",
+        "角色卡被同步为 NPC，当前模型仍会重复角色卡与 NPC 条目",
+        "NPC 提到了未列为草案地点的迷雾谷，需后续做地点引用一致性提示或修复"
+      ]
+    }
+  },
+  "recovery": "weak-model formatting is normalized before strict CreativeSource and world-rule validation; unknown fields remain blocking",
+  "player_score_change": 0,
+  "note": "PC model path is usable for probe and packaged macOS draft review. The draft passed validation but exposed quality follow-ups (NPC duplication and an unlisted location reference); this is provider evidence and does not replace Windows GUI acceptance."
+}

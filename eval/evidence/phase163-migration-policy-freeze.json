@@ -1,0 +1,24 @@
+{
+  "phase": 163,
+  "title": "first cutover migration policy freeze",
+  "status": "policy_frozen",
+  "policy": {
+    "automatic_legacy_database_migration": false,
+    "legacy_database_overwrite": false,
+    "supported_user_path": "explicit world bundle or run snapshot export/import",
+    "source_data_mutation": false,
+    "rollback": "preserve legacy release tag/archive and isolated vNext data directory"
+  },
+  "evidence": [
+    "docs/adr/ADR-010-single-dzmm-cutover.md",
+    "vnext/desktop/src/App.vue",
+    "vnext/mobile/lib/pages/settings_page.dart",
+    "vnext/backend/tests/test_sidecar.py"
+  ],
+  "score_change": 0,
+  "remaining": [
+    "create versioned legacy archive tag",
+    "run restore rehearsal",
+    "complete macOS and Windows packaged GUI gates"
+  ]
+}

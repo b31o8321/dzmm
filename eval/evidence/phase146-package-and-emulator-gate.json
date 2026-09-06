@@ -1,0 +1,26 @@
+{
+  "phase": 146,
+  "name": "package-and-emulator-gate",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 93,
+    "current": 93,
+    "change": 0,
+    "reason": "本轮只复核发布产物，未取得新的可感知玩家旅程"
+  },
+  "verification": {
+    "macos_sidecar_clean_build": "passed",
+    "macos_tauri_app_bundle": "passed",
+    "macos_bundle_display_name": "DZMM",
+    "macos_bundle_backend": "dzmm-next-backend present",
+    "android_unit_and_analyze": "passed",
+    "android_emulator": "online after direct emulator launch; DZMM debug APK installed and MainActivity launched; fresh Qwen journey not re-scored in this phase",
+    "windows_native": "not available on this host"
+  },
+  "release_blockers": [
+    "macOS packaged visible WebView player journey remains unverified in current GUI session",
+    "Windows native installer/player journey requires Windows runner or host",
+    "Android emulator must be online for fresh Qwen 7B journey evidence",
+    "internal package/data-directory rename and legacy deletion remain deferred until gates pass"
+  ]
+}

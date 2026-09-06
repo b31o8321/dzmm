@@ -1,0 +1,22 @@
+{
+  "phase": 190,
+  "title": "current candidate Android release build",
+  "status": "passed",
+  "candidate": "cd7428d",
+  "verification": {
+    "flutter_analyze": "passed",
+    "flutter_test": "25 tests passed",
+    "flutter_build_apk_release": "passed",
+    "artifact": "vnext/mobile/build/app/outputs/flutter-apk/app-release.apk",
+    "sha256": "47ad73b349f504644d958310937d4b9cb4cb0c4acc3242a2a84ce9ce9a2781e0",
+    "size_bytes": 93742153
+  },
+  "scope": "build and static/widget verification only; no emulator was connected in this run",
+  "score_change": 0,
+  "remaining": [
+    "macOS packaged visible GUI player journey",
+    "Windows installed visible GUI player journey",
+    "Android local emulator replay on this artifact",
+    "cross-device readback"
+  ]
+}

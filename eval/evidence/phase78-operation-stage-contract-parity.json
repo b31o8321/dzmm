@@ -1,0 +1,51 @@
+{
+  "phase": 78,
+  "name": "operation-stage-contract-parity",
+  "date": "2026-08-21",
+  "status": "contract-and-build-verified",
+  "scope": "The player-visible operation vocabulary is declared in the Experience Contract and represented by named constants in desktop Vue and Android Flutter; this does not replace installed-package UI acceptance.",
+  "contract": {
+    "stages": [
+      "preparing",
+      "connecting",
+      "generating",
+      "applying",
+      "completed",
+      "failed",
+      "cancelled",
+      "restored"
+    ],
+    "cancellable": ["preparing", "connecting", "generating"],
+    "terminal": ["completed", "failed", "cancelled", "restored"],
+    "player_labels": {
+      "preparing": "准备",
+      "connecting": "连接模型",
+      "generating": "生成叙事",
+      "applying": "状态写入",
+      "completed": "完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "restored": "已恢复"
+    }
+  },
+  "implementation": [
+    "desktop/src/composables/operationStages.ts owns stage IDs, labels, cancellable stages and terminal stages",
+    "mobile/lib/local_host_port.dart owns the same stage IDs, labels and boundaries",
+    "OperationStatus and App use desktop helpers; PlayPage uses Android constants"
+  ],
+  "verification": {
+    "experience_contract_tests": "3 passed; backend full suite 89 passed",
+    "backend_ruff": "passed",
+    "desktop_tests": "4 files, 8 tests passed",
+    "desktop_build": "vue-tsc and Vite production build passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "10 passed",
+    "android_debug_apk": "built successfully; sha256 1f924239326e48cd1d35bbb6bb9742b050b7467e2243cab26d5657cdc640d943",
+    "macos_tauri_package": "built successfully; DMG sha256 0f32af70751de68aafd6bfa7da4fc4602864bb4fc0ca4b764eb63473a9181295",
+    "macos_packaged_host_health": "passed on isolated port 18778 with app=dzmm-next, storage=local, host=127.0.0.1"
+  },
+  "remaining": [
+    "Windows native package and Android physical-device operation-state acceptance",
+    "Generate operation types directly from the contract instead of maintaining two source constants"
+  ]
+}

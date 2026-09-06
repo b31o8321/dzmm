@@ -1,0 +1,37 @@
+{
+  "phase": 175,
+  "title": "GitHub 授权后候选 PR 与校验",
+  "date": "2026-08-30",
+  "repository": "b31o8321/dzmm",
+  "pull_request": {
+    "number": 2,
+    "url": "https://github.com/b31o8321/dzmm/pull/2",
+    "state": "OPEN",
+    "draft": true,
+    "base": "main",
+    "head": "feature/dzmm-vnext",
+    "head_sha": "80fd39fedd1ca2068491a3f8455f107fa2f5b34a",
+    "mergeable": "MERGEABLE"
+  },
+  "checks": [
+    {
+      "name": "backend-ci / test",
+      "status": "success",
+      "run_id": 33315057474
+    },
+    {
+      "name": "E2E smoke / core-and-desktop",
+      "status": "success",
+      "run_id": 33315057458,
+      "notes": "补充 GTK/WebKit Linux 系统依赖后，renderer 与 Tauri host 构建通过"
+    }
+  ],
+  "release_workflow": {
+    "run_id": 33314492033,
+    "head_sha": "be5523711c05ebbe43cecb0fda8e1eac172fd5ee",
+    "status": "success",
+    "artifacts": ["dzmm-macos-arm64", "dzmm-windows-x64"],
+    "notes": "该 release run 对应的代码 head 为 be55237；80fd39f 仅增加 CI 系统依赖与本证据文档，不改变打包代码。"
+  },
+  "decision": "只创建 Draft PR，不合并；macOS 可见完整 GUI、Windows 安装后 GUI、最终命名/默认路径和 cutover 回滚门槛仍未闭合。"
+}

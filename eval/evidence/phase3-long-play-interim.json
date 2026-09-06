@@ -1,0 +1,24 @@
+{
+  "commit": "b92020a",
+  "environment": "Python 3.13.3; fresh temporary SQLite database; FastAPI TestClient; real LM Studio provider at 192.168.31.169",
+  "evidence": {
+    "domain_lifecycle": "Archive, confirmed purge, and zero SQL orphan scan are covered by integration tests.",
+    "game_loop": "Python validates commands/revisions and audit rollbacks. A real 14B model completed 30 streamed move/narrate turns; persisted Turn count and RunState revision both equal 30 after recovery. The real long-play path did not exercise every choice/dice/event variant.",
+    "creation_content": "Desktop browser imports a V3 card, applies its suggested hero and Lore before the single compose action. Backend supports V3/World Info, raw entry preservation, selection, and explicit new-version promotion; PNG metadata/export are absent.",
+    "model_stream": "Ollama and OpenAI-compatible contract probes are tested; LM Studio HTTP 200 error bodies fail. Provider SSE decoding rejects malformed data, incomplete streams, 429, empty narratives, and cancellation without persisting a turn. The real 14B model completed the 30-turn stream run.",
+    "desktop_ux": "A fresh PyInstaller sidecar migrates to 0005_turn_rollbacks and returns vNext /health. It is bundled in a Tauri debug .app; launching the .app starts the sidecar through the WebView host command on an isolated port. Packaged create/play/archive/recovery and accessibility journeys remain unrun.",
+    "mobile_recovery": "Not implemented in vNext.",
+    "long_play_performance": "30 real-model streamed turns passed in a fresh database. Latency seconds: min 0.241, median 0.519, max 3.053. A 50-turn run, 500-message reopen and target-device measurements are still absent.",
+    "engineering_release": "Fresh migrations, 26 backend tests, lint, desktop production build, frozen-sidecar health, and debug .app bundle pass; no signed release artifacts."
+  },
+  "scores": {
+    "domain_lifecycle": 60,
+    "game_loop": 75,
+    "creation_content": 60,
+    "model_stream": 65,
+    "desktop_ux": 60,
+    "mobile_recovery": 0,
+    "long_play_performance": 65,
+    "engineering_release": 50
+  }
+}

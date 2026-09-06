@@ -1,35 +1,37 @@
-# config.py — 全局路径与数据库连接配置
-# 本文件在模块被 import 时立即执行（Python 模块级代码），
-# 所有需要「用户数据目录」或「数据库地址」的模块都从这里导入常量，
-# 避免各处硬编码路径，统一管理。
+from __future__ import annotations
 
-from pathlib import Path  # 跨平台路径操作，Path.home() 能正确处理 Windows/macOS/Linux 的用户目录
+import os
+from dataclasses import dataclass
+from pathlib import Path
 
-# ── 用户数据目录 ──────────────────────────────────────────────────────────────
-# Path.home() 返回当前用户的家目录（macOS：/Users/xxx，Windows：C:\Users\xxx，Linux：/home/xxx）
-# / ".dzmm" 在路径末尾追加子目录名，得到 ~/.dzmm
-# 所有用户数据（数据库文件、日志、上传素材、NPC 记忆）都放在这个目录下，
-# 这样卸载应用时数据不丢失，重装后自动恢复。
-APP_DIR = Path.home() / ".dzmm"
+DEFAULT_DATA_DIR = Path.home() / ".dzmm"
 
-# exist_ok=True：如果目录已存在不报错；如果不存在则创建
-# 在 import 时就创建目录，确保后续所有写文件操作不会因目录不存在而失败
-APP_DIR.mkdir(exist_ok=True)
 
-# ── 数据库文件路径 ────────────────────────────────────────────────────────────
-# SQLite 数据库文件存放在 ~/.dzmm/dzmm.db
-# 单文件数据库，方便用户备份和迁移（直接复制这个文件即可）
-DEFAULT_DB_PATH = APP_DIR / "dzmm.db"
+@dataclass(frozen=True)
+class Settings:
+    data_dir: Path
+    port: int = 8765
 
-# ── 数据库连接 URL ────────────────────────────────────────────────────────────
-# SQLAlchemy 用 URL 字符串描述数据库类型和位置，格式为 「方言+驱动://连接参数」
-# sqlite：使用 SQLite 数据库引擎（嵌入式，无需单独安装数据库服务）
-# aiosqlite：SQLite 的异步驱动（让数据库操作不阻塞事件循环）
-# 三个斜杠后面是绝对路径（sqlite:///绝对路径 是 SQLAlchemy 的约定）
-DEFAULT_DB_URL = f"sqlite+aiosqlite:///{DEFAULT_DB_PATH}"
+    @property
+    def database_path(self) -> Path:
+        return self.data_dir / "dzmm-v3.db"
 
-# ── 数据库结构版本号 ──────────────────────────────────────────────────────────
-# 用于将来做数据库迁移时判断「当前数据库是哪个版本」，
-# 如果用户的 dzmm.db 是旧版本，启动时可以自动运行升级脚本。
-# 目前版本 1，尚未启用多版本迁移逻辑。
-SCHEMA_VERSION = 1
+    @property
+    def database_url(self) -> str:
+        return f"sqlite+aiosqlite:///{self.database_path}"
+
+    @property
+    def sync_database_url(self) -> str:
+        return f"sqlite:///{self.database_path}"
+
+    @classmethod
+    def from_env(cls) -> Settings:
+        value = os.environ.get("DZMM_DATA_DIR")
+        port = int(os.environ.get("DZMM_PORT", "8765"))
+        return cls(
+            data_dir=Path(value).expanduser() if value else DEFAULT_DATA_DIR,
+            port=port,
+        )
+
+    def ensure_layout(self) -> None:
+        self.data_dir.mkdir(parents=True, exist_ok=True)

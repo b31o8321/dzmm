@@ -1,0 +1,13 @@
+{
+  "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real LM Studio provider",
+  "model": "magnum-v4-22b",
+  "base_url": "http://192.168.31.169:1234/v1",
+  "turns": 20,
+  "retries_after_non_committing_model_failures": 0,
+  "latency_seconds": {
+    "min": 2.187,
+    "median": 8.888,
+    "max": 16.67
+  },
+  "recovery": "state revision and persisted turn count matched completed turns"
+}

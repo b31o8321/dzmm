@@ -1,25 +1,19 @@
-import asyncio
-import pytest
-from httpx import ASGITransport, AsyncClient
+from pathlib import Path
 
-from dzmm.db.base import init_db, get_engine, async_session
+import pytest
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+
+from dzmm.config import Settings
 from dzmm.main import create_app
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
 @pytest.fixture
-async def client(tmp_path):
-    db_url = f"sqlite+aiosqlite:///{tmp_path}/t.db"
-    engine = get_engine(db_url)
-    await init_db(engine)
-    session_maker = async_session(engine)
-    app = create_app(session_maker)
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
-    await engine.dispose()
+def migrated_client(tmp_path, monkeypatch):
+    data_dir = tmp_path / "dzmm"
+    monkeypatch.setenv("DZMM_DATA_DIR", str(data_dir))
+    command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
+    app = create_app(Settings(data_dir=data_dir))
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield client, data_dir / "dzmm-v3.db"

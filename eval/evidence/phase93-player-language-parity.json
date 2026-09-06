@@ -1,0 +1,46 @@
+{
+  "phase": "phase93",
+  "date": "2026-08-21",
+  "status": "player-language-parity-verified",
+  "scope": "desktop and Android primary setup, World, Play, ending, and portable surfaces",
+  "player_language": {
+    "primary_terms": [
+      "本机游戏服务",
+      "世界",
+      "内容版本",
+      "旅程",
+      "本机规则",
+      "本机存档"
+    ],
+    "moved_out_of_primary_surface": [
+      "Host",
+      "SQLite",
+      "Python 状态裁判",
+      "WorldVersion",
+      "Run ID",
+      "revision"
+    ],
+    "advanced_boundary": "Python, SQLite, loopback address, schema v3, and raw JSON remain available only where they are needed for diagnostics or advanced authoring."
+  },
+  "player_behavior": [
+    "Desktop masthead reports whether the local game service is ready without asking players to understand a Host.",
+    "Desktop World Center now invites players to continue or begin stories and labels content versions and journeys in natural Chinese.",
+    "Android app status, World details, play recovery, ending replay, and portable settings use the same journey language.",
+    "Desktop technical runtime details are collapsed under 高级诊断信息 instead of dominating the default settings view."
+  ],
+  "automated_checks": {
+    "desktop_tests": "12 passed",
+    "desktop_build": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "13 passed",
+    "packages": {
+      "android_debug_apk_sha256": "2b9a44854645249b38b82fb49aeb6cb70f759cc5d5808dd5a5d28ae6c2f57467",
+      "macos_arm64_dmg_sha256": "c6e381c52286bd81e855a5ef0058e66c8404bbb41760ac595ec5f40210630d7e"
+    }
+  },
+  "not_proven": [
+    "macOS packaged WebView visual hierarchy remains unaccepted because screen capture and accessibility access are unavailable.",
+    "Android physical-device visual, keyboard, and TalkBack behavior remain unrun because adb has no device.",
+    "Windows native package and terminology review remain unrun."
+  ]
+}

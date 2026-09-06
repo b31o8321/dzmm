@@ -14,10 +14,10 @@ jobs:
         include:
           - os: macos-14
             label: macos-arm64
-            artifact_glob: 'frontend/src-tauri/target/release/bundle/dmg/*.dmg'
+            artifact_glob: 'desktop/src-tauri/target/release/bundle/dmg/*.dmg'
           - os: windows-latest
             label: windows-x64
-            artifact_glob: 'frontend/src-tauri/target/release/bundle/nsis/*.exe'
+            artifact_glob: 'desktop/src-tauri/target/release/bundle/nsis/*.exe'
 
     runs-on: ${{ matrix.os }}
     name: build (${{ matrix.label }})
@@ -44,8 +44,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            frontend/src-tauri/target
-          key: ${{ matrix.os }}-cargo-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+            desktop/src-tauri/target
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
 
       - name: backend venv + deps
         working-directory: backend
@@ -54,10 +54,10 @@ jobs:
           python -m venv .venv
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             ./.venv/Scripts/python -m pip install --upgrade pip
-            ./.venv/Scripts/python -m pip install -e ".[dev]"
+            ./.venv/Scripts/python -m pip install -e ".[dev,package]"
           else
             ./.venv/bin/python -m pip install --upgrade pip
-            ./.venv/bin/python -m pip install -e ".[dev]"
+            ./.venv/bin/python -m pip install -e ".[dev,package]"
           fi
 
       - name: backend tests
@@ -75,25 +75,31 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ./.venv/Scripts/python build_sidecar.py
+            ./.venv/Scripts/python ../packaging/build_backend.py
           else
-            ./.venv/bin/python build_sidecar.py
+            ./.venv/bin/python ../packaging/build_backend.py
           fi
 
-      - name: install frontend deps
-        working-directory: frontend
+      - name: install desktop deps
+        working-directory: desktop
         run: npm ci || npm install
 
       - name: tauri build
-        working-directory: frontend
-        run: npm run tauri:build
+        working-directory: desktop
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            npm run tauri:build:windows
+          else
+            npm run tauri:build
+          fi
 
       - name: smoke artifact (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          DMG=$(find frontend/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -1)
+          DMG=$(find desktop/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -1)
           if [ -z "$DMG" ]; then
             echo "::error::no .dmg found"
             exit 1
@@ -109,13 +115,14 @@ jobs:
           hdiutil attach "$DMG" -mountpoint "$MOUNTPOINT" -nobrowse -readonly
           trap "hdiutil detach \"$MOUNTPOINT\" -force || true" EXIT
 
-          APP=$(find "$MOUNTPOINT" -maxdepth 2 -name 'dzmm.app' -type d | head -1)
+          APP=$(find "$MOUNTPOINT" -maxdepth 2 -name '*.app' -type d | head -1)
           if [ -z "$APP" ]; then
             echo "::error::dzmm.app missing from DMG"
             exit 1
           fi
 
-          if [ ! -f "$APP/Contents/MacOS/dzmm" ] && [ ! -f "$APP/Contents/MacOS/app" ]; then
+          MAIN=$(find "$APP/Contents/MacOS" -maxdepth 1 -type f | head -1)
+          if [ -z "$MAIN" ]; then
             echo "::error::main binary missing in dzmm.app/Contents/MacOS"
             ls -la "$APP/Contents/MacOS/" || true
             exit 1
@@ -141,7 +148,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXE=$(find frontend/src-tauri/target/release/bundle/nsis -name '*-setup.exe' | head -1)
+          EXE=$(find desktop/src-tauri/target/release/bundle/nsis -name '*-setup.exe' | head -1)
           if [ -z "$EXE" ]; then
             echo "::error::no NSIS .exe found"
             exit 1
@@ -170,6 +177,70 @@ jobs:
           fi
 
           echo "::notice::EXE smoke OK: $SIZE bytes, dzmm-backend.exe + Python runtime present"
+
+      - name: smoke packaged Local Host sidecar (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIDECAR="desktop/src-tauri/backend-runtime/dzmm-backend/dzmm-backend.exe"
+          DATA_DIR="$RUNNER_TEMP/dzmm-windows-sidecar"
+          PORT=18765
+          mkdir -p "$DATA_DIR"
+          DZMM_DATA_DIR="$DATA_DIR" DZMM_PORT="$PORT" "$SIDECAR" >/tmp/dzmm-sidecar.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            if curl --fail --silent "http://127.0.0.1:${PORT}/health" > /tmp/dzmm-health.json; then
+              grep -q '"storage":"local"' /tmp/dzmm-health.json
+              grep -q '"host":"127.0.0.1"' /tmp/dzmm-health.json
+          echo "::notice::Windows packaged sidecar Local Host health OK"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/dzmm-sidecar.log || true
+          echo "::error::Windows packaged sidecar did not become healthy"
+          exit 1
+
+      - name: smoke installed Windows app startup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis' -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer not found' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'dzmm-installed'
+          $dataDir = Join-Path $env:RUNNER_TEMP 'dzmm-installed-data'
+          New-Item -ItemType Directory -Force -Path $installDir, $dataDir | Out-Null
+          Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -NoNewWindow
+
+          $app = Get-ChildItem $installDir -Recurse -Filter '*.exe' |
+            Where-Object { $_.Name -notin @('dzmm-backend.exe', 'uninstall.exe', 'Uninstall.exe') } |
+            Select-Object -First 1
+          if (-not $app) { throw "Installed DZMM executable not found under $installDir" }
+
+          $env:DZMM_DATA_DIR = $dataDir
+          $env:DZMM_PORT = '18766'
+          $process = Start-Process -FilePath $app.FullName -WorkingDirectory $app.DirectoryName -PassThru
+          try {
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:18766/health' -TimeoutSec 2
+                if ($health.storage -eq 'local' -and $health.host -eq '127.0.0.1') {
+                  $healthy = $true
+                  break
+                }
+              } catch { }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $healthy) { throw 'Installed DZMM app did not expose a healthy Local Host' }
+            Write-Host '::notice::Installed Windows app Local Host startup OK'
+          } finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            Get-Process -Name 'dzmm-backend' -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
 
       - name: upload artifact
         uses: actions/upload-artifact@v4

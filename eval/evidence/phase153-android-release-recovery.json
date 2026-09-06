@@ -1,0 +1,20 @@
+{
+  "phase": 153,
+  "name": "android-release-force-stop-recovery",
+  "date": "2026-08-30",
+  "player_score": {
+    "previous": 94,
+    "current": 94,
+    "change": 0,
+    "reason": "验证 release 存档回读与界面恢复，没有新增完整创建/游玩旅程"
+  },
+  "verification": {
+    "device": "emulator-5554",
+    "apk": "app-release.apk",
+    "action": "am force-stop followed by MainActivity start",
+    "result": "topResumedActivity restored successfully",
+    "restored_surface": "DZMM play page retained current scene, narrative content, history reload entry and bottom actions",
+    "screenshot": "/tmp/dzmm-android-phase153-recovery.png"
+  },
+  "boundary": "本地 API 36 模拟器的 release 进程恢复已验证；Android 真机、网络模型失败重试和完整新世界长局仍未验证。"
+}

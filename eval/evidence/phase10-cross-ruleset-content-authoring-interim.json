@@ -1,0 +1,20 @@
+{
+  "commit": "working tree before commit",
+  "environment": "macOS; fresh temporary DZMM_NEXT_DATA_DIR; source FastAPI at loopback; Vite at 127.0.0.1:5182; headless Chromium at 1600x900; no legacy data or API",
+  "journey": [
+    "Open the standard creation page with Fog Harbor story-and-relationship mode selected.",
+    "Open the optional SillyTavern importer, paste a V3 character card containing one character-book entry, and use the visible parse-and-apply action.",
+    "Verify the page reports one Lorebook entry and one Character Card, then create the world with the normal confirmation action.",
+    "Verify the confirmation page is visible. Query the resulting version's existing export endpoints: the V3 card exports with its original character name and the World Info export contains both the template entry and the imported entry."
+  ],
+  "result": {
+    "ui": "The importer is available for both the native Fog Harbor narrative ruleset and custom TRPG. Imported content is attached before the one atomic compose request, not replaced by a private Lore/hero abstraction.",
+    "safety": "Merge rejects duplicate imported Lorebook or Character Card IDs before compose, so content assets cannot silently shadow template rules or relationship targets.",
+    "visual": "At 1600x900 the import panel, parsed asset summary and confirmation view were inspected. No horizontal overflow, clipped active panel, or obscured confirmation controls were observed; the expanded form intentionally scrolls vertically to its submit button."
+  },
+  "verification": {
+    "desktop": "npm run build passed after the change.",
+    "browser": "Normal browser interactions completed Fog Harbor plus V3-card import -> compose -> visible confirmation. Card export returned 200 with the original card name; Lorebook export returned 200 with two entries."
+  },
+  "boundary": "This closes the cross-ruleset creation-path omission only. It is not a visual card/worldbook editor, a packaged Tauri WebView journey, a real PNG filechooser run, Android acceptance, or a reason to increase the current 65.00 maturity score."
+}

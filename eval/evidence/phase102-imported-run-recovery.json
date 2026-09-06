@@ -1,0 +1,22 @@
+{
+  "phase": "phase102",
+  "date": "2026-08-21",
+  "status": "imported-run-recovery-boundary-verified",
+  "player_behavior": [
+    "Desktop imported run bundles now remember the cloned Run as the active Run before showing the play surface.",
+    "Desktop imported world bundles now remember the newly created Run as the active Run before returning to play.",
+    "New, continued, imported and copied Runs share one tested active-Run persistence helper, so restart recovery does not depend on which entry created the Run."
+  ],
+  "automated_checks": {
+    "desktop_tests": "21 passed across 8 files",
+    "desktop_build": "passed",
+    "cargo_check": "passed",
+    "git_diff_check": "passed",
+    "packaged_macos_sidecar_health": "passed (local-only storage, 127.0.0.1 host, migrations through 0012)",
+    "macos_arm64_dmg_sha256": "b4cd60046b4f48b8aa70f3924ec4aebd98ee631eeda9b1a91a765f37218ff80b"
+  },
+  "not_proven": [
+    "Physical Android restart and packaged macOS WebView restart remain unrun in this environment.",
+    "Windows native package and its restart journey remain unavailable locally."
+  ]
+}

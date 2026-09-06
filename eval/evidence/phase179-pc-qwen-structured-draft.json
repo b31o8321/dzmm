@@ -1,0 +1,41 @@
+{
+  "phase": 179,
+  "date": "2026-09-02",
+  "environment": {
+    "platform": "macOS arm64",
+    "artifact": "DZMM.app release package",
+    "provider": "lm_studio",
+    "model": "huihui-ai_qwen3-14b-abliterated",
+    "base_url": "http://192.168.31.169:1234/v1"
+  },
+  "checks": {
+    "model_profile_default": true,
+    "probe": {
+      "success": true,
+      "elapsed_seconds": 7.3,
+      "detail": "protocol response contains content"
+    },
+    "ai_world_draft": {
+      "success": true,
+      "elapsed_seconds": 20.7,
+      "review_status": "valid",
+      "world_name": "潮汐回廊",
+      "locations": ["潮汐回廊", "东海港", "夜影礁"],
+      "character_cards": ["苏文澜", "守夜人"],
+      "extra_npcs": ["陈伯", "夜影礁守夜人"],
+      "repairs": [
+        "factions[1].passive_gain_per_turn 已按安全范围规范化",
+        "npcs[0].reputation 已按安全范围规范化",
+        "npcs[1].contact_cooldown_turns 已按安全范围规范化",
+        "npcs[1].reputation 已按安全范围规范化"
+      ],
+      "pre_confirm_persistence": false
+    }
+  },
+  "interpretation": "LM Studio 结构化输出约束使 PC Qwen3 草案进入可编辑审阅页；模型字段越界被安全归一化，确认前没有创建世界或旅程。",
+  "score": {
+    "player_score": 95,
+    "change": 0,
+    "note": "模型可用性与草案可靠性提升，但尚未完成完整 Windows/macOS 玩家游玩验收。"
+  }
+}

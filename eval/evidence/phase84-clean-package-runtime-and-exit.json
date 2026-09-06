@@ -1,0 +1,37 @@
+{
+  "phase": "phase84",
+  "date": "2026-08-21",
+  "status": "package-runtime-hygiene-verified",
+  "scope": "Clean macOS backend runtime contents and deterministic sidecar shutdown for the packaged desktop host.",
+  "changes": [
+    "PyInstaller now stages migration sources while excluding __pycache__, .pyc, and .pyo files.",
+    "The packaging build fails if retired pairing, remote, or confirmation migration artifacts enter the runtime.",
+    "The Tauri host explicitly shows/focuses its main window and stops the sidecar for ExitRequested and Exit events in addition to window destruction."
+  ],
+  "verification": {
+    "backend_tests": "92 passed, 1 warning",
+    "ruff": "clean",
+    "rust": "cargo fmt --check and cargo check passed",
+    "pyinstaller": "clean onedir build and packaged /health smoke passed",
+    "packaged_health": {
+      "app": "dzmm-next",
+      "storage": "local",
+      "host": "127.0.0.1",
+      "foreign_keys": true
+    },
+    "retired_runtime_scan": "0 matches for pairing, remote, confirmation, __pycache__, .pyc, or .pyo",
+    "migration_source_count": 10,
+    "tauri_release_build": "app and DMG succeeded",
+    "dmg_sha256": "494675ddf25dfe66eecd2b6d6e082e0acc3f515dbf651a64570015053fea44c1",
+    "exit_probe": "LaunchServices quit removed both the packaged app process and its sidecar listener."
+  },
+  "webview_observation": {
+    "window": "CoreGraphics enumerated the packaged DZMM Next 1254x784 window and WebKit content process.",
+    "limitation": "The Codex desktop session kept the app window in a non-current macOS Space; OS capture could not produce an interactive screenshot, so the packaged WebView A-F gate remains unproven."
+  },
+  "remaining_gates": [
+    "Packaged macOS WebView A-F player journey",
+    "Windows native package journey",
+    "Android physical-device journey"
+  ]
+}

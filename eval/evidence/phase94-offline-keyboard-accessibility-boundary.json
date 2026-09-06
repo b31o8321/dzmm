@@ -1,0 +1,36 @@
+{
+  "phase": "phase94",
+  "date": "2026-08-21",
+  "status": "offline-keyboard-accessibility-boundary-verified",
+  "scope": "desktop keyboard and offline shell plus Android new-journey focus",
+  "player_behavior": [
+    "Desktop keyboard users can jump from the first focusable control to the main content.",
+    "All desktop interactive controls retain a visible focus-visible outline and reduced-motion remains honored.",
+    "Model probe results and inline field errors announce changes to assistive technology.",
+    "Primary model, new-journey, and player-action fields expose meaningful names and input metadata.",
+    "Android no longer forces the software keyboard open when the new-journey dialog appears."
+  ],
+  "offline_boundary": [
+    "The desktop package no longer imports Google Fonts or another remote font stylesheet.",
+    "Chinese serif and monospace typography use platform-local fallback stacks.",
+    "Technical runtime details remain collapsed under an advanced diagnostics disclosure."
+  ],
+  "automated_checks": {
+    "backend_tests": "101 passed",
+    "backend_ruff": "passed",
+    "desktop_tests": "12 passed",
+    "desktop_build": "passed",
+    "flutter_analyze": "passed",
+    "flutter_tests": "13 passed",
+    "experience_guard": "checks skip link, focus-visible, reduced motion, touch action, no remote font URL, zoom availability, and no Android autofocus",
+    "packages": {
+      "android_debug_apk_sha256": "bb4b67a68f8b61c96033d738698bb219dc0d4c0e0d75b1d3ba22ce39b0797511",
+      "macos_arm64_dmg_sha256": "b360e415a2ecbe40b06bd7595f5cfea5e848953777ccd3afc9fb44e274e5044a"
+    }
+  },
+  "not_proven": [
+    "macOS packaged WebView keyboard order and visual focus remain unrun without accessibility and capture permissions.",
+    "Android TalkBack, text scaling, keyboard, and touch targets remain unrun without a physical adb device.",
+    "Windows native focus rendering and high-contrast behavior remain unrun."
+  ]
+}

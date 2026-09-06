@@ -1,0 +1,35 @@
+{
+  "phase": 121,
+  "title": "bounded gm_actions for emergent world evolution",
+  "scope": [
+    "optional private DZMM_ACTIONS marker parsing",
+    "plot thread and hidden event allowlist",
+    "desktop and embedded turn integration",
+    "deduplication and invalid-action rejection"
+  ],
+  "architecture": {
+    "worldbook": "static context retrieval remains separate from runtime state",
+    "runtime": "Python owns plot_threads and active_events transitions",
+    "model_authority": "model proposes narrative intent only; no direct relationship, numeric, inventory, chapter, route, or ending writes"
+  },
+  "verification": {
+    "backend_pytest": "117 passed, 1 warning",
+    "backend_ruff": "passed",
+    "new_unit_coverage": [
+      "private marker is removed from visible prose",
+      "introduce_plot_thread is allowlisted and deduplicated",
+      "unknown set_flags action is ignored",
+      "authored and model-created event state remains schema-shaped"
+    ],
+    "packaging": {
+      "android_debug_apk": "vnext/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "1a77b99d4c10110930e327e52ae33a90befc91614c4a15db803ff0dfa71675d6",
+      "install": "blocked: adb devices returned no online device"
+    }
+  },
+  "residual": [
+    "qwen 7B two-Run player comparison is still required",
+    "structured actions do not yet update NPC emotion/favor directly",
+    "model-created event resolution is state-only and does not invent hard rules"
+  ]
+}

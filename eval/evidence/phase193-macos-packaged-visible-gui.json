@@ -1,0 +1,33 @@
+{
+  "phase": 193,
+  "title": "macOS packaged visible GUI create, play, and new-run replay",
+  "status": "partial_pass",
+  "branch": "feature/dzmm-vnext",
+  "candidate_code_commit": "71ddea9",
+  "package": {
+    "app_path": "vnext/desktop/src-tauri/target/release/bundle/macos/DZMM.app",
+    "dmg_path": "vnext/desktop/src-tauri/target/release/bundle/dmg/DZMM_0.1.0_aarch64.dmg",
+    "dmg_sha256": "ef5bbfc70beff34d15c426be91bd60fb99e0ac21326fda15a7101a8990d2f8eb",
+    "dmg_size_bytes": 29716221
+  },
+  "model": "Qwen 7B package journey / ollama / qwen2.5:7b",
+  "journey": [
+    "visible GUI opened the current candidate bundle (not legacy /Applications/dzmm.app)",
+    "AI draft accepted after rule validation and persisted a new world 星空之钥",
+    "draft used the requested荒原天文台 conflict; generated locations, NPCs and world-book entries were internally mapped",
+    "opening showed location, protagonist, NPC dialogue, guidance and choices before the first action",
+    "first choice showed preparing/connecting/generating/applying status and persisted a second chapter with clue, relationship and proactive-NPC feedback",
+    "world list re-entry exposed the newly created world and its assets",
+    "开始新旅程 created an independent second run and opened its own opening with a different protagonist"
+  ],
+  "findings": [
+    "The patched long-run bridge is topic-neutral (暂缓行动，等待更佳时机); the inspected current draft contained no雾港/潮门/雾灯 template terms.",
+    "After the current-location guardrail was rebuilt into the package, the first generated turn still contains continuity defects (for example, mentioning码头 while the active location is废墟中的天文台) and an awkward NPC insertion; this remains a player-quality blocker.",
+    "The visible GUI path reached create, play and independent new-run replay, but a full visible 10-chapter ending and post-ending new-run replay were not completed in this run.",
+    "Android emulator and Windows native GUI gates remain unverified."
+  ],
+  "score": {
+    "player": 95,
+    "change": 0
+  }
+}
