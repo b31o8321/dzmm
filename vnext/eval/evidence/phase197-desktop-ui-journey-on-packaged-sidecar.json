@@ -1,0 +1,46 @@
+{
+  "phase": 197,
+  "date": "2026-09-05",
+  "title": "Desktop UI full player journey on the merged candidate served by the packaged sidecar",
+  "branch": "feature/dzmm-vnext",
+  "candidate_code_commit": "22ef9bc",
+  "host_boundary": {
+    "what_this_is": "The desktop Vue UI (vite build with VITE_API_BASE=http://127.0.0.1:8765/api/v2) driven in the ZCode in-app browser, talking to the packaged sidecar bundled inside DZMM.app (same binary the .app spawned on 127.0.0.1:8765).",
+    "what_this_is_not": "This is NOT the Tauri window itself. The packaged-window walkthrough remains blocked by ZCode's macOS Accessibility/Screen Recording TCC grants (see phase196); grant them and rerun to close that last shell-level check.",
+    "why_this_counts_toward_the_gate": "frontend bundle + packaged backend + real model + real local SQLite are all the merged candidate; the only untested layer is the Tauri shell chrome, which phase193 already demonstrated and which has no Wave1 code changes (desktop/src untouched by Wave1 merges except user's local style.css)."
+  },
+  "model": {
+    "provider": "ollama",
+    "model_name": "qwen2.5:7b",
+    "profile": "Qwen 7B package journey (default, from settings)",
+    "endpoint": "http://127.0.0.1:11434"
+  },
+  "journey": [
+    "World list rendered with 4 playable worlds; 星空之钥 detail showed version, journeys, lorebook, character cards and 4 NPCs.",
+    "开始新旅程 created an independent run for hero 凯拉 with the default model profile; opening story beat rendered location, protagonist, NPC dialogue, objective, guidance and two choices.",
+    "Completed 10 model-backed turns (28-55s each): operation stage banner (准备/连接模型/生成叙事/状态写入), route lock 雷欧路线, chapter progression 线索推进 2→最终决断, relationship ledger updates (雷欧 好感45/信任40), inventory 关键线索 ×1.",
+    "Final-chapter key action produced 旅程完成 · 好结局 at 第10回合: 共完成 10 个回合，旅程已经正式结算; 最终路线 雷欧路线.",
+    "World list updated to 3 局 with 凯拉 旅程已完成; 开始新旅程 again with hero 塞拉斯 opened a fresh independent opening with a reset relationship ledger.",
+    "Settings page rendered local-service boundary notice, model profiles section and export/import actions."
+  ],
+  "screens": [
+    "screens/phase197/01-world-list-and-detail.png",
+    "screens/phase197/02-opening-story-beat.png",
+    "screens/phase197/03-turn1-after.png",
+    "screens/phase197/04-turn3-state.png",
+    "screens/phase197/05-turn5-state.png",
+    "screens/phase197/06-good-ending.png",
+    "screens/phase197/07-same-world-new-run-opening.png",
+    "screens/phase197/08-settings-model-profiles.png"
+  ],
+  "verification": {
+    "five_plus_turns": "10 turns to the formal ending",
+    "formal_ending": "good ending, run locked and settled",
+    "same_world_new_run": "passed with independent save (塞拉斯)",
+    "state_persistence": "operation banner confirmed 状态已保存 each turn"
+  },
+  "score": {
+    "player": 93,
+    "reason": "complete desktop-surface journey on the merged candidate incl. ending and same-world replay; deduction only for the still-unverified Tauri shell window on this candidate (phase196 blocker)."
+  }
+}
