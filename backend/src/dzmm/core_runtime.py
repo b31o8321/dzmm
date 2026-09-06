@@ -8,7 +8,9 @@ Android's Chaquopy bridge can both call the same state-jury operations.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+import threading
 from pathlib import Path
 from secrets import token_hex
 from typing import Any
@@ -16,9 +18,11 @@ from uuid import uuid4
 
 from .core.command_engine import apply_commands
 from .core_runtime_errors import CoreRuntimeError
+from .director import build_director_prompt, is_note_fresh, parse_director_note, should_run_director
 from .embedded_model_profiles import EmbeddedModelProfileStore
 from .embedded_model_requests import (
     clean_model_narrative,
+    request_director_note,
     request_narrative,
     request_world_draft,
     strip_json_fence,
@@ -49,6 +53,8 @@ from .story_beats import (
     build_turn_story_beat,
 )
 from .world_templates import fog_harbor_template
+
+logger = logging.getLogger(__name__)
 
 _narrative_entity_names = narrative_entity_names
 _narrative_world_material = narrative_world_material
@@ -268,6 +274,14 @@ class LocalCoreRuntime:
                     sequence INTEGER NOT NULL,
                     content TEXT NOT NULL,
                     UNIQUE(run_id, sequence)
+                );
+                CREATE TABLE IF NOT EXISTS director_notes (
+                    run_id TEXT NOT NULL,
+                    turn INTEGER NOT NULL,
+                    tension TEXT NOT NULL,
+                    hook TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    PRIMARY KEY (run_id, turn)
                 );
                 CREATE TABLE IF NOT EXISTS local_turns (
                     id TEXT PRIMARY KEY,
@@ -1106,6 +1120,7 @@ class LocalCoreRuntime:
                 "INSERT INTO local_story_beats(id, run_id, kind, sequence, content) VALUES (?, ?, ?, ?, ?)",
                 (str(uuid4()), run_id, beat["kind"], before + 1, _dump(beat)),
             )
+        self._schedule_director(run_id, before + 1, payload.get("api_key"))
         return self.get_run(run_id)
 
     def play(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1189,7 +1204,76 @@ class LocalCoreRuntime:
                 "INSERT INTO local_story_beats(id, run_id, kind, sequence, content) VALUES (?, ?, ?, ?, ?)",
                 (str(uuid4()), run_id, beat["kind"], before + 1, _dump(beat)),
             )
+        self._schedule_director(run_id, before + 1, payload.get("api_key"))
         return self.get_run(run_id)
+
+    def _schedule_director(self, run_id: str, revision: int, api_key: object) -> None:
+        """Fire the background Director note after every Nth committed turn.
+
+        The note never runs on the turn's critical path: a daemon thread owns the
+        model call, and any failure is silently discarded (ADR-012).
+        """
+
+        if not should_run_director(revision):
+            return
+        threading.Thread(
+            target=self._run_director_note,
+            args=(run_id, revision, api_key),
+            name=f"dzmm-director-{run_id[:8]}-{revision}",
+            daemon=True,
+        ).start()
+
+    def _run_director_note(self, run_id: str, revision: int, api_key: object) -> None:
+        try:
+            with self._connect() as connection:
+                run = connection.execute(
+                    "SELECT model_profile_id FROM local_runs WHERE id = ?", (run_id,)
+                ).fetchone()
+                profile = (
+                    connection.execute(
+                        "SELECT * FROM local_model_profiles WHERE id = ?",
+                        (run["model_profile_id"],),
+                    ).fetchone()
+                    if run is not None and run["model_profile_id"]
+                    else None
+                )
+            if profile is None:
+                return
+            definition = self._definition_for_run(run_id)
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT state FROM local_runs WHERE id = ?", (run_id,)
+                ).fetchone()
+            if row is None:
+                return
+            state = json.loads(row["state"])
+            prompt = build_director_prompt(state, definition)
+            body = request_director_note({**dict(profile), "api_key": api_key}, prompt)
+            note = parse_director_note(chat_content(profile["provider_type"], body))
+            if not note:
+                return
+            with self._connect() as connection:
+                connection.execute(
+                    "INSERT OR REPLACE INTO director_notes(run_id, turn, tension, hook) VALUES (?, ?, ?, ?)",
+                    (run_id, revision, note["tension"], note["hook"]),
+                )
+        except Exception as error:  # noqa: BLE001 - Director failure must never surface
+            logger.debug("director note skipped for %s@%s: %s", run_id, revision, error)
+
+    def _fresh_director_note(
+        self, run_id: str, current_turn: int
+    ) -> dict[str, str] | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT turn, tension, hook FROM director_notes WHERE run_id = ? ORDER BY turn DESC LIMIT 1",
+                    (run_id,),
+                ).fetchone()
+        except sqlite3.OperationalError:
+            return None
+        if row is None or not is_note_fresh(int(row["turn"]), current_turn):
+            return None
+        return {"tension": row["tension"], "hook": row["hook"], "turn": int(row["turn"])}
 
     def _narrate_turn(
         self,
@@ -1232,6 +1316,9 @@ class LocalCoreRuntime:
                 "narrative_memory": state.get("narrative_context", {}).get("recent_turns", []),
                 "memory_layers": _narrative_memory_layers(definition, state, player_input),
                 "variation_directive": narrative_variation(definition, state, str(run["id"])),
+                "director_note": self._fresh_director_note(
+                    str(run["id"]), int(state.get("revision") or 0)
+                ),
                 "npc_state": state.get("npc_state", {}),
                 "faction_state": state.get("faction_state", {}),
                 "campaign_state": state.get("campaign_state"),

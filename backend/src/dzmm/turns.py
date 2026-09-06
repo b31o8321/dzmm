@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -13,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .contracts import contract_validator
 from .core.command_engine import apply_commands as apply_core_commands
+from .director import build_director_prompt, is_note_fresh, parse_director_note, should_run_director
 from .lore import select_lorebook
 from .model_profiles import ModelNarrator, ModelProfile, NarrationError, _clean_narrative
 from .narrative import (
@@ -27,8 +30,18 @@ from .narrative import (
 )
 from .narrative_output import extract_gm_actions
 from .operation_control import OperationRegistry
-from .persistence import model_profiles, runs, story_beats, turns, world_versions, worlds
+from .persistence import (
+    director_notes,
+    model_profiles,
+    runs,
+    story_beats,
+    turns,
+    world_versions,
+    worlds,
+)
 from .story_beats import build_deterministic_narrative, build_turn_story_beat
+
+logger = logging.getLogger(__name__)
 
 
 class TurnInput(BaseModel):
@@ -92,6 +105,7 @@ class TurnCoordinator:
         self._session_factory = session_factory
         self._narrator = narrator or ModelNarrator()
         self._operations = OperationRegistry()
+        self._director_tasks: set[asyncio.Task[None]] = set()
 
     def begin_operation(self, request_id: str) -> bool:
         return self._operations.begin(request_id)
@@ -178,6 +192,7 @@ class TurnCoordinator:
 
             profile = _profile_from_row(run)
             lore = select_lorebook(run["definition"], payload.player_input, character_budget=4000)
+            director_note = await self._latest_director_note(session, run_id, after_revision)
             narrative, gm_actions = await self._narrate(
                 profile,
                 run["definition"],
@@ -186,6 +201,7 @@ class TurnCoordinator:
                 outcomes,
                 lore.entries,
                 variation_seed=run_id,
+                director_note=director_note,
             )
             outcomes.extend(apply_gm_actions(state, gm_actions))
             settle_world_events(state, run["definition"], outcomes)
@@ -246,7 +262,7 @@ class TurnCoordinator:
             await self._insert_story_beat(
                 session, run_id, sequence, run["definition"], state, narrative, outcomes
             )
-            return TurnResult(
+            result = TurnResult(
                 turn_id=turn_id,
                 kind="turn",
                 rollback_target_id=None,
@@ -259,6 +275,8 @@ class TurnCoordinator:
                 state=state,
                 created=True,
             )
+        self._schedule_director_task(run_id, after_revision)
+        return result
 
     async def play_choice(self, run_id: str, payload: ChoiceTurnInput) -> TurnResult:
         async with self._session_factory() as session:
@@ -468,7 +486,7 @@ class TurnCoordinator:
                 except TypeError as error:
                     # Keep the transport seam compatible with lightweight test and
                     # embedded narrators written before the variation context existed.
-                    if "variation_seed" not in str(error):
+                    if "variation_seed" not in str(error) and "director_note" not in str(error):
                         raise
                     narrator_stream = self._narrator.stream(
                         profile,
@@ -777,12 +795,13 @@ class TurnCoordinator:
         lore_entries: list[dict[str, Any]],
         *,
         variation_seed: str = "",
+        director_note: dict[str, Any] | None = None,
     ) -> tuple[str, list[dict[str, Any]]]:
         if profile is None:
             return _deterministic_narrative(definition, state, player_input), []
-        narrate_with_actions = getattr(self._narrator, "narrate_with_actions", None)
         # Tests and lightweight hosts often replace the legacy narrate method;
         # honor that seam instead of bypassing it with the new action-aware path.
+        narrate_with_actions = getattr(self._narrator, "narrate_with_actions", None)
         if type(self._narrator).narrate is not ModelNarrator.narrate or "narrate" in getattr(
             self._narrator, "__dict__", {}
         ):
@@ -797,9 +816,10 @@ class TurnCoordinator:
                     outcomes,
                     lore_entries,
                     variation_seed=variation_seed,
+                    director_note=director_note,
                 )
             except TypeError as error:
-                if "variation_seed" not in str(error):
+                if "variation_seed" not in str(error) and "director_note" not in str(error):
                     raise
                 return await narrate_with_actions(
                     profile,
@@ -820,7 +840,7 @@ class TurnCoordinator:
                 variation_seed=variation_seed,
             )
         except TypeError as error:
-            if "variation_seed" not in str(error):
+            if "variation_seed" not in str(error) and "director_note" not in str(error):
                 raise
             narrative = await self._narrator.narrate(
                 profile,
@@ -832,6 +852,89 @@ class TurnCoordinator:
             )
         visible, actions = extract_gm_actions(narrative)
         return _clean_narrative(visible) or "", actions
+
+    def _schedule_director_task(self, run_id: str, revision: int) -> None:
+        """Fire the ADR-012 background pacing note after every Nth committed turn."""
+
+        if not should_run_director(revision):
+            return
+        task = asyncio.get_running_loop().create_task(self._run_director_note(run_id, revision))
+        self._director_tasks.add(task)
+        task.add_done_callback(self._director_tasks.discard)
+
+    async def _run_director_note(self, run_id: str, revision: int) -> None:
+        try:
+            async with self._session_factory() as session:
+                run_row = (
+                    await session.execute(
+                        select(
+                            runs.c.state,
+                            runs.c.model_profile_id,
+                            world_versions.c.definition,
+                        )
+                        .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                        .where(runs.c.id == run_id)
+                    )
+                ).mappings().one_or_none()
+                profile_row = None
+                if run_row is not None and run_row["model_profile_id"]:
+                    profile_row = (
+                        await session.execute(
+                            select(model_profiles).where(
+                                model_profiles.c.id == run_row["model_profile_id"]
+                            )
+                        )
+                    ).mappings().one_or_none()
+            if run_row is None or profile_row is None:
+                return
+            profile = _profile_from_row(
+                {
+                    "model_id": profile_row["id"],
+                    "model_name_label": profile_row["name"],
+                    "provider_type": profile_row["provider_type"],
+                    "base_url": profile_row["base_url"],
+                    "model_name": profile_row["model_name"],
+                    "api_key_ref": profile_row["api_key_ref"],
+                }
+            )
+            if profile is None:
+                return
+            prompt = build_director_prompt(deepcopy(run_row["state"]), run_row["definition"])
+            content = await self._narrator.director_completion(profile, prompt)
+            note = parse_director_note(content)
+            if not note:
+                return
+            async with self._session_factory() as session, session.begin():
+                await session.execute(
+                    insert(director_notes).values(
+                        run_id=run_id,
+                        turn=revision,
+                        tension=note["tension"],
+                        hook=note["hook"],
+                        created_at=datetime.now(UTC).replace(tzinfo=None),
+                    )
+                )
+        except Exception as error:  # noqa: BLE001 - Director failure must never surface
+            logger.debug("director note skipped for %s@%s: %s", run_id, revision, error)
+
+    async def _latest_director_note(
+        self, session: AsyncSession, run_id: str, current_turn: int
+    ) -> dict[str, Any] | None:
+        try:
+            row = (
+                await session.execute(
+                    select(director_notes.c.turn, director_notes.c.tension, director_notes.c.hook)
+                    .where(director_notes.c.run_id == run_id)
+                    .order_by(director_notes.c.turn.desc())
+                    .limit(1)
+                )
+            ).mappings().one_or_none()
+        except Exception as error:  # noqa: BLE001 - table may predate migration 0013
+            logger.debug("director note lookup skipped: %s", error)
+            return None
+        if row is None or not is_note_fresh(int(row["turn"]), current_turn):
+            return None
+        return {"tension": row["tension"], "hook": row["hook"], "turn": int(row["turn"])}
 
 
 def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str, Any]]) -> bool:
