@@ -3,9 +3,9 @@ from pathlib import Path
 
 from jsonschema import validate as validate_schema
 
-from dzmm_vnext.core.combat import apply_attack
-from dzmm_vnext.narrative import initial_state, validate_definition
-from dzmm_vnext.world_templates import d20_frontier_template
+from dzmm.core.combat import apply_attack
+from dzmm.narrative import initial_state, validate_definition
+from dzmm.world_templates import d20_frontier_template
 
 CONTRACT = Path(__file__).parents[2] / "contracts" / "run_state.schema.json"
 

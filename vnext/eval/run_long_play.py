@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from alembic import command
 from alembic.config import Config
 
-from dzmm_vnext.config import Settings
-from dzmm_vnext.main import create_app
+from dzmm.config import Settings
+from dzmm.main import create_app
 
 
 def parser() -> argparse.ArgumentParser:
@@ -36,9 +36,9 @@ def main() -> None:
         raise SystemExit("--max-retries must not be negative")
     latencies: list[float] = []
     retries = 0
-    with tempfile.TemporaryDirectory(prefix="dzmm-vnext-long-play-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="dzmm-long-play-") as temporary:
         data_dir = Path(temporary) / "data"
-        os.environ["DZMM_NEXT_DATA_DIR"] = str(data_dir)
+        os.environ["DZMM_DATA_DIR"] = str(data_dir)
         command.upgrade(Config(str(Path(__file__).parents[1] / "backend" / "alembic.ini")), "head")
         app = create_app(Settings(data_dir=data_dir))
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -117,7 +117,7 @@ def main() -> None:
                 raise RuntimeError("long-play recovery state does not match completed turns")
     args.evidence.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real LM Studio provider",
+        "environment": "fresh temporary DZMM_DATA_DIR; FastAPI TestClient; real LM Studio provider",
         "model": args.model,
         "base_url": args.base_url,
         "turns": args.turns,

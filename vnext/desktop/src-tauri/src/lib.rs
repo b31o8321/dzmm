@@ -15,17 +15,17 @@ struct BackendRuntime {
 struct BackendState(Mutex<BackendRuntime>);
 
 fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    if let Some(path) = std::env::var_os("DZMM_NEXT_DATA_DIR") {
+    if let Some(path) = std::env::var_os("DZMM_DATA_DIR") {
         return Ok(path.into());
     }
     app.path()
         .app_data_dir()
-        .map(|path| path.join("v3"))
+        .map(|path| path.join("data"))
         .map_err(|error| format!("app data directory: {error}"))
 }
 
 fn backend_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    if let Some(path) = std::env::var_os("DZMM_NEXT_BACKEND_PATH") {
+    if let Some(path) = std::env::var_os("DZMM_BACKEND_PATH") {
         return Ok(path.into());
     }
     let resource_dir = app
@@ -33,18 +33,18 @@ fn backend_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .resource_dir()
         .map_err(|error| format!("resource directory: {error}"))?;
     let executable = if cfg!(windows) {
-        "dzmm-next-backend.exe"
+        "dzmm-backend.exe"
     } else {
-        "dzmm-next-backend"
+        "dzmm-backend"
     };
     Ok(resource_dir
         .join("backend-runtime")
-        .join("dzmm-next-backend")
+        .join("dzmm-backend")
         .join(executable))
 }
 
 fn backend_port() -> String {
-    if let Ok(configured) = std::env::var("DZMM_NEXT_PORT") {
+    if let Ok(configured) = std::env::var("DZMM_PORT") {
         return configured;
     }
     if TcpListener::bind(("127.0.0.1", 8765)).is_ok() {
@@ -89,9 +89,9 @@ fn start_runtime(app: &tauri::AppHandle, runtime: &mut BackendRuntime) -> Result
         .try_clone()
         .map_err(|error| format!("prepare DZMM error log {}: {error}", log_path.display()))?;
     let child = Command::new(&executable)
-        .env("DZMM_NEXT_DATA_DIR", &app_data)
-        .env("DZMM_NEXT_PORT", &port)
-        .env("DZMM_NEXT_PARENT_PID", parent_pid)
+        .env("DZMM_DATA_DIR", &app_data)
+        .env("DZMM_PORT", &port)
+        .env("DZMM_PARENT_PID", parent_pid)
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(error_log))

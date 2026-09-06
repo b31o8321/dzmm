@@ -1,12 +1,12 @@
 import json
 from copy import deepcopy
 
-from dzmm_vnext.generated_world_repair import (
+from dzmm.generated_world_repair import (
     map_to_safe_story_skeleton,
     repair_generated_definition,
 )
-from dzmm_vnext.story_beats import build_opening_story_beat
-from dzmm_vnext.world_templates import fog_harbor_template
+from dzmm.story_beats import build_opening_story_beat
+from dzmm.world_templates import fog_harbor_template
 
 
 def test_generated_definition_repairs_only_derivable_links_on_a_copy() -> None:

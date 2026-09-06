@@ -7,8 +7,8 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from dzmm_vnext.core_runtime import CoreRuntimeError, LocalCoreRuntime
-from dzmm_vnext.world_templates import fog_harbor_template
+from dzmm.core_runtime import CoreRuntimeError, LocalCoreRuntime
+from dzmm.world_templates import fog_harbor_template
 
 
 _runtimes: dict[str, LocalCoreRuntime] = {}

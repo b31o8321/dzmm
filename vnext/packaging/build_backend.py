@@ -27,12 +27,12 @@ def _available_loopback_port() -> int:
 
 
 def smoke_test(output: Path, data_dir: Path) -> None:
-    executable = output / ("dzmm-next-backend.exe" if os.name == "nt" else "dzmm-next-backend")
+    executable = output / ("dzmm-backend.exe" if os.name == "nt" else "dzmm-backend")
     port = _available_loopback_port()
     environment = os.environ.copy()
     environment.update(
-        DZMM_NEXT_DATA_DIR=str(data_dir),
-        DZMM_NEXT_PORT=str(port),
+        DZMM_DATA_DIR=str(data_dir),
+        DZMM_PORT=str(port),
     )
     process = subprocess.Popen(
         [str(executable)],
@@ -51,7 +51,7 @@ def smoke_test(output: Path, data_dir: Path) -> None:
                     f"http://127.0.0.1:{port}/health", timeout=0.5
                 ) as response:
                     payload = json.loads(response.read().decode("utf-8"))
-                if payload.get("app") == "dzmm-next" and payload.get("storage") == "local":
+                if payload.get("app") == "dzmm" and payload.get("storage") == "local":
                     return
                 raise RuntimeError(f"unexpected packaged backend health response: {payload}")
             except OSError:
@@ -93,15 +93,20 @@ def verify_clean_migrations(output: Path) -> None:
 
 def main() -> None:
     RUNTIME.mkdir(parents=True, exist_ok=True)
-    output = RUNTIME / "dzmm-next-backend"
+    output = RUNTIME / "dzmm-backend"
     if output.is_dir():
         shutil.rmtree(output)
     elif output.exists():
         output.unlink()
-    with tempfile.TemporaryDirectory(prefix="dzmm-next-pyinstaller-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="dzmm-pyinstaller-") as temp_dir:
         temporary = Path(temp_dir)
         staged_migrations = temporary / "migrations"
         stage_migrations(BACKEND / "migrations", staged_migrations)
+        # The repo also contains the legacy backend whose package is also named
+        # `dzmm`; a leaked PYTHONPATH would let the legacy tree shadow this one
+        # during module analysis, so the packaging subprocess runs without it.
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
         subprocess.check_call(
             [
                 sys.executable,
@@ -111,7 +116,7 @@ def main() -> None:
                 "--clean",
                 "--onedir",
                 "--name",
-                "dzmm-next-backend",
+                "dzmm-backend",
                 "--paths",
                 str(BACKEND / "src"),
                 # The shared core exposes desktop services through lazy imports so
@@ -119,7 +124,7 @@ def main() -> None:
                 # SQLAlchemy. PyInstaller cannot discover those import_module calls
                 # statically, so collect the package as a single runtime boundary.
                 "--collect-submodules",
-                "dzmm_vnext",
+                "dzmm",
                 "--hidden-import",
                 "aiosqlite",
                 "--collect-submodules",
@@ -137,7 +142,8 @@ def main() -> None:
                 "--specpath",
                 str(temporary / "spec"),
                 str(ENTRYPOINT),
-            ]
+            ],
+            env=environment,
         )
         verify_clean_migrations(output)
         smoke_test(output, temporary / "smoke-data")

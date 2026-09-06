@@ -9,7 +9,7 @@ async function waitForHealth(origin: string): Promise<void> {
     try {
       const response = await fetch(`${origin}/health`, { cache: 'no-store' })
       const health = (await response.json()) as { app?: string }
-      if (response.ok && health.app === 'dzmm-next') return
+      if (response.ok && health.app === 'dzmm') return
     } catch {
       // The sidecar can take several seconds to unpack and migrate on first launch.
     }

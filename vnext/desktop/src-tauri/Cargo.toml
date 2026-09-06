@@ -1,5 +1,5 @@
 [package]
-name = "dzmm-next-desktop"
+name = "dzmm-desktop"
 version = "0.1.0"
 description = "DZMM macOS host"
 edition = "2021"

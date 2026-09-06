@@ -128,9 +128,9 @@ jobs:
             exit 1
           fi
 
-          BACKEND=$(find "$APP/Contents/Resources" -name 'dzmm-next-backend' -type f | head -1)
+          BACKEND=$(find "$APP/Contents/Resources" -name 'dzmm-backend' -type f | head -1)
           if [ -z "$BACKEND" ]; then
-            echo "::error::dzmm-next-backend missing from .app resources"
+            echo "::error::dzmm-backend missing from .app resources"
             ls -la "$APP/Contents/Resources/" | head -20
             exit 1
           fi
@@ -166,8 +166,8 @@ jobs:
           head -100 /tmp/nsis_contents.txt
           echo "::endgroup::"
 
-          if ! grep -q 'dzmm-next-backend.exe' /tmp/nsis_contents.txt; then
-            echo "::error::dzmm-next-backend.exe not found in NSIS installer"
+          if ! grep -q 'dzmm-backend.exe' /tmp/nsis_contents.txt; then
+            echo "::error::dzmm-backend.exe not found in NSIS installer"
             exit 1
           fi
 
@@ -176,30 +176,30 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::EXE smoke OK: $SIZE bytes, dzmm-next-backend.exe + Python runtime present"
+          echo "::notice::EXE smoke OK: $SIZE bytes, dzmm-backend.exe + Python runtime present"
 
       - name: smoke packaged Local Host sidecar (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           set -euo pipefail
-          SIDECAR="vnext/desktop/src-tauri/backend-runtime/dzmm-next-backend/dzmm-next-backend.exe"
-          DATA_DIR="$RUNNER_TEMP/dzmm-next-windows-sidecar"
+          SIDECAR="vnext/desktop/src-tauri/backend-runtime/dzmm-backend/dzmm-backend.exe"
+          DATA_DIR="$RUNNER_TEMP/dzmm-windows-sidecar"
           PORT=18765
           mkdir -p "$DATA_DIR"
-          DZMM_NEXT_DATA_DIR="$DATA_DIR" DZMM_NEXT_PORT="$PORT" "$SIDECAR" >/tmp/dzmm-next-sidecar.log 2>&1 &
+          DZMM_DATA_DIR="$DATA_DIR" DZMM_PORT="$PORT" "$SIDECAR" >/tmp/dzmm-sidecar.log 2>&1 &
           PID=$!
           trap 'kill "$PID" 2>/dev/null || true' EXIT
           for _ in $(seq 1 60); do
-            if curl --fail --silent "http://127.0.0.1:${PORT}/health" > /tmp/dzmm-next-health.json; then
-              grep -q '"storage":"local"' /tmp/dzmm-next-health.json
-              grep -q '"host":"127.0.0.1"' /tmp/dzmm-next-health.json
+            if curl --fail --silent "http://127.0.0.1:${PORT}/health" > /tmp/dzmm-health.json; then
+              grep -q '"storage":"local"' /tmp/dzmm-health.json
+              grep -q '"host":"127.0.0.1"' /tmp/dzmm-health.json
           echo "::notice::Windows packaged sidecar Local Host health OK"
               exit 0
             fi
             sleep 1
           done
-          cat /tmp/dzmm-next-sidecar.log || true
+          cat /tmp/dzmm-sidecar.log || true
           echo "::error::Windows packaged sidecar did not become healthy"
           exit 1
 
@@ -210,18 +210,18 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $installer = Get-ChildItem 'vnext/desktop/src-tauri/target/release/bundle/nsis' -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'NSIS installer not found' }
-          $installDir = Join-Path $env:RUNNER_TEMP 'dzmm-next-installed'
-          $dataDir = Join-Path $env:RUNNER_TEMP 'dzmm-next-installed-data'
+          $installDir = Join-Path $env:RUNNER_TEMP 'dzmm-installed'
+          $dataDir = Join-Path $env:RUNNER_TEMP 'dzmm-installed-data'
           New-Item -ItemType Directory -Force -Path $installDir, $dataDir | Out-Null
           Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -NoNewWindow
 
           $app = Get-ChildItem $installDir -Recurse -Filter '*.exe' |
-            Where-Object { $_.Name -notin @('dzmm-next-backend.exe', 'uninstall.exe', 'Uninstall.exe') } |
+            Where-Object { $_.Name -notin @('dzmm-backend.exe', 'uninstall.exe', 'Uninstall.exe') } |
             Select-Object -First 1
           if (-not $app) { throw "Installed DZMM executable not found under $installDir" }
 
-          $env:DZMM_NEXT_DATA_DIR = $dataDir
-          $env:DZMM_NEXT_PORT = '18766'
+          $env:DZMM_DATA_DIR = $dataDir
+          $env:DZMM_PORT = '18766'
           $process = Start-Process -FilePath $app.FullName -WorkingDirectory $app.DirectoryName -PassThru
           try {
             $healthy = $false
@@ -239,7 +239,7 @@ jobs:
             Write-Host '::notice::Installed Windows app Local Host startup OK'
           } finally {
             if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-            Get-Process -Name 'dzmm-next-backend' -ErrorAction SilentlyContinue | Stop-Process -Force
+            Get-Process -Name 'dzmm-backend' -ErrorAction SilentlyContinue | Stop-Process -Force
           }
 
       - name: upload artifact

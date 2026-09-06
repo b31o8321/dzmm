@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:dzmm_next_mobile/local_host_port.dart';
-import 'package:dzmm_next_mobile/main.dart';
-import 'package:dzmm_next_mobile/session_store.dart';
+import 'package:dzmm_mobile/local_host_port.dart';
+import 'package:dzmm_mobile/main.dart';
+import 'package:dzmm_mobile/session_store.dart';
 
 class _MemoryStore implements SessionStore {
   LocalSession session = const LocalSession();

@@ -21,7 +21,7 @@ def test_local_host_adapters_cover_every_contract_operation() -> None:
         / "kotlin"
         / "local"
         / "dzmm"
-        / "dzmm_next_mobile"
+        / "mobile"
         / "MainActivity.kt"
     ).read_text(encoding="utf-8")
     desktop = (ROOT / "desktop" / "src" / "api.ts").read_text(encoding="utf-8")
@@ -123,7 +123,7 @@ def test_android_model_operations_run_off_the_ui_thread() -> None:
         / "kotlin"
         / "local"
         / "dzmm"
-        / "dzmm_next_mobile"
+        / "mobile"
         / "MainActivity.kt"
     ).read_text(encoding="utf-8")
     background_block = kotlin.split("private val backgroundOperations = setOf(", 1)[1].split(")", 1)[0]

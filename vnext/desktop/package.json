@@ -1,5 +1,5 @@
 {
-  "name": "@dzmm-next/desktop",
+  "name": "@dzmm/desktop",
   "private": true,
   "version": "0.1.0",
   "type": "module",

@@ -5,8 +5,8 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 
-from dzmm_vnext.config import Settings
-from dzmm_vnext.main import create_app
+from dzmm.config import Settings
+from dzmm.main import create_app
 
 
 def _compose_payload() -> dict[str, object]:
@@ -41,7 +41,7 @@ def _compose_payload() -> dict[str, object]:
 
 def test_runtime_database_backup_restore_reopens_world(tmp_path: Path, monkeypatch) -> None:
     data_dir = tmp_path / "runtime-data"
-    monkeypatch.setenv("DZMM_NEXT_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("DZMM_DATA_DIR", str(data_dir))
     command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
     settings = Settings(data_dir=data_dir)
     database = settings.database_path
@@ -50,7 +50,7 @@ def test_runtime_database_backup_restore_reopens_world(tmp_path: Path, monkeypat
         response = client.post("/api/v2/worlds:compose", json=_compose_payload())
         assert response.status_code == 201, response.text
         world_id = response.json()["world_id"]
-        backup = tmp_path / "dzmm-next.db.backup"
+        backup = tmp_path / "dzmm-v3.db.backup"
         shutil.copy2(database, backup)
 
     restored_dir = tmp_path / "restored-data"

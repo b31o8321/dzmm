@@ -8,13 +8,13 @@ from threading import Event
 
 import pytest
 
-from dzmm_vnext.ai_world_drafts import (
+from dzmm.ai_world_drafts import (
     AIWorldDraftGenerationError,
     AIWorldDraftInput,
     AIWorldDraftService,
     _normalize_creative_source_payload,
 )
-from dzmm_vnext.model_profiles import ModelProfile, NarrationError, ProviderType
+from dzmm.model_profiles import ModelProfile, NarrationError, ProviderType
 
 
 def table_counts(database: Path) -> dict[str, int]:

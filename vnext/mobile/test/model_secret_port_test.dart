@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:dzmm_next_mobile/local_host_port.dart';
-import 'package:dzmm_next_mobile/model_secret_store.dart';
+import 'package:dzmm_mobile/local_host_port.dart';
+import 'package:dzmm_mobile/model_secret_store.dart';
 
 class _MemoryModelSecrets implements ModelSecretStore {
   final values = <String, String>{};
@@ -100,7 +100,7 @@ void main() {
             throw PlatformException(
               code: 'python_error',
               message:
-                  'dzmm_vnext.core_runtime_errors.CoreRuntimeError: '
+                  'dzmm.core_runtime_errors.CoreRuntimeError: '
                   '模型在 120 秒内没有返回内容。当前操作未完成。',
             );
           });

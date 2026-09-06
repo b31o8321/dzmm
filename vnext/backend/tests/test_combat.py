@@ -2,9 +2,9 @@ from pathlib import Path
 
 from jsonschema import validate as validate_schema
 
-from dzmm_vnext.core.combat import apply_attack, combat_rules
-from dzmm_vnext.core.command_engine import apply_commands
-from dzmm_vnext.narrative import initial_state
+from dzmm.core.combat import apply_attack, combat_rules
+from dzmm.core.command_engine import apply_commands
+from dzmm.narrative import initial_state
 
 CONTRACT = Path(__file__).parents[2] / "contracts" / "run_state.schema.json"
 
@@ -56,7 +56,7 @@ def test_ruleset_overrides_merge_role_by_role() -> None:
 
 
 def test_hit_applies_damage_and_persists_participants(monkeypatch) -> None:
-    from dzmm_vnext.core import combat
+    from dzmm.core import combat
 
     state = _state()
     monkeypatch.setattr(combat, "randbelow", _rolls(14, 4))  # attack roll, damage roll
@@ -80,7 +80,7 @@ def test_hit_applies_damage_and_persists_participants(monkeypatch) -> None:
 
 
 def test_fumble_always_misses_and_crit_doubles_damage(monkeypatch) -> None:
-    from dzmm_vnext.core import combat
+    from dzmm.core import combat
 
     state = _state()
     monkeypatch.setattr(combat, "randbelow", _rolls(1, 6, 6))
@@ -95,8 +95,8 @@ def test_fumble_always_misses_and_crit_doubles_damage(monkeypatch) -> None:
 
 
 def test_defeated_target_rejects_further_attacks(monkeypatch) -> None:
-    from dzmm_vnext.core import combat
-    from dzmm_vnext.narrative import NarrativeRuleError
+    from dzmm.core import combat
+    from dzmm.narrative import NarrativeRuleError
 
     state = _state()
     monkeypatch.setattr(combat, "randbelow", _rolls(20, 6, 6))
@@ -109,7 +109,7 @@ def test_defeated_target_rejects_further_attacks(monkeypatch) -> None:
 
 
 def test_ruleset_override_changes_hit_threshold(monkeypatch) -> None:
-    from dzmm_vnext.core import combat
+    from dzmm.core import combat
 
     definition = _definition()
     definition["ruleset"]["combat_rules"] = {"npc": {"ac": 25}}
@@ -120,7 +120,7 @@ def test_ruleset_override_changes_hit_threshold(monkeypatch) -> None:
 
 
 def test_npc_can_attack_hero_with_definition_stats(monkeypatch) -> None:
-    from dzmm_vnext.core import combat
+    from dzmm.core import combat
 
     state = _state()
     # brute: +4 bonus, 2d4+1 damage; hero AC 12
@@ -131,7 +131,7 @@ def test_npc_can_attack_hero_with_definition_stats(monkeypatch) -> None:
 
 
 def test_unknown_participant_and_self_target_are_rejected() -> None:
-    from dzmm_vnext.narrative import NarrativeRuleError
+    from dzmm.narrative import NarrativeRuleError
 
     state = _state()
     for payload in ({"target_id": "ghost"}, {"attacker_id": "hero", "target_id": "hero"}):
@@ -163,7 +163,7 @@ def test_command_engine_gates_attack_behind_combat_capability() -> None:
 
 
 def test_command_engine_applies_attack_and_audits_outcome(monkeypatch) -> None:
-    from dzmm_vnext.core import combat
+    from dzmm.core import combat
 
     definition = _definition()
     state = initial_state(definition, {"id": "hero", "name": "旅人", "profile": {}})

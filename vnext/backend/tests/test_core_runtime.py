@@ -1,6 +1,6 @@
 import pytest
 
-from dzmm_vnext.core_runtime import (
+from dzmm.core_runtime import (
     CoreRuntimeError,
     LocalCoreRuntime,
     _narrative_chapter_context,
@@ -9,8 +9,8 @@ from dzmm_vnext.core_runtime import (
     _narrative_outcome_context,
     _narrative_world_material,
 )
-from dzmm_vnext.story_beats import build_opening_story_beat
-from dzmm_vnext.world_templates import fog_harbor_template
+from dzmm.story_beats import build_opening_story_beat
+from dzmm.world_templates import fog_harbor_template
 
 
 def test_opening_story_beat_contains_scene_dialogue_objective_and_guidance() -> None:
@@ -496,7 +496,7 @@ def test_model_draft_type_error_maps_to_explainable_safe_skeleton(tmp_path, monk
     import json
     from copy import deepcopy
 
-    from dzmm_vnext import core_runtime
+    from dzmm import core_runtime
 
     payload = fog_harbor_template()
     payload["world_definition"] = deepcopy(payload["world_definition"])
@@ -524,7 +524,7 @@ def test_model_draft_type_error_maps_to_explainable_safe_skeleton(tmp_path, monk
 def test_android_core_uses_ephemeral_api_key_without_persisting_it(tmp_path, monkeypatch) -> None:
     import sqlite3
 
-    from dzmm_vnext import embedded_model_profiles
+    from dzmm import embedded_model_profiles
 
     seen = {}
 

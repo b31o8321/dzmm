@@ -13,8 +13,8 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 
-from dzmm_vnext.config import Settings
-from dzmm_vnext.main import create_app
+from dzmm.config import Settings
+from dzmm.main import create_app
 
 
 def main() -> None:
@@ -24,9 +24,9 @@ def main() -> None:
     args = parser.parse_args()
     if args.turns < 1:
         raise SystemExit("--turns must be positive")
-    with tempfile.TemporaryDirectory(prefix="dzmm-vnext-reopen-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="dzmm-reopen-") as temporary:
         data_dir = Path(temporary) / "data"
-        os.environ["DZMM_NEXT_DATA_DIR"] = str(data_dir)
+        os.environ["DZMM_DATA_DIR"] = str(data_dir)
         command.upgrade(Config(str(Path(__file__).parents[1] / "backend" / "alembic.ini")), "head")
         app = create_app(Settings(data_dir=data_dir))
         with TestClient(app) as client:
@@ -81,7 +81,7 @@ def main() -> None:
             if len(snapshot["turns"]) != args.turns or snapshot["state"]["revision"] != args.turns:
                 raise RuntimeError("reopened run does not contain every persisted turn")
             payload = {
-                "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; deterministic narrator",
+                "environment": "fresh temporary DZMM_DATA_DIR; FastAPI TestClient; deterministic narrator",
                 "persisted_turns": args.turns,
                 "reopen_seconds": round(elapsed, 3),
                 "response_bytes": len(reopened.content),

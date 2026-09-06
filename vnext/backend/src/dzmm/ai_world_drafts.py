@@ -403,7 +403,7 @@ def validate_world_draft(definition: dict[str, Any], hero: dict[str, Any]) -> AI
 def _generation_prompt(payload: AIWorldDraftInput) -> dict[str, Any]:
     return {
         "system": (
-            "你是 DZMM vNext 的世界创作草案员。只输出一个 JSON 对象，不要 Markdown、解释、"
+            "你是 DZMM 的世界创作草案员。只输出一个 JSON 对象，不要 Markdown、解释、"
             "代码、命令、规则、状态、正则、脚本或 Python。JSON 只能含 world_name、summary、hero、"
             "locations、characters、lore、npcs、factions、events、location_links、campaign。hero 只能含 name 和 origin；"
             "locations 是 2 到 3 个名称；"

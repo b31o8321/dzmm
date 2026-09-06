@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_DATA_DIR = Path.home() / ".dzmm-vnext-v3"
+DEFAULT_DATA_DIR = Path.home() / ".dzmm"
 
 
 @dataclass(frozen=True)
@@ -14,7 +14,7 @@ class Settings:
 
     @property
     def database_path(self) -> Path:
-        return self.data_dir / "dzmm-next.db"
+        return self.data_dir / "dzmm-v3.db"
 
     @property
     def database_url(self) -> str:
@@ -26,8 +26,8 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
-        value = os.environ.get("DZMM_NEXT_DATA_DIR")
-        port = int(os.environ.get("DZMM_NEXT_PORT", "8765"))
+        value = os.environ.get("DZMM_DATA_DIR")
+        port = int(os.environ.get("DZMM_PORT", "8765"))
         return cls(
             data_dir=Path(value).expanduser() if value else DEFAULT_DATA_DIR,
             port=port,

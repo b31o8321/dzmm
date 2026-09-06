@@ -1,6 +1,6 @@
 import pytest
 
-from dzmm_vnext.model_protocol import chat_content, chat_endpoint, probe_body
+from dzmm.model_protocol import chat_content, chat_endpoint, probe_body
 
 
 def test_chat_endpoint_keeps_provider_protocol_boundaries() -> None:

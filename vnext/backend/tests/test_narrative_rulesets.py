@@ -617,7 +617,7 @@ def test_choice_maps_model_narration_failure_without_committing_state(
     client, _ = migrated_client
 
     async def failing_narrate(*_args, **_kwargs):
-        from dzmm_vnext.model_profiles import NarrationError
+        from dzmm.model_profiles import NarrationError
 
         raise NarrationError("model connection failed: timed out")
 

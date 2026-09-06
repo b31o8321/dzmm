@@ -3,9 +3,9 @@ import urllib.error
 
 import pytest
 
-from dzmm_vnext import embedded_model_requests
-from dzmm_vnext.core_runtime_errors import CoreRuntimeError
-from dzmm_vnext.embedded_model_requests import (
+from dzmm import embedded_model_requests
+from dzmm.core_runtime_errors import CoreRuntimeError
+from dzmm.embedded_model_requests import (
     clean_model_narrative,
     request_narrative,
     request_world_draft,

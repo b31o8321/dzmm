@@ -1,4 +1,4 @@
-from dzmm_vnext.narrative import (
+from dzmm.narrative import (
     advance_world_events,
     apply_gm_actions,
     extract_npc_dialogues,
@@ -7,8 +7,8 @@ from dzmm_vnext.narrative import (
     settle_pending_interactions,
     settle_world_events,
 )
-from dzmm_vnext.narrative_output import clean_narrative_output, extract_gm_actions
-from dzmm_vnext.story_beats import _state_feedback, build_turn_story_beat
+from dzmm.narrative_output import clean_narrative_output, extract_gm_actions
+from dzmm.story_beats import _state_feedback, build_turn_story_beat
 
 
 def _definition() -> dict:

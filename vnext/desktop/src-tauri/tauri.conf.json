@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DZMM",
   "version": "0.1.0",
-  "identifier": "local.dzmm.next",
+  "identifier": "local.dzmm",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5182",

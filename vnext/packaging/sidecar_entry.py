@@ -1,4 +1,4 @@
-from dzmm_vnext.sidecar import main
+from dzmm.sidecar import main
 
 
 main()

@@ -14,9 +14,9 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 
-from dzmm_vnext.config import Settings
-from dzmm_vnext.main import create_app
-from dzmm_vnext.world_templates import fog_harbor_template
+from dzmm.config import Settings
+from dzmm.main import create_app
+from dzmm.world_templates import fog_harbor_template
 
 
 def parser() -> argparse.ArgumentParser:
@@ -32,9 +32,9 @@ def main() -> None:
     latencies: list[float] = []
     narratives: list[str] = []
     choices = ["rescue-lan", "lan-testimony", "open-tide-gate"]
-    with tempfile.TemporaryDirectory(prefix="dzmm-vnext-fog-harbor-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="dzmm-fog-harbor-") as temporary:
         data_dir = Path(temporary) / "data"
-        os.environ["DZMM_NEXT_DATA_DIR"] = str(data_dir)
+        os.environ["DZMM_DATA_DIR"] = str(data_dir)
         command.upgrade(Config(str(Path(__file__).parents[1] / "backend" / "alembic.ini")), "head")
         app = create_app(Settings(data_dir=data_dir))
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -81,7 +81,7 @@ def main() -> None:
             if state["revision"] != len(choices) or state["ending"]["id"] != "lan-dawn":
                 raise RuntimeError("Fog Harbor did not reach the expected good ending")
     payload = {
-        "environment": "fresh temporary DZMM_NEXT_DATA_DIR; FastAPI TestClient; real LM Studio provider",
+        "environment": "fresh temporary DZMM_DATA_DIR; FastAPI TestClient; real LM Studio provider",
         "model": args.model,
         "base_url": args.base_url,
         "choices": choices,

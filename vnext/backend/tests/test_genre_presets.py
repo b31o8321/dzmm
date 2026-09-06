@@ -1,5 +1,5 @@
-from dzmm_vnext.ai_world_drafts import AIWorldDraftInput, _generation_prompt
-from dzmm_vnext.genre_presets import genre_preset_list, resolve_genre
+from dzmm.ai_world_drafts import AIWorldDraftInput, _generation_prompt
+from dzmm.genre_presets import genre_preset_list, resolve_genre
 
 
 def _input(genre: str) -> AIWorldDraftInput:

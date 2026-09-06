@@ -6,7 +6,7 @@ from threading import Event
 import httpx
 import pytest
 
-from dzmm_vnext.model_profiles import (
+from dzmm.model_profiles import (
     ModelDraftGenerator,
     ModelNarrator,
     ModelProber,

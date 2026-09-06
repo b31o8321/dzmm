@@ -1,4 +1,4 @@
-package local.dzmm.dzmm_next_mobile
+package local.dzmm.mobile
 
 import com.chaquo.python.PyException
 import com.chaquo.python.Python

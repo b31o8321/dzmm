@@ -4,7 +4,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
-from dzmm_vnext.config import Settings
+from dzmm.config import Settings
 
 
 config = context.config

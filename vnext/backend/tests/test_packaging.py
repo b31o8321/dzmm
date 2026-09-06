@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).parents[2] / "packaging" / "build_backend.py"
-SPEC = spec_from_file_location("dzmm_next_build_backend", SCRIPT)
+SPEC = spec_from_file_location("dzmm_build_backend", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 build_backend = module_from_spec(SPEC)
 SPEC.loader.exec_module(build_backend)

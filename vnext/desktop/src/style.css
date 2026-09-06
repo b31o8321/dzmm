@@ -23,7 +23,7 @@
   color: var(--ink);
   background: var(--canvas);
   color-scheme: dark;
-  font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", sans-serif;
 }
 :root[data-theme="paper"] {
   --canvas: #f2eee5;
@@ -92,7 +92,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--canvas);
+  background:
+    radial-gradient(circle at 12% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 34rem),
+    var(--canvas);
 }
 button,
 input,
@@ -104,6 +106,7 @@ button {
   cursor: pointer;
   touch-action: manipulation;
   border: 0;
+  border-radius: 9px;
   color: var(--canvas);
   background: var(--accent);
   padding: 13px 18px;
@@ -122,7 +125,7 @@ a:focus-visible {
   outline-offset: 3px;
 }
 .shell {
-  width: min(1120px, calc(100% - 40px));
+  width: min(1320px, calc(100% - 48px));
   margin: 0 auto;
   padding: 26px 0 80px;
 }
@@ -143,6 +146,7 @@ h1,
 h2,
 h3 {
   text-wrap: balance;
+  font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif;
 }
 .masthead {
   display: grid;
@@ -153,6 +157,14 @@ h3 {
   font-family: "DM Mono", monospace;
   font-size: 12px;
   letter-spacing: 0.08em;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 68px;
+  margin-top: -26px;
+  padding-top: 18px;
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+  backdrop-filter: blur(18px);
 }
 .masthead p {
   margin: 0;
@@ -182,6 +194,7 @@ h3 {
   padding: 3px;
   border: 1px solid var(--line);
   background: var(--surface);
+  border-radius: 10px;
 }
 .workspace-nav button {
   padding: 6px 9px;
@@ -189,7 +202,8 @@ h3 {
   color: var(--muted);
   font:
     11px "DM Mono",
-    monospace;
+  monospace;
+  border-radius: 7px;
 }
 .workspace-nav button.active {
   background: var(--surface-selected);
@@ -302,7 +316,8 @@ h3 {
   padding: clamp(24px, 4vw, 42px);
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  box-shadow: 13px 13px 0 var(--shadow);
+  border-radius: 14px;
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--shadow) 65%, transparent);
 }
 .settings-panel h2 {
   margin: 0;
@@ -506,7 +521,8 @@ h3 {
   padding: 34px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  box-shadow: 13px 13px 0 var(--shadow);
+  border-radius: 14px;
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--shadow) 65%, transparent);
 }
 .ledger-card::before {
   content: "WORLD / 01";

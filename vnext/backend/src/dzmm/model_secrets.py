@@ -16,7 +16,7 @@ class ModelSecretStore(Protocol):
 class KeyringModelSecretStore:
     """Keep model credentials out of SQLite and portable bundles."""
 
-    service = "local.dzmm.next.model"
+    service = "local.dzmm.model"
 
     def get(self, reference: str) -> str | None:
         import keyring

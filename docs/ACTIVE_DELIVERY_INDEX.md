@@ -41,6 +41,18 @@ World 继续或新建 Run、先看到有角色和引导的开场、理解 LLM �
 
 **对照 85 分门槛的差距**：桌面旅程 93（phase197，合并后候选）、Android 92（phase195）；**剩余阻断项仅一项**：Tauri 包装窗口在本候选上的可见走查（等 TCC 授权）+ Wave2 第 5 项（统一命名/数据目录 ADR，属 M3）。
 
+## 2026-09-05 M3 命名统一与数据目录归一（ADR-011）
+
+[ADR-011：单一产品命名与数据目录统一](adr/ADR-011-single-brand-and-data-dir.md) 已定案并实施：
+
+- Python 包 `dzmm_vnext` → `dzmm`；发行名/二进制 `dzmm-next-backend` → `dzmm-backend`；/health `app=dzmm`。
+- 默认数据目录 `~/.dzmm-vnext-v3/` → `~/.dzmm/`，数据库文件 `dzmm-next.db` → `dzmm-v3.db`（与旧版 `dzmm.db` 同目录但不同名，旧库不读不写不迁移）。
+- 环境变量 `DZMM_NEXT_*` → `DZMM_*`；Tauri 标识 `local.dzmm.next` → `local.dzmm`（桌面数据目录 `app_data_dir()/data`）；Android `local.dzmm.dzmm_next_mobile` → `local.dzmm.mobile`；桌面持久化键 `dzmm-next:*` → `dzmm:*`（保留 LEGACY 键一次性迁移）。
+- 品牌串清零（"DZMM vNext"/"Next 数据"等）；CI release.yml、打包脚本、eval 脚本、契约注释全部同步；`build_backend.py` 增加 PYTHONPATH 隔离（防止旧版同名 `dzmm` 包在本仓库内抢解析）。
+- 历史证据 JSON 保留原命名不改写。
+
+验证：backend 169 passed + ruff 全绿；desktop vitest 36/36 + build 通过；flutter 25/25；重命名后 sidecar 重打包冒烟通过（`app=dzmm`，`DZMM_DATA_DIR`/`DZMM_PORT` 生效）。已知影响：预览期桌面持久化与旧数据目录"看起来清空"（数据保留在旧路径）；Android 需以新 applicationId 重装。
+
 ## Canonical artifacts
 
 - [ADR-008：每个平台都是 Local Host](adr/ADR-008-local-host-on-every-platform.md)

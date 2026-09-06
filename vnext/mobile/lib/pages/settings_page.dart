@@ -102,7 +102,7 @@ class _SettingsPageState extends State<SettingsPage> {
       const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('此设备独立保存并运行游戏。旧版 DZMM 存档不会自动迁移或覆盖 Next 数据；需要带入内容时，请使用世界包或旅程快照。不会扫描电脑、局域网服务或二维码，也不会自动同步正在游玩的旅程。'),
+          child: Text('此设备独立保存并运行游戏。旧版 DZMM 存档不会自动迁移或覆盖本机数据；需要带入内容时，请使用世界包或旅程快照。不会扫描电脑、局域网服务或二维码，也不会自动同步正在游玩的旅程。'),
         ),
       ),
       const SizedBox(height: 20),

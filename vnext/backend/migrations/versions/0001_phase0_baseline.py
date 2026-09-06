@@ -27,7 +27,7 @@ def upgrade() -> None:
             sa.column("value", sa.String),
         ),
         [
-            {"key": "app", "value": "dzmm-next"},
+            {"key": "app", "value": "dzmm"},
             {"key": "api_version", "value": "2"},
             {"key": "contract_version", "value": "2026-08-16"},
         ],

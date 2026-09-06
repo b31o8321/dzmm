@@ -77,27 +77,27 @@ def migrate() -> None:
 
 
 def host_port() -> tuple[str, int]:
-    host = os.environ.get("DZMM_NEXT_HOST", "127.0.0.1")
-    value = os.environ.get("DZMM_NEXT_PORT", "8765")
+    host = os.environ.get("DZMM_HOST", "127.0.0.1")
+    value = os.environ.get("DZMM_PORT", "8765")
     try:
         port = int(value)
     except ValueError as error:
-        raise ValueError("DZMM_NEXT_PORT must be an integer") from error
+        raise ValueError("DZMM_PORT must be an integer") from error
     if not 1 <= port <= 65535:
-        raise ValueError("DZMM_NEXT_PORT must be between 1 and 65535")
+        raise ValueError("DZMM_PORT must be between 1 and 65535")
     return host, port
 
 
 def parent_pid() -> int | None:
-    value = os.environ.get("DZMM_NEXT_PARENT_PID")
+    value = os.environ.get("DZMM_PARENT_PID")
     if value is None:
         return None
     try:
         pid = int(value)
     except ValueError as error:
-        raise ValueError("DZMM_NEXT_PARENT_PID must be an integer") from error
+        raise ValueError("DZMM_PARENT_PID must be an integer") from error
     if pid <= 0:
-        raise ValueError("DZMM_NEXT_PARENT_PID must be positive")
+        raise ValueError("DZMM_PARENT_PID must be positive")
     return pid
 
 

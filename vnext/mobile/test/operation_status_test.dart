@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:dzmm_next_mobile/local_host_port.dart';
-import 'package:dzmm_next_mobile/widgets/operation_status.dart';
+import 'package:dzmm_mobile/local_host_port.dart';
+import 'package:dzmm_mobile/widgets/operation_status.dart';
 
 void main() {
   testWidgets('announces model stage and elapsed time to assistive tech', (

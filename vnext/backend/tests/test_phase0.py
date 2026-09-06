@@ -9,9 +9,9 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from jsonschema import ValidationError
 
-from dzmm_vnext.config import Settings
-from dzmm_vnext.contracts import contract_manifest, contract_validator, contracts_dir
-from dzmm_vnext.main import create_app
+from dzmm.config import Settings
+from dzmm.contracts import contract_manifest, contract_validator, contracts_dir
+from dzmm.main import create_app
 
 
 def test_contract_manifest_contains_every_vnext_contract() -> None:
@@ -32,13 +32,13 @@ def test_contracts_use_the_sidecar_bundle_root(tmp_path, monkeypatch) -> None:
 
 
 def test_health_uses_isolated_fresh_data_directory(tmp_path) -> None:
-    app = create_app(Settings(data_dir=tmp_path / "dzmm-vnext-test"))
+    app = create_app(Settings(data_dir=tmp_path / "dzmm-test"))
     with TestClient(app) as client:
         response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {
-        "app": "dzmm-next",
+        "app": "dzmm",
         "api_version": 2,
         "contract": contract_manifest(),
         "storage": "local",
@@ -64,7 +64,7 @@ def test_diagnostics_exports_only_aggregate_support_data(migrated_client) -> Non
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["app"] == "dzmm-next"
+    assert payload["app"] == "dzmm"
     assert payload["storage"] == "local"
     assert payload["database"] == {
         "aggregate_counts": {
@@ -194,16 +194,16 @@ def test_contract_validators_reject_incomplete_payloads() -> None:
 
 
 def test_fresh_database_migration_records_vnext_baseline(tmp_path, monkeypatch) -> None:
-    data_dir = tmp_path / "dzmm-vnext-migration"
-    monkeypatch.setenv("DZMM_NEXT_DATA_DIR", str(data_dir))
+    data_dir = tmp_path / "dzmm-migration"
+    monkeypatch.setenv("DZMM_DATA_DIR", str(data_dir))
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
 
     command.upgrade(config, "head")
 
-    with sqlite3.connect(data_dir / "dzmm-next.db") as connection:
+    with sqlite3.connect(data_dir / "dzmm-v3.db") as connection:
         rows = connection.execute("SELECT key, value FROM schema_meta ORDER BY key").fetchall()
     assert rows == [
         ("api_version", "2"),
-        ("app", "dzmm-next"),
+        ("app", "dzmm"),
         ("contract_version", "2026-08-17-content-boundary"),
     ]
