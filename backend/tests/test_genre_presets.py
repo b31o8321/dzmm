@@ -21,6 +21,7 @@ def test_genre_preset_list_exposes_five_canonical_genres() -> None:
         "intrigue",
         "survival",
         "romance",
+        "steampunk_western",
     ]
     for preset in presets:
         assert preset["label"] and preset["tone"] and preset["core_conflict"] and preset["guidance"]
@@ -29,7 +30,7 @@ def test_genre_preset_list_exposes_five_canonical_genres() -> None:
 def test_resolve_genre_expands_preset_id_and_label_but_passes_unknown_through() -> None:
     assert "悬疑探案" in resolve_genre("mystery")
     assert "搜证" in resolve_genre("悬疑探案")
-    assert resolve_genre("蒸汽朋克西部") == "蒸汽朋克西部"
+    assert "对抗与斡旋" in resolve_genre("蒸汽朋克西部")
     assert resolve_genre(" mystery ") == resolve_genre("mystery")
 
 
@@ -38,8 +39,8 @@ def test_generation_prompt_brief_expands_preset_genre() -> None:
     assert "恋爱攻略" in prompt["brief"]["genre"]
     assert prompt["brief"]["tone"] == "克制"
 
-    custom = _generation_prompt(_input("蒸汽朋克西部"))
-    assert custom["brief"]["genre"] == "蒸汽朋克西部"
+    custom = _generation_prompt(_input("雾都孤儿式的循环剧"))
+    assert custom["brief"]["genre"] == "雾都孤儿式的循环剧"
 
 
 def test_genre_presets_served_over_http(migrated_client) -> None:
@@ -47,4 +48,4 @@ def test_genre_presets_served_over_http(migrated_client) -> None:
     response = client.get("/api/v2/genre-presets")
     assert response.status_code == 200
     presets = response.json()
-    assert len(presets) == 5 and presets[0]["id"] == "mystery"
+    assert len(presets) == 6 and presets[0]["id"] == "mystery"

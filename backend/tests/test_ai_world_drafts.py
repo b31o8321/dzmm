@@ -12,6 +12,7 @@ from dzmm.ai_world_drafts import (
     AIWorldDraftGenerationError,
     AIWorldDraftInput,
     AIWorldDraftService,
+    CreativeSource,
     _normalize_creative_source_payload,
 )
 from dzmm.model_profiles import ModelProfile, NarrationError, ProviderType
@@ -519,3 +520,87 @@ def test_ai_draft_requires_a_configured_model_profile(migrated_client) -> None:
             {"path": "model_profile_id", "message": "configured model profile does not exist"}
         ],
     }
+
+
+def test_normalize_strips_npc_only_fields_from_characters() -> None:
+    """真实失败案例（灾难求生）：characters 混入 NPC 专属字段曾被整体拒绝。"""
+
+    payload = {
+        "world_name": "深空货运站",
+        "summary": "失压后的抉择。",
+        "hero": {"name": "老周", "origin": "值班工程师"},
+        "locations": ["货运站A舱", "救生舱"],
+        "characters": [
+            {
+                "name": "晕血站长",
+                "role": "站长",
+                "description": "晕血。",
+                "motivation": "活下去",
+                "location": "货运站A舱",
+                "contact_cooldown_turns": 3,
+                "faction": "站务组",
+                "reputation": 10,
+            },
+            {"name": "货运员", "role": "货运员", "description": "乐观。"},
+        ],
+        "lore": [{"title": "氧气账本", "body": "每人每小时一升。"}],
+    }
+    normalized, repairs = _normalize_creative_source_payload(payload)
+    character = normalized["characters"][0]
+    assert not {"motivation", "location", "contact_cooldown_turns", "faction", "reputation"} & set(character)
+    assert character["name"] == "晕血站长"
+    assert any("NPC 专属字段" in repair for repair in repairs)
+    source = CreativeSource.model_validate(normalized)
+    assert source.characters[0].name == "晕血站长"
+
+
+def test_normalize_strips_event_only_fields_from_lore() -> None:
+    """真实失败案例：lore.0.trigger_turn 属 Extra inputs 曾被整体拒绝。"""
+
+    payload = {
+        "world_name": "深空货运站",
+        "summary": "失压后的抉择。",
+        "hero": {"name": "老周", "origin": "值班工程师"},
+        "locations": ["货运站A舱", "救生舱"],
+        "characters": [
+            {"name": "晕血站长", "role": "站长", "description": "晕血。"},
+            {"name": "货运员", "role": "货运员", "description": "乐观。"},
+        ],
+        "lore": [
+            {
+                "title": "氧气账本",
+                "body": "每人每小时一升。",
+                "trigger_turn": 3,
+                "location": "货运站A舱",
+            }
+        ],
+    }
+    normalized, repairs = _normalize_creative_source_payload(payload)
+    assert set(normalized["lore"][0]) == {"title", "body"}
+    assert any("非世界书字段" in repair for repair in repairs)
+    CreativeSource.model_validate(normalized)
+
+
+def test_normalize_clamps_event_trigger_turn() -> None:
+    """真实失败案例：events.0.trigger_turn=0 曾因 ge=1 被整体拒绝。"""
+
+    payload = {
+        "world_name": "深空货运站",
+        "summary": "失压后的抉择。",
+        "hero": {"name": "老周", "origin": "值班工程师"},
+        "locations": ["货运站A舱", "救生舱"],
+        "characters": [
+            {"name": "晕血站长", "role": "站长", "description": "晕血。"},
+            {"name": "货运员", "role": "货运员", "description": "乐观。"},
+        ],
+        "lore": [{"title": "氧气账本", "body": "每人每小时一升。"}],
+        "events": [
+            {"name": "氧量告警", "summary": "氧气跌破红线。", "trigger_turn": 0},
+            {"name": "救援窗", "summary": "救援窗口开启。", "trigger_turn": 99},
+        ],
+    }
+    normalized, repairs = _normalize_creative_source_payload(payload)
+    turns = [event["trigger_turn"] for event in normalized["events"]]
+    assert turns == [1, 40]
+    assert any("trigger_turn 已按安全范围规范化" in repair for repair in repairs)
+    CreativeSource.model_validate(normalized)

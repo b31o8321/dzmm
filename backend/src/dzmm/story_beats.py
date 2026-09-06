@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any
+
+from .genre_presets import skeleton_for_labels
 
 _DIALOGUE_PATTERN = re.compile(
     r"(?P<speaker>[A-Za-z0-9_\u4e00-\u9fff·]{1,20})[：:]\s*[“\"](?P<text>[^”\"]+)[”\"]"
@@ -68,8 +71,31 @@ def build_opening_story_beat(definition: dict[str, Any], hero: dict[str, Any]) -
         if str(choice.get("label") or "").strip()
     ]
 
+    # ADR-012 前的多题材评审发现开场句式与 NPC 首句完全固化；这里按章节标签
+    # 识别 genre 骨架，并以世界名+主角名做确定性轮换（同一 Run 稳定，跨 Run 变化）。
+    ch_choice_labels = [
+        str(choice.get("label") or "").strip()
+        for choice in (chapter.get("choices") or [])[:2]
+    ]
+    skeleton = (
+        skeleton_for_labels(ch_choice_labels[0], ch_choice_labels[1])
+        if len(ch_choice_labels) == 2 and all(ch_choice_labels)
+        else None
+    )
+    variant_seed = hashlib.sha256(f"{world_name}:{hero_name}".encode()).hexdigest()[:8]
+    variant_index = int(variant_seed[:8], 16)
+
+    opening_narratives = (skeleton or {}).get("opening_narratives") or [
+        "{chapter_title}。{hero}抵达{location}，{world}的故事从此刻开始。"
+    ]
+    narrative_template = opening_narratives[variant_index % len(opening_narratives)]
     narrative_parts = [
-        f"{chapter_title}。{hero_name}抵达{location_name}，{world_name}的故事从此刻开始。"
+        narrative_template.format(
+            chapter_title=chapter_title,
+            hero=hero_name,
+            location=location_name,
+            world=world_name,
+        )
     ]
     if lore:
         narrative_parts.append(lore)
@@ -77,9 +103,13 @@ def build_opening_story_beat(definition: dict[str, Any], hero: dict[str, Any]) -
     dialogue = None
     if character:
         speaker = str(character.get("name") or "陌生人")
+        npc_first_lines = (skeleton or {}).get("npc_first_lines") or [
+            "{hero}，别让这里替你作出第一个决定。"
+        ]
+        first_line = npc_first_lines[variant_index % len(npc_first_lines)]
         dialogue = {
             "speaker": speaker,
-            "text": f"“{hero_name}，别让这里替你作出第一个决定。”",
+            "text": f"“{first_line.format(hero=hero_name)}”",
         }
 
     objective = f"确认眼前的局势，决定如何进入「{chapter_title}」。"

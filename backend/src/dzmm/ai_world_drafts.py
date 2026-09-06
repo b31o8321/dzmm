@@ -9,7 +9,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from .contracts import contract_validator
 from .generated_world_repair import _unique_named_entities, extend_story_for_long_run
-from .genre_presets import resolve_genre
+from .genre_presets import resolve_genre, skeleton_for_genre
 from .model_profiles import ModelDraftGenerator, ModelProfileService, NarrationError
 from .narrative import NarrativeRuleError, validate_definition
 from .operation_control import OperationRegistry
@@ -207,7 +207,9 @@ class AIWorldDraftService:
                 repairs=repairs,
                 issues=_pydantic_issues(error),
             )
-        definition, hero = _map_creative_source(source, payload.ruleset)
+        definition, hero = _map_creative_source(
+            source, payload.ruleset, skeleton=skeleton_for_genre(payload.genre)
+        )
         result = validate_world_draft(definition, hero)
         reference_issues = _creative_source_reference_issues(source)
         if reference_issues:
@@ -265,6 +267,43 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
                     faction[field] = bounded
                     repairs.append(f"factions[{index}].{field} 已按安全范围规范化")
 
+    # 弱模型常把 NPC 专属字段塞进 characters（真实案例：灾难求生草案）。
+    # 这些字段会被 CreativeCharacter(extra="forbid") 整体拒绝，剥离比丢弃整份草案更有用。
+    character_npc_only_fields = (
+        "motivation",
+        "location",
+        "contact_cooldown_turns",
+        "faction",
+        "reputation",
+        "emotion",
+    )
+    characters = normalized.get("characters")
+    if isinstance(characters, list):
+        for index, character in enumerate(characters):
+            if not isinstance(character, dict):
+                continue
+            stripped = [key for key in list(character) if key in character_npc_only_fields]
+            for key in stripped:
+                character.pop(key)
+            if stripped:
+                repairs.append(
+                    f"characters[{index}] 已剥离 NPC 专属字段：{','.join(sorted(stripped))}"
+                )
+
+    # 世界书条目只允许 title/body；模型偶尔混入事件字段（真实案例：lore.0.trigger_turn）。
+    lore = normalized.get("lore")
+    if isinstance(lore, list):
+        for index, entry in enumerate(lore):
+            if not isinstance(entry, dict):
+                continue
+            extra_keys = [key for key in list(entry) if key not in ("title", "body")]
+            for key in extra_keys:
+                entry.pop(key)
+            if extra_keys:
+                repairs.append(
+                    f"lore[{index}] 已剥离非世界书字段：{','.join(sorted(extra_keys))}"
+                )
+
     events = normalized.get("events")
     if isinstance(events, list):
         for index, event in enumerate(events):
@@ -279,6 +318,16 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
             if importance != bounded_importance:
                 event["importance"] = bounded_importance
                 repairs.append(f"events[{index}].importance 已按安全范围规范化")
+            trigger_turn = event.get("trigger_turn")
+            if trigger_turn is not None:
+                if isinstance(trigger_turn, bool) or not isinstance(trigger_turn, (int, float)):
+                    event["trigger_turn"] = None
+                    repairs.append(f"events[{index}].trigger_turn 非数值已忽略")
+                else:
+                    bounded_turn = max(1, min(40, int(trigger_turn)))
+                    if bounded_turn != trigger_turn:
+                        event["trigger_turn"] = bounded_turn
+                        repairs.append(f"events[{index}].trigger_turn 已按安全范围规范化")
             for field in ("trigger", "completion"):
                 if not isinstance(event.get(field), dict):
                     event[field] = {}
@@ -427,7 +476,9 @@ def _generation_prompt(payload: AIWorldDraftInput) -> dict[str, Any]:
 
 
 def _map_creative_source(
-    source: CreativeSource, ruleset: Literal["story_adventure", "relationship_drama", "hybrid"]
+    source: CreativeSource,
+    ruleset: Literal["story_adventure", "relationship_drama", "hybrid"],
+    skeleton: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     template = fog_harbor_template()
     definition = deepcopy(template["world_definition"])
@@ -618,7 +669,9 @@ def _map_creative_source(
         ]
     }
     definition["resources"][0]["name"] = "关键线索"
-    _rename_story_surface(definition, source.world_name, locations, characters)
+    _rename_story_surface(
+        definition, source.world_name, locations, characters, skeleton=skeleton
+    )
     hero = {
         "name": source.hero.name,
         "profile": {"origin": source.hero.origin, "preference": source.summary},
@@ -642,23 +695,41 @@ def _rename_story_surface(
     world_name: str,
     locations: list[str],
     characters: list[CreativeCharacter],
+    skeleton: dict[str, Any] | None = None,
 ) -> None:
     first, second = characters
+    from .genre_presets import DEFAULT_SKELETON
+
+    labels = skeleton or DEFAULT_SKELETON
     story = definition["story"]
     story["routes"][0]["name"] = f"{first.name}路线"
     story["routes"][1]["name"] = f"{second.name}路线"
     chapters = story["chapters"]
     chapters[0]["title"] = f"抵达{locations[0]}"
-    chapters[0]["choices"][0]["label"] = f"援手{first.name}"
-    chapters[0]["choices"][1]["label"] = f"替{second.name}保守秘密"
-    chapters[1]["title"] = f"{world_name}的证词"
-    chapters[1]["choices"][0]["label"] = f"把证词交给{first.name}"
-    chapters[1]["choices"][1]["label"] = f"帮助{second.name}坦白"
-    chapters[1]["choices"][2]["label"] = f"独自追查{locations[0]}的线索"
-    chapters[1]["choices"][3]["label"] = f"让{first.name}与{second.name}共同作证"
-    chapters[2]["title"] = f"{locations[1]}的决断"
-    chapters[2]["choices"][0]["label"] = f"在{locations[1]}完成关键行动"
-    chapters[2]["choices"][1]["label"] = "暂缓行动"
+    chapters[0]["choices"][0]["label"] = labels["ch1_choices"][0].format(
+        a=first.name, b=second.name
+    )
+    chapters[0]["choices"][1]["label"] = labels["ch1_choices"][1].format(
+        a=first.name, b=second.name
+    )
+    chapters[1]["title"] = labels["ch2_title"].format(world=world_name)
+    chapters[1]["choices"][0]["label"] = labels["ch2_choices"][0].format(
+        a=first.name, b=second.name, location=locations[0]
+    )
+    chapters[1]["choices"][1]["label"] = labels["ch2_choices"][1].format(
+        a=first.name, b=second.name, location=locations[0]
+    )
+    chapters[1]["choices"][2]["label"] = labels["ch2_choices"][2].format(
+        a=first.name, b=second.name, location=locations[0]
+    )
+    chapters[1]["choices"][3]["label"] = labels["ch2_choices"][3].format(
+        a=first.name, b=second.name, location=locations[0]
+    )
+    chapters[2]["title"] = labels["terminal_title"].format(location=locations[1])
+    chapters[2]["choices"][0]["label"] = labels["terminal_choices"][0].format(
+        location=locations[1]
+    )
+    chapters[2]["choices"][1]["label"] = labels["terminal_choices"][1]
     extend_story_for_long_run(
         definition,
         world_name,
