@@ -167,6 +167,26 @@ def request_world_draft(profile: Mapping[str, Any], prompt: dict[str, Any]) -> A
     return _post_chat(profile, request_payload)
 
 
+def request_director_note(profile: Mapping[str, Any], prompt: dict[str, Any]) -> Any:
+    request_payload: dict[str, Any] = {
+        "model": profile["model_name"],
+        "messages": [
+            {
+                "role": "system",
+                "content": str(prompt.get("system") or "You are the DZMM pacing director."),
+            },
+            {"role": "user", "content": _dump({k: v for k, v in prompt.items() if k != "system"})},
+        ],
+        "stream": False,
+    }
+    if profile["provider_type"] == "ollama":
+        request_payload["options"] = {"temperature": 0.3, "num_predict": 256}
+    else:
+        request_payload["temperature"] = 0.3
+        request_payload["max_tokens"] = 256
+    return _post_chat(profile, request_payload)
+
+
 def _post_chat(profile: Mapping[str, Any], payload: dict[str, Any]) -> Any:
     headers = {"content-type": "application/json"}
     api_key = str(profile.get("api_key") or "").strip()

@@ -470,11 +470,13 @@ class ModelNarrator:
         lore_entries: list[dict[str, Any]],
         *,
         variation_seed: str = "",
+        director_note: dict[str, Any] | None = None,
     ) -> tuple[str, list[dict[str, Any]]]:
         endpoint = _chat_endpoint(profile)
         body = _narration_body(
             profile, definition, state, player_input, outcomes, lore_entries,
             variation_seed=variation_seed,
+            director_note=director_note,
         )
         try:
             async with httpx.AsyncClient(
@@ -501,6 +503,49 @@ class ModelNarrator:
         if not narrative:
             raise NarrationError("model returned no valid narrative content")
         return narrative, actions
+
+    async def director_completion(
+        self, profile: ModelProfile, prompt: dict[str, Any]
+    ) -> str:
+        """One small completion for the ADR-012 pacing director; returns raw content."""
+
+        endpoint = _chat_endpoint(profile)
+        body = {
+            "model": profile.model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": str(prompt.get("system") or "You are the DZMM pacing director."),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {k: v for k, v in prompt.items() if k != "system"},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            "stream": False,
+            "temperature": 0.3,
+        }
+        try:
+            async with httpx.AsyncClient(
+                transport=self._transport, timeout=NARRATION_TIMEOUT_SECONDS
+            ) as client:
+                response = await client.post(
+                    endpoint, json=body, headers=_request_headers(profile, self._secret_store)
+                )
+        except httpx.HTTPError as error:
+            raise _request_narration_error(error) from error
+        if response.status_code != 200:
+            raise NarrationError(
+                f"model returned HTTP {response.status_code}: {_response_detail(response)}"
+            )
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise NarrationError("model returned non-JSON response") from error
+        return _chat_content(profile.provider_type, payload)
 
     async def stream(
         self,
@@ -646,6 +691,7 @@ def _narration_body(
     *,
     stream: bool = False,
     variation_seed: str = "",
+    director_note: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     variation = narrative_variation(definition, state, variation_seed or "default-run")
     entity_names = narrative_entity_names(definition)
@@ -704,6 +750,7 @@ def _narration_body(
                     "validated_outcomes": outcomes,
                     "narrative_memory": state.get("narrative_context", {}).get("recent_turns", []),
                     "variation_directive": variation,
+                    "director_note": director_note,
                     "npc_state": state.get("npc_state", {}),
                     "faction_state": state.get("faction_state", {}),
                     "campaign_state": state.get("campaign_state"),

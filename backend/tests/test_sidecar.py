@@ -23,7 +23,7 @@ def test_sidecar_migrates_a_fresh_isolated_database(tmp_path, monkeypatch) -> No
         tables = connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='worlds'"
         ).fetchone()
-    assert version == ("0012_model_credentials",)
+    assert version == ("0013_director_notes",)
     assert tables == ("worlds",)
 
 

@@ -133,3 +133,13 @@ lifecycle_audit_events = Table(
     Column("snapshot", JSON(), nullable=False),
     Column("created_at", DateTime(), nullable=False),
 )
+
+director_notes = Table(
+    "director_notes",
+    metadata,
+    Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True),
+    Column("turn", Integer(), primary_key=True),
+    Column("tension", String(200), nullable=False),
+    Column("hook", String(200), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+)
