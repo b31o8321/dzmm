@@ -1,6 +1,6 @@
 [project]
 name = "dzmm-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "Local backend for DZMM"
 requires-python = ">=3.11"
 dependencies = [

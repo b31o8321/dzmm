@@ -2,7 +2,11 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
-## [Unreleased] - cutover 至单一 DZMM
+## [v1.0.0] - 2026-09-09
+
+**单一 DZMM 正式版：受控替换完成（ADR-010 全程）**
+
+本版起采用语义化版本：功能更新 1.x.0，问题修复 1.x.x。
 
 **受控替换（ADR-010 第 5 步，维护者授权）**
 
