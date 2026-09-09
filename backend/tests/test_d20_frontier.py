@@ -24,7 +24,7 @@ def test_d20_frontier_state_matches_contract_and_resolves_attacks() -> None:
     template = d20_frontier_template()
     definition = template["world_definition"]
     state = initial_state(definition, template["hero"])
-    validate_schema(state, json.loads(CONTRACT.read_text()))
+    validate_schema(state, json.loads(CONTRACT.read_text(encoding="utf-8")))
 
     hero = state["combat"]["participants"]  # empty until first attack
     assert hero == {}

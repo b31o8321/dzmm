@@ -611,7 +611,7 @@ def test_normalize_unwraps_world_definition_shape() -> None:
     """真实案例（qwen3-14b）：模型直接输出最终 world_definition 形状而非素材格式。"""
 
     raw = json.loads(
-        (Path(__file__).parent / "fixtures" / "genre_raw_world_definition.json").read_text()
+        (Path(__file__).parent / "fixtures" / "genre_raw_world_definition.json").read_text(encoding="utf-8")
     )
     normalized, repairs = _normalize_creative_source_payload(raw)
     assert any("world_definition 形状解包" in repair for repair in repairs)

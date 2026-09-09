@@ -181,7 +181,7 @@ def test_command_engine_applies_attack_and_audits_outcome(monkeypatch) -> None:
 def test_initial_state_and_combat_state_match_run_state_contract() -> None:
     import json
 
-    schema = json.loads(CONTRACT.read_text())
+    schema = json.loads(CONTRACT.read_text(encoding="utf-8"))
     state = _state()
     apply_attack(state, _definition(), {"target_id": "lan"})
     validate_schema(state, schema)

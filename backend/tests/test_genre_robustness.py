@@ -64,7 +64,7 @@ def _world_contract() -> dict:
     from pathlib import Path
 
     return json.loads(
-        (Path(__file__).parents[2] / "contracts" / "world_definition.schema.json").read_text()
+        (Path(__file__).parents[2] / "contracts" / "world_definition.schema.json").read_text(encoding="utf-8")
     )
 
 
