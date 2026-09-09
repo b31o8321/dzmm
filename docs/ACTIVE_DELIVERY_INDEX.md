@@ -18,6 +18,15 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
   旧版本地构建产物遗留（backend/.venv、backend/dist、frontend/node_modules 等，未删除，可手动清理）；
   ③多题材健壮性增强（genre 参数化骨架、修复器补规则）见 docs/reviews/2026-09-06-multi-genre-diversity-review.md。
 
+## 2026-09-09 v1.0.0 正式发布
+
+版本纪律自此确立：功能 1.x.0，修复 1.x.x。tag `v1.0.0`（`00564e4`，指向
+b5cc1d0）触发 release.yml，双平台构建成功并发布 GitHub Release：
+DZMM_1.0.0_aarch64.dmg（31MB）、DZMM_1.0.0_x64-setup.exe（22MB）、latest.json
+（自动更新 manifest）。首次发布运行曾因 Windows runner 的 cp1252 编码读
+中文 fixture 失败（macOS 成功），修复 read_text 显式 utf-8（b5cc1d0）后
+tag 重指重跑通过。遗留不变：macOS Tauri 窗口可见走查待 TCC 授权。
+
 ## 2026-09-06 四题材真模型复验通过（远程 qwen3-14b）
 
 [证据](../eval/2026-09-06-four-genre-live-verification.json)：远程 LM Studio
