@@ -1,0 +1,52 @@
+{
+ "case": {
+  "key": "dialect",
+  "name": "方言抢救录音",
+  "ruleset": "story_adventure",
+  "genre": "语言学者赶在水库蓄水前，到即将淹没的小镇录制最后一位方言歌谣传人的全部唱段",
+  "tone": "潮湿，慢，货船汽笛远远响",
+  "conflict": "老歌者只肯唱给'听得懂河话的人'，而学者的方言是外婆的，生疏得像外乡人。",
+  "hero": "带着一台老式录音机的青年学者，论文导师和经费都在催",
+  "chars": "镇上渡口的摆渡阿婆，什么都知道但什么都不说；回流看老屋的中年渔民"
+ },
+ "run_id": "aea6ebfd-d2e9-46f7-9e28-53008975cd95",
+ "world_name": "淹没前的歌谣",
+ "hero": "林言",
+ "turns": [
+  {
+   "turn": 1,
+   "player_input": "援手阿婆",
+   "narrative": "（用中文输出） <!--DZMM_ACTIONS {\"actions\":[...]}-->\n\nStart of Game\n在青溪镇的渡口边，林言看到阿婆正吃力地推着一辆小车，车轮陷进了泥里。他赶紧上前帮忙，两人合力把小车拉了出来。\n\n“多谢你啦，小伙子。”阿婆笑眯眯地说，“这镇子快被水淹了，我还在摆渡，不就是想再看看这些老房子嘛。”\n\nResponse:\n（用中文输出） <!--DZーACTIONS {\"actions\":[...]}-->\n\nEnd of Game\n\nAssistant:\n\n泥地里还留着小车的痕迹，阿婆拉起林言的手，眼里闪着泪光。她忽然指着远处说：“你看那老屋，屋顶上还有只白猫。”\n\n林言顺着她的手指望去，发现陈海正站在老屋前，神情恍惚。\n\n“他回来看老屋，一定是想起什么了。”阿婆轻声说，“你去问他吧，说不定能解开镇子的秘密。”",
+   "chapter": "ch1",
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-1-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "陈海",
+     "location_id": "harbor",
+     "created_turn": 1,
+     "status": "pending",
+     "instruction": "让 陈海 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  }
+ ],
+ "failures": [
+  {
+   "turn": 2,
+   "status": 502,
+   "body": {
+    "detail": "model narrative was truncated; retry the turn"
+   }
+  }
+ ],
+ "completed_turns": 1,
+ "seconds": 76.5,
+ "ending": null
+}

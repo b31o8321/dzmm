@@ -1,0 +1,105 @@
+{
+ "case": {
+  "key": "relic",
+  "name": "遗物整理师",
+  "ruleset": "story_adventure",
+  "genre": "遗物整理师：受家属委托整理逝者故居，在遗物间拼凑逝者从未说出口的人生",
+  "tone": "安静克制，哀而不伤",
+  "conflict": "逝者的保险柜里有一封收件人尚在世的信，家属要求销毁，委托人要求送达。",
+  "hero": "接手这单的年轻遗物整理师，习惯戴手套才敢碰别人的回忆",
+  "chars": "逝者的女儿，多年不与父亲往来；常来收旧货的老书贩"
+ },
+ "run_id": "00b91404-9e3b-4f74-be4a-fcfbe9adf31d",
+ "world_name": "遗物之间",
+ "hero": "林小满",
+ "turns": [
+  {
+   "turn": 1,
+   "player_input": "援手陈婉如",
+   "narrative": "（请在这里写下你的回答）\n\n答案：\n陈婉如正坐在老宅的八仙桌前翻阅一本古籍，忽然一阵风从半开的窗棂吹入，将她手中书页掀动。林小满快步上前扶住摇晃的书架，几本古籍散落一地。“多谢你了，”陈婉如站起身来，轻抚着一块被书角勾出线的绸缎，“这些是父亲生前最爱的藏书。”她将一本书递到林小满手中，书页间夹着一张泛黄的信笺。\n\n“这封信是我母亲写的，”陈婉如的声音微微颤抖，“她说希望我能在旧书铺找到新的归属。”她望向窗外，似乎在回忆什么。林小满注意到她的袖口有几处磨损，像是常年翻阅古籍留下的痕迹。",
+   "chapter": "ch1",
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "plot_thread_introduced",
+     "thread_id": "short-hook-1",
+     "thread_type": "hook",
+     "description": "陈婉如提到旧书铺的归属，暗示她可能与旧书贩联盟有潜在联系。"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-1-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "陈婉如",
+     "location_id": "harbor",
+     "created_turn": 1,
+     "status": "pending",
+     "instruction": "让 陈婉如 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "player_input": "替赵伯保守秘密",
+   "narrative": "（请在这里写下你的回答）\n\n答案： 陈婉如接过林小满递来的书笺，指尖轻轻摩挲着信纸边缘，忽然抬头道：“你可知道这封信为何一直未寄？”她语气里透出一丝莫名的期待。“原来父亲在信中说，若我能在旧书铺找到归属，便将老宅留给我。”她顿了顿，目光落在林小满身上，“不过现在他已故去多年，倒让我有些不知所措。”\n\n窗外忽然传来一阵喧哗，赵伯的声音清晰可闻：“陈家的古籍可不能便宜了外人！”陈婉如脸色微变，转向林小满：“你若愿意帮我完成这最后一步，便替我保守这个秘密。”她将信笺交还给林小满，眼中闪烁着不确定的光芒。",
+   "chapter": "ch1",
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-1-lan",
+     "npc_id": "lan",
+     "npc_name": "陈婉如"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-2-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "赵伯",
+     "location_id": "harbor",
+     "created_turn": 2,
+     "status": "pending",
+     "instruction": "让 赵伯 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "player_input": "援手陈婉如",
+   "narrative": "答案：\n赵伯的喧哗声还在老宅外回响，林小满正想开口询问，忽然听见陈婉如轻声道：“旧书铺的事……或许该去问问他。”她将一封信笺推到林小满面前，信纸上字迹有些模糊，像是被泪水晕开。“这是父亲生前写给母亲的信，”她说，“可我总觉得，他想让我知道些什么。”\n\n窗外风声渐起，老宅中的古籍似乎在低声诉说着往事。赵伯的声音再次响起：“陈家的古籍可不能便宜了外人！”林小满望向陈婉如，只见她袖口的磨损处露出一缕暗红色的丝线——那是旧书铺的印记。\n\n<!--DZMM_ACTIONS {\"actions\":[{\"type\":\"introduce_plot_thread\",\"id\":\"short-hook-2\",\"thread_type\":\"hook\",\"description\":\"陈婉如提到旧书铺的印记，暗示她可能与旧书贩联盟有潜在联系。\"}]}-->\n\n去旧书铺一探究竟？还是继续在老宅中寻找线索？",
+   "chapter": "ch1",
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-2-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "赵伯"
+    }
+   ]
+  }
+ ],
+ "failures": [
+  {
+   "turn": 4,
+   "status": 502,
+   "body": {
+    "detail": "model narrative was truncated; retry the turn"
+   }
+  }
+ ],
+ "completed_turns": 3,
+ "seconds": 129.1,
+ "ending": null
+}
