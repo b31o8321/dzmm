@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -30,7 +31,9 @@ from .narrative_output import (
 )
 from .persistence import model_profiles, runs
 
-NARRATION_TIMEOUT_SECONDS = 120.0
+# Local 12B+ models on Apple Silicon can take well past two minutes for long
+# completions; the default stays backwards compatible but is overridable.
+NARRATION_TIMEOUT_SECONDS = float(os.environ.get("DZMM_NARRATION_TIMEOUT", "120"))
 PROBE_TIMEOUT_SECONDS = 10.0
 DRAFT_OPENAI_MAX_TOKENS = 6000
 

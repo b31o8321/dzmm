@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
@@ -21,7 +22,7 @@ from .narrative_output import (
     clean_narrative_output,
 )
 
-MODEL_REQUEST_TIMEOUT_SECONDS = 120
+MODEL_REQUEST_TIMEOUT_SECONDS = int(os.environ.get("DZMM_MODEL_REQUEST_TIMEOUT", "120"))
 
 WORLD_DRAFT_SCHEMA = {
     "type": "object",

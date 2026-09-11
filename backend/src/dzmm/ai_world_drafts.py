@@ -360,6 +360,31 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
                     f"characters[{index}] 已剥离 NPC 专属字段：{','.join(sorted(stripped))}"
                 )
 
+    campaign = normalized.get("campaign")
+    if isinstance(campaign, dict):
+        phases = campaign.get("phases")
+        if isinstance(phases, list):
+            allowed_phase_keys = {"name", "description", "key_event_names", "required_count"}
+            for index, phase in enumerate(phases):
+                if not isinstance(phase, dict):
+                    continue
+                extra_keys = [key for key in list(phase) if key not in allowed_phase_keys]
+                for key in extra_keys:
+                    phase.pop(key)
+                if extra_keys:
+                    repairs.append(
+                        f"campaign.phases[{index}] 已剥离非阶段字段：{','.join(sorted(extra_keys))}"
+                    )
+                if "name" not in phase and phase.get("description"):
+                    phase["name"] = str(phase["description"])[:24]
+                    repairs.append(f"campaign.phases[{index}].name 已按描述补齐")
+            cleaned = [p for p in phases if isinstance(p, dict) and p.get("name")]
+            if not cleaned and phases:
+                campaign["phases"] = [
+                    {"name": "第一阶段", "description": "", "key_event_names": [], "required_count": 1}
+                ]
+                repairs.append("campaign.phases 已按默认阶段补齐")
+
     # 世界书条目只允许 title/body；模型偶尔混入事件字段（真实案例：lore.0.trigger_turn）。
     lore = normalized.get("lore")
     if isinstance(lore, list):
