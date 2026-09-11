@@ -783,3 +783,21 @@ def test_relationship_cooldown_rejects_the_whole_turn_without_state_write(migrat
     state = client.get(f"/api/v2/runs/{run_id}").json()["state"]
     assert state["revision"] == 1
     assert state["chapter"]["id"] == "ch2"
+
+
+def test_clean_narrative_output_strips_qwen3_leak_patterns() -> None:
+    """真实案例（qwen3-14b）：括号指令、Start of Game、空 DZMM_ACTIONS 标记泄漏进正文。"""
+
+    from dzmm.narrative_output import clean_narrative_output
+
+    assert clean_narrative_output("（请用中文输出）\n夜风穿过废墟。") == "夜风穿过废墟。"
+    value = clean_narrative_output("Start of Game\n雷欧点头检查装备。")
+    assert "Start of Game" not in value and value.startswith("雷欧")
+    value = clean_narrative_output("雷欧点头。<!--DZMM_ACTIONS-->")
+    assert "DZMM_ACTIONS" not in value
+    # 含真实 actions 的标记仍被 extract_gm_actions 消化，不受影响
+    value = clean_narrative_output(
+        '雷欧点头。<!--DZMM_ACTIONS {"actions":[{"type":"introduce_plot_thread",'
+        '"id":"hook-1","thread_type":"hook","description":"线索"}]}-->'
+    )
+    assert "DZMM_ACTIONS" not in value

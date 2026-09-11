@@ -186,6 +186,10 @@ def clean_narrative_output(content: str | None) -> str | None:
         value = value.split("### JSON:", maxsplit=1)[0]
     value = _remove_model_continuation(value.strip())
     value = _remove_model_choice_sections(value.strip())
+    # qwen3-14b 实测泄漏：括号化指令、"Start of Game" 幕标记、空 DZMM_ACTIONS 标记。
+    value = re.sub(r"^[（(][^）)]{1,24}(输出|回答|续写)[^）)]*[)）]\s*", "", value)
+    value = re.sub(r"^\s*Start of Game\s*$", "", value, flags=re.IGNORECASE | re.MULTILINE)
+    value = value.replace("<!--DZMM_ACTIONS -->", "").replace("<!--DZMM_ACTIONS-->", "")
     value = re.sub(r"^#+\s*", "", value.strip())
     value = re.sub(r"\*{1,2}([^*\n]+)\*{1,2}", r"\1", value)
     value = re.sub(r"^\s*[-*_]{3,}\s*$", "", value, flags=re.MULTILINE)
