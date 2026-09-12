@@ -31,9 +31,9 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
             "terminal_choices": ["在{location}亮出全部证据", "让案子悬而未决"],
             "opening_narratives": [
                 "{chapter_title}。{hero}走进{location}，雨还没有停。",
-                "{chapter_title}。{world}的旧档案里，{hero}的名字被人用铅笔划去过一次。",
+                "{hero}的名字在{world}的旧档案里被人用铅笔划过——很轻的一笔。{chapter_title}，从这里开始。",
                 "{chapter_title}。{hero}踩着湿漉漉的石阶进入{location}，怀表停在了凌晨三点。",
-                "{chapter_title}。看门人说{location}已经十年没有访客，可茶还是温的。",
+                "看门人对{hero}说：{location}已经十年没有访客，可茶还是温的。",
             ],
             "npc_first_lines": [
                 "{hero}，你比我预想的来得早。",
@@ -67,9 +67,9 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
             "terminal_choices": ["在{location}摊开所有证据", "把证据留给下一任"],
             "opening_narratives": [
                 "{chapter_title}。{hero}抱着密档走进{location}，殿内的火盆烧得很旺。",
-                "{chapter_title}。{world}的更鼓敲过三巡，{hero}还没有等到传召。",
-                "{chapter_title}。{hero}随人流步入{location}，袖中那份名单贴着手腕发烫。",
-                "{chapter_title}。{location}的灯只亮了一半，另一半留给不该被看见的人。",
+                "{hero}还没有等到传召。{world}的更鼓敲过三巡，袖中那份名单贴着手腕发烫。",
+                "传召迟迟未到。{hero}随人流步入{location}，殿内的火盆烧得很旺。",
+                "{hero}注意到，{location}的灯只亮了一半，另一半留给不该被看见的人。",
             ],
             "npc_first_lines": [
                 "{hero}，聪敏人此刻应该低头记录。",
@@ -97,9 +97,9 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
             "terminal_choices": ["在{location}执行突围方案", "原地保守待援"],
             "opening_narratives": [
                 "{chapter_title}。{hero}在{location}清点完最后一瓶氧气。",
-                "{chapter_title}。{location}的警报响了三声，被{hero}手动关掉了。",
-                "{chapter_title}。{hero}在{location}清点完最后一罐储备，把空罐踩扁收好。",
-                "{chapter_title}。{world}的补给表上又划掉了两行，{hero}把笔收了回去。",
+                "警报响了三声。{hero}伸手关掉了{location}的警报——那是唯一的计时器。",
+                "{location}的应急灯忽明忽暗，{hero}数完了最后一罐储备。",
+                "{hero}把补给表上的两行划掉，收起了笔。",
             ],
             "npc_first_lines": [
                 "{hero}，照这个消耗速度，我们撑不到救援。",
@@ -135,7 +135,7 @@ GENRE_PRESETS["steampunk_western"] = {
         "terminal_choices": ["在{location}正面迎战", "带镇民撤入荒野"],
         "opening_narratives": [
             "{chapter_title}。蒸汽机车碾过铁轨，{hero}在{location}擦完了最后一发子弹。",
-            "{chapter_title}。{world}的风沙糊住了告示，{hero}把它撕了下来。",
+            "{hero}把糊着风沙的告示撕了下来，折进口袋。",
             "{chapter_title}。齿轮与风沙一起涌进{location}，{hero}把怀表上紧到最后一格。",
             "{chapter_title}。{location}的铁轨在暮色里发亮，{hero}把工具包换到了左肩。",
         ],
@@ -189,7 +189,7 @@ DEFAULT_SKELETON = {
     "terminal_choices": ["在{location}完成关键行动", "暂缓行动，等待更佳时机"],
     "opening_narratives": [
         "{chapter_title}。{hero}抵达{location}，{world}的故事从此刻开始。",
-        "{chapter_title}。{world}的故事在{location}等候已久，{hero}的到来让一切开始转动。",
+        "{hero}的到来让{location}的一切开始转动。",
         "{chapter_title}。没有人注意到{hero}走进{location}，而这正是最好的时机。",
         "{chapter_title}。{hero}停下脚步，{location}的一切都和传闻里不太一样。",
     ],
