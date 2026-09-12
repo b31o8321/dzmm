@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { RunSnapshot, Turn } from '../local_host_port'
+import { matchChoiceByInput } from '../utils/choiceMatch'
 
 const props = defineProps<{
   run: RunSnapshot
@@ -21,6 +22,13 @@ const emit = defineEmits<{
 
 const playerInput = defineModel<string>('playerInput', { required: true })
 const destination = defineModel<string>('destination', { required: true })
+
+const matchedChoiceHint = computed(() => {
+  const input = playerInput.value.trim()
+  if (!input || props.run.state.ending) return null
+  const match = matchChoiceByInput(input, props.run.available_choices)
+  return match ? { label: match.label } : null
+})
 
 const activeChapter = computed(() => props.run.state.chapter)
 const activeChapterTitle = computed(() => {
@@ -145,6 +153,7 @@ function rollbackLabel(targetId: string | null) {
       <button v-for="choice in run.available_choices" :key="choice.id" type="button" :disabled="busy || !hostReady" @click="emit('choose', choice)">{{ choice.label }}</button>
     </section>
     <form v-else-if="!run.state.ending" class="turn-form" @submit.prevent="emit('send')">
+      <p v-if="matchedChoiceHint" class="choice-hint" role="status">检测到你输入了选项内容「{{ matchedChoiceHint.label }}」，可直接点击上方对应选项。</p>
       <label>行动<input v-model="playerInput" name="player-action" autocomplete="off" placeholder="我检查码头的灯火…" required maxlength="4000" /></label>
       <label v-if="locationOptions.length > 1">目的地<select v-model="destination" name="destination"><option v-for="[locationId, name] in locationOptions" :key="locationId" :value="locationId">{{ name }}</option></select></label>
       <button :disabled="busy || !hostReady || !playerInput.trim()">{{ busy ? '正在结算回合…' : '执行回合' }}</button>
