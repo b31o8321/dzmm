@@ -53,8 +53,10 @@ qwen3-14b 上下文修复后重测（外部依赖）；跨平台 8.0→8.5 需 W
   choices 真实路径下四题材全部"11 回合→正式结局→同 World 新 Run"零失败；
   模板词命中回合 0；贴题度 39~98 处/题材；跨世界 4-gram 重叠 1.9%~4.5%；
   世界内开头重复 0/11、3/11、5/11、1/11（语序分化修复后 mystery 12 主角复测 0 重复）。
-- **combat Run + genre 选择器 UI 截图**：阻塞（显示器锁定），恢复条件 = 解锁后
-  启动 DZMM.app 进入 D20 边境前哨游玩页与 ai-compose 页各截一张存 eval。
+- **combat Run + genre 选择器 UI 截图** ✅ 已补齐（eval/score-upgrade/screens/）：
+  d20-combat-buttons.png（D20 游玩页战斗按钮区，浏览器宿主渲染同一桌面组件 +
+  打包 sidecar API）、genre-preset-selector.png（六预设选择器生效，选中即填入
+  题材/基调/核心冲突）。
 - **30 回合口径已补满**（continue_to_30.py 含 warmup/重试，四题材累计全部 30 回合、
   120 回合零失败）：最终量化见 eval/score-upgrade/README.md——模板词命中 0 回合、
   跨世界 4-gram 重叠 ≤7.4%、贴题度 156~240 处/题材、章节覆盖 ch1→ch10、
