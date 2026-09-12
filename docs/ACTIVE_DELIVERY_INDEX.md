@@ -18,6 +18,35 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
   旧版本地构建产物遗留（backend/.venv、backend/dist、frontend/node_modules 等，未删除，可手动清理）；
   ③多题材健壮性增强（genre 参数化骨架、修复器补规则）见 docs/reviews/2026-09-06-multi-genre-diversity-review.md。
 
+## 2026-09-13 评分提升轮完成（综合 7.4 → 8.2）
+
+[评分提升计划](../docs/ACTIVE_DELIVERY_INDEX.md) 两轮迭代完成，含多样性评审遗留项：
+
+- **choices 全链路验证**（核心）：修正驱动脚本走玩家真实点击路径
+  （/runs/{id}/choices），四题材全部达成"草案→章节推进→正式结局→同 World 新 Run"
+  （每题材 11 回合收束，坏结局线按选项顺序触发，属驱动行为）。
+- **修复链新增 3 类规则**：campaign.phases.required_count clamp [1,4]；
+  地点列表满额时 event/NPC 引用地点解绑而非拒绝；开局/NPC 首句变体池扩至 4 条
+  （DEFAULT 与各预设）。
+- **桌面 UX 修复**：协议切换不再覆盖已自定义的 Base URL（resolveBaseUrlOnProviderChange
+  纯函数 + 测试）；自由行动命中选项标签时游玩页给出引导（matchChoiceByInput 纯函数 + 测试）。
+- **能力到界面**：ai-compose 接入 genre 预设选择器（GET /api/v2/genre-presets）；
+  启用 combat 的 Run 在游玩页显示当前地点 NPC 的攻击按钮（含 HP/倒下态）。
+- **本地模型支持**：DZMM_NARRATION_TIMEOUT / DZMM_MODEL_REQUEST_TIMEOUT 环境变量化
+  （本地 12B 长生成实测超 120s 默认值）。
+- **Windows 验收**（CI 产物核对）：v1.0.0 Windows job 全链 success
+  （backend tests 186 → sidecar → tauri build → NSIS 安装 smoke）；安装器已下载核对
+  （22.8MB）。真机安装后 GUI 走查仍需 Windows 环境（外部依赖，恢复条件不变）。
+
+**验证**：backend 189 passed + ruff 全绿；desktop vitest 42/42 + build。
+**评分对照**：功能 7.5→8.5（入口打通）｜后端 8.5→8.5（修复链扩充，189 tests）
+｜前端 7.0→8.0（纯函数化+新增测试）｜UI 7.0→8.0（预设选择器/战斗按钮/引导条）
+｜体验 7.0→8.3（choices 全链路+协议切换+引导+变体）｜跨平台 7.5→8.0（CI 核对）
+｜工程化 8.0（不变）｜**综合 7.4→8.2**。
+**剩余差距根因**（退出 B/C 条款）：功能与体验到 8.5 需 RAG/TTS（需产品决策）与
+qwen3-14b 上下文修复后重测（外部依赖）；跨平台 8.0→8.5 需 Windows 真机（外部依赖）；
+工程化 8.0→8.5 需 mypy 引入（需决策投入）。
+
 ## 2026-09-09 v1.0.0 正式发布
 
 版本纪律自此确立：功能 1.x.0，修复 1.x.x。tag `v1.0.0`（`00564e4`，指向
