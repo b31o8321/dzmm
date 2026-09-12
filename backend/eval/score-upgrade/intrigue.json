@@ -1,0 +1,490 @@
+{
+ "case": "政治阴谋",
+ "genre": "政治阴谋",
+ "turns": [
+  {
+   "turn": 1,
+   "input": "替老掌玺官递上密件",
+   "narrative": "林默站在皇宫藏书阁的角落里，手中紧握那盏“迷雾灯”，心中暗自权衡着下一步行动。藏书阁中静悄悄的，只有偶尔翻动书籍的声音回荡在空气中。突然，一个熟悉的声音打破了寂静：“林默，你这是要做什么？”\n\n老掌玺官从一排书架后走出来，眼神中带着一丝警觉和疑惑。“老掌玺官，我刚刚得到了一些关于摄政王车队被劫的信息。”林默将手中的“迷雾灯”递了过去，“这是关键线索。”\n\n老掌玺官接过“迷雾灯”，仔细端详了一会儿，眼中闪过一抹赞许：“你做得很好。现在我们需要更多的信息来揭开这个谜团。”他低声吩咐道：“有人在暗中窥视我们的行动，请务必小心。”\n\n林默点头应允，老掌玺官转身回到了书架间。藏书阁的静谧再次被打破，但这次有了新的目的和方向。下一步，林默需要寻找更多线索，揭开摄政王车队被劫背后的真相。",
+   "chapter": "ch2",
+   "route": null,
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch1",
+     "choice_id": "rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "lan-rescued",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "chart-recovered",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "grant_resource",
+     "resource_id": "fog-lantern",
+     "quantity": 1,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "lan-rescued",
+     "relationship_id": "lan",
+     "character_card_id": "lan",
+     "deltas": {
+      "affection": 5,
+      "trust": 20
+     },
+     "reason_key": "relation.lan.rescued",
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch1",
+     "next_chapter_id": "ch2"
+    },
+    {
+     "type": "world_event_activated",
+     "event_id": "event-1"
+    },
+    {
+     "type": "world_event_activated",
+     "event_id": "event-2"
+    },
+    {
+     "type": "hidden_event_created",
+     "event_id": "hidden-spy",
+     "description": "老掌玺官怀疑有人在监视他们"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-1-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "老掌玺官",
+     "location_id": "harbor",
+     "created_turn": 1,
+     "status": "pending",
+     "instruction": "让 老掌玺官 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "input": "替雇佣兵队长掩护行踪",
+   "narrative": "林默轻轻关上了藏书阁的门，心中仍旧回味着与老掌玺官的对话。正当他准备继续探索更多线索时，突然听到门外传来一阵细微的脚步声。\n\n“谁在那边？”林默警惕地问道，手中的“迷雾灯”再次亮起，照亮了黑暗中的每一个角落。\n\n脚步声停止了片刻，随后一个低沉的声音回答道：“我是雇佣兵队长。听说你正在调查摄政王车队被劫的事，我愿意提供帮助。”\n\n林默微微一怔，旋即点头回应：“欢迎加入。关于线索，这里有一张藏在书籍之间的地图碎片，可能与车队的行踪有关。”\n\n“好的，我会仔细研究。”雇佣兵队长接过地图碎片，眼中闪过一丝不易察觉的感激。“我们可以一起去暗巷密室，那里有一些关键信息。”\n\n林默点了点头，两人并肩离开了皇宫藏书阁。新的线索引领他们向摄政王车队被劫背后的真相更近了一步。\n\n——雇佣兵队长：我会帮你查明真相的！",
+   "chapter": "ch3",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch2",
+     "choice_id": "shen-confession"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "shen-confessed",
+     "value": true,
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "lock_route",
+     "route_id": "shen-route",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "shen-confession",
+     "relationship_id": "shen_yan",
+     "character_card_id": "shen_yan",
+     "deltas": {
+      "affection": 10,
+      "trust": 25
+     },
+     "reason_key": "relation.shen.confession",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch2",
+     "next_chapter_id": "ch3"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-1-lan",
+     "npc_id": "lan",
+     "npc_name": "老掌玺官"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-2-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长",
+     "location_id": "harbor",
+     "created_turn": 2,
+     "status": "pending",
+     "instruction": "让 雇佣兵队长 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "input": "在皇宫藏书阁查访线索",
+   "narrative": "林默和雇佣兵队长穿过皇宫藏书阁的阴影，来到了暗巷中的秘密会面地点——一处破旧但结构稳固的小屋。“这里安全吗？”林默低声问道，手里依旧握着那盏“迷雾灯”。\n\n“应该没有问题。”雇佣兵队长环视四周，确保没有异动后回答，“我刚刚得到消息，最近有不少可疑人物在皇宫附近出没。”\n\n两人进入小屋，里面昏暗而充满灰尘，但足以作为临时工作台。林默拿出一张纸张摊开，上面画着一些复杂的箭头和标记。“这是车队行经路线的草图，”他解释说，“希望这些能帮上忙。”\n\n雇佣兵队长仔细研究了地图碎片，随后抬头说道：“我怀疑是某个敌对势力在暗中活动。你们知道谁可能有这种能力吗？”\n\n“听说三大家族之一最近态度变得有些激进。”林默沉思道。\n\n这时，门外传来轻微的脚步声。两人同时警觉起来，但门口却突然出现了一个意料之外的来客——三大家族首脑之一亲自登门。\n\n“林默，雇佣兵队长，我们有必要谈谈这件事。”三大家族首脑冷冷地说，“摄政王车队被劫的事，我们有共同的利益。”\n\n林默和雇佣兵队长面面相觑。接下来的行动充满未知与变数。“你有什么建议？”雇佣兵队长问。\n\n三大家族首脑环视一圈后说道：“我们需要合作，而不是彼此猜疑。我们可以从这次事件中找到新的联盟机会。”\n\n——三大家族首脑：我们有共同的利益，不是吗？\n\n林默思考片刻，决定暂时信任这位首脑。“好吧，”他回答，“但必须确保我们的行动都安全有效。”\n\n接下来，林默和雇佣兵队长与三大家族首脑一同探索更多的线索，并制定下一步的行动计划。",
+   "chapter": "ch4",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch3",
+     "choice_id": "investigate-3"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch3",
+     "next_chapter_id": "ch4"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-2-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-3-npc-3",
+     "kind": "npc_initiative",
+     "npc_id": "npc-3",
+     "npc_name": "三大家族首脑之一",
+     "location_id": "harbor",
+     "created_turn": 3,
+     "status": "pending",
+     "instruction": "让 三大家族首脑之一 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 4,
+   "input": "向雇佣兵队长递话试探",
+   "narrative": "林默和雇佣兵队长继续在皇宫藏书阁中搜寻线索，但突然听到门外传来轻微的脚步声。两人同时警觉起来，但门口却出现了一个意料之外的来客——三大家族首脑之一亲自登门。\n\n“林默，雇佣兵队长，我们有必要谈谈这件事。”这位首脑冷冷地说，“摄政王车队被劫的事，我们有共同的利益。”\n\n林默和雇佣兵队长面面相觑。接下来的行动充满未知与变数。“你有什么建议？”雇佣兵队长问。\n\n三大家族首脑环视一圈后说道：“我们需要合作，而不是彼此猜疑。我们可以从这次事件中找到新的联盟机会。”\n\n——三大家族首脑：我们有共同的利益，不是吗？\n\n林默思考片刻，决定暂时信任这位首脑。“好吧，”他回答，“但必须确保我们的行动都安全有效。”\n\n接下来，三人一同探索更多的线索，并制定下一步的行动计划。藏书阁中的静谧被打破了，但这次有了新的方向和合作的机会。",
+   "chapter": "ch5",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch4",
+     "choice_id": "ask-4"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch4",
+     "next_chapter_id": "ch5"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-3-npc-3",
+     "npc_id": "npc-3",
+     "npc_name": "三大家族首脑之一"
+    }
+   ]
+  },
+  {
+   "turn": 5,
+   "input": "在皇宫藏书阁查访线索",
+   "narrative": "林默和雇佣兵队长继续在皇宫藏书阁中搜寻线索。突然，林默注意到一个此前没有注意到的细节：一张破旧的地图碎片被夹在一本书页之间。“这可能是关键！”他低声对雇佣兵队长说道。\n\n“看来我们有新的目标了。”雇佣兵队长接过地图碎片仔细研究，“这张图似乎标示着车队行经的具体路线。”\n\n这时，门外传来轻微的脚步声。两人同时警觉起来，但门口却出现了一个意料之外的来客——三大家族首脑之一亲自登门。\n\n“林默，雇佣兵队长，我们有必要谈谈这件事。”这位首脑冷冷地说，“摄政王车队被劫的事，我们有共同的利益。”\n\n林默和雇佣兵队长面面相觑。接下来的行动充满未知与变数。“你有什么建议？”雇佣兵队长问。\n\n——三大家族首脑：我们有共同的利益，不是吗？\n\n接下来，三人一同探索更多的线索，并制定下一步的行动计划。藏书阁中的静谧被打破了，但这次有了新的方向和合作的机会。",
+   "chapter": "ch6",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch5",
+     "choice_id": "investigate-5"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch5",
+     "next_chapter_id": "ch6"
+    },
+    {
+     "type": "plot_thread_introduced",
+     "thread_id": "fleet-attack-details",
+     "thread_type": "hook",
+     "description": "车队被劫的具体细节逐渐浮出水面"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-5-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "老掌玺官",
+     "location_id": "harbor",
+     "created_turn": 5,
+     "status": "pending",
+     "instruction": "让 老掌玺官 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 6,
+   "input": "向雇佣兵队长递话试探",
+   "narrative": "林默和雇佣兵队长继续在皇宫藏书阁中搜寻线索。突然，两人注意到藏书架后隐约透出的一缕烛光。好奇心驱使他们悄悄靠近，发现一个隐蔽的暗巷密室入口。\n\n“这里面是什么？”雇佣兵队长低声问道，警惕地环视四周。\n\n林默轻轻推开门缝，一道微弱的烛光照亮了房间一角。那里坐着一位三大家族首脑之一。“我们有共同的利益，不是吗？”对方冷言道，“摄政王车队被劫的事，我也有线索。”他递过来一张破旧的地图碎片和一封密信。\n\n林默接过物品，仔细审视着。“这个情报很有价值。”他对雇佣兵队长说，“我们需要尽快分析这些信息。”\n\n——三大家族首脑：我愿意与你们合作。但记得，信息共享需要互惠互利。\n\n下一步，他们需共同分析这份新获得的线索，揭开车队被劫背后的真相。",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch6",
+     "choice_id": "ask-6"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch6",
+     "next_chapter_id": "ch7"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-5-lan",
+     "npc_id": "lan",
+     "npc_name": "老掌玺官"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-6-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长",
+     "location_id": "harbor",
+     "created_turn": 6,
+     "status": "pending",
+     "instruction": "让 雇佣兵队长 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 7,
+   "input": "我不按选项来：主动向在场的人打听一件让我在意的小事。",
+   "narrative": "林默和雇佣兵队长在皇宫藏书阁中继续搜寻线索，但突然发现藏书架后有细微的阴影晃动。“有人！”林默低声警告，手中的“迷雾灯”再次亮起，照亮了阴影。\n\n“别紧张，可能是我们自己的人。”雇佣兵队长安慰道，“我来检查一下。”\n\n两人小心翼翼地靠近，藏书架后面闪现出一个身影——是老掌玺官！他神色慌张，低声道：“林默，快跟我来！有重要的事情需要你立刻知道。”\n\n林默和雇佣兵队长迅速跟上老掌玺官。在一间隐蔽的小屋里，老掌玺官拿出一封信封，“这是摄政王车队被劫时的紧急密信，里面记录了车队行经的具体路线和时间表。”\n\n“我们得尽快分析这些信息。”林默对雇佣兵队长说。\n\n“没错，”老掌玺官补充道，“这对我们找到袭击者的线索至关重要。走吧，我们需要把这封信送到安全的地方进行解读。”\n\n——老掌玺官：我们必须快点行动！\n\n接下来，三人匆匆前往皇宫内的另一间密室，试图揭开摄政王车队被劫背后的真相。新的线索和紧急任务为他们带来了更多的变数和挑战。",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-6-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-7-npc-3",
+     "kind": "npc_initiative",
+     "npc_id": "npc-3",
+     "npc_name": "三大家族首脑之一",
+     "location_id": "harbor",
+     "created_turn": 7,
+     "status": "pending",
+     "instruction": "让 三大家族首脑之一 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 8,
+   "input": "在皇宫藏书阁查访线索",
+   "narrative": "林默和雇佣兵队长在皇宫藏书阁中继续搜寻线索，但突然听到门外传来轻微的脚步声。两人同时警觉起来，但门口却出现了一个意料之外的来客——三大家族首脑之一亲自登门。\n\n“林默，雇佣兵队长，我们有必要谈谈这件事。”这位首脑冷冷地说，“摄政王车队被劫的事，我们有共同的利益。”\n\n老掌玺官在一旁悄悄靠近，低声对林默说：“是家族首脑，我们需要小心。他似乎掌握了重要情报。”\n\n——三大家族首脑：我们有共同的利益，不是吗？\n\n接下来的行动充满未知与变数。“你有什么建议？”雇佣兵队长问。\n\n三人一同探索更多的线索，并制定下一步的行动计划。藏书阁中的静谧被打破了，但这次有了新的方向和合作的机会。\n\n林默思考片刻后说：“好吧，但必须确保我们的行动都安全有效。”\n\n——老掌玺官：我们必须快点行动！\n\n此刻，三大家族首脑递给林默一张破旧的地图碎片和一封密信。“这是车队行经的具体路线和时间表。”他补充道，“信息共享需要互惠互利。”\n\n接下来，他们需共同分析这份新获得的线索，揭开车队被劫背后的真相。",
+   "chapter": "ch8",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch7",
+     "choice_id": "investigate-7"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch7",
+     "next_chapter_id": "ch8"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-7-npc-3",
+     "npc_id": "npc-3",
+     "npc_name": "三大家族首脑之一"
+    }
+   ]
+  },
+  {
+   "turn": 9,
+   "input": "向雇佣兵队长递话试探",
+   "narrative": "林默和雇佣兵队长在皇宫藏书阁中搜寻线索，但突然听到门外传来轻微的脚步声。两人同时警觉起来，但门口却出现了一个意料之外的来客——三大家族首脑之一亲自登门。\n\n“林默，雇佣兵队长，我们有必要谈谈这件事。”这位首脑冷冷地说，“摄政王车队被劫的事，我们有共同的利益。”\n\n老掌玺官在一旁悄悄靠近，低声对林默说：“是家族首脑，我们需要小心。他似乎掌握了重要情报。”\n\n——三大家族首脑：我们有共同的利益，不是吗？\n\n接下来的行动充满未知与变数。“你有什么建议？”雇佣兵队长问。\n\n三人一同探索更多的线索，并制定下一步的行动计划。藏书阁中的静谧被打破了，但这次有了新的方向和合作的机会。\n\n林默思考片刻后说：“好吧，但必须确保我们的行动都安全有效。”\n\n——老掌玺官：我们必须快点行动！\n\n此刻，三大家族首脑递给林默一张破旧的地图碎片和一封密信。“这是车队行经的具体路线和时间表。”他补充道，“信息共享需要互惠互利。”\n\n接下来，他们需共同分析这份新获得的线索，揭开车队被劫背后的真相。",
+   "chapter": "ch9",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch8",
+     "choice_id": "ask-8"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch8",
+     "next_chapter_id": "ch9"
+    },
+    {
+     "type": "npc_reputation_changed",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长",
+     "previous": 0,
+     "delta": 5,
+     "reputation": 5,
+     "reason_key": "kept_promise"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-9-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "老掌玺官",
+     "location_id": "harbor",
+     "created_turn": 9,
+     "status": "pending",
+     "instruction": "让 老掌玺官 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 10,
+   "input": "在皇宫藏书阁查访线索",
+   "narrative": "林默和雇佣兵队长继续在皇宫藏书阁中搜寻线索。突然，门外传来轻微的脚步声，两人迅速警觉起来，但门口出现的却是老掌玺官。“快进来！”他低声说，“有重要的事情需要你立刻知道。”\n\n林默和雇佣兵队长跟随老掌玺官进入一间隐蔽的小屋，只见桌上摊开着几张破旧的地图碎片和一封密信。“这是摄政王车队被劫时的情报记录。”老掌玺官说道。\n\n“我们得尽快分析这些信息。”林默对雇佣兵队长说，“车队的行经路线和时间表对我们至关重要。”\n\n——老掌玺官：我们必须快点行动！\n\n接下来，三人仔细研究地图碎片和密信。藏书阁中的静谧被打破了，但这次有了新的方向和合作的机会。",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch9",
+     "choice_id": "investigate-9"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch9",
+     "next_chapter_id": "ch10"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-9-lan",
+     "npc_id": "lan",
+     "npc_name": "老掌玺官"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-10-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长",
+     "location_id": "harbor",
+     "created_turn": 10,
+     "status": "pending",
+     "instruction": "让 雇佣兵队长 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 11,
+   "input": "把证据留给下一任",
+   "narrative": "林默和雇佣兵队长在皇宫藏书阁中搜寻线索，突然听到门外传来轻微的脚步声。两人迅速警觉起来，但门口出现的是老掌玺官。“快进来！”他低声说，“有重要的事情需要你立刻知道。”\n\n三人进入一间隐蔽的小屋，老掌玺官摊开一张地图碎片和一封密信在桌上。“这是摄政王车队被劫时的情报记录。”老掌玺官说道。\n\n“我们得尽快分析这些信息。”林默对雇佣兵队长说，“这对我们找到袭击者至关重要。”\n\n——老掌玺官：我们必须快点行动！\n\n藏书阁中的静谧再次被打破了，但这次有了新的方向和合作的机会。林默仔细研究着地图碎片，突然注意到一个细微的标记。“这个标记可能是关键！”他对众人说道。\n\n雇佣兵队长点点头：“我们需要把证据留给下一任。”\n\n——三大家族首脑之一：情报共享需要互惠互利，你们有什么线索？\n\n老掌玺官在一旁补充道：“我怀疑有人在暗中监视我们。我们必须小心行事。”\n\n林默若有所思地看向地图碎片，心中已有新的计划。",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": {
+    "id": "fog-drowned",
+    "kind": "bad",
+    "narrative_key": "ending.fog_drowned"
+   },
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch10",
+     "choice_id": "miss-the-tide"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "tide-gate-failed",
+     "value": true,
+     "cause": "choice:miss-the-tide"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch10",
+     "status": "completed"
+    },
+    {
+     "type": "lock_ending",
+     "id": "fog-drowned",
+     "kind": "bad",
+     "narrative_key": "ending.fog_drowned"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-10-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "雇佣兵队长"
+    }
+   ]
+  }
+ ],
+ "failures": [],
+ "world_name": "权谋之巅",
+ "hero": "林默",
+ "completed_turns": 11,
+ "ending_reached": true,
+ "seconds": 681.6,
+ "second_run_created": true
+}

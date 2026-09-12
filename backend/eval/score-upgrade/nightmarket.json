@@ -1,0 +1,452 @@
+{
+ "case": "夜市金牌食肆",
+ "genre": "夜市金牌食肆：最后一届评比，摊主们用看家菜各显神通",
+ "turns": [
+  {
+   "turn": 1,
+   "input": "援手赵大华",
+   "narrative": "李文博回到小巷深处的家传厨房，开始整理被遗失酱料配方事件激起的情绪。他突然想起，在热闹非凡的夜市中心，赵大华曾经提过一次关于酱料的秘密信息。\n\n“大华哥，你记得那天你说的那句神秘话吗？”李文博低声问道。\n\n赵大华闻声从外面走了进来，“文博，那可是我们家族祖传的秘密啊。这次要是能帮上忙，我再帮你查一查线索。”\n\n赵大华的出现让李文博感到一丝安慰，两人开始一起回忆那天的细节，并共同分析可能的线索。",
+   "chapter": "ch2",
+   "route": null,
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch1",
+     "choice_id": "rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "lan-rescued",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "chart-recovered",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "grant_resource",
+     "resource_id": "fog-lantern",
+     "quantity": 1,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "lan-rescued",
+     "relationship_id": "lan",
+     "character_card_id": "lan",
+     "deltas": {
+      "affection": 5,
+      "trust": 20
+     },
+     "reason_key": "relation.lan.rescued",
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch1",
+     "next_chapter_id": "ch2"
+    },
+    {
+     "type": "world_event_activated",
+     "event_id": "event-1"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-1-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "赵大华",
+     "location_id": "harbor",
+     "created_turn": 1,
+     "status": "pending",
+     "instruction": "让 赵大华 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "input": "帮助王建国坦白",
+   "narrative": "李文博在厨房里整理着乱糟糟的调料瓶罐，思绪却飘回了王建国那张紧张而又恳求的脸。就在这时，一阵敲门声打断了他的沉思。\n\n“文博啊，有件事我得和你说说。”门外传来低沉的声音，熟悉却又带有一丝陌生感。\n\n李文博打开门，看到是邻居王建国。“建国哥，你有什么事吗？”他询问道。\n\n“今天夜市的评比要开始了，我希望你能帮我一个忙。我知道有些东西对你很重要……”王建国犹豫了一下，“能让我看看那瓶家传酱料配方吗？”\n\n李文博心中一动，想起自己上次无意中提到的那个秘密。“好吧，如果你能帮上我一个忙，我就把瓶子借给你。”他提出了条件。\n\n“没问题！那事关系到我的摊位能不能保住，你放心，我会用这次评比证明自己的！”王建国坚定地说。\n\n两人在厨房里仔细研究起酱料配方，王建国的诚意让李文博感到一丝暖意。他们决定一起前往夜市中心的评比现场，看看能否从那里找到更多线索。",
+   "chapter": "ch3",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch2",
+     "choice_id": "shen-confession"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "shen-confessed",
+     "value": true,
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "lock_route",
+     "route_id": "shen-route",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "shen-confession",
+     "relationship_id": "shen_yan",
+     "character_card_id": "shen_yan",
+     "deltas": {
+      "affection": 10,
+      "trust": 25
+     },
+     "reason_key": "relation.shen.confession",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch2",
+     "next_chapter_id": "ch3"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-1-lan",
+     "npc_id": "lan",
+     "npc_name": "赵大华"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-2-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国",
+     "location_id": "harbor",
+     "created_turn": 2,
+     "status": "pending",
+     "instruction": "让 王建国 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "input": "在夜市中心追查新线索",
+   "narrative": "夜市中心灯火通明，热闹非凡。李文博回到小巷深处的家传厨房，开始整理被遗失酱料配方事件激起的情绪。他轻声自言自语：“那天赵大华提过神秘信息，也许能找到线索。”\n\n“文博，有新消息了。”门外传来熟悉的声音——是王建国。\n\n“建国哥，你找我有什么事？”李文博开门问道。\n\n“刚才我翻看夜市摊位的评比记录时发现了一条重要信息。这次比赛有一份特别的评分标准，可能和酱料配方有关联！”王建国神色凝重地说。\n\n两人立刻前往夜市中心的评比现场。这里人声鼎沸，各家摊主都在精心准备着各自的招牌菜。李文博和王建国穿梭在摊位间，仔细研究每一份评分表，希望能找到更多线索。就在他们接近终点时，一阵风吹过，吹散了王建国手中的纸条。\n\n“不好！”王建国叫道，“风把我们的信息卷走了！”\n\n正当两人焦急万分之时，突然一个熟悉的声音响起：“文博！你们在找什么呢？”\n\n赵大华出现在他们的视野中，手里拿着那张飘落的纸条。他递给李文博：“我刚才也注意到了这份评分标准，也许能帮上忙。”\n\n三人开始仔细分析这张纸条上的内容，希望能解开酱料配方的秘密。李文博心中暗自许愿：希望这次合作能找到答案。",
+   "chapter": "ch4",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch3",
+     "choice_id": "investigate-3"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch3",
+     "next_chapter_id": "ch4"
+    },
+    {
+     "type": "plot_thread_introduced",
+     "thread_id": "new-score-criteria",
+     "thread_type": "hook",
+     "description": "..."
+    },
+    {
+     "type": "hidden_event_created",
+     "event_id": "lost-paper-trace",
+     "description": "纸条在一阵风吹过后被找到。"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-2-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国"
+    }
+   ]
+  },
+  {
+   "turn": 4,
+   "input": "向王建国询问进展",
+   "narrative": "李文博回到小巷深处的家传厨房，心中想着刚刚王建国带来的新线索。他决定先向赵大华打听一下夜市评比的情况。\n\n“大华哥，你知道今天晚上夜市评比的具体评分标准吗？”李文博开口问道。\n\n赵大华坐在灶前，正忙着调配一种香料。“知道一些，不过具体的细节我不清楚。”赵大华抬头看着李文博，“你这问题问得正好，我刚整理了一些资料。也许能帮上你的忙。”\n\n两人开始仔细讨论起夜市评比的事宜。赵大华从一个抽屉里拿出几张纸片递给李文博。“这里面有一些去年评委对各家摊位的评分标准记录，可能对你有帮助。”\n\n正当他们聊得火热时，一阵风吹过，把屋子里的纸张吹得到处都是。王建国正好推门而入：“文博！大华哥，你们快来看，这里有些重要的信息被卷走了！”\n\n三人赶紧捡起散落的纸片，仔细研究起来。赵大华一边整理一边说：“这些评分标准里有提到一些特别的因素，也许与酱料配方有关。”\n\n李文博心中暗自下定决心：一定要找到答案，揭开酱料配方的秘密。",
+   "chapter": "ch5",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch4",
+     "choice_id": "ask-4"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch4",
+     "next_chapter_id": "ch5"
+    }
+   ]
+  },
+  {
+   "turn": 5,
+   "input": "在热闹非凡的夜市中心追查新线索",
+   "narrative": "夜市中心灯火辉煌，热闹非凡。李文博回到了小巷深处的家传厨房，决定再次深入追查新线索。他轻声自语：“那天赵大华提过神秘信息，也许能找到答案。”\n\n“文博！”门外传来熟悉的声音——是王建国。“我刚发现了一些新的线索！”\n\n两人快速讨论起王建国带来的情报，李文博仔细分析这些新信息，希望能揭开酱料配方的秘密。正当他们研究时，一阵风吹过，将桌上的一张纸条吹散。\n\n“不好了！”王建国叫道，“风把我们的信息卷走了！”\n\n赵大华正好推门而入：“文博！你们在找什么呢？”\n\n“大华哥，今天晚上夜市评比的具体评分标准可能与酱料配方有关。”李文博解释道。\n\n三人一起捡起散落的纸条，仔细研究起来。赵大华一边整理一边说：“这些评分标准里有提到一些特别的因素，也许与酱料配方有关。”\n\n“大华哥，你记得那天你说的那句神秘话吗？”李文博低声问道。\n\n赵大华闻声从外面走了进来，“文博，那可是我们家族祖传的秘密啊。这次要是能帮上忙，我再帮你查一查线索。”\n\n赵大华的出现让李文博感到一丝安慰，他们决定一起前往夜市中心的评比现场，看看能否找到更多线索。",
+   "chapter": "ch6",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch5",
+     "choice_id": "investigate-5"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch5",
+     "next_chapter_id": "ch6"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-5-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "赵大华",
+     "location_id": "harbor",
+     "created_turn": 5,
+     "status": "pending",
+     "instruction": "让 赵大华 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 6,
+   "input": "向王建国询问进展",
+   "narrative": "李文博回到小巷深处的家传厨房，心中思索着刚刚王建国带来的新线索。突然，一阵轻微的脚步声打断了他的思绪。门外是赵大华，手里拿着一叠纸片。\n\n“文博，我刚找到一些新的资料！”赵大华进门便急切地说，“这些评分标准里可能藏着关键信息。”\n\n李文博接过纸片，仔细翻阅起来。“真是天助我也！看来夜市评比的标准里确有特别因素。”他说道，语气中带着一丝激动。\n\n“对了，建国哥说今天晚上评比现场可能会有用到的线索。我们快点出发吧！”赵大华提议道，“王建国可是个关键人物，他的摊位一向严谨。”\n\n李文博点点头。“好！让我们再查一查夜市中心的现场。”两人立即收拾好东西，准备前往热闹非凡的夜市中心，继续追查新线索。",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch6",
+     "choice_id": "ask-6"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch6",
+     "next_chapter_id": "ch7"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-5-lan",
+     "npc_id": "lan",
+     "npc_name": "赵大华"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-6-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国",
+     "location_id": "harbor",
+     "created_turn": 6,
+     "status": "pending",
+     "instruction": "让 王建国 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 7,
+   "input": "我不按选项来：主动向在场的人打听一件让我在意的小事。",
+   "narrative": "李文博回到了小巷深处的家传厨房，准备继续追查新线索。突然，一阵轻微的脚步声打破了宁静。门外是赵大华，手里拿着一叠纸片。\n\n“文博，我刚找到一些新的资料！”赵大华进门便急切地说，“这些评分标准里可能藏着关键信息。”\n\n李文博接过纸片，仔细翻阅起来。“真是天助我也！看来夜市评比的标准里确有特别因素。”他说道，语气中带着一丝激动。\n\n“对了，建国哥说今天晚上评比现场可能会有用到的线索。我们快点出发吧！”赵大华提议道，“王建国可是个关键人物，他的摊位一向严谨。”\n\n李文博点点头。“好！让我们再查一查夜市中心的现场。”两人立即收拾好东西，准备前往热闹非凡的夜市中心，继续追查新线索。",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-6-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国"
+    }
+   ]
+  },
+  {
+   "turn": 8,
+   "input": "在小巷深处的家传厨房追查新线索",
+   "narrative": "李文博回到小巷深处的家传厨房，决定再次深入追查新线索。他仔细翻阅着赵大华带来的资料，希望能从中找到更多关于酱料配方的秘密。\n\n“文博！你发现什么了吗？”门外传来熟悉的声音——是王建国。他急切地推门而入，“我刚从夜市中心回来，听说今天晚上的评比现场可能会有用到的线索。”\n\n李文博抬起头，看到王建国手里拿着几张纸片。“你找到了什么？”\n\n“我在评比记录中发现了一些特别的信息！”王建国兴奋地说，“可能与酱料配方有关。但是风把信息卷走了……”他懊恼地叹了口气。\n\n赵大华正好推门而入，手里还拿着那张散落的纸条。“文博，我刚整理出了一些新的资料。”他递给李文博一张详细记录了夜市评比标准的纸片，“这里有些特别的因素，也许能帮上忙。”\n\n三人一起仔细研究这些信息。赵大华说：“这次评比中有一项评分特别看重食材的新鲜度和配比的合理性……”\n\n“看来我们得再查一查夜市中心！”李文博下了决心。\n\n这时，门外传来一阵轻微的脚步声。是王建国。“文博！快看，刚才我从一个摊主那里打听到了一些关键信息。”\n\n“什么信息？”赵大华和李文博一起追问。\n\n“他说评比时评委们会特别注意食材的新鲜度和酱料的配比！”王建国兴奋地说，“也许能帮助我们找到配方的秘密。”\n\n三人决定立即前往夜市中心，继续追查新线索。他们知道，这次合作至关重要。",
+   "chapter": "ch8",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch7",
+     "choice_id": "investigate-7"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch7",
+     "next_chapter_id": "ch8"
+    }
+   ]
+  },
+  {
+   "turn": 9,
+   "input": "向王建国询问进展",
+   "narrative": "李文博回到小巷深处的家传厨房，心中揣摩着刚刚王建国带来的新线索。他轻轻拉开一张木椅坐下，拿起赵大华交给他的资料，仔细翻阅起来。“这次评比中有一项评分特别看重食材的新鲜度和酱料的配比！”王建国兴奋地说，“也许能帮助我们找到配方的秘密。”\n\n这时，门外传来一阵轻微的脚步声。是赵大华走了进来：“文博，我刚从夜市中心回来，听说今天晚上的评比现场可能会有用到的线索。”他递过一张记录详细评分标准的纸片。\n\n李文博接过资料，两人的目光在纸上停留。突然，一阵风吹过，将桌上的一张小纸条吹得四处飘散。“不好了！”王建国叫道，“风把我们的信息卷走了！”\n\n赵大华推门而入：“文博！你们在找什么呢？”他手里还拿着那张散落的纸条，“我刚整理出了一些新的资料。”\n\n李文博接过纸片，仔细研究起来。赵大华说：“这次评比中有一项评分特别看重食材的新鲜度和酱料的配比……”王建国也加入进来：“也许评委们会特别注意这些细节。”三人一起捡起散落的纸条，继续寻找可能有用的信息。\n\n“大华哥，那晚赵大华提过的神秘信息会不会就在其中？”李文博低声问道。赵大华点了点头，眼神中露出一丝不易察觉的紧张。“对了，今晚夜市评比现场可能会有更多线索。”王建国提议道，“我们赶紧再去一趟夜市中心！”\n\n三人决定立即前往热闹非凡的夜市中心，继续追查新线索。他们知道，这次合作至关重要。\n\n李文博：我们走吧，今晚可能就有突破。\n赵大华：好！我跟你说，上次那句话可真是关键啊！\n王建国：文博，你准备好了吗？我们一起去看看。",
+   "chapter": "ch9",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch8",
+     "choice_id": "ask-8"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch8",
+     "next_chapter_id": "ch9"
+    },
+    {
+     "type": "npc_reputation_changed",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国",
+     "previous": 0,
+     "delta": 5,
+     "reputation": 5,
+     "reason_key": "kept_promise"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-9-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "赵大华",
+     "location_id": "harbor",
+     "created_turn": 9,
+     "status": "pending",
+     "instruction": "让 赵大华 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 10,
+   "input": "在夜市中心追查新线索",
+   "narrative": "夜市中心灯火通明，人声鼎沸。李文博与赵大华、王建国三人匆匆赶往这里，心中满是紧张和期待。\n\n“文博，这次一定要找到关键线索！”王建国紧皱眉头，似乎也十分焦急。\n\n李文博环顾四周，突然发现一个角落里有人低声交谈。“你们看那边！”他小声说道，“他们可能正在讨论今天晚上的评比情况。”\n\n三人小心翼翼地靠近。只见豆花争锋的成员们正围在一起，气氛显得有些紧张。王建国凑上前去，试图打听一些信息。\n\n“喂，兄弟们！”王建国轻声问道，“今晚夜市评比有什么特别需要注意的地方吗？”\n\n众人抬头，眼神中闪过一丝惊讶。“你是什么人？”其中一个成员冷言道，“我们这里没你的事！”\n\n赵大华皱了皱眉：“别这样嘛，大家都是同行。或许能互相帮助一下。”\n\n然而对方并不领情，态度愈发冷漠。李文博暗暗决定要找机会了解更多信息。\n\n“大华哥，咱们再去看看夜市中心的评比现场吧。”他低声说，“也许能找到有用的信息。”\n\n三人继续在人群中穿梭，希望能发现更多线索。赵大华突然停下脚步，指向一个摊位：“快看那边！”\n\n王建国和李文博顺着他的手指望去，只见一个评委正仔细检查某家摊位的酱料。“这里可能有我们想要的关键信息！”赵大华兴奋地说。\n\n他们迅速接近，试图从评委那里打探情报。正当这时，一阵风吹过，将桌上的纸条吹得四散飞舞。\n\n“不好了！”王建国急忙喊道，“风把我们的线索卷走了！”\n\n李文博、赵大华和王建国立刻捡起地上的纸片，仔细研究起来。尽管信息仍然不完整，但他们相信只要再努力一点，就能揭开酱料配方的秘密。",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch9",
+     "choice_id": "investigate-9"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch9",
+     "next_chapter_id": "ch10"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-9-lan",
+     "npc_id": "lan",
+     "npc_name": "赵大华"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-10-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国",
+     "location_id": "harbor",
+     "created_turn": 10,
+     "status": "pending",
+     "instruction": "让 王建国 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 11,
+   "input": "暂缓行动，等待更佳时机",
+   "narrative": "夜市中心灯火通明，人声鼎沸。李文博与赵大华、王建国三人匆匆赶往这里，心中满是紧张和期待。\n\n“文博！这次一定要找到关键线索！”王建国紧皱眉头，似乎也十分焦急。\n\n李文博环顾四周，突然发现一个角落里有人低声交谈。“你们看那边！”他小声说道，“他们可能正在讨论今天晚上的评比情况。”\n\n三人小心翼翼地靠近。只见豆花争锋的成员们正围在一起，气氛显得有些紧张。王建国凑上前去，试图打听一些信息。\n\n“喂，兄弟们！”王建国轻声问道，“今晚夜市评比有什么特别需要注意的地方吗？”\n\n众人抬头，眼神中闪过一丝惊讶。“你是什么人？”其中一个成员冷言道，“我们这里没你的事！”\n\n赵大华皱了皱眉：“别这样嘛，大家都是同行。或许能互相帮助一下。”\n\n然而对方并不领情，态度愈发冷漠。\n\n“大华哥，咱们再去看看夜市中心的评比现场吧。”李文博低声说，“也许能找到有用的信息。”\n\n三人继续在人群中穿梭，希望能发现更多线索。赵大华突然停下脚步，指向一个摊位：“快看那边！”\n\n王建国和李文博顺着他的手指望去，只见一个评委正仔细检查某家摊位的酱料。“这里可能有我们想要的关键信息！”赵大华兴奋地说。\n\n他们迅速接近，试图从评委那里打探情报。正当这时，一阵风吹过，将桌上的纸条吹得四散飞舞。\n\n“不好了！”王建国急忙喊道，“风把我们的线索卷走了！”\n\n李文博、赵大华和王建国立刻捡起地上的纸片，仔细研究起来。尽管信息仍然不完整，但他们相信只要再努力一点，就能揭开酱料配方的秘密。\n\n突然，一阵轻微的脚步声传来。是王建国。“文博！”他急切地说，“我刚从一个摊主那里听说今晚的评比会特别注意食材的新鲜度和配比。”\n\n“太好了！”赵大华兴奋地拍了拍李文博的肩膀，“这正是我们所需要的线索！”\n\n三人继续在夜市中寻找更多信息，希望能找到最终的突破点。\n\n王建国：文博，你准备好了吗？我们一起去看看。\n赵大华：好！我跟你说，上次那句话可真是关键啊！\n\n李文博点头：“咱们抓紧时间吧。”",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": {
+    "id": "fog-drowned",
+    "kind": "bad",
+    "narrative_key": "ending.fog_drowned"
+   },
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch10",
+     "choice_id": "miss-the-tide"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "tide-gate-failed",
+     "value": true,
+     "cause": "choice:miss-the-tide"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch10",
+     "status": "completed"
+    },
+    {
+     "type": "lock_ending",
+     "id": "fog-drowned",
+     "kind": "bad",
+     "narrative_key": "ending.fog_drowned"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-10-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "王建国"
+    }
+   ]
+  }
+ ],
+ "failures": [],
+ "world_name": "夜市金牌食肆",
+ "hero": "李文博",
+ "completed_turns": 11,
+ "ending_reached": true,
+ "seconds": 622.4,
+ "second_run_created": true
+}

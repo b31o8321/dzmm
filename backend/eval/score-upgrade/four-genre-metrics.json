@@ -1,0 +1,62 @@
+{
+ "mystery": {
+  "turns": 11,
+  "ending": true,
+  "second_run": true,
+  "template_hits": 0,
+  "keywords": {
+   "钟": 45,
+   "侦探": 0,
+   "勘查": 1,
+   "证物": 0,
+   "雨": 9,
+   "档案": 0
+  },
+  "failures": 0
+ },
+ "survival": {
+  "turns": 11,
+  "ending": true,
+  "second_run": true,
+  "template_hits": 0,
+  "keywords": {
+   "氧气": 27,
+   "舱": 11,
+   "货运站": 0,
+   "补给": 0,
+   "救援": 1,
+   "失压": 0
+  },
+  "failures": 0
+ },
+ "intrigue": {
+  "turns": 11,
+  "ending": true,
+  "second_run": true,
+  "template_hits": 0,
+  "keywords": {
+   "摄政": 14,
+   "密件": 0,
+   "家族": 22,
+   "档案": 0,
+   "掌玺": 23,
+   "宫廷": 0
+  },
+  "failures": 0
+ },
+ "nightmarket": {
+  "turns": 11,
+  "ending": true,
+  "second_run": true,
+  "template_hits": 0,
+  "keywords": {
+   "夜市": 33,
+   "摊": 13,
+   "酱料": 21,
+   "评比": 30,
+   "食肆": 0,
+   "菜": 1
+  },
+  "failures": 0
+ }
+}

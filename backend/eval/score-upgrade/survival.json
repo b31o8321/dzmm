@@ -1,0 +1,520 @@
+{
+ "case": "灾难求生",
+ "genre": "灾难求生",
+ "turns": [
+  {
+   "turn": 1,
+   "input": "抢修卡西负责的舱段",
+   "narrative": "艾文来到通风口舱段，开始仔细检查受损区域。舱壁上的裂缝让他不得不小心行走，以免脚滑跌落。他记得卡西负责这个区域，但自从被救出后，两人还没有正式交接。\n\n“嘿，艾文！”杰克的声音从远处传来，他的声音中带着一丝急切。“那边的氧气瓶快用完了，我们需要尽快修复通风系统。”\n\n“好，我来了。”艾文回应道。他加快了脚步，希望能尽快赶到杰克身边。两人合力开始寻找合适的氧气瓶，并讨论着最有效的修复方案。\n\n在这个过程中，梅丽莎匆匆赶来，脸上带着担忧：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n杰克和艾文对视一眼，意识到这个问题比想象中更为紧迫。他们迅速决定优先确保氧气供应充足，以免情况恶化。",
+   "chapter": "ch2",
+   "route": null,
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch1",
+     "choice_id": "rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "lan-rescued",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "chart-recovered",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "grant_resource",
+     "resource_id": "fog-lantern",
+     "quantity": 1,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "lan-rescued",
+     "relationship_id": "lan",
+     "character_card_id": "lan",
+     "deltas": {
+      "affection": 5,
+      "trust": 20
+     },
+     "reason_key": "relation.lan.rescued",
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch1",
+     "next_chapter_id": "ch2"
+    },
+    {
+     "type": "world_event_activated",
+     "event_id": "event-2"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-1-npc-1",
+     "kind": "npc_initiative",
+     "npc_id": "npc-1",
+     "npc_name": "杰克",
+     "location_id": "harbor",
+     "created_turn": 1,
+     "status": "pending",
+     "instruction": "让 杰克 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "input": "替莉娜隐瞒伤情",
+   "narrative": "艾文走进通风口舱段，空气中弥漫着紧张的气息。梅丽莎匆忙走来，她脸上满是担忧：“艾文，医疗室里的氧气罐快用完了，我们必须尽快采取行动。”杰克站在不远处，正盯着一个受损的氧气瓶，显然也在焦急地等待。\n\n“好的，我马上过来。”艾文回应道。他加快脚步，希望能尽快赶到梅丽莎身边。这时，杰克突然喊道：“艾文，这边需要你的帮助！通风系统快出问题了！”\n“好，我们一起来解决这个问题。”艾文一边说，一边迅速评估起整个舱段的情况。\n\n莉娜出现在通风口的另一端，她的眼神中透露着一丝复杂的情绪。“艾文，我……”她的声音似乎有些颤抖。杰克上前一步，关切地看向她：“莉娜，你需要帮忙吗？”\n\n“不用了。”莉娜摇了摇头，“我没事，只是觉得累了一些。”\n\n“那就好。”杰克安慰道，“我们所有人现在都得相互帮助。”\n\n艾文、杰克和梅丽莎迅速制定出一个临时的解决方案。在这个过程中，莉娜似乎更加沉默了，但她的存在感并没有减弱。\n\n“莉娜，我们需要你一起努力。”艾文轻声说道。\n“我……我会尽力的。”莉娜回答道，声音中带着一丝勉强。",
+   "chapter": "ch3",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch2",
+     "choice_id": "shen-confession"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "shen-confessed",
+     "value": true,
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "lock_route",
+     "route_id": "shen-route",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "shen-confession",
+     "relationship_id": "shen_yan",
+     "character_card_id": "shen_yan",
+     "deltas": {
+      "affection": 10,
+      "trust": 25
+     },
+     "reason_key": "relation.shen.confession",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch2",
+     "next_chapter_id": "ch3"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-1-npc-1",
+     "npc_id": "npc-1",
+     "npc_name": "杰克"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-2-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎",
+     "location_id": "harbor",
+     "created_turn": 2,
+     "status": "pending",
+     "instruction": "让 梅丽莎 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "input": "在控制中心搜寻可用补给",
+   "narrative": "艾文走进控制中心，这里灯火通明，但空气里弥漫着紧张的气息。杰克正在检查通风系统的电路板，梅丽莎则在一旁记录着什么。\n\n“艾文！”杰克抬头看到了他，声音带着一丝急切，“我们发现了一个问题，需要你帮助分析一下这些数据。”\n\n艾文点点头，走近了一步：“好的，让我看看。”他接过梅丽莎手中的数据表，仔细地查看起来。这时，莉娜也从通风口走了过来，她的眼神中透露着复杂的情绪。\n\n“艾文，我……”她的声音有些颤抖，“这里的数据和那个地方不太对劲。”\n\n“先别急。”杰克安慰道，“我们一起来看看。”\n\n艾文、杰克和梅丽莎迅速分析起数据。莉娜在一旁默默地观察，偶尔提出一些建议。\n\n“在这边有轻微的电流波动，可能是通风口出了问题。”杰克指着一处说。\n\n艾文点点头：“好的，那我们就先解决这里的问题。”\n\n对话结束后，艾文向杰克询问下一步行动：“我们需要优先处理哪里？”\n\n“控制中心这边有几个关键点，”杰克解释道，“但同时通风口也有紧急情况，我们得两头兼顾。”\n\n“那就分头行动吧。”艾文点头同意。",
+   "chapter": "ch4",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch3",
+     "choice_id": "investigate-3"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch3",
+     "next_chapter_id": "ch4"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-2-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-3-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "莉娜",
+     "location_id": "harbor",
+     "created_turn": 3,
+     "status": "pending",
+     "instruction": "让 莉娜 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 4,
+   "input": "和莉娜清点余量",
+   "narrative": "艾文走进通风口舱段，与杰克、梅丽莎一起检查受损区域。莉娜站在不远处，眼神中带着一丝疲惫但坚定。杰克的声音打破了沉默：“艾文，我们发现了一处裂缝，需要你的帮忙来加固。”艾文点点头，开始指导团队行动。\n\n“莉娜，”艾文转头看向她，“我们需要你帮忙搬运一些材料。”\n\n莉娜微微皱眉，但还是点了点头：“好的，我会尽力的。”她接过一块金属板，轻巧地放置在指定位置。\n\n与此同时，通风口传来一阵紧急的呼叫声。梅丽莎焦急地喊道：“快过来！控制中心需要更多氧气供应！”艾文回头看向莉娜，“我们需要分头行动。你继续这里，我过去一趟。”\n\n“好。”莉娜应声道，身影迅速消失在黑暗中。杰克和梅丽莎则跟随艾文向控制中心前进。\n\n通风口的这番对话给两人留下了深刻的印象。艾文心中默默记下了这次互动，决定利用这些新的线索来进一步深化与莉娜的关系。\n\n“莉娜，我们需要你帮忙搬运材料。”艾文再次轻声说道。",
+   "chapter": "ch5",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch4",
+     "choice_id": "ask-4"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch4",
+     "next_chapter_id": "ch5"
+    },
+    {
+     "type": "plot_thread_introduced",
+     "thread_id": "short-hook",
+     "thread_type": "hook",
+     "description": "莉娜的过去和她隐藏的秘密"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-3-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "莉娜"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-4-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎",
+     "location_id": "harbor",
+     "created_turn": 4,
+     "status": "pending",
+     "instruction": "让 梅丽莎 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 5,
+   "input": "在医疗室搜寻可用补给",
+   "narrative": "艾文走进控制中心，这里的灯光虽然明亮，但空气中弥漫着紧张的气息。杰克正在检查通风系统的电路板，梅丽莎则在一旁记录着什么。莉娜站在不远处，眼神中透露着疲惫却坚定的表情。\n\n“艾文，这里的数据和那个地方不太对劲。”莉娜轻声说道，她的眼神似乎在寻找支持或理解。\n\n“我们一起看看。”艾文点点头，接过梅丽莎手中的数据表，仔细地查看起来。杰克在一旁补充道：“是的，我们需要确保每个环节都正常运作。”\n\n这时，通风口传来一阵紧急的呼叫声。“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n“我们马上过去。”艾文回应道，转身向门口走去。\n\n莉娜跟在他身后，轻声问道：“你知道吗？我过去常常梦见那些深空站……”\n\n杰克回头看了她一眼，轻轻拍了拍她的肩膀，“我们都在这里，别担心。”\n\n艾文和梅丽莎迅速向医疗室前进。在这个过程中，莉娜的那句话一直回荡在艾文耳边，他决定找个机会深入了解她的过去。\n\n“莉娜，我们需要你帮忙搬运材料。”艾文轻声说道。\n\n“好的，我会尽力的。”莉娜应声道，身影迅速消失在黑暗中。",
+   "chapter": "ch6",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch5",
+     "choice_id": "investigate-5"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch5",
+     "next_chapter_id": "ch6"
+    },
+    {
+     "type": "npc_reputation_changed",
+     "npc_id": "shen_yan",
+     "npc_name": "莉娜",
+     "previous": 0,
+     "delta": 5,
+     "reputation": 5,
+     "reason_key": "explored_past"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-4-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-5-npc-1",
+     "kind": "npc_initiative",
+     "npc_id": "npc-1",
+     "npc_name": "杰克",
+     "location_id": "harbor",
+     "created_turn": 5,
+     "status": "pending",
+     "instruction": "让 杰克 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 6,
+   "input": "和莉娜清点余量",
+   "narrative": "艾文再次走进通风口舱段，与杰克、梅丽莎一起仔细检查受损区域。莉娜站在不远处，眼神中带着一丝疲惫但坚定。\n\n“嘿，艾文，那边氧气瓶快用完了，我们需要尽快修复通风系统。”杰克的声音从远处传来，带着一丝急切。\n\n艾文点点头：“好的，我来了。”他加快了脚步，希望能尽快赶到杰克身边。与此同时，梅丽莎匆匆赶来，脸上满是担忧：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n“好，我们一起来解决这个问题。”艾文轻声说道。莉娜看着大家忙碌的身影，犹豫了一下，但还是开口说：“我来帮你们搬运一些材料吧，毕竟这里也离不开我的工作。”\n\n杰克点了点头：“谢谢你，莉娜。我们需要每个人的帮助才能渡过难关。”\n\n正当他们忙于清点余量时，通风口传来一阵紧急的呼叫声。“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n艾文回头看向莉娜：“我们需要分头行动。你继续这里，我过去一趟。”莉娜点了点头，身影迅速消失在黑暗中。杰克和梅丽莎则跟随艾文向控制中心前进。\n\n“莉娜，我们需要你帮忙搬运材料。”艾文轻声说道，眼中透出鼓励和支持的光芒。\n\n“好的，我会尽力的。”莉娜应声道，然后加快脚步前往通风口继续工作。\n\n在这段对话中，艾文与莉娜的关系有了微妙的变化。艾文决定利用这次机会更深入地了解她的过去，并在未来的互动中进一步加深彼此之间的信任和理解。\n\n艾文再次轻声说道：“莉娜，我们需要你帮忙搬运材料。”\n\n“好的，我会尽力的。”莉娜应声道，身影迅速消失在黑暗中。",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch6",
+     "choice_id": "ask-6"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch6",
+     "next_chapter_id": "ch7"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-5-npc-1",
+     "npc_id": "npc-1",
+     "npc_name": "杰克"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-6-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎",
+     "location_id": "harbor",
+     "created_turn": 6,
+     "status": "pending",
+     "instruction": "让 梅丽莎 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 7,
+   "input": "我不按选项来：主动向在场的人打听一件让我在意的小事。",
+   "narrative": "艾文再次走进通风口舱段，与杰克、梅丽莎一起仔细检查受损区域。莉娜站在不远处，眼神中带着一丝疲惫但坚定。\n\n“嘿，艾文！”杰克的声音从远处传来，带着一丝急切。“那边的氧气瓶快用完了，我们需要尽快修复通风系统。”\n\n“好，我来了。”艾文加快了脚步，希望能尽快赶到杰克身边。与此同时，梅丽莎匆匆赶来，脸上满是担忧：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n正当他们忙于清点余量时，通风口传来一阵紧急的呼叫声。“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n“我们马上过去。”艾文回应道。他回头看向莉娜：“我们需要分头行动。你继续这里，我过去一趟。”\n\n“好的。”莉娜应声道，身影迅速消失在黑暗中。杰克和梅丽莎则跟随艾文向控制中心前进。\n\n艾文轻声说道：“莉娜，我们需要你帮忙搬运材料。”\n\n“好的，我会尽力的。”莉娜应声道，然后加快脚步前往通风口继续工作。\n\n在这段对话中，艾文与莉娜的关系有了微妙的变化。艾文决定利用这次机会更深入地了解她的过去，并在未来的互动中进一步加深彼此之间的信任和理解。\n\n“我们需要分头行动。你继续这里，我过去一趟。”莉娜说完，身影迅速消失在黑暗中。\n\n杰克的声音回荡在控制中心：“我们得尽快确保通风系统的稳定性，否则氧气供应将更加紧张。”\n\n艾文点头回应：“明白！我们会抓紧时间处理好这些紧急情况的。”",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-6-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-7-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "莉娜",
+     "location_id": "harbor",
+     "created_turn": 7,
+     "status": "pending",
+     "instruction": "让 莉娜 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 8,
+   "input": "在通风口搜寻可用补给",
+   "narrative": "艾文走进通风口舱段，空气中弥漫着紧张的气息。梅丽莎匆忙走来，她脸上满是担忧：“艾文，医疗室里的氧气罐快用完了，我们必须尽快采取行动。”\n\n“好的，我马上过来。”艾文回应道，加快脚步向梅丽莎走去。这时，杰克也从不远处走了出来，关切地看向他：“艾文，这边的通风系统需要你的帮助。我们发现了一些问题。”\n\n莉娜站在一旁，眼神中透露着一丝复杂的情绪。“艾文，我……”她的声音似乎有些颤抖。\n\n“没关系，我们现在一起解决。”艾文轻声说道，转头看向杰克，“我们需要你帮忙检查一下这些数据。”\n\n杰克点点头：“好的，我会尽全力协助的。”他接过梅丽莎手中的数据表，仔细地查看起来。莉娜则在旁边默默地观察着，偶尔提出一些建议。\n\n“在这边有轻微的电流波动，可能是通风口出了问题。”杰克指着一处说。\n\n艾文点点头：“好的，那我们就先解决这里的问题。”\n\n这时，通风口传来一阵紧急的呼叫声。“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n“好，我们立刻过去。”艾文回应道，转身向门口走去。莉娜跟在他身后，轻声问道：“你知道吗？我过去常常梦见那些深空站……”\n\n杰克回头看了她一眼，轻轻拍了拍她的肩膀，“我们都在这里，别担心。”\n\n正当他们忙于处理紧急情况时，梅丽莎急忙补充道：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n“好，我们一起来解决这个问题。”艾文轻声说道。\n\n莉娜看着大家忙碌的身影，犹豫了一下，但还是开口说：“我来帮你们搬运一些材料吧，毕竟这里也离不开我的工作。”\n\n“谢谢你，莉娜。我们需要每个人的帮助才能渡过难关。”杰克点头回应道。\n\n在这段对话中，艾文决定利用这次机会更深入地了解莉娜的过去，并在未来的互动中进一步加深彼此之间的信任和理解。\n\n“莉娜，我们需要你帮忙搬运材料。”艾文轻声说道。\n\n“好的，我会尽力的。”莉娜应声道，身影迅速消失在黑暗中。",
+   "chapter": "ch8",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch7",
+     "choice_id": "investigate-7"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch7",
+     "next_chapter_id": "ch8"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-7-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "莉娜"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-8-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "卡西",
+     "location_id": "harbor",
+     "created_turn": 8,
+     "status": "pending",
+     "instruction": "让 卡西 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 9,
+   "input": "和莉娜清点余量",
+   "narrative": "艾文再次走进通风口舱段，空气里弥漫着紧张的气息。莉娜站在不远处，眼神中带着一丝疲惫但坚定。杰克和梅丽莎正在忙碌地处理紧急情况，而通风口的另一端传来了急切的声音：“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n“我们需要分头行动。”艾文轻声说道，“你继续这里，我过去一趟。”\n\n莉娜点了点头，身影迅速消失在黑暗中。杰克和梅丽莎则跟随艾文向控制中心前进。“莉娜，我们需要你帮忙搬运材料。”艾文轻声说道，眼中透出鼓励和支持的光芒。\n\n“好的，我会尽力的。”莉娜应声道，然后加快脚步前往通风口继续工作。\n\n在这段对话中，艾文与莉娜的关系有了微妙的变化。艾文决定利用这次机会更深入地了解她的过去，并在未来的互动中进一步加深彼此之间的信任和理解。\n\n就在这时，梅丽莎急忙补充道：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n“好，我们一起来解决这个问题。”艾文轻声说道。他迅速向控制中心走去，留下了一丝悬念——莉娜过去的故事究竟藏着什么秘密？",
+   "chapter": "ch9",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch8",
+     "choice_id": "ask-8"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch8",
+     "next_chapter_id": "ch9"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-8-lan",
+     "npc_id": "lan",
+     "npc_name": "卡西"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-9-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎",
+     "location_id": "harbor",
+     "created_turn": 9,
+     "status": "pending",
+     "instruction": "让 梅丽莎 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 10,
+   "input": "在控制中心搜寻可用补给",
+   "narrative": "艾文走进通风口舱段，空气里弥漫着紧张的气息。莉娜站在不远处，眼神中带着一丝疲惫但坚定。杰克和梅丽莎正在忙碌地处理紧急情况，而通风口另一端传来了急切的声音：“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n“我们需要分头行动。”艾文轻声说道，“你继续这里，我过去一趟。”\n\n莉娜点了点头，身影迅速消失在黑暗中。杰克和梅丽莎则跟随艾文向控制中心前进。“莉娜，我们需要你帮忙搬运材料。”艾文轻声说道，眼中透出鼓励和支持的光芒。\n\n“好的，我会尽力的。”莉娜应声道，然后加快脚步前往通风口继续工作。\n\n正当他们忙于处理紧急情况时，梅丽莎急忙补充道：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n“好，我们一起来解决这个问题。”艾文轻声说道。他迅速向控制中心走去，留下了一丝悬念——莉娜过去的故事究竟藏着什么秘密？\n\n与此同时，在通风口的一处隐蔽角落里，卡西（莉娜）悄悄地检查着自己的行囊。她的眼神中带着一丝犹豫和决心，似乎在等待一个合适的时机。",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch9",
+     "choice_id": "investigate-9"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch9",
+     "next_chapter_id": "ch10"
+    },
+    {
+     "type": "hidden_event_created",
+     "event_id": "hidden-event-1",
+     "description": "卡西决定利用空闲时间探索通风口的一个废弃区域，寻找可能有用的物资"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-9-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "梅丽莎"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-10-npc-1",
+     "kind": "npc_initiative",
+     "npc_id": "npc-1",
+     "npc_name": "杰克",
+     "location_id": "harbor",
+     "created_turn": 10,
+     "status": "pending",
+     "instruction": "让 杰克 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 11,
+   "input": "原地保守待援",
+   "narrative": "艾文再次走进通风口舱段，空气里弥漫着紧张的气息。莉娜站在不远处，眼神中带着一丝疲惫但坚定。杰克和梅丽莎正在忙碌地处理紧急情况，而控制中心传来急切的声音：“快过来！控制中心需要更多氧气供应！”梅丽莎焦急地喊道。\n\n“我们需要分头行动。”艾文轻声说道，“你继续这里，我过去一趟。”\n\n莉娜点了点头，身影迅速消失在黑暗中。杰克和梅丽莎则跟随艾文向控制中心前进。“莉娜，我们需要你帮忙搬运材料。”艾文轻声说道，眼中透出鼓励和支持的光芒。\n\n“好的，我会尽力的。”莉娜应声道，然后加快脚步前往通风口继续工作。\n\n正当他们忙于处理紧急情况时，梅丽莎急忙补充道：“艾文，医疗室的氧气罐已经不足，我们必须赶紧采取行动。”\n\n“好，我们一起来解决这个问题。”艾文轻声说道。他迅速向控制中心走去，留下了一丝悬念——莉娜过去的故事究竟藏着什么秘密？\n\n就在这时，杰克突然停下了脚步，显得有些犹豫。“我……”他的声音低沉下来，“找到了一些关于通风口的备用零件图。”\n\n“太好了！”艾文接过图纸，“这将帮助我们修复系统。但是现在首先要确保氧气供应充足。”\n\n“同意。”梅丽莎点头道，“我们会一起努力的。”\n\n正当他们忙碌的时候，杰克低声说道：“我记得之前有一次检查时发现这里有一个废弃的小仓库，或许能找到更多物资。”\n\n“那我们就去看看吧。”艾文提议道。\n\n梅丽莎和艾文迅速向通风口外的一个隐蔽角落前进。在那里，杰克指了指一处被遗忘的区域。“就是这里，我以前来过一次，里面可能有些有用的材料。”\n\n三人进入了那个废弃的小仓库，开始仔细搜寻起来。在角落里，他们发现了一些额外的氧气瓶和其他维修工具。\n\n“看来我们有希望了。”梅丽莎兴奋地说，“这些能帮助我们度过难关。”\n\n艾文点点头：“是的，现在让我们把这些物资带回去吧。”\n\n莉娜回到通风口时，看到他们满载而归，眼中闪过一丝惊讶和欣慰。她轻声说道：“谢谢你们的帮助。”\n\n“不用谢。”杰克微笑道，“大家都是救援联盟的一员，我们共同面对困难。”\n\n随着氧气供应得到缓解，艾文和莉娜之间的关系更加紧密了。艾文决定进一步了解她的过去，希望能找到更多线索。\n\n“莉娜，”艾文轻声问道，“你提到过那些深空站的梦，可以分享一下吗？”\n\n莉娜犹豫了一下，但最终还是开口说：“那是一段痛苦的经历……”",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": {
+    "id": "fog-drowned",
+    "kind": "bad",
+    "narrative_key": "ending.fog_drowned"
+   },
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch10",
+     "choice_id": "miss-the-tide"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "tide-gate-failed",
+     "value": true,
+     "cause": "choice:miss-the-tide"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch10",
+     "status": "completed"
+    },
+    {
+     "type": "lock_ending",
+     "id": "fog-drowned",
+     "kind": "bad",
+     "narrative_key": "ending.fog_drowned"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-10-npc-1",
+     "npc_id": "npc-1",
+     "npc_name": "杰克"
+    }
+   ]
+  }
+ ],
+ "failures": [],
+ "world_name": "末日深空",
+ "hero": "艾文",
+ "completed_turns": 11,
+ "ending_reached": true,
+ "seconds": 684.7,
+ "second_run_created": true
+}

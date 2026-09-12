@@ -1,0 +1,489 @@
+{
+ "case": "悬疑探案",
+ "genre": "悬疑探案",
+ "turns": [
+  {
+   "turn": 1,
+   "input": "协助陈小北勘查现场",
+   "narrative": "林默轩来到钟表匠故居，仔细勘查现场。室内弥漫着浓浓的灰尘味，但每一件摆设都透露着岁月的痕迹。陈小北正蹲在地上，手里拿着几根铁丝和一张纸，似乎在记录什么。\n\n“嘿，林默轩，”陈小北抬头看见他，露出一丝笑容，“我正好整理了一些线索，或许对我们调查有帮助。”\n\n林默轩接过陈小北手中的纸张，上面记录着一些复杂的时钟构造图。他沉思片刻后说：“这些图纸确实不简单，你先在这里等着，我去看看能不能找到更多线索。”\n\n林默轩在屋内仔细搜寻，希望能发现更多有价值的证据。同时，陈小北也继续整理手头的工作。\n\n（下一步建议：检查陈小北记录的图纸是否有进一步的提示）",
+   "chapter": "ch2",
+   "route": null,
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch1",
+     "choice_id": "rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "lan-rescued",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "chart-recovered",
+     "value": true,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "grant_resource",
+     "resource_id": "fog-lantern",
+     "quantity": 1,
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "lan-rescued",
+     "relationship_id": "lan",
+     "character_card_id": "lan",
+     "deltas": {
+      "affection": 5,
+      "trust": 20
+     },
+     "reason_key": "relation.lan.rescued",
+     "cause": "choice:rescue-lan"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch1",
+     "next_chapter_id": "ch2"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-1-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "陈小北",
+     "location_id": "harbor",
+     "created_turn": 1,
+     "status": "pending",
+     "instruction": "让 陈小北 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "input": "替李文博圆上供词",
+   "narrative": "林默轩仔细检查着陈小北记录的复杂图纸，心中不禁有些疑惑：“这图纸上标记的这些齿轮和链条，真的与案情有关吗？”\n\n这时，门外传来一阵急促的脚步声，紧接着是林小雨的声音：“林默轩，我刚从楼上下来，发现了一些奇怪的东西。”\n\n林默轩抬头看向门口，见到了林小雨。她神情紧张地说道：“在楼上的那座钟里面，我发现了一些微小的机关和密文，我觉得这些可能与案件有关！”\n\n林默轩心中一动，决定立即前往楼上查看情况。他告诉陈小北自己要去一趟，随后跟随林小雨上了二楼。\n\n“小雨，你先在这里等着，我去看看。”林默轩叮嘱道。\n\n林默轩和林小雨一起走进了那座钟里面，只见密室内部布满了复杂的机关和机械构造。两人仔细观察着，希望能发现新的线索。\n\n（下一步建议：检查钟内机关是否有新发现）",
+   "chapter": "ch3",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch2",
+     "choice_id": "shen-confession"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "shen-confessed",
+     "value": true,
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "lock_route",
+     "route_id": "shen-route",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "apply_relationship_event",
+     "relationship_event_id": "shen-confession",
+     "relationship_id": "shen_yan",
+     "character_card_id": "shen_yan",
+     "deltas": {
+      "affection": 10,
+      "trust": 25
+     },
+     "reason_key": "relation.shen.confession",
+     "cause": "choice:shen-confession"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch2",
+     "next_chapter_id": "ch3"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-1-lan",
+     "npc_id": "lan",
+     "npc_name": "陈小北"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-2-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "林小雨",
+     "location_id": "harbor",
+     "created_turn": 2,
+     "status": "pending",
+     "instruction": "让 林小雨 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "input": "在古董店复核疑点",
+   "narrative": "林默轩继续查看着陈小北记录的图纸，忽然，一阵轻微的响动吸引了他的注意。他顺着声音的方向望去，只见赵文华正站在门口，脸上带着一抹不易察觉的笑容。\n\n“赵文华，你在这里做什么？”林默轩眉头微皱地问道。\n\n赵文华轻声回答：“我只是想看看你们在忙些什么。你知道，我对钟表也有着浓厚的兴趣。”\n\n林默轩警惕地打量了他几眼，决定暂时不揭穿对方。“那好吧，但别打扰我们。”说完，他继续仔细检查图纸，而赵文华则站在一旁观察。\n\n（下一步建议：与赵文华进一步交流，了解他对钟表的秘密兴趣）\n\n“赵文华：我对钟表也有着浓厚的兴趣。”",
+   "chapter": "ch4",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch3",
+     "choice_id": "investigate-3"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch3",
+     "next_chapter_id": "ch4"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-2-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "林小雨"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-3-npc-1",
+     "kind": "npc_initiative",
+     "npc_id": "npc-1",
+     "npc_name": "赵文华",
+     "location_id": "harbor",
+     "created_turn": 3,
+     "status": "pending",
+     "instruction": "让 赵文华 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 4,
+   "input": "与李文博核对口供",
+   "narrative": "林默轩回到陈小北身边，两人一起整理线索。突然，陈小北注意到墙上的挂钟似乎有些不对劲。“你看这钟的齿轮转动方式，”陈小北低声说道，“与普通的时钟不一样。”\n\n“你怀疑什么？”林默轩询问道。\n\n“我觉得这里隐藏着某种秘密，”陈小北的眼神中流露出对钟表的痴迷，“我总感觉这只钟在向我们传递信息。或许，我们应该重新检查一下这座钟的所有细节。”\n\n“好吧，我们仔细看看。”林默轩点点头，两人开始细致地检查这面挂钟，发现了几个微小但至关重要的机关。\n\n（下一步建议：尝试打开钟内隐藏的机关）\n\n“陈小北：我看这里有些奇怪的东西。”",
+   "chapter": "ch5",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch4",
+     "choice_id": "ask-4"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch4",
+     "next_chapter_id": "ch5"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-3-npc-1",
+     "npc_id": "npc-1",
+     "npc_name": "赵文华"
+    }
+   ]
+  },
+  {
+   "turn": 5,
+   "input": "在市政厅复核疑点",
+   "narrative": "林默轩带着一丝紧张的心情来到了市政厅，这里灯火通明，几个工作人员正在忙碌地处理各种事务。他直接走向市长办公室，敲了敲门。\n\n“进来。”\n\n市长李文博的声音从内传来，林默轩推开门，走进室内。李文博正坐在办公桌后，眉头微皱地看着一些文件。\n\n“林默轩，有什么事情吗？”李文博抬头看了眼林默轩，语气有些冷淡。\n\n“我是来复核一下现场的一些疑点的。”林默轩拿出陈小北记录的图纸和之前发现的小机关照片，“关于这些复杂的时钟构造。”\n\n李文博接过资料，仔细看了看。“嗯，这确实很复杂。你认为这里有什么线索吗？”\n\n“我怀疑这些构造与案件有关联。”林默轩回答道，“特别是那些微小的机关，可能隐藏着某种秘密。”\n\n李文博微微点头：“好的，那我们一起来分析一下。你先在这里等一会儿，我去叫人过来一起看看。”\n\n说罢，李文博离开了办公室，留下林默轩独自一人在室内思考。\n\n（下一步建议：等待李文博的通知并共同分析线索）\n\n“市长李文博：我怀疑这些构造与案件有关联。”",
+   "chapter": "ch6",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch5",
+     "choice_id": "investigate-5"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch5",
+     "next_chapter_id": "ch6"
+    },
+    {
+     "type": "world_event_activated",
+     "event_id": "event-1"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-5-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "陈小北",
+     "location_id": "harbor",
+     "created_turn": 5,
+     "status": "pending",
+     "instruction": "让 陈小北 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 6,
+   "input": "与李文博核对口供",
+   "narrative": "林默轩回到钟表匠故居，与李文博再次核对口供。室内依旧弥漫着陈旧的空气，但这次两人显得更为专注。\n\n“根据你之前提供的信息，”林默轩说道，“我们发现了一些新的线索。”他递给李文博一张记录了复杂时钟构造图的小纸片。“这可能是解开案件的关键。”\n\n李文博接过纸片，仔细端详片刻后，眉头微皱。“确实很复杂。我们能否再次检查那座古董钟？也许那里有更多的秘密。”\n\n“好的。”林默轩点头，“但这次我们需要更细致地寻找。”\n\n这时，门突然开了，陈小北走了进来。“我刚从楼上下来，发现了一些微小的机关和密文，我觉得这些可能与案件有关！”\n\n林默轩和李文博交换了一个眼神，决定立即前往楼上查看情况。三人一起走上二楼，进入那座钟内。\n\n“小北，你先在这里等着，我们去检查一下。”李文博吩咐道。\n\n三人仔细观察着内部的机关和密文，发现了一些微小但至关重要的线索。林默轩心中暗自点头，这些细节似乎都在指向某个隐藏的秘密。\n\n（下一步建议：继续在钟内寻找新的线索）\n\n“林默轩：这里有些东西看起来非同寻常。”",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch6",
+     "choice_id": "ask-6"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch6",
+     "next_chapter_id": "ch7"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-5-lan",
+     "npc_id": "lan",
+     "npc_name": "陈小北"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-6-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "林小雨",
+     "location_id": "harbor",
+     "created_turn": 6,
+     "status": "pending",
+     "instruction": "让 林小雨 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 7,
+   "input": "我不按选项来：主动向在场的人打听一件让我在意的小事。",
+   "narrative": "林默轩来到市政厅，再次与李文博核对口供。室内依旧灯火通明，空气里弥漫着紧张的气氛。\n\n“根据你之前提供的信息，”林默轩说道，“我们发现了一些新的线索。”他递给李文博一张记录了复杂时钟构造图的小纸片。“这可能是解开案件的关键。”\n\n李文博接过纸片，仔细端详片刻后，眉头微皱：“确实很复杂。我们能否再次检查那座古董钟？也许那里有更多的秘密。”\n\n“好的。”林默轩点头，“但这次我们需要更细致地寻找。”\n\n这时，门突然开了，赵文华走了进来。“我刚从楼上下来，发现了一些微小的机关和密文，我觉得这些可能与案件有关！”他神情紧张地说。\n\n林默轩和李文博交换了一个眼神，决定立即前往楼上查看情况。三人一起走上二楼，进入那座钟内。赵文华紧随其后，眼中闪烁着好奇的光芒。\n\n“这里有些东西看起来非同寻常。”林默轩低语道，指向一个微小的刻痕。\n\n“看来我们又找到了一些线索。”李文博轻声说，“但这些密文究竟意味着什么？”\n\n“也许我们可以先回去仔细研究一下。”赵文华提议道，“这些机关可能需要专业知识才能解读。”\n\n三人决定暂时返回钟表匠故居进行分析。林默轩心中暗自思量，这背后的秘密似乎比想象中更为复杂。\n\n“林默轩：我们需要把这些线索带回去仔细研究。”",
+   "chapter": "ch7",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "narrate",
+     "accepted": true
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-6-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "林小雨"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-7-shen_yan",
+     "kind": "npc_initiative",
+     "npc_id": "shen_yan",
+     "npc_name": "李文博",
+     "location_id": "harbor",
+     "created_turn": 7,
+     "status": "pending",
+     "instruction": "让 李文博 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 8,
+   "input": "在钟表匠故居复核疑点",
+   "narrative": "林默轩回到市政厅，继续与李文博核对口供。室内依然灯火通明，空气中弥漫着紧张的气氛。\n\n“根据你之前提供的信息，”林默轩说道，“我们发现了一些新的线索。”他递给李文博一张记录了复杂时钟构造图的小纸片。“这可能是解开案件的关键。”\n\n李文博接过纸片，仔细端详片刻后，眉头微皱：“确实很复杂。我们能否再次检查那座古董钟？也许那里有更多的秘密。”\n\n“好的。”林默轩点头，“但这次我们需要更细致地寻找。”\n\n这时，门突然开了，赵文华走了进来。“我刚从楼上下来，发现了一些微小的机关和密文，我觉得这些可能与案件有关！”他神情紧张地说。\n\n李文博看了眼林默轩，然后转向赵文华：“那你先在这里等着。我们三个人一起检查那座钟。”\n\n三人迅速走上二楼，进入那座钟内。林默轩仔细检查着每一个角落，突然发现了一个隐藏的机关。“看这里，”他指着一个刻痕说，“这个可能就是关键。”\n\n李文博和赵文华也凑近看了看，李文博沉思道：“这确实非同寻常。我们需要把这些线索带回古董店仔细研究。”\n\n赵文华微微点头，眼中闪烁着好奇的光芒。\n\n“林默轩：我们现在需要回去仔细分析这些发现。”林默轩说道。",
+   "chapter": "ch8",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch7",
+     "choice_id": "investigate-7"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch7",
+     "next_chapter_id": "ch8"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-7-shen_yan",
+     "npc_id": "shen_yan",
+     "npc_name": "李文博"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-8-npc-1",
+     "kind": "npc_initiative",
+     "npc_id": "npc-1",
+     "npc_name": "赵文华",
+     "location_id": "harbor",
+     "created_turn": 8,
+     "status": "pending",
+     "instruction": "让 赵文华 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 9,
+   "input": "与李文博核对口供",
+   "narrative": "林默轩回到钟表匠故居，继续与李文博核对口供。室内昏黄的灯光下，两人的表情都显得格外严肃。\n\n“根据你之前提供的信息，”林默轩说道，“我们发现了一些新的线索。”他递给李文博一张记录了复杂时钟构造图的小纸片。“这可能是解开案件的关键。”\n\n李文博接过纸片，仔细端详片刻后，眉头微皱：“确实很复杂。我们能否再次检查那座古董钟？也许那里有更多的秘密。”\n\n“好的。”林默轩点头，“但这次我们需要更细致地寻找。”\n\n这时，门突然开了，赵文华走了进来。“我刚从楼上下来，发现了一些微小的机关和密文，我觉得这些可能与案件有关！”他神情紧张地说。\n\n李文博看了眼林默轩，然后转向赵文华：“那你先在这里等着。我们三个人一起检查那座钟。”\n\n三人迅速走上二楼，进入那座钟内。林默轩仔细检查着每一个角落，突然发现了一个隐藏的机关。“看这里，”他指着一个刻痕说，“这个可能就是关键。”\n\n李文博和赵文华也凑近看了看，李文博沉思道：“这确实非同寻常。我们需要把这些线索带回古董店仔细研究。”\n\n赵文华微微点头，眼中闪烁着好奇的光芒。\n\n“林默轩：我们现在需要回去仔细分析这些发现。”林默轩说道。",
+   "chapter": "ch9",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch8",
+     "choice_id": "ask-8"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch8",
+     "next_chapter_id": "ch9"
+    },
+    {
+     "type": "plot_thread_introduced",
+     "thread_id": "secret-clockwork",
+     "thread_type": "hook",
+     "description": "古董钟内的秘密机关仍未完全揭露，更多线索待解"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-8-npc-1",
+     "npc_id": "npc-1",
+     "npc_name": "赵文华"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-9-npc-2",
+     "kind": "npc_initiative",
+     "npc_id": "npc-2",
+     "npc_name": "林小雨",
+     "location_id": "harbor",
+     "created_turn": 9,
+     "status": "pending",
+     "instruction": "让 林小雨 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 10,
+   "input": "在古董店复核疑点",
+   "narrative": "林默轩回到钟表匠故居，室内依旧弥漫着陈旧的气息。李文博和赵文华已经在这里等候多时，三人围坐在一张旧木桌旁，桌上摆放着各种复杂的图纸和密文。\n\n“看这里，”赵文华指着一份密文说，“这些符号可能与我们寻找的线索有关。”\n\n林默轩仔细看了看，眼中闪过一丝惊喜：“确实有迹可循。但这些符号过于复杂，我们需要更多资料来破解它们。”\n\n李文博点点头：“我们应该联系一下陈小北，或许他能提供一些帮助。”\n\n“好主意。”林默轩说道，“我这就去古董店找他。”\n\n赵文华微微点头，眼中闪过一丝好奇的光芒。\n\n林默轩起身离开故居，穿过昏暗的小巷来到古董店。店内灯火通明，陈小北正在擦拭一件精致的时钟。\n\n“林默轩！”陈小北抬头看到林默轩，连忙放下手中的活计，“你找到什么线索了吗？”\n\n“是这样的。”林默轩将手中的密文交给陈小北，“这些符号可能与我们寻找的秘密有关。你能帮我分析一下吗？”\n\n陈小北接过密文，仔细端详片刻：“这个确实非同寻常，我需要时间研究一下。”\n\n林默轩感激地点点头：“谢谢你的帮助。”\n\n这时，门外突然传来急促的脚步声，一个声音喊道：“小北！你在这里吗？”\n\n林默轩转头望去，只见钟表匠故居的门缓缓打开，林小雨走了进来。她神情紧张地环顾四周，显然有些担心。\n\n“林小雨！”陈小北惊讶地说，“你怎么来了？”\n\n林小雨喘着气说道：“我接到父亲通知，说今晚会有关于案件的关键线索。请务必保密。”\n\n林默轩和陈小北交换了一个眼神，三人迅速回到故居继续研究线索。\n\n“林默轩：我们需要更多时间来分析这些密文。”林默轩对陈小北和林小雨说道。\n\n三人围坐在桌旁，认真地讨论着每一个细节，希望尽快解开古董钟的秘密。在这个过程中，他们意识到这个案件背后隐藏的真相可能比想象中更为复杂。\n\n“陈小北：我们一定要仔细分析这些密文。”陈小北沉声道，“这可能是揭开一切的关键。”\n\n林默轩点了点头：“没错，我们必须尽快找到答案。”",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": null,
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch9",
+     "choice_id": "investigate-9"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch9",
+     "next_chapter_id": "ch10"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-9-npc-2",
+     "npc_id": "npc-2",
+     "npc_name": "林小雨"
+    },
+    {
+     "type": "npc_initiative_scheduled",
+     "id": "npc-initiative-10-lan",
+     "kind": "npc_initiative",
+     "npc_id": "lan",
+     "npc_name": "陈小北",
+     "location_id": "harbor",
+     "created_turn": 10,
+     "status": "pending",
+     "instruction": "让 陈小北 主动联系玩家，带来一个具体消息、请求或意外。"
+    }
+   ]
+  },
+  {
+   "turn": 11,
+   "input": "让案子悬而未决",
+   "narrative": "林默轩回到钟表匠故居，室内依然弥漫着旧书和灰尘的味道。他坐在一张木桌前，仔细研究着陈小北带来的密文图纸。突然，一阵轻微的响动引起了林默轩的注意——是挂在墙上的古董钟发出的细碎声音。\n\n“奇怪，这座钟今天怎么会有声音？”林默轩轻声自语，站起身来走向那座钟。他轻轻推开门，踏入钟内空间，眼前是一片布满机关和刻痕的世界。突然，一个细微的动作吸引了他的目光——一只小齿轮在某个刻痕上微微转动。\n\n“这……难道这就是关键所在？”林默轩心中一动，仔细检查着那片区域。就在他即将解开这个谜团时，一阵急促的脚步声打破了这份宁静。门被猛地推开，赵文华走了进来，脸上带着紧张的表情。\n\n“林默轩！这里有些新的线索！”赵文华的声音在寂静的空间里显得格外响亮。\n\n林默轩转过身来，对上了赵文华的目光。“进来吧。”他招呼道，“发现什么了？”\n\n“我在钟内找到了一个隐藏的机关。看这里！”赵文华指着一处刻痕说道，“这些符号可能与我们寻找的秘密有关。”\n\n两人仔细分析着这处新的线索，很快意识到这个案件背后隐藏的真相可能比想象中更为复杂。\n\n“林默轩：我们需要更细致地研究这些密文。”林默轩沉声道。他示意赵文华一起回到故居继续他们的工作。",
+   "chapter": "ch10",
+   "route": {
+    "id": "shen-route",
+    "status": "locked"
+   },
+   "ending": {
+    "id": "fog-drowned",
+    "kind": "bad",
+    "narrative_key": "ending.fog_drowned"
+   },
+   "outcomes": [
+    {
+     "type": "choose_story_choice",
+     "chapter_id": "ch10",
+     "choice_id": "miss-the-tide"
+    },
+    {
+     "type": "set_story_flag",
+     "flag_id": "tide-gate-failed",
+     "value": true,
+     "cause": "choice:miss-the-tide"
+    },
+    {
+     "type": "advance_chapter",
+     "chapter_id": "ch10",
+     "status": "completed"
+    },
+    {
+     "type": "lock_ending",
+     "id": "fog-drowned",
+     "kind": "bad",
+     "narrative_key": "ending.fog_drowned"
+    },
+    {
+     "type": "npc_initiative_resolved",
+     "interaction_id": "npc-initiative-10-lan",
+     "npc_id": "lan",
+     "npc_name": "陈小北"
+    }
+   ]
+  }
+ ],
+ "failures": [],
+ "world_name": "钟声之城",
+ "hero": "林默轩",
+ "completed_turns": 11,
+ "ending_reached": true,
+ "seconds": 583.5,
+ "second_run_created": true
+}

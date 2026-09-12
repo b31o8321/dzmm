@@ -47,6 +47,15 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
 qwen3-14b 上下文修复后重测（外部依赖）；跨平台 8.0→8.5 需 Windows 真机（外部依赖）；
 工程化 8.0→8.5 需 mypy 引入（需决策投入）。
 
+## 2026-09-13 评分提升第一轮验收补全（验证器缺口闭环）
+
+- **四题材量化评估**（[eval/score-upgrade/README.md](../eval/score-upgrade/README.md)）：
+  choices 真实路径下四题材全部"11 回合→正式结局→同 World 新 Run"零失败；
+  模板词命中回合 0；贴题度 39~98 处/题材；跨世界 4-gram 重叠 1.9%~4.5%；
+  世界内开头重复 0/11、3/11、5/11、1/11（语序分化修复后 mystery 12 主角复测 0 重复）。
+- **combat Run + genre 选择器 UI 截图**：阻塞（显示器锁定），恢复条件 = 解锁后
+  启动 DZMM.app 进入 D20 边境前哨游玩页与 ai-compose 页各截一张存 eval。
+
 ## 2026-09-09 v1.0.0 正式发布
 
 版本纪律自此确立：功能 1.x.0，修复 1.x.x。tag `v1.0.0`（`00564e4`，指向
