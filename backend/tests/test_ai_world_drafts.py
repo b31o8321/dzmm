@@ -620,3 +620,31 @@ def test_normalize_unwraps_world_definition_shape() -> None:
     assert source.hero.name  # 模型自拟主角名
     assert len(source.locations) >= 2 and len(source.characters) >= 2
     assert len(source.npcs) >= 1 and len(source.events) >= 1
+
+
+def test_normalize_clamps_campaign_required_count() -> None:
+    """真实案例（夜市草案）：phases[1].required_count=0 曾被整体拒绝。"""
+
+    payload = {
+        "world_name": "夜市",
+        "summary": "最后一届评比。",
+        "hero": {"name": "林小满", "origin": "第三代掌勺"},
+        "locations": ["夜市大街", "评委席"],
+        "characters": [
+            {"name": "老对手", "role": "评委", "description": "当年被挤垮。"},
+            {"name": "阿婆", "role": "摊主", "description": "嘴硬心软。"},
+        ],
+        "lore": [{"title": "酱料秘方", "body": "配方丢了。"}],
+        "campaign": {
+            "name": "金牌食肆评比",
+            "phases": [
+                {"name": "初赛", "description": "招牌菜对决", "required_count": 2},
+                {"name": "决赛", "description": "终极对决", "required_count": 0},
+            ],
+        },
+    }
+    normalized, repairs = _normalize_creative_source_payload(payload)
+    counts = [phase["required_count"] for phase in normalized["campaign"]["phases"]]
+    assert counts == [2, 1]
+    assert any("required_count 已按安全范围规范化" in repair for repair in repairs)
+    CreativeSource.model_validate(normalized)

@@ -378,6 +378,20 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
                 if "name" not in phase and phase.get("description"):
                     phase["name"] = str(phase["description"])[:24]
                     repairs.append(f"campaign.phases[{index}].name 已按描述补齐")
+            for index, phase in enumerate(phases):
+                if not isinstance(phase, dict):
+                    continue
+                required_count = phase.get("required_count")
+                if required_count is not None and (
+                    isinstance(required_count, bool)
+                    or not isinstance(required_count, (int, float))
+                    or int(required_count) < 1
+                    or int(required_count) > 4
+                ):
+                    phase["required_count"] = 1
+                    repairs.append(
+                        f"campaign.phases[{index}].required_count 已按安全范围规范化"
+                    )
             cleaned = [p for p in phases if isinstance(p, dict) and p.get("name")]
             if not cleaned and phases:
                 campaign["phases"] = [
