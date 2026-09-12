@@ -32,6 +32,8 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
             "opening_narratives": [
                 "{chapter_title}。{hero}走进{location}，雨还没有停。",
                 "{chapter_title}。{world}的旧档案里，{hero}的名字被人用铅笔划去过一次。",
+                "{chapter_title}。{hero}踩着湿漉漉的石阶进入{location}，怀表停在了凌晨三点。",
+                "{chapter_title}。看门人说{location}已经十年没有访客，可茶还是温的。",
             ],
             "npc_first_lines": [
                 "{hero}，你比我预想的来得早。",
@@ -66,6 +68,8 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
             "opening_narratives": [
                 "{chapter_title}。{hero}抱着密档走进{location}，殿内的火盆烧得很旺。",
                 "{chapter_title}。{world}的更鼓敲过三巡，{hero}还没有等到传召。",
+                "{chapter_title}。{hero}随人流步入{location}，袖中那份名单贴着手腕发烫。",
+                "{chapter_title}。{location}的灯只亮了一半，另一半留给不该被看见的人。",
             ],
             "npc_first_lines": [
                 "{hero}，聪敏人此刻应该低头记录。",
@@ -94,6 +98,8 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
             "opening_narratives": [
                 "{chapter_title}。{hero}在{location}清点完最后一瓶氧气。",
                 "{chapter_title}。{location}的警报响了三声，被{hero}手动关掉了。",
+                "{chapter_title}。{hero}在{location}清点完最后一罐储备，把空罐踩扁收好。",
+                "{chapter_title}。{world}的补给表上又划掉了两行，{hero}把笔收了回去。",
             ],
             "npc_first_lines": [
                 "{hero}，照这个消耗速度，我们撑不到救援。",
@@ -130,6 +136,8 @@ GENRE_PRESETS["steampunk_western"] = {
         "opening_narratives": [
             "{chapter_title}。蒸汽机车碾过铁轨，{hero}在{location}擦完了最后一发子弹。",
             "{chapter_title}。{world}的风沙糊住了告示，{hero}把它撕了下来。",
+            "{chapter_title}。齿轮与风沙一起涌进{location}，{hero}把怀表上紧到最后一格。",
+            "{chapter_title}。{location}的铁轨在暮色里发亮，{hero}把工具包换到了左肩。",
         ],
         "npc_first_lines": [
             "{hero}，公司的火车不等人。",
@@ -181,8 +189,16 @@ DEFAULT_SKELETON = {
     "terminal_choices": ["在{location}完成关键行动", "暂缓行动，等待更佳时机"],
     "opening_narratives": [
         "{chapter_title}。{hero}抵达{location}，{world}的故事从此刻开始。",
+        "{chapter_title}。{world}的故事在{location}等候已久，{hero}的到来让一切开始转动。",
+        "{chapter_title}。没有人注意到{hero}走进{location}，而这正是最好的时机。",
+        "{chapter_title}。{hero}停下脚步，{location}的一切都和传闻里不太一样。",
     ],
-    "npc_first_lines": ["{hero}，别让这里替你作出第一个决定。"],
+    "npc_first_lines": [
+        "{hero}，别让这里替你作出第一个决定。",
+        "{hero}，故事从你踏进这里的那一刻就改写了。",
+        "别急着做决定，{hero}——先告诉我你看见了什么。",
+        "{hero}，这里的一切都比传闻里更旧，也更真。",
+    ],
 }
 
 
