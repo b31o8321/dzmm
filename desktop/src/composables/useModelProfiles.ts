@@ -11,12 +11,30 @@ import {
   type ModelProbeResult,
 } from '../local_host_port'
 
+const modelProviderBaseUrlMap: Record<ModelProfileInput['provider_type'], string> = {
+  ollama: 'http://127.0.0.1:11434',
+  lm_studio: 'http://127.0.0.1:1234/v1',
+  openai_compat: '',
+}
+
 export function modelProviderBaseUrl(provider: ModelProfileInput['provider_type']) {
+  return modelProviderBaseUrlMap[provider]
+}
+
+export function resolveBaseUrlOnProviderChange(
+  previousProvider: ModelProfileInput['provider_type'],
+  previousUrl: string,
+  newProvider: ModelProfileInput['provider_type'],
+): { url: string; urlReset: boolean } {
+  // 仅当当前 URL 是旧协议默认值（或为空）时才切换到新协议默认值；
+  // 用户已自定义的地址不覆盖（多题材健壮性评审中的实测 UX 缺陷）。
+  const trimmed = previousUrl.trim()
+  const previousDefault = modelProviderBaseUrlMap[previousProvider]
+  const isDefaultOrEmpty = !trimmed || trimmed === previousDefault
   return {
-    ollama: 'http://127.0.0.1:11434',
-    lm_studio: 'http://127.0.0.1:1234/v1',
-    openai_compat: '',
-  }[provider]
+    url: isDefaultOrEmpty ? modelProviderBaseUrlMap[newProvider] : trimmed,
+    urlReset: isDefaultOrEmpty,
+  }
 }
 
 const emptyDraft = (): ModelProfileInput => ({
@@ -73,8 +91,13 @@ export function useModelProfiles() {
   }
 
   function selectProvider(provider: ModelProfileInput['provider_type']) {
+    const { url } = resolveBaseUrlOnProviderChange(
+      draft.value.provider_type,
+      draft.value.base_url,
+      provider,
+    )
     draft.value.provider_type = provider
-    draft.value.base_url = modelProviderBaseUrl(provider)
+    draft.value.base_url = url
     validationErrors.value = {}
   }
 

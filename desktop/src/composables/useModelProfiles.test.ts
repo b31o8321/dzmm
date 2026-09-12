@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { modelProviderBaseUrl, useModelProfiles, validateModelProfileDraft } from './useModelProfiles'
+import { modelProviderBaseUrl, resolveBaseUrlOnProviderChange, useModelProfiles, validateModelProfileDraft } from './useModelProfiles'
 
 describe('model profile validation', () => {
   it('returns field-level Chinese guidance before a host request', () => {
@@ -46,5 +46,24 @@ describe('model profile validation', () => {
     expect(profiles.draft.value.base_url).toBe('http://127.0.0.1:1234/v1')
     profiles.selectProvider('openai_compat')
     expect(profiles.draft.value.base_url).toBe('')
+  })
+})
+
+
+describe('resolveBaseUrlOnProviderChange', () => {
+  it('preserves a user-typed URL when switching provider', () => {
+    const result = resolveBaseUrlOnProviderChange('ollama', 'http://192.168.31.169:1234/v1', 'lm_studio')
+    expect(result).toEqual({ url: 'http://192.168.31.169:1234/v1', urlReset: false })
+  })
+
+  it('resets the URL when it was the previous provider default', () => {
+    const result = resolveBaseUrlOnProviderChange('ollama', 'http://127.0.0.1:11434', 'lm_studio')
+    expect(result).toEqual({ url: 'http://127.0.0.1:1234/v1', urlReset: true })
+  })
+
+  it('fills the default when the field was empty', () => {
+    const result = resolveBaseUrlOnProviderChange('openai_compat', '  ', 'ollama')
+    expect(result.url).toBe('http://127.0.0.1:11434')
+    expect(result.urlReset).toBe(true)
   })
 })
