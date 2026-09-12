@@ -24,6 +24,9 @@ export type RunState = {
     emotion: Record<string, number>
   }>
   pending_interactions?: Array<{ id: string; kind: 'npc_initiative'; npc_id: string; npc_name: string; instruction: string }>
+  combat?: {
+    participants: Record<string, { role: 'hero' | 'npc'; hp: number; max_hp: number; defeated: boolean }>
+  }
 }
 
 export type ComposedRun = {
@@ -260,6 +263,18 @@ export function createRun(worldId: string, payload: object) {
 
 export function listModelProfiles() {
   return request<ModelProfile[]>('/model-profiles')
+}
+
+export interface GenrePreset {
+  id: string
+  label: string
+  tone: string
+  core_conflict: string
+  guidance: string
+}
+
+export function listGenrePresets() {
+  return request<GenrePreset[]>('/genre-presets')
 }
 
 export function createModelProfile(payload: ModelProfileInput) {

@@ -1692,3 +1692,12 @@ h3 {
     animation: none;
   }
 }
+
+.choice-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  color: var(--ink-soft, rgba(255, 255, 255, 0.78));
+  font-size: 0.9rem;
+}

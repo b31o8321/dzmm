@@ -153,10 +153,26 @@ def test_npc_first_line_variants_by_skeleton() -> None:
         {"id": "c1", "label": "协助李明勘查现场"},
         {"id": "c2", "label": "替夏琳隐瞒线索"},
     ]
-    default_beat = build_opening_story_beat(
-        fog_harbor_template()["world_definition"], {"name": "米拉", "origin": "水手"}
+    legal_lines = {
+        "别让这里替你作出第一个决定",
+        "故事从你踏进这里的那一刻就改写了",
+        "别急着做决定",
+        "这里的一切都比传闻里更旧，也更真",
+    }
+
+    def first_line_of(hero: str) -> str:
+        beat = build_opening_story_beat(
+            fog_harbor_template()["world_definition"], {"name": hero, "origin": "水手"}
+        )
+        return beat["dialogue"]["text"]
+
+    # 默认骨架现在带 4 条变体：每条都在合法集合内，且跨主角会出现不同变体
+    assert all(
+        any(line in first_line_of(f"米拉{i:02d}") for line in legal_lines)
+        for i in range(12)
     )
-    assert "别让这里替你作出第一个决定" in default_beat["dialogue"]["text"]
+    variants = {first_line_of(f"米拉{i:02d}") for i in range(12)}
+    assert len(variants) >= 2
 
     variant_seen = False
     for hero in (f"侦探{i:02d}" for i in range(12)):

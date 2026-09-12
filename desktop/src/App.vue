@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   archiveWorld,
   cancelOperation,
@@ -37,6 +37,7 @@ import {
   type PurgeManifest,
   type WorldDetail,
   type WorldSummary,
+  listGenrePresets,
 } from './local_host_port'
 import { startHost } from './host'
 import OperationStatus from './components/OperationStatus.vue'
@@ -135,10 +136,21 @@ const {
 const aiModelProfileId = ref('')
 const aiRuleset = ref<'story_adventure' | 'relationship_drama' | 'hybrid'>('hybrid')
 const aiGenre = ref('潮汐悬疑恋爱冒险')
+const genrePresets = ref<Array<{ id: string; label: string; tone: string; core_conflict: string; guidance: string }>>([])
+const selectedGenrePreset = ref('')
 const aiTone = ref('温柔、危险')
 const aiCoreConflict = ref('失踪的航图正在重开不该开启的潮门。')
 const aiHeroPreference = ref('一位会做艰难选择的年轻领航员')
 const aiCharacterPreferences = ref('学者，守夜人')
+
+watch(selectedGenrePreset, (presetId) => {
+  const preset = genrePresets.value.find((item) => item.id === presetId)
+  if (!preset) return
+  aiGenre.value = preset.label
+  aiTone.value = preset.tone
+  aiCoreConflict.value = preset.core_conflict
+})
+
 const aiDraft = ref<AIWorldDraft | null>(null)
 const aiDraftDefinitionJson = ref('')
 const aiDraftHeroJson = ref('')
@@ -1158,6 +1170,55 @@ async function recoverRun(runId: string, options: { silentIfMissing?: boolean; p
   }
 }
 
+async function attackTarget(targetId: string, targetName: string) {
+  if (!run.value || busy.value) return
+  const turnRequestId = requestId('attack')
+  activeTurnRequestId.value = turnRequestId
+  markPendingRunOperation(true)
+  streamingNarrative.value = ''
+  busy.value = true
+  notice.value = ''
+  beginOperation('正在连接本地模型…', 'connecting')
+  const streamController = beginStream()
+  try {
+    advanceOperation('generating', `正在结算对 ${targetName} 的攻击；旅程尚未写入新回合。`)
+    let streamFailure: string | null = null
+    await streamTurn(run.value.run_id, {
+      request_id: turnRequestId,
+      expected_revision: run.value.state.revision,
+      player_input: `我向${targetName}发起攻击`,
+      commands: [
+        { type: 'attack', payload: { attacker_id: 'hero', target_id: targetId } },
+        { type: 'narrate', payload: {} },
+      ],
+    }, (event) => {
+      if (activeTurnRequestId.value !== turnRequestId) return
+      if (event.event === 'narrative_delta' && typeof event.data.text === 'string') {
+        streamingNarrative.value += event.data.text
+      }
+      if (event.event === 'turn_failed') {
+        streamFailure = typeof event.data.detail === 'string' ? event.data.detail : '回合生成失败'
+      }
+    }, streamController.signal)
+    if (streamFailure) throw new Error(streamFailure)
+    if (activeTurnRequestId.value !== turnRequestId) return
+    advanceOperation('applying', '战斗结算已返回，本机规则正在保存结果。')
+    await recoverRun(run.value.run_id)
+    lastTurnAction.value = null
+    streamingNarrative.value = ''
+    endOperation('completed', '战斗已结算，状态已保存。')
+  } catch (error) {
+    if (activeTurnRequestId.value !== turnRequestId) return
+    notice.value = error instanceof Error ? error.message : '攻击结算失败；本机没有写入半个回合。'
+    endOperation('failed', '本次攻击失败；请重试，原状态未改变。')
+  } finally {
+    if (activeTurnRequestId.value === turnRequestId) {
+      markPendingRunOperation(false)
+      streamingNarrative.value = ''
+    }
+  }
+}
+
 async function sendTurn() {
   if (!run.value || !playerInput.value.trim()) return
   const submittedInput = playerInput.value.trim()
@@ -1278,6 +1339,14 @@ async function bootHost() {
 }
 
 onMounted(() => {
+  listGenrePresets()
+    .then((presets) => {
+      genrePresets.value = presets
+    })
+    .catch(() => {
+      genrePresets.value = []
+    })
+
   restoreTheme()
   void bootHost()
 })
@@ -1484,6 +1553,7 @@ onUnmounted(() => {
           @provider-change="selectModelProvider"
         />
         <fieldset class="experience-picker"><legend>要创作哪种体验？</legend><label :class="{ selected: aiRuleset === 'story_adventure' }"><input v-model="aiRuleset" type="radio" value="story_adventure" /><span><b>剧情冒险</b><small>章节、选择、路线与结局</small></span></label><label :class="{ selected: aiRuleset === 'relationship_drama' }"><input v-model="aiRuleset" type="radio" value="relationship_drama" /><span><b>关系叙事</b><small>好感、信任、角色路线与结局</small></span></label><label :class="{ selected: aiRuleset === 'hybrid' }"><input v-model="aiRuleset" type="radio" value="hybrid" /><span><b>混合世界</b><small>剧情、关系与 TRPG 能力并存</small></span></label></fieldset>
+        <label>题材预设<select v-model="selectedGenrePreset" name="ai-genre-preset"><option value="">自定义（直接在下方填写）</option><option v-for="preset in genrePresets" :key="preset.id" :value="preset.id">{{ preset.label }}</option></select></label>
         <label>题材<input v-model.trim="aiGenre" required maxlength="240" /></label>
         <label>基调<input v-model.trim="aiTone" required maxlength="240" /></label>
         <label>核心冲突<textarea v-model.trim="aiCoreConflict" required rows="3" maxlength="600"></textarea></label>
@@ -1598,6 +1668,7 @@ onUnmounted(() => {
       @choose="chooseStory"
       @rollback="rollback"
       @send="sendTurn"
+      @attack="attackTarget"
       @new-run="beginNewRunFromCurrentWorld"
       @return-world="returnToCurrentWorld"
     />
