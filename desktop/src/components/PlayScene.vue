@@ -18,10 +18,30 @@ const emit = defineEmits<{
   send: []
   newRun: []
   returnWorld: []
+  attack: [targetId: string, targetName: string]
 }>()
 
 const playerInput = defineModel<string>('playerInput', { required: true })
 const destination = defineModel<string>('destination', { required: true })
+
+const combatEnabled = computed(() =>
+  props.run.state.ruleset.enabled_capabilities.includes('combat'),
+)
+const combatTargets = computed(() => {
+  if (!combatEnabled.value || props.run.state.ending) return []
+  const participants = props.run.state.combat?.participants ?? {}
+  return Object.values(props.run.state.npc_state ?? {})
+    .filter((npc) => npc.met && npc.location_id === props.run.state.location_id)
+    .map((npc) => {
+      const combat = participants[npc.id]
+      return {
+        id: npc.id,
+        name: npc.name,
+        defeated: combat?.defeated ?? false,
+        hp: combat ? `${combat.hp}/${combat.max_hp}` : null,
+      }
+    })
+})
 
 const matchedChoiceHint = computed(() => {
   const input = playerInput.value.trim()
@@ -151,6 +171,10 @@ function rollbackLabel(targetId: string | null) {
     <section v-if="run.available_choices.length" class="choice-deck" aria-label="当前可选行动">
       <p class="eyebrow">此刻可做的选择</p>
       <button v-for="choice in run.available_choices" :key="choice.id" type="button" :disabled="busy || !hostReady" @click="emit('choose', choice)">{{ choice.label }}</button>
+    </section>
+    <section v-if="combatTargets.length" class="choice-deck combat-deck" aria-label="战斗行动">
+      <p class="eyebrow">战斗</p>
+      <button v-for="target in combatTargets" :key="target.id" type="button" :disabled="busy || target.defeated || !hostReady" @click="emit('attack', target.id, target.name)">{{ target.defeated ? `${target.name}（已倒下）` : `攻击 ${target.name}` }}{{ target.hp ? ` · ${target.hp}` : '' }}</button>
     </section>
     <form v-else-if="!run.state.ending" class="turn-form" @submit.prevent="emit('send')">
       <p v-if="matchedChoiceHint" class="choice-hint" role="status">检测到你输入了选项内容「{{ matchedChoiceHint.label }}」，可直接点击上方对应选项。</p>
