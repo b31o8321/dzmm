@@ -83,7 +83,7 @@ def warmup():
 def main():
     warmup()
     worlds = api("/worlds")
-    targets = {"钟声之城": "mystery", "深空货运站失压": "survival",
+    targets = {"钟声之城": "mystery", "末日深空": "survival",
                "权谋之巅": "intrigue", "夜市金牌食肆": "nightmarket"}
     for world in worlds:
         key = targets.get(world["name"])
