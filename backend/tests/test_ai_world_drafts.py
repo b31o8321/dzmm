@@ -159,7 +159,9 @@ def test_referenced_location_is_added_to_creative_material_when_capacity_allows(
     assert any("npcs[0].location 已将引用地点加入地点列表" in repair for repair in repairs)
 
 
-def test_unrepresentable_location_reference_blocks_world_creation(migrated_client) -> None:
+def test_unrepresentable_location_reference_unbinds_instead_of_blocking(migrated_client) -> None:
+    """地点列表已满时，引用未知地点的 NPC 改为不限地点，草案仍然可用（ADR：多题材健壮性）。"""
+
     client, _ = migrated_client
     profile_id = _create_profile(client)
     source = {
@@ -173,8 +175,8 @@ def test_unrepresentable_location_reference_blocks_world_creation(migrated_clien
 
     assert response.status_code == 200
     body = response.json()
-    assert body["valid"] is False
-    assert any(issue["path"] == "npcs[0].location" for issue in body["issues"])
+    assert body["valid"] is True
+    assert any("改为不限地点" in repair for repair in body["repairs"])
 
     normalized, repairs = _normalize_creative_source_payload(
         {**CREATIVE_SOURCE, "npcs": [{"name": "观察员", "role": "记录者", "description": "记录异常。", "contact_cooldown_turn个数": "2", "reputation": "中立"}]}
@@ -647,4 +649,28 @@ def test_normalize_clamps_campaign_required_count() -> None:
     counts = [phase["required_count"] for phase in normalized["campaign"]["phases"]]
     assert counts == [2, 1]
     assert any("required_count 已按安全范围规范化" in repair for repair in repairs)
+    CreativeSource.model_validate(normalized)
+
+
+def test_normalize_unbinds_event_location_when_location_list_full() -> None:
+    """真实案例（政治阴谋草案）：地点已满 3 个时引用第四个地点曾被整体拒绝。"""
+
+    payload = {
+        "world_name": "摄政王的夜宴",
+        "summary": "车队被劫。",
+        "hero": {"name": "林静言", "origin": "档案官"},
+        "locations": ["摄政王府", "墨家秘境", "档案馆"],
+        "characters": [
+            {"name": "白羽", "role": "雇佣兵队长", "description": "精明。"},
+            {"name": "墨承恩", "role": "掌玺官", "description": "沉默。"},
+        ],
+        "lore": [{"title": "劫案", "body": "百日前夜。"}],
+        "events": [
+            {"name": "夜袭", "summary": "郊外遇袭。", "location": "影之都郊外", "trigger_turn": 2}
+        ],
+    }
+    normalized, repairs = _normalize_creative_source_payload(payload)
+    assert len(normalized["locations"]) == 3
+    assert normalized["events"][0]["location"] is None
+    assert any("改为不限地点" in repair for repair in repairs)
     CreativeSource.model_validate(normalized)

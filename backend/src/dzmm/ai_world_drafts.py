@@ -497,11 +497,21 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
                     if isinstance(link.get(field), str):
                         referenced_locations.append((f"location_links[{index}].{field}", link[field].strip()))
         for path, location in referenced_locations:
-            if not location or location in known_locations or len(locations) >= 3:
+            if not location or location in known_locations:
                 continue
-            locations.append(location)
-            known_locations.add(location)
-            repairs.append(f"{path} 已将引用地点加入地点列表")
+            if len(locations) < 3:
+                locations.append(location)
+                known_locations.add(location)
+                repairs.append(f"{path} 已将引用地点加入地点列表")
+            elif path.startswith("events[") and "location" in path:
+                # 地点列表已满：事件改为不绑定地点（合法），而不是丢弃整份草案。
+                event_index = int(path.split("[")[1].split("]")[0])
+                normalized["events"][event_index]["location"] = None
+                repairs.append(f"{path} 引用地点已满额，事件改为不限地点")
+            elif path.startswith("npcs[") and "location" in path:
+                npc_index = int(path.split("[")[1].split("]")[0])
+                normalized["npcs"][npc_index]["location"] = None
+                repairs.append(f"{path} 引用地点已满额，NPC 改为不限地点")
 
     return normalized, repairs
 
