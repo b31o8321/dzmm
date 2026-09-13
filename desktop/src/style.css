@@ -1701,3 +1701,10 @@ h3 {
   color: var(--ink-soft, rgba(255, 255, 255, 0.78));
   font-size: 0.9rem;
 }
+
+.field-hint {
+  margin: 0.4rem 0 0.75rem;
+  color: var(--ink-soft, rgba(255, 255, 255, 0.72));
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
