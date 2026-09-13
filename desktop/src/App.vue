@@ -1424,7 +1424,7 @@ onUnmounted(() => {
               @make-default="makeDefaultModelProfile"
               @remove="removeModelProfile"
             />
-            <div class="settings-actions"><button class="minor-action" type="button" :disabled="busy" @click="() => void openSettings('models')">刷新模型档案</button><button class="minor-action" type="button" :disabled="busy" @click="startAddingModelProfile">添加模型档案</button></div>
+            <div class="settings-actions"><button class="minor-action" type="button" :disabled="busy" @click="() => void openSettings('models')">刷新模型档案</button><button class="minor-action" type="button" :disabled="busy" @click="startAddingModelProfile">添加模型档案</button></div><p v-if="!modelProfiles.length" class="field-hint" role="status">第一步：在下方添加一个本地模型档案（Base URL + 模型名），AI 创作世界时才能选用它。</p>
             <ModelProfileEditor
               v-if="modelSetupOpen"
               v-model:name="modelProfileDraft.name"
