@@ -47,6 +47,14 @@ backend/ desktop/ mobile/ contracts/ eval/ packaging/）
 qwen3-14b 上下文修复后重测（外部依赖）；跨平台 8.0→8.5 需 Windows 真机（外部依赖）；
 工程化 8.0→8.5 需 mypy 引入（需决策投入）。
 
+## 2026-09-13 引导与体验专项：置灰必带原因（评分提升第二轮）
+
+实测死局修复（用户首次试用即踩到）：AI 创作页"生成待审阅草案"在无模型档案时
+置灰且无任何解释。now：置灰必伴随用户可读原因（field-hint），空档案引导文案
+含两条出路（设置页添加 / 内联表单创建），抽为纯函数 draftGateReason 并测试。
+同批修复：PlayScene 战斗区空目标提示、回合表单空输入提示、导出按钮 title。
+验证：vitest 45/45 + build，backend 189 + ruff 全绿。
+
 ## 2026-09-13 评分提升第一轮验收补全（验证器缺口闭环）
 
 - **四题材量化评估**（[eval/score-upgrade/README.md](../eval/score-upgrade/README.md)）：
