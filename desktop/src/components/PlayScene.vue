@@ -175,12 +175,14 @@ function rollbackLabel(targetId: string | null) {
     <section v-if="combatTargets.length" class="choice-deck combat-deck" aria-label="战斗行动">
       <p class="eyebrow">战斗</p>
       <button v-for="target in combatTargets" :key="target.id" type="button" :disabled="busy || target.defeated || !hostReady" @click="emit('attack', target.id, target.name)">{{ target.defeated ? `${target.name}（已倒下）` : `攻击 ${target.name}` }}{{ target.hp ? ` · ${target.hp}` : '' }}</button>
+      <p v-if="!combatTargets.length" class="field-hint" role="status">当前地点还没有可攻击的目标——先探索触发遭遇，或继续推进章节。</p>
     </section>
     <form v-else-if="!run.state.ending" class="turn-form" @submit.prevent="emit('send')">
       <p v-if="matchedChoiceHint" class="choice-hint" role="status">检测到你输入了选项内容「{{ matchedChoiceHint.label }}」，可直接点击上方对应选项。</p>
       <label>行动<input v-model="playerInput" name="player-action" autocomplete="off" placeholder="我检查码头的灯火…" required maxlength="4000" /></label>
       <label v-if="locationOptions.length > 1">目的地<select v-model="destination" name="destination"><option v-for="[locationId, name] in locationOptions" :key="locationId" :value="locationId">{{ name }}</option></select></label>
       <button :disabled="busy || !hostReady || !playerInput.trim()">{{ busy ? '正在结算回合…' : '执行回合' }}</button>
+      <p v-if="!playerInput.trim()" class="field-hint" role="status">写下你要做的事，或点击上方选项。</p>
     </form>
   </section>
 </template>

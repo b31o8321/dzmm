@@ -44,6 +44,7 @@ import OperationStatus from './components/OperationStatus.vue'
 import ModelProfileEditor from './components/ModelProfileEditor.vue'
 import ModelProfileList from './components/ModelProfileList.vue'
 import PlayScene from './components/PlayScene.vue'
+import { draftGateReason } from './utils/aiDraftGate'
 import WorldRunLauncher from './components/WorldRunLauncher.vue'
 import { useModelProfiles } from './composables/useModelProfiles'
 import { isOperationStageCancellable } from './composables/operationStages'
@@ -1407,7 +1408,7 @@ onUnmounted(() => {
             <p class="eyebrow">本机服务</p><h2>本机服务已固定运行</h2>
             <p class="settings-intro">世界、旅程和模型档案都保存在这台电脑。旧版 DZMM 存档不会自动迁移或覆盖本机数据；需要带入内容时，请使用世界包或旅程快照。只有你主动导入或导出时，内容才会移动到其他设备。</p>
             <dl class="settings-facts"><div><dt>当前状态</dt><dd>{{ hostStatus === 'ready' ? '可以游玩' : hostStatus === 'starting' ? '正在准备' : '需要恢复' }}</dd></div><div><dt>存档位置</dt><dd>仅此设备</dd></div></dl>
-            <div class="settings-actions"><button v-if="hostStatus !== 'ready'" type="button" :disabled="busy" @click="bootHost">恢复本机服务</button><button class="minor-action" type="button" :disabled="busy || !selectedWorld" @click="downloadPortableWorld">导出世界包</button><button class="minor-action" type="button" :disabled="busy || !run" @click="downloadPortableRun">导出旅程快照</button><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="choosePortableBundle">导入世界 / 复制旅程</button><input ref="portableFileInput" class="visually-hidden" type="file" name="portable-bundle" aria-label="选择要导入的世界或旅程文件" accept="application/json,.json" @change="importPortableBundle" /></div>
+            <div class="settings-actions"><button v-if="hostStatus !== 'ready'" type="button" :disabled="busy" @click="bootHost">恢复本机服务</button><button class="minor-action" type="button" :disabled="busy || !selectedWorld" :title="selectedWorld ? '导出当前世界' : '先选择一个世界'" @click="downloadPortableWorld">导出世界包</button><button class="minor-action" type="button" :disabled="busy || !run" :title="run ? '导出当前旅程' : '先选择一个世界并开始旅程'" @click="downloadPortableRun">导出旅程快照</button><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="choosePortableBundle">导入世界 / 复制旅程</button><input ref="portableFileInput" class="visually-hidden" type="file" name="portable-bundle" aria-label="选择要导入的世界或旅程文件" accept="application/json,.json" @change="importPortableBundle" /></div>
             <details class="advanced-runtime"><summary>高级诊断信息</summary><p>本机 Python 规则服务使用 SQLite 存档，并固定监听 127.0.0.1。</p><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="downloadDiagnostics">导出不含隐私内容的诊断</button></details>
           </template>
           <template v-else-if="settingsSection === 'models'">
@@ -1535,7 +1536,8 @@ onUnmounted(() => {
         <p>模型只返回待审阅的创作素材；本机规则会整理成安全草案。确认前，不会创建世界、旅程或任何存档。</p>
       </div>
       <form class="ledger-card" @submit.prevent="generateDraft">
-        <div class="model-draft-heading"><label>本地模型档案<select v-model="aiModelProfileId" name="ai-model-profile" required><option value="" disabled>选择已配置模型</option><option v-for="profile in modelProfiles" :key="profile.id" :value="profile.id">{{ profile.name }} · {{ profile.model_name }}</option></select></label><button class="minor-action" type="button" :disabled="busy" @click="toggleDraftModelSetup">{{ modelSetupOpen ? '收起配置' : '配置本地模型' }}</button></div>
+        <div class="model-draft-heading"><label>本地模型档案<select v-model="aiModelProfileId" name="ai-model-profile" required><option value="" disabled>{{ modelProfiles.length ? '选择已配置模型' : '还没有模型档案' }}</option><option v-for="profile in modelProfiles" :key="profile.id" :value="profile.id">{{ profile.name }} · {{ profile.model_name }}</option></select></label><button class="minor-action" type="button" :disabled="busy" @click="toggleDraftModelSetup">{{ modelSetupOpen ? '收起配置' : '配置本地模型' }}</button></div>
+        <p v-if="draftGateReason(modelProfiles.length, aiModelProfileId)" class="field-hint" role="status">{{ draftGateReason(modelProfiles.length, aiModelProfileId) }}</p>
         <ModelProfileEditor
           v-if="modelSetupOpen"
           v-model:name="modelProfileDraft.name"
@@ -1559,7 +1561,8 @@ onUnmounted(() => {
         <label>核心冲突<textarea v-model.trim="aiCoreConflict" required rows="3" maxlength="600"></textarea></label>
         <label>主角偏好<textarea v-model.trim="aiHeroPreference" required rows="2" maxlength="400"></textarea></label>
         <label>角色偏好（可选，逗号分隔）<input v-model.trim="aiCharacterPreferences" maxlength="400" /></label>
-        <button :disabled="busy || !hostReady || !aiModelProfileId">{{ busy ? '正在起草…' : '生成待审阅草案' }}</button>
+        <button :disabled="busy || !hostReady || !aiModelProfileId" :aria-disabled="busy || !hostReady || !aiModelProfileId">{{ busy ? '正在起草…' : (!aiModelProfileId ? '生成待审阅草案（需先选择模型档案）' : (!hostReady ? '生成待审阅草案（等待本机服务）' : '生成待审阅草案')) }}</button>
+        <p v-if="draftGateReason(modelProfiles.length, aiModelProfileId)" class="field-hint" role="status">{{ draftGateReason(modelProfiles.length, aiModelProfileId) }}</p>
       </form>
     </section>
 
