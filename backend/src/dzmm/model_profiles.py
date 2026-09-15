@@ -752,6 +752,11 @@ def _narration_body(
                     "player_input": player_input,
                     "validated_outcomes": outcomes,
                     "narrative_memory": state.get("narrative_context", {}).get("recent_turns", []),
+                    "recent_openings": [
+                        str(item.get("narrative") or "")[:30]
+                        for item in (state.get("narrative_context", {}) or {}).get("recent_turns") or []
+                        if isinstance(item, dict)
+                    ][-3:],
                     "variation_directive": variation,
                     "director_note": director_note,
                     "npc_state": state.get("npc_state", {}),

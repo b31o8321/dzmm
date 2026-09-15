@@ -763,3 +763,46 @@ def test_narrator_rejects_empty_malformed_and_rate_limited_streams() -> None:
         expected = NarrationRateLimitError if response.status_code == 429 else NarrationError
         with pytest.raises(expected, match=error):
             asyncio.run(collect_stream(narrator, profile))
+
+
+def test_narration_body_carries_recent_openings_for_anti_repetition() -> None:
+    from dzmm.model_profiles import _narration_body
+
+    state = {
+        "hero": {"name": "林浩"},
+        "location_id": "camp",
+        "chapter": None,
+        "narrative_context": {
+            "recent_turns": [
+                {"turn": 1, "narrative": "通风口内，杰克继续紧张地检查着氧气管道。", "outcomes": []},
+                {"turn": 2, "narrative": "通风口内，杰克再次检查氧气管道。", "outcomes": []},
+            ]
+        },
+    }
+    definition = {
+        "name": "末日深空",
+        "locations": [{"id": "camp", "name": "货运站"}],
+        "npcs": [],
+        "lorebook": {"entries": []},
+    }
+    from types import SimpleNamespace
+
+    profile = SimpleNamespace(
+        provider_type="ollama",
+        model_name="qwen2.5:7b-32k",
+        base_url="http://x",
+        api_key="",
+    )
+    body = _narration_body(
+        profile,
+        definition, state, "继续推进", [], [],
+        variation_seed="run-x",
+    )
+    user_content = body["messages"][1]["content"]
+    openings = json.loads(user_content.split("/no_think\n", 1)[1])["recent_openings"]
+    assert openings == [
+        "通风口内，杰克继续紧张地检查着氧气管道。",
+        "通风口内，杰克再次检查氧气管道。",
+    ]
+    assert "recent_openings" in body["messages"][0]["content"]
+    assert "严禁" in body["messages"][0]["content"]
