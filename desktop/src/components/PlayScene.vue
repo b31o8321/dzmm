@@ -24,6 +24,12 @@ const emit = defineEmits<{
 const playerInput = defineModel<string>('playerInput', { required: true })
 const destination = defineModel<string>('destination', { required: true })
 
+const combatFeedback = defineModel<{
+  hit: boolean
+  defeated: boolean
+  text: string
+} | null>('combatFeedback', { default: null })
+
 const combatEnabled = computed(() =>
   props.run.state.ruleset.enabled_capabilities.includes('combat'),
 )
@@ -178,6 +184,9 @@ function rollbackLabel(targetId: string | null) {
       <p v-if="!combatTargets.length" class="field-hint" role="status">当前地点还没有可攻击的目标——先探索触发遭遇，或继续推进章节。</p>
     </section>
     <form v-else-if="!run.state.ending" class="turn-form" @submit.prevent="emit('send')">
+      <p v-if="combatFeedback" class="combat-feedback" :class="{ miss: !combatFeedback.hit, defeated: combatFeedback.defeated }" role="status">
+        {{ combatFeedback.defeated ? '⚔ ' + combatFeedback.text : combatFeedback.text }}
+      </p>
       <p v-if="matchedChoiceHint" class="choice-hint" role="status">检测到你输入了选项内容「{{ matchedChoiceHint.label }}」，可直接点击上方对应选项。</p>
       <label>行动<input v-model="playerInput" name="player-action" autocomplete="off" placeholder="我检查码头的灯火…" required maxlength="4000" /></label>
       <label v-if="locationOptions.length > 1">目的地<select v-model="destination" name="destination"><option v-for="[locationId, name] in locationOptions" :key="locationId" :value="locationId">{{ name }}</option></select></label>

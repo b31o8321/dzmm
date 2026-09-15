@@ -1171,6 +1171,8 @@ async function recoverRun(runId: string, options: { silentIfMissing?: boolean; p
   }
 }
 
+const combatFeedback = ref<{ hit: boolean; defeated: boolean; text: string } | null>(null)
+
 async function attackTarget(targetId: string, targetName: string) {
   if (!run.value || busy.value) return
   const turnRequestId = requestId('attack')
@@ -1207,6 +1209,22 @@ async function attackTarget(targetId: string, targetName: string) {
     await recoverRun(run.value.run_id)
     lastTurnAction.value = null
     streamingNarrative.value = ''
+    const lastOutcome = [...(run.value.turns.at(-1)?.outcomes ?? [])]
+      .reverse()
+      .find((o): o is { type: 'attack'; target_id: string; hit: boolean; defeated: boolean; damage: number; roll: number } => o.type === 'attack')
+    if (lastOutcome) {
+      const targetLabel = lastOutcome.target_id === 'hero'
+        ? '你'
+        : (run.value.state.npc_state?.[lastOutcome.target_id]?.name ?? lastOutcome.target_id)
+      const verdict = lastOutcome.defeated
+        ? `${targetLabel}被击倒！`
+        : lastOutcome.hit
+          ? `命中${targetLabel}，造成 ${lastOutcome.damage} 点伤害（掷出 ${lastOutcome.roll}）`
+          : `未命中（掷出 ${lastOutcome.roll}）`
+      combatFeedback.value = { hit: lastOutcome.hit, defeated: lastOutcome.defeated, text: verdict }
+    } else {
+      combatFeedback.value = null
+    }
     endOperation('completed', '战斗已结算，状态已保存。')
   } catch (error) {
     if (activeTurnRequestId.value !== turnRequestId) return
@@ -1672,6 +1690,7 @@ onUnmounted(() => {
       @rollback="rollback"
       @send="sendTurn"
       @attack="attackTarget"
+      :combat-feedback="combatFeedback"
       @new-run="beginNewRunFromCurrentWorld"
       @return-world="returnToCurrentWorld"
     />

@@ -59,6 +59,8 @@ export type Turn = {
   sequence: number
   player_input: string
   narrative: string
+  commands: Array<{ type: string; payload: Record<string, unknown> }>
+  outcomes: Array<{ type: string; [key: string]: unknown }>
   before_revision: number
   after_revision: number
 }
