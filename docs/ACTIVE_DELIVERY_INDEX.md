@@ -55,6 +55,19 @@ qwen3-14b 上下文修复后重测（外部依赖）；跨平台 8.0→8.5 需 W
 同批修复：PlayScene 战斗区空目标提示、回合表单空输入提示、导出按钮 title。
 验证：vitest 45/45 + build，backend 189 + ruff 全绿。
 
+## 2026-09-13 v1.2.0 开发完成：反开头重复 + 战斗反馈 + 攻击实测
+
+- **反开头重复**（`fa20eb5`）：120 回合数据根因分析发现 LLM 开头惯性（单世界同
+  一开头最多 8/30 回合）。GM payload 新增 recent_openings（最近 3 回合开头 30 字），
+  system prompt 严禁相似开头并给出四种切入角度。190 passed 全绿。
+- **战斗 UI 反馈条**（`84665e5`）：攻击结算后显示命中/未命中/伤害/掷骰/击倒反馈，
+  Turn 类型补 commands/outcomes。
+- **攻击实测**（`09fd555`，[v120-combat-live-verification.json](../backend/eval/score-upgrade/v120-combat-live-verification.json)）：
+  浏览器通道（桌面组件+打包 sidecar）实测攻击按钮——命令达 d20 引擎，第二 Run
+  达成 chief-felled 好结局。
+- 遗留不变：Windows 真机 GUI（外部依赖）、qwen3-14b 上下文（LM Studio 设置）、
+  续 Run 开头重复的进一步优化（本轮 prompt 约束已缓解，待实测复验）。
+
 ## 2026-09-13 评分提升第一轮验收补全（验证器缺口闭环）
 
 - **四题材量化评估**（[eval/score-upgrade/README.md](../eval/score-upgrade/README.md)）：
