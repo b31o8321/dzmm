@@ -134,6 +134,8 @@ describe('PlayScene', () => {
       sequence: 1,
       player_input: '点亮雾灯',
       narrative: '潮门在晨光中开启。',
+      commands: [],
+      outcomes: [],
       before_revision: 0,
       after_revision: 1,
     }, {
@@ -143,6 +145,8 @@ describe('PlayScene', () => {
       sequence: 2,
       player_input: '恢复历史',
       narrative: '状态已恢复。',
+      commands: [],
+      outcomes: [],
       before_revision: 1,
       after_revision: 2,
     }]
@@ -208,6 +212,8 @@ describe('PlayScene', () => {
       sequence: 1,
       player_input: '我点亮雾灯。',
       narrative: '灯芯在潮雾中亮起。',
+      commands: [],
+      outcomes: [],
       before_revision: 0,
       after_revision: 1,
     }]

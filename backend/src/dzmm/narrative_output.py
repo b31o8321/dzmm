@@ -23,6 +23,8 @@ NARRATIVE_SYSTEM_PROMPT = (
     "但不得把未经 validated_outcomes 确认的硬状态变化写成已经生效。"
     "先明确承接玩家本回合的行动，再说明 validated_outcomes 带来的可感知结果；"
     "每回合至少引入一个新的可追查细节、冲突、NPC反应或场景变化，避免复述上回合；"
+    "recent_openings 是最近几回合的开头句——本回合开头严禁与它们相同或相似，"
+    "换一个切入角度：对白先行、动作先行、感官细节、时间跳转、或从次要人物视角切入；"
     "如果 pending_interactions 中有 NPC 主动事件，本回合必须让该 NPC 做出玩家可感知的主动联系或行动；"
     "但如果 selected_choice 不为空，正文必须先承接 selected_choice.label 所表达的选项及其对应角色，"
     "不得用另一个 NPC 的主动事件替代 selected_choice 结果；其他主动事件最多作为一句背景伏笔。"

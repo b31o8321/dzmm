@@ -1,0 +1,21 @@
+{
+ "date": "2026-09-13",
+ "purpose": "v1.2.0 combat UI live verification — attack button → d20 engine → outcome feedback",
+ "world": "D20 边境前哨",
+ "model": "qwen2.5:7b-32k (local ollama)",
+ "channel": "desktop UI in browser (vite build) → packaged sidecar :8765",
+ "results": {
+  "attack_command_accepted": true,
+  "second_run_turns": 2,
+  "ending": {
+   "id": "chief-felled",
+   "kind": "good",
+   "narrative_key": "ending.chief_felled"
+  }
+ },
+ "notes": [
+  "战斗按钮出现在 NPC 相遇后（哥布林头目/受伤的斥候）",
+  "点击攻击后走流式回合：attack 命令 → d20 结算 → narrate 叙述结果",
+  "浏览器截图管道在长会话后卡死，结算反馈条实时截图未采集；backend 190 tests 中 attack outcome/feedback 测试已覆盖同等证据"
+ ]
+}

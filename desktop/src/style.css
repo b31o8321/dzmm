@@ -1708,3 +1708,20 @@ h3 {
   font-size: 0.88rem;
   line-height: 1.5;
 }
+
+.combat-feedback {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--accent, #e8c56a);
+  background: rgba(232, 197, 106, 0.08);
+  font-size: 0.95rem;
+}
+.combat-feedback.miss {
+  border-left-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+}
+.combat-feedback.defeated {
+  border-left-color: #7ec8a0;
+  background: rgba(126, 200, 160, 0.1);
+  font-weight: 600;
+}
