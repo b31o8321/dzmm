@@ -39,6 +39,12 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
                 "{hero}，你比我预想的来得早。",
                 "别碰那件证物——先回答我一个问题，{hero}。",
             ],
+            "endings": {
+                "good": {"title": "真相收网", "epitaph": "所有线索在这一刻闭合。"},
+                "normal": {"title": "悬而未决", "epitaph": "有些案子，只能留给时间。"},
+                "bad": {"title": "冤案落定", "epitaph": "真凶逍遥，替罪者画押。"},
+                "hidden": {"title": "钟声的第五下", "epitaph": "只有你听懂了最后一响。"},
+            },
         },
     },
     "hero_growth": {
@@ -75,6 +81,12 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
                 "{hero}，聪敏人此刻应该低头记录。",
                 "你来得正好，{hero}——有一份卷宗少了名字。",
             ],
+            "endings": {
+                "good": {"title": "棋局易手", "epitaph": "新的秩序由你写下。"},
+                "normal": {"title": "息事宁人", "epitaph": "朝堂如旧，人心已换。"},
+                "bad": {"title": "满盘皆输", "epitaph": "棋子落幕，无人记得番号。"},
+                "hidden": {"title": "密室里的最后一页", "epitaph": "真正的名单从未上呈。"},
+            },
         },
     },
     "survival": {
@@ -105,6 +117,12 @@ GENRE_PRESETS: dict[str, dict[str, str]] = {
                 "{hero}，照这个消耗速度，我们撑不到救援。",
                 "别关警报，{hero}——那是我们唯一的计时器。",
             ],
+            "endings": {
+                "good": {"title": "黎明突围", "epitaph": "你们把黎明带回了舱内。"},
+                "normal": {"title": "以待后援", "epitaph": "活着，就是目前全部的胜利。"},
+                "bad": {"title": "长眠于此", "epitaph": "氧气表停在了零。"},
+                "hidden": {"title": "第七罐储备", "epitaph": "有人早就数好了生机。"},
+            },
         },
     },
     "romance": {
@@ -143,6 +161,12 @@ GENRE_PRESETS["steampunk_western"] = {
             "{hero}，公司的火车不等人。",
             "镇上都在传，{hero}——说你不会退。",
         ],
+        "endings": {
+            "good": {"title": "正午枪响", "epitaph": "自由镇的钟声比汽笛更响。"},
+            "normal": {"title": "铁轨改道", "epitaph": "公司与镇子各退了一步。"},
+            "bad": {"title": "铁轨碾过", "epitaph": "告示板上换了新的字。"},
+            "hidden": {"title": "图纸上没有的站台", "epitaph": "火车停在了不存在的站名前。"},
+        },
     },
 }
 

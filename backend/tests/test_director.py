@@ -258,3 +258,48 @@ def test_director_failure_degrades_silently(migrated_client, monkeypatch) -> Non
     assert note_row is None
     assert turn_count == 6
     assert all(note is None for note in narrative_notes)
+
+
+def test_director_notes_read_endpoint(migrated_client) -> None:
+    """GET /runs/{id}/director-notes returns stored notes (newest first)."""
+
+    from test_world_compose import compose_payload
+
+    client, db_path = migrated_client
+    template = client.get("/api/v2/world-templates/d20-frontier").json()
+    profile = client.post(
+        "/api/v2/model-profiles",
+        json={
+            "name": "notes-read",
+            "provider_type": "ollama",
+            "base_url": "http://127.0.0.1:11434",
+            "model_name": "qwen2.5:7b-32k",
+        },
+    ).json()
+    payload = compose_payload("notes-read-compose")
+    payload["model_profile_id"] = profile["id"]
+    payload["world_definition"] = template["world_definition"]
+    payload["hero"] = template["hero"]
+    composed = client.post("/api/v2/worlds:compose", json=payload).json()
+    run_id = composed["run_id"]
+
+    # 直接插入两条 notes（绕过异步调度，专注端点行为）
+    import sqlite3
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO director_notes(run_id, turn, tension, hook) VALUES (?, ?, ?, ?)",
+        (run_id, 6, "张力A", "钩子A"),
+    )
+    conn.execute(
+        "INSERT INTO director_notes(run_id, turn, tension, hook) VALUES (?, ?, ?, ?)",
+        (run_id, 12, "张力B", "钩子B"),
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(f"/api/v2/runs/{run_id}/director-notes")
+    assert response.status_code == 200
+    notes = response.json()
+    assert [n["turn"] for n in notes] == [12, 6]
+    assert notes[0]["tension"] == "张力B"
