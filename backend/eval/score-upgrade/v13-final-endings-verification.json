@@ -1,0 +1,54 @@
+{
+ "悬疑探案": {
+  "valid": true,
+  "endings": [
+   [
+    "ending-hidden",
+    "钟声的第五下"
+   ],
+   [
+    "ending-good",
+    "真相收网"
+   ],
+   [
+    "ending-good-2",
+    "真相收网"
+   ],
+   [
+    "ending-normal",
+    "悬而未决"
+   ],
+   [
+    "ending-bad",
+    "冤案落定"
+   ]
+  ],
+  "template_leak": false
+ },
+ "灾难求生": {
+  "valid": true,
+  "endings": [
+   [
+    "ending-hidden",
+    "第七罐储备"
+   ],
+   [
+    "ending-good",
+    "黎明突围"
+   ],
+   [
+    "ending-good-2",
+    "黎明突围"
+   ],
+   [
+    "ending-normal",
+    "以待后援"
+   ],
+   [
+    "ending-bad",
+    "长眠于此"
+   ]
+  ],
+  "template_leak": false
+ }
+}

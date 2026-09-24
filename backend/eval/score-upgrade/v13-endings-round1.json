@@ -1,0 +1,54 @@
+{
+ "悬疑探案": {
+  "valid": true,
+  "endings": [
+   [
+    "bell-beyond-fog",
+    null
+   ],
+   [
+    "lan-dawn",
+    null
+   ],
+   [
+    "shen-low-tide",
+    null
+   ],
+   [
+    "neutral-harbor",
+    null
+   ],
+   [
+    "fog-drowned",
+    null
+   ]
+  ],
+  "template_leak": true
+ },
+ "灾难求生": {
+  "valid": true,
+  "endings": [
+   [
+    "bell-beyond-fog",
+    null
+   ],
+   [
+    "lan-dawn",
+    null
+   ],
+   [
+    "shen-low-tide",
+    null
+   ],
+   [
+    "neutral-harbor",
+    null
+   ],
+   [
+    "fog-drowned",
+    null
+   ]
+  ],
+  "template_leak": true
+ }
+}
