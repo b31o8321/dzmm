@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import API_VERSION, APP_NAME
@@ -59,6 +59,7 @@ from .core import (
 )
 from .db import create_engine
 from .genre_presets import genre_preset_list
+from .persistence import director_notes
 from .world_templates import d20_frontier_template, fog_harbor_template
 
 
@@ -74,7 +75,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.sessions = async_sessionmaker(app.state.engine, expire_on_commit=False)
         app.state.world_composer = WorldComposer(app.state.sessions)
         app.state.portable = PortableService(app.state.sessions, app.state.world_composer)
-        app.state.turn_coordinator = TurnCoordinator(app.state.sessions)
+        app.state.turn_coordinator = TurnCoordinator(
+            app.state.sessions, director_enabled=resolved_settings.director_enabled
+        )
         app.state.model_profiles = ModelProfileService(app.state.sessions)
         app.state.ai_world_drafts = AIWorldDraftService(app.state.model_profiles)
         app.state.model_prober = ModelProber()
@@ -404,6 +407,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             status_code=201 if result.created else 200, content=result.model_dump(mode="json")
         )
+
+    @app.get("/api/v2/runs/{run_id}/director-notes")
+    async def list_director_notes(run_id: str) -> list[dict[str, object]]:
+        async with app.state.sessions() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        director_notes.c.turn,
+                        director_notes.c.tension,
+                        director_notes.c.hook,
+                        director_notes.c.created_at,
+                    )
+                    .where(director_notes.c.run_id == run_id)
+                    .order_by(director_notes.c.turn.desc())
+                )
+            )
+            return [
+                {
+                    "turn": row.turn,
+                    "tension": row.tension,
+                    "hook": row.hook,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in rows.mappings()
+            ]
 
     @app.post("/api/v2/runs/{run_id}/rollbacks")
     async def rollback_turn(run_id: str, payload: TurnRollbackInput) -> JSONResponse:

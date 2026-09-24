@@ -18,7 +18,7 @@ from uuid import uuid4
 
 from .core.command_engine import apply_commands
 from .core_runtime_errors import CoreRuntimeError
-from .director import build_director_prompt, is_note_fresh, parse_director_note, should_run_director
+from .director import build_director_prompt, is_note_fresh, parse_director_note
 from .embedded_model_profiles import EmbeddedModelProfileStore
 from .embedded_model_requests import (
     clean_model_narrative,
@@ -211,8 +211,9 @@ def _narrative_outcome_context(
 
 
 class LocalCoreRuntime:
-    def __init__(self, database: str | Path) -> None:
+    def __init__(self, database: str | Path, *, director_enabled: bool = True) -> None:
         self.database = str(database)
+        self.director_enabled = director_enabled
         self._operations = OperationRegistry()
         Path(self.database).parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
@@ -1237,11 +1238,10 @@ class LocalCoreRuntime:
     def _schedule_director(self, run_id: str, revision: int, api_key: object) -> None:
         """Fire the background Director note after every Nth committed turn.
 
-        The note never runs on the turn's critical path: a daemon thread owns the
-        model call, and any failure is silently discarded (ADR-012).
+        The note never runs on the turn's critical path: a daemon thread owns
+        the model call, and any failure is silently discarded (ADR-012).
         """
-
-        if not should_run_director(revision):
+        if not self.director_enabled:
             return
         threading.Thread(
             target=self._run_director_note,
