@@ -1171,7 +1171,17 @@ async function recoverRun(runId: string, options: { silentIfMissing?: boolean; p
   }
 }
 
-const combatFeedback = ref<{ hit: boolean; defeated: boolean; text: string } | null>(null)
+const attackSnapshot = ref<{ bonus: number; hp: number } | null>(null)
+const combatFeedback = ref<{
+  roll: number
+  bonus: number
+  hit: boolean
+  damage: number
+  hpBefore: number
+  hpAfter: number
+  defeated: boolean
+  targetName: string
+} | null>(null)
 
 async function attackTarget(targetId: string, targetName: string) {
   if (!run.value || busy.value) return
@@ -1183,6 +1193,11 @@ async function attackTarget(targetId: string, targetName: string) {
   notice.value = ''
   beginOperation('正在连接本地模型…', 'connecting')
   const streamController = beginStream()
+  const participants = run.value.state.combat?.participants ?? {}
+  attackSnapshot.value = {
+    bonus: participants[targetId]?.attack_bonus ?? participants['hero']?.attack_bonus ?? 0,
+    hp: participants[targetId]?.hp ?? 0,
+  }
   try {
     advanceOperation('generating', `正在结算对 ${targetName} 的攻击；旅程尚未写入新回合。`)
     let streamFailure: string | null = null
@@ -1211,17 +1226,22 @@ async function attackTarget(targetId: string, targetName: string) {
     streamingNarrative.value = ''
     const lastOutcome = [...(run.value.turns.at(-1)?.outcomes ?? [])]
       .reverse()
-      .find((o): o is { type: 'attack'; target_id: string; hit: boolean; defeated: boolean; damage: number; roll: number } => o.type === 'attack')
+      .find((o): o is { type: 'attack'; target_id: string; roll: number; hit: boolean; defeated: boolean; damage: number; target_hp: number } => o.type === 'attack')
     if (lastOutcome) {
+      const hpBefore = attackSnapshot.value?.hp ?? lastOutcome.target_hp
       const targetLabel = lastOutcome.target_id === 'hero'
         ? '你'
         : (run.value.state.npc_state?.[lastOutcome.target_id]?.name ?? lastOutcome.target_id)
-      const verdict = lastOutcome.defeated
-        ? `${targetLabel}被击倒！`
-        : lastOutcome.hit
-          ? `命中${targetLabel}，造成 ${lastOutcome.damage} 点伤害（掷出 ${lastOutcome.roll}）`
-          : `未命中（掷出 ${lastOutcome.roll}）`
-      combatFeedback.value = { hit: lastOutcome.hit, defeated: lastOutcome.defeated, text: verdict }
+      combatFeedback.value = {
+        roll: lastOutcome.roll,
+        bonus: (attackSnapshot.value?.bonus ?? 0),
+        hit: lastOutcome.hit,
+        damage: lastOutcome.damage,
+        hpBefore: hpBefore ?? lastOutcome.target_hp,
+        hpAfter: lastOutcome.target_hp,
+        defeated: lastOutcome.defeated,
+        targetName: targetLabel,
+      }
     } else {
       combatFeedback.value = null
     }

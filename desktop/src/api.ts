@@ -25,7 +25,15 @@ export type RunState = {
   }>
   pending_interactions?: Array<{ id: string; kind: 'npc_initiative'; npc_id: string; npc_name: string; instruction: string }>
   combat?: {
-    participants: Record<string, { role: 'hero' | 'npc'; hp: number; max_hp: number; defeated: boolean }>
+    participants: Record<string, {
+      role: 'hero' | 'npc'
+      hp: number
+      max_hp: number
+      ac: number
+      attack_bonus: number
+      damage: { count: number; sides: number; bonus: number }
+      defeated: boolean
+    }>
   }
 }
 
