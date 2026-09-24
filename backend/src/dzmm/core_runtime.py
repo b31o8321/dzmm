@@ -44,7 +44,12 @@ from .narrative import (
     validate_definition,
 )
 from .narrative_context import narrative_entity_names, narrative_world_material
-from .narrative_output import extract_gm_actions, model_response_was_truncated
+from .narrative_output import (
+    extract_gm_actions,
+    model_response_was_truncated,
+    opening_overlap_ratio,
+    trim_repeated_opening,
+)
 from .operation_control import OperationRegistry
 from .run_presentation import build_run_presentation
 from .story_beats import (
@@ -1082,6 +1087,17 @@ class LocalCoreRuntime:
         outcomes.extend(apply_gm_actions(state, gm_actions))
         settle_world_events(state, definition, outcomes)
         settle_pending_interactions(state, outcomes)
+        recent_openings = [
+            str(item.get("narrative") or "")[:24]
+            for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+            if isinstance(item, dict)
+        ][-3:]
+        narrative = trim_repeated_opening(narrative, recent_openings)
+        diagnostics = state.setdefault("diagnostics", {})
+        if isinstance(diagnostics, dict):
+            diagnostics["opening_overlap"] = round(
+                opening_overlap_ratio(narrative, recent_openings), 2
+            )
         record_narrative_context(
             state, definition, run_id, str(payload.get("player_input") or ""), narrative, outcomes
         )
@@ -1166,6 +1182,17 @@ class LocalCoreRuntime:
         outcomes.extend(apply_gm_actions(state, gm_actions))
         settle_world_events(state, definition, outcomes)
         settle_pending_interactions(state, outcomes)
+        recent_openings = [
+            str(item.get("narrative") or "")[:24]
+            for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+            if isinstance(item, dict)
+        ][-3:]
+        narrative = trim_repeated_opening(narrative, recent_openings)
+        diagnostics = state.setdefault("diagnostics", {})
+        if isinstance(diagnostics, dict):
+            diagnostics["opening_overlap"] = round(
+                opening_overlap_ratio(narrative, recent_openings), 2
+            )
         record_narrative_context(
             state, definition, run_id, str(payload.get("player_input") or ""), narrative, outcomes
         )

@@ -801,3 +801,23 @@ def test_clean_narrative_output_strips_qwen3_leak_patterns() -> None:
         '"id":"hook-1","thread_type":"hook","description":"线索"}]}-->'
     )
     assert "DZMM_ACTIONS" not in value
+
+
+def test_repeated_opening_is_trimmed_and_overlap_measured() -> None:
+    """v1.2.0 实测缺口：模型开头惯性（同一地点+氛围句式 8/30 回合）。兜底截断+度量。"""
+
+
+    # 通过 LocalCoreRuntime 走一遍完整回合太重；直接测 core_runtime 的两个工具函数
+    from dzmm.narrative_output import opening_overlap_ratio, trim_repeated_opening
+
+    narrative = "哨塔废墟的夜风很冷。艾登走进营地，火光摇曳。斥候靠在门边。"
+    recent = ["哨塔废墟的夜风很冷。艾登走出营地查看动静。", "哨塔废墟的夜风很冷。斥候睡着了。"]
+    assert opening_overlap_ratio(narrative, recent) > 0.5
+
+    trimmed = trim_repeated_opening(narrative, recent)
+    assert not trimmed.startswith("哨塔废墟的夜风很冷")
+    assert trimmed.startswith("艾登")
+
+    # 不相关开头不截断
+    untouched = trim_repeated_opening("对白先行：先别动。艾登举起灯。", recent)
+    assert untouched == "对白先行：先别动。艾登举起灯。"

@@ -333,7 +333,8 @@ def test_ai_draft_is_ephemeral_then_composes_and_reaches_a_python_ending(migrate
             },
         )
         assert chosen.status_code == 201
-    assert chosen.json()["state"]["ending"]["id"] == "lan-dawn"
+    # 1.3.0 起结局 id 使用 kind 稳定命名，不再继承模板名词
+    assert chosen.json()["state"]["ending"]["id"] == "ending-good"
     presentation = client.get(f"/api/v2/runs/{run_id}").json()["presentation"]
     assert presentation["locations"]["harbor"] == "星潮码头"
     assert presentation["resources"]["fog-lantern"] == "关键线索"
