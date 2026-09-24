@@ -11,6 +11,7 @@ DEFAULT_DATA_DIR = Path.home() / ".dzmm"
 class Settings:
     data_dir: Path
     port: int = 8765
+    director_enabled: bool = True
 
     @property
     def database_path(self) -> Path:
@@ -27,10 +28,12 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         value = os.environ.get("DZMM_DATA_DIR")
+        director_enabled = os.environ.get("DZMM_DIRECTOR", "1").strip().lower() not in {"0", "false", "off"}
         port = int(os.environ.get("DZMM_PORT", "8765"))
         return cls(
             data_dir=Path(value).expanduser() if value else DEFAULT_DATA_DIR,
             port=port,
+            director_enabled=director_enabled,
         )
 
     def ensure_layout(self) -> None:

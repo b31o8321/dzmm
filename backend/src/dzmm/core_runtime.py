@@ -18,7 +18,7 @@ from uuid import uuid4
 
 from .core.command_engine import apply_commands
 from .core_runtime_errors import CoreRuntimeError
-from .director import build_director_prompt, is_note_fresh, parse_director_note, should_run_director
+from .director import build_director_prompt, is_note_fresh, parse_director_note
 from .embedded_model_profiles import EmbeddedModelProfileStore
 from .embedded_model_requests import (
     clean_model_narrative,
@@ -44,7 +44,12 @@ from .narrative import (
     validate_definition,
 )
 from .narrative_context import narrative_entity_names, narrative_world_material
-from .narrative_output import extract_gm_actions, model_response_was_truncated
+from .narrative_output import (
+    extract_gm_actions,
+    model_response_was_truncated,
+    opening_overlap_ratio,
+    trim_repeated_opening,
+)
 from .operation_control import OperationRegistry
 from .run_presentation import build_run_presentation
 from .story_beats import (
@@ -206,8 +211,9 @@ def _narrative_outcome_context(
 
 
 class LocalCoreRuntime:
-    def __init__(self, database: str | Path) -> None:
+    def __init__(self, database: str | Path, *, director_enabled: bool = True) -> None:
         self.database = str(database)
+        self.director_enabled = director_enabled
         self._operations = OperationRegistry()
         Path(self.database).parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
@@ -1082,6 +1088,17 @@ class LocalCoreRuntime:
         outcomes.extend(apply_gm_actions(state, gm_actions))
         settle_world_events(state, definition, outcomes)
         settle_pending_interactions(state, outcomes)
+        recent_openings = [
+            str(item.get("narrative") or "")[:24]
+            for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+            if isinstance(item, dict)
+        ][-3:]
+        narrative = trim_repeated_opening(narrative, recent_openings)
+        diagnostics = state.setdefault("diagnostics", {})
+        if isinstance(diagnostics, dict):
+            diagnostics["opening_overlap"] = round(
+                opening_overlap_ratio(narrative, recent_openings), 2
+            )
         record_narrative_context(
             state, definition, run_id, str(payload.get("player_input") or ""), narrative, outcomes
         )
@@ -1166,6 +1183,17 @@ class LocalCoreRuntime:
         outcomes.extend(apply_gm_actions(state, gm_actions))
         settle_world_events(state, definition, outcomes)
         settle_pending_interactions(state, outcomes)
+        recent_openings = [
+            str(item.get("narrative") or "")[:24]
+            for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+            if isinstance(item, dict)
+        ][-3:]
+        narrative = trim_repeated_opening(narrative, recent_openings)
+        diagnostics = state.setdefault("diagnostics", {})
+        if isinstance(diagnostics, dict):
+            diagnostics["opening_overlap"] = round(
+                opening_overlap_ratio(narrative, recent_openings), 2
+            )
         record_narrative_context(
             state, definition, run_id, str(payload.get("player_input") or ""), narrative, outcomes
         )
@@ -1210,11 +1238,10 @@ class LocalCoreRuntime:
     def _schedule_director(self, run_id: str, revision: int, api_key: object) -> None:
         """Fire the background Director note after every Nth committed turn.
 
-        The note never runs on the turn's critical path: a daemon thread owns the
-        model call, and any failure is silently discarded (ADR-012).
+        The note never runs on the turn's critical path: a daemon thread owns
+        the model call, and any failure is silently discarded (ADR-012).
         """
-
-        if not should_run_director(revision):
+        if not self.director_enabled:
             return
         threading.Thread(
             target=self._run_director_note,

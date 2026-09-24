@@ -101,11 +101,14 @@ class TurnCoordinator:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         narrator: ModelNarrator | None = None,
+        *,
+        director_enabled: bool = True,
     ) -> None:
         self._session_factory = session_factory
         self._narrator = narrator or ModelNarrator()
         self._operations = OperationRegistry()
         self._director_tasks: set[asyncio.Task[None]] = set()
+        self._director_enabled = director_enabled
 
     def begin_operation(self, request_id: str) -> bool:
         return self._operations.begin(request_id)

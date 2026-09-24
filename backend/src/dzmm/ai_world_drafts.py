@@ -856,6 +856,29 @@ def _rename_story_surface(
         [character.name for character in characters],
         skeleton=skeleton,
     )
+    _rewrite_endings(definition["story"]["endings"], labels)
+
+
+def _rewrite_endings(endings: list[dict[str, Any]], labels: dict[str, Any]) -> None:
+    """Replace template ending ids/keys with kind-stable ids and genre titles.
+
+    Ending ids stop inheriting template nouns (fog-drowned etc.); each ending
+    gets the kind-stable id plus a genre title for the ending card.
+    """
+    templates = labels.get("endings") or {}
+    seen_kinds: set[str] = set()
+    for ending in endings:
+        kind = ending.get("kind")
+        template = templates.get(kind)
+        if template is None:
+            continue
+        if kind not in seen_kinds:
+            seen_kinds.add(kind)
+            ending["id"] = f"ending-{kind}"
+        ending["narrative_key"] = f"ending.{kind}"
+        ending["title"] = template["title"]
+        if template.get("epitaph"):
+            ending["epitaph"] = template["epitaph"]
 
 
 def _pydantic_issues(error: PydanticValidationError, prefix: str = "") -> list[DraftIssue]:

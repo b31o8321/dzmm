@@ -222,3 +222,51 @@ def model_response_was_truncated(provider_type: str, payload: Any) -> bool:
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         return False
     return choices[0].get("finish_reason") in {"length", "max_tokens"}
+
+
+def opening_overlap_ratio(narrative: str, recent_openings: list[str], chars: int = 24) -> float:
+    """Return the max 4-gram overlap between a new opening and recent openings.
+
+    Diagnostics only (0.0–1.0); used to quantify LLM opening inertia without
+    blocking the turn.
+    """
+
+    def grams(value: str) -> set[str]:
+        cleaned = "".join(ch for ch in value if "\u4e00" <= ch <= "\u9fff")
+        return {cleaned[i:i + 4] for i in range(len(cleaned) - 3)} if len(cleaned) >= 4 else set()
+
+    opening_grams = grams(narrative[:chars])
+    if not opening_grams:
+        return 0.0
+    max_overlap = 0.0
+    for recent in recent_openings:
+        recent_grams = grams(recent[:chars])
+        if not recent_grams:
+            continue
+        overlap = len(opening_grams & recent_grams) / max(1, min(len(opening_grams), len(recent_grams)))
+        max_overlap = max(max_overlap, overlap)
+    return max_overlap
+
+
+def trim_repeated_opening(narrative: str, recent_openings: list[str], prefix_len: int = 12) -> str:
+    """Drop a repeated opening prefix when it matches a recent opening.
+
+    Deterministic post-processing fallback for the prompt constraint: if the
+    first `prefix_len` chars (ignoring the chapter title prefix) repeat a
+    recent opening, the narrative starts from the first sentence break after
+    that prefix instead.
+    """
+
+    if not narrative or not recent_openings:
+        return narrative
+    normalized_openings = [re.sub(r"\s+", "", item)[:prefix_len] for item in recent_openings if item]
+    body_normalized = re.sub(r"\s+", "", narrative)[:prefix_len]
+    for opening in normalized_openings:
+        if not opening or not body_normalized.startswith(opening):
+            continue
+        # 重复开头命中：从第一句结束处继续展示（保留首句中的章节标题信息）
+        sentence_end = re.search(r"[。！？]", narrative)
+        if sentence_end:
+            return narrative[sentence_end.end():].lstrip()
+        return narrative
+    return narrative

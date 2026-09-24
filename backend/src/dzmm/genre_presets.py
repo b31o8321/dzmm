@@ -199,6 +199,12 @@ DEFAULT_SKELETON = {
         "别急着做决定，{hero}——先告诉我你看见了什么。",
         "{hero}，这里的一切都比传闻里更旧，也更真。",
     ],
+    "endings": {
+        "good": {"title": "尘埃落定", "epitaph": "该发生的都发生了。"},
+        "normal": {"title": "草草收场", "epitaph": "故事停在了半途。"},
+        "bad": {"title": "步步失守", "epitaph": "回头的路已经没有了。"},
+        "hidden": {"title": "未载入编年史的一页", "epitaph": "只有你知道真相。"},
+    },
 }
 
 
