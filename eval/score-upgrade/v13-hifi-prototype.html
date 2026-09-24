@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DZMM v1.3 高保真原型 — Mac 桌面版 + 手机版</title>
+<style>
+  :root {
+    --bg-deep: #0d1614;
+    --bg-card: #14201c;
+    --bg-card-2: #182622;
+    --line: rgba(255,255,255,0.12);
+    --ink: #f0ead8;
+    --ink-soft: rgba(240,234,216,0.72);
+    --ink-faint: rgba(240,234,216,0.45);
+    --accent: #2ec4a0;
+    --gold: #e8c56a;
+    --gold-soft: rgba(232,197,106,0.14);
+    --danger: #e07a6a;
+    --ok: #7ec8a0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #060b0a;
+    color: var(--ink);
+    font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+    padding: 28px 20px 80px;
+  }
+  h1 { font-family: Georgia, "Songti SC", serif; font-size: 1.7rem; font-weight: 600; margin-bottom: 6px; }
+  .sub { color: var(--ink-soft); font-size: 0.92rem; margin-bottom: 26px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; font-size: 0.8rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .dot.new { background: var(--accent); }
+  .dot.fixed { background: var(--gold); }
+  .dot.existing { background: rgba(255,255,255,0.3); }
+  .frames { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+
+  /* —— Mac 窗口框 —— */
+  .mac {
+    width: 1100px; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--line); background: var(--bg-deep);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .mac-titlebar {
+    height: 38px; display: flex; align-items: center; padding: 0 14px; gap: 8px;
+    background: #0a1210; border-bottom: 1px solid var(--line);
+  }
+  .tl-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .tl-dot.r { background: #ff5f57; } .tl-dot.y { background: #febc2e; } .tl-dot.g { background: #28c840; }
+  .mac-titlebar .brand { margin-left: 12px; font-family: Georgia, serif; letter-spacing: 3px; color: var(--ink); font-size: 0.95rem; }
+  .mac-titlebar .status { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 0.78rem; color: var(--ink-soft); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .mac-body { display: flex; min-height: 660px; }
+
+  /* —— 手机框 —— */
+  .phone {
+    width: 390px; border-radius: 42px; overflow: hidden; position: relative;
+    border: 6px solid #1a1a1a; background: var(--bg-deep);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .notch { height: 44px; display: flex; align-items: center; justify-content: center; background: #000; }
+  .notch::after { content: ""; width: 110px; height: 26px; background: #000; border-radius: 0 0 18px 18px; }
+  .phone-screen { min-height: 700px; }
+
+  /* —— 通用 DZMM 组件 —— */
+  .tabbar { display: flex; align-items: center; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .tabbar .tab { padding: 5px 14px; border-radius: 7px; font-size: 0.82rem; color: var(--ink-soft); cursor: pointer; }
+  .tabbar .tab.active { background: rgba(46,196,160,0.15); color: var(--ink); border: 1px solid rgba(46,196,160,0.35); }
+  .tabbar .svc { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--ink-soft); }
+  .crumbs { display: flex; align-items: center; gap: 8px; padding: 10px 18px 0; font-size: 0.78rem; color: var(--ink-faint); }
+  .crumbs b { color: var(--ink); font-weight: 500; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; margin: 12px 16px;
+  }
+  .card h3 { font-family: Georgia, "Songti SC", serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 0.88rem; line-height: 1.7; color: var(--ink-soft); }
+  .card .src { font-size: 0.68rem; color: var(--ink-faint); letter-spacing: 1px; margin-bottom: 4px; }
+  .choices { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; }
+  .choice-btn {
+    padding: 11px 16px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--bg-card-2); color: var(--ink); font-size: 0.9rem; text-align: left; cursor: pointer;
+  }
+  .choice-btn:hover { border-color: var(--accent); }
+  .choice-btn.combat { border-color: rgba(232,197,106,0.4); color: var(--gold); }
+  .choice-btn.combat.defeated { opacity: 0.45; text-decoration: line-through; }
+  .hint {
+    margin: 10px 16px; padding: 9px 13px; border-radius: 8px;
+    background: rgba(46,196,160,0.08); border: 1px solid rgba(46,196,160,0.25);
+    font-size: 0.8rem; color: var(--accent);
+  }
+  .hint .tag { font-weight: 600; margin-right: 6px; }
+  .combat-card {
+    margin: 10px 16px; padding: 11px 14px; border-radius: 9px;
+    border-left: 3px solid var(--gold); background: var(--gold-soft); font-size: 0.86rem; line-height: 1.7;
+  }
+  .combat-card.defeat { border-left-color: var(--ok); background: rgba(126,200,160,0.08); }
+  .combat-card b { color: var(--gold); }
+  .combat-card.defeat b { color: var(--ok); }
+  .guide-card {
+    margin: 12px 16px; padding: 14px 16px; border-radius: 10px;
+    background: linear-gradient(135deg, rgba(46,196,160,0.1), rgba(46,196,160,0.03));
+    border: 1px solid rgba(46,196,160,0.3);
+  }
+  .guide-card .gc-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
+  .guide-card .gc-body { font-size: 0.82rem; color: var(--ink-soft); line-height: 1.65; }
+  .guide-card .gc-body b { color: var(--ink); }
+  .gc-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .gc-btn { padding: 6px 14px; border-radius: 7px; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .gc-btn.primary { background: var(--gold); color: #1a1a1a; border: none; font-weight: 600; }
+  .annotate { position: relative; }
+  .annotate::after {
+    content: attr(data-note); position: absolute; right: -12px; top: -10px;
+    background: var(--danger); color: #fff; font-size: 0.68rem; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+  }
+  .section-label { font-size: 0.72rem; color: var(--ink-faint); letter-spacing: 2px; margin: 20px 0 8px; }
+  .prototype-note { font-size: 0.78rem; color: var(--ink-faint); margin-top: 6px; line-height: 1.6; }
+  .two-col { display: grid; grid-template-columns: 240px 1fr; gap: 0; }
+  .side-panel { padding: 14px 16px; border-right: 1px solid var(--line); }
+  .side-panel .label { font-size: 0.7rem; color: var(--ink-faint); letter-spacing: 1.5px; margin-bottom: 6px; }
+  .side-panel .chapter { font-family: Georgia, "Songti SC", serif; font-size: 1.05rem; line-height: 1.4; margin-bottom: 12px; }
+  .side-panel .stat { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.07); }
+  .side-panel .stat b { color: var(--gold); font-weight: 500; }
+  .input-bar { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+  .input-bar input {
+    flex: 1; background: var(--bg-card-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 14px; color: var(--ink); font-size: 0.88rem; outline: none;
+  }
+  .input-bar button {
+    background: var(--accent); color: #0d1614; border: none; border-radius: 8px;
+    padding: 10px 18px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  }
+  .genre-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 4px 0 10px; }
+  .genre-chip {
+    padding: 6px 14px; border-radius: 16px; border: 1px solid var(--line);
+    font-size: 0.8rem; color: var(--ink-soft); cursor: pointer;
+  }
+  .genre-chip.on { border-color: var(--gold); color: var(--gold); background: rgba(232,197,106,0.08); }
+  .op-stage { display: flex; gap: 6px; align-items: center; padding: 8px 16px; font-size: 0.76rem; color: var(--ink-soft); }
+  .op-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
+  .phone .notch + .phone-screen { padding-top: 0; }
+  .divider-label {
+    width: 100%; margin: 34px 0 18px; font-size: 0.85rem; color: var(--ink-faint);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .divider-label::before, .divider-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+</style>
+</head>
+<body>
+<h1>DZMM v1.3 高保真原型 — 引导与体验专项（Mac + 手机）</h1>
+<div class="sub">四个小众题材实测后的交互升级提案 · 2026-09-25 · 用于 UI 交互讨论</div>
+<div class="legend">
+  <span><i class="dot new"></i>新增/重设计</span>
+  <span><i class="dot fixed"></i>已修缺陷的对照演示</span>
+  <span><i class="dot existing"></i>沿用现有交互</span>
+</div>
+
+<div class="frames" style="flex-direction: column; align-items: center;">
+
+<!-- ═══════════ 屏幕 1：首启引导（世界页空状态 + AI 创作页置灰修复对照） ═══════════ -->
+<div class="divider-label">屏幕 1 · 首启引导（当前痛点：置灰无解释 → 修复后：置灰必带原因 + 引导卡）</div>
+
+<div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
+  <!-- 修复前（v1.0.0 实拍还原） -->
+  <div>
+    <div class="section-label">修复前 v1.0.0（实拍还原）</div>
+    <div class="mac" style="opacity:0.75;">
+      <div class="mac-titlebar"><span class="tl-dot r"></span><span class="tl-dot y"></span><span class="tl-dot g"></span><span class="brand">DZMM</span><div class="status"><span class="status-dot"></span>本机游戏服务 已就绪</div></div>
+      <div style="padding:26px 34px;">
+        <div class="genre-chips"><span class="genre-chip">悬疑探案</span><span class="genre-chip">英雄成长</span><span class="genre-chip">政治阴谋</span><span class="genre-chip">灾难求生</span><span class="genre-chip">恋爱攻略</span><span class="genre-chip">蒸汽朋克西部</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
+          <div><div class="section-label" style="margin:0 0 4px;">题材</div><div style="background:var(--bg-card-2); border:1px solid var(--line); border-radius:7px; padding:9px 12px; font-size:0.85rem;">潮汐悬疑恋爱冒险</div></div>
+          <div><div class="section-label" style="margin:0 0 4px;">基调</div><div style="background:var(--bg-card-2); border:1px solid var(--line); border-radius:7px; padding:9px 12px; font-size:0.85rem;">温柔、危险</div></div>
+        </div>
+        <button class="annotate" data-note="实测死局：置灰无解释" style="margin-top:20px; width:100%; padding:12px; border:none; border-radius:9px; background:rgba(232,197,106,0.35); color:rgba(255,255,255,0.5); font-size:0.95rem; cursor:not-allowed;">生成待审阅草案</button>
+        <p style="margin-top:10px; font-size:0.75rem; color:var(--danger);">⚠ 实测：表单填满后按钮仍置灰，无任何原因说明——用户卡死</p>
+      </div>
+    </div>
+  </div>
+  <!-- 修复后 -->
+  <div>
+    <div class="section-label">修复后（本轮 proposal）</div>
+    <div class="mac">
+      <div class="mac-titlebar"><span class="tl-dot r"></span><span class="tl-dot y"></span><span class="tl-dot g"></span><span class="brand">DZMM</span><div class="status"><span class="status-dot"></span>本机游戏服务 已就绪</div></div>
+      <div style="padding:26px 34px;">
+        <div class="genre-chips"><span class="genre-chip">悬疑探案</span><span class="genre-chip">英雄成长</span><span class="genre-chip">政治阴谋</span><span class="genre-chip">灾难求生</span><span class="genre-chip">恋爱攻略</span><span class="genre-chip">蒸汽朋克西部</span></div>
+        <p class="hint" style="margin:14px 0;"><span class="tag">第一步</span>还没有模型档案：到 设置 → 本地模型 添加一个（填 Base URL 和模型名即可），或展开下方内联表单直接创建。</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
+          <div><div class="section-label" style="margin:0 0 4px;">题材</div><div style="background:var(--bg-card-2); border:1px solid var(--line); border-radius:7px; padding:9px 12px; font-size:0.85rem;">潮汐悬疑恋爱冒险</div></div>
+          <div><div class="section-label" style="margin:0 0 4px;">基调</div><div style="background:var(--bg-card-2); border:1px solid var(--line); border-radius:7px; padding:9px 12px; font-size:0.85rem;">温柔、危险</div></div>
+        </div>
+        <button class="annotate" data-note="置灰但旁边有原因" style="margin-top:20px; width:100%; padding:12px; border:none; border-radius:9px; background:rgba(232,197,106,0.35); color:rgba(255,255,255,0.5); font-size:0.95rem; cursor:not-allowed;">生成待审阅草案（需先选择模型档案）</button>
+        <p style="margin-top:10px; font-size:0.75rem; color:var(--danger);">✓ 同样置灰，但原因可见、出路可见</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider-label">屏幕 2 · Mac 桌面版游玩页（combat 结算卡 + 开场变体 + 选项引导提示）</div>
+
+<!-- ═══════════ 屏幕 2：Mac 桌面版游玩页 ═══════════ -->
+<div class="mac">
+  <div class="mac-titlebar"><span class="tl-dot r"></span><span class="tl-dot y"></span><span class="tl-dot g"></span><span class="brand">DZMM</span><div class="status"><span class="status-dot"></span>本机游戏服务 已就绪</div></div>
+  <div class="op-stage"><span class="op-dot"></span>战斗已结算，状态已保存。 <span style="margin-left:auto;">3.2 秒</span></div>
+  <div class="mac-body">
+    <!-- 侧栏 -->
+    <div class="side-panel">
+      <div class="label">当前章节</div>
+      <div class="chapter">哨塔废墟之夜<br><span style="font-size:0.8rem; color:var(--ink-faint);">边境营地</span></div>
+      <div class="label">角色</div>
+      <div class="stat"><span>艾登</span><b>HP 20/20</b></div>
+      <div class="label">物品</div>
+      <div class="stat"><span>铁剑</span><b>攻击 +2</b></div>
+      <div class="label">战斗 · 行动顺序</div>
+      <div class="stat"><span>1 · 艾登</span><b>先攻</b></div>
+      <div class="stat"><span>2 · 哥布林头目</span><b>HP 14/14</b></div>
+      <div class="label">关系账本</div>
+      <div class="stat"><span>受伤的斥候</span><b>好感 12</b></div>
+    </div>
+    <!-- 主区 -->
+    <div style="flex:1; padding: 16px 20px;">
+      <!-- 战斗结算卡（新） -->
+      <div class="combat-card annotate" data-note="新：结算卡（掷骰/伤害/HP）">
+        <p>⚔ 掷出 d20: <b>14</b> +2 调整值 = <b>16</b> → 命中（目标 AC 13）</p>
+        <p>伤害 <b>1d10+2 = 7</b> → 哥布林头目 HP <b>14 → 7</b></p>
+        <p style="color:var(--ink-faint); font-size:0.78rem;">由本机 d20 引擎结算，模型只负责叙述这一击。</p>
+      </div>
+      <!-- 开场叙事（变体 3：时间先行） -->
+      <div class="card">
+        <div class="src">边境营地</div>
+        <h3>哨塔废墟之夜</h3>
+        <p>凌晨三点，艾登踩着湿漉漉的石阶进入边境营地，怀表停在了这一刻。 废墟的主人在夜里巡猎，火光是唯一的谈判筹码。</p>
+        <p style="margin-top:10px;"><span style="color:var(--gold);">哥布林头目</span>：“旅行者，别让这里替你作出第一个决定。”</p>
+        <p style="margin-top:10px;">确认眼前的局势，决定如何进入「哨塔废墟之夜」。</p>
+        <p style="margin-top:10px; color:var(--ink-faint); font-size:0.8rem;">以下选项只是建议：夜袭废墟，正面迎战头目、护送斥候，绕开废墟；你也可以直接描述任何行动。</p>
+      </div>
+      <!-- 选项命中提示（新） -->
+      <div class="hint"><span class="tag">💡</span>检测到你输入了选项内容「<b>夜袭废墟，正面迎战头目</b>」，可直接点击上方对应选项。</div>
+      <!-- 自由输入 -->
+      <div class="input-bar">
+        <input placeholder="我检查码头的灯火…" value="">
+        <button>执行回合</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider-label">屏幕 3 · 手机版游玩页（390 宽，竖屏布局）</div>
+
+<!-- ═══════════ 屏幕 3：手机版游玩页 ═══════════ -->
+<div style="display:flex; gap:28px; flex-wrap:wrap;">
+  <!-- 手机 A：游玩页 -->
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="tabbar">
+        <span class="tab active">游玩</span><span class="tab">世界</span><span class="tab">创作</span>
+        <span class="svc"><span class="status-dot"></span>已就绪</span>
+      </div>
+      <div class="crumbs"><b>章节</b> 哨塔废墟之夜 <span style="margin-left:auto;">第 3 回合</span></div>
+      <!-- 战斗结算卡（手机宽度适配） -->
+      <div class="combat-card annotate" data-note="新：结算卡手机版">
+        <p>⚔ 掷出 d20: <b>14</b> +2 → <b>命中</b></p>
+        <p>伤害 7 → 哥布林头目 HP <b>14→7</b></p>
+      </div>
+      <!-- 叙事 -->
+      <div class="card" style="margin:10px 14px;">
+        <div class="src">边境营地 · 夜</div>
+        <p>凌晨三点，艾登踩着湿漉漉的石阶进入边境营地。废墟的主人在夜里巡猎，火光是唯一的谈判筹码。</p>
+        <p style="margin-top:8px;"><span style="color:var(--gold);">哥布林头目</span>：“旅行者，别让这里替你作出第一个决定。”</p>
+        <p style="margin-top:8px; color:var(--ink-faint); font-size:0.8rem;">以下选项只是建议，你也可以直接描述任何行动。</p>
+      </div>
+      <!-- 选项 -->
+      <div class="choices">
+        <button class="choice-btn">夜袭废墟，正面迎战头目</button>
+        <button class="choice-btn">护送斥候，绕开废墟</button>
+      </div>
+      <!-- 自由输入 -->
+      <div class="input-bar">
+        <input placeholder="或者，描述你的行动…">
+        <button>执行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手机 B：首启引导 + AI 创作 -->
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="tabbar">
+        <span class="tab active">创作</span><span class="tab">世界</span><span class="tab">游玩</span>
+        <span class="svc"><span class="status-dot"></span>已就绪</span>
+      </div>
+      <div style="padding:16px 18px;">
+        <div style="font-family:Georgia,'Songti SC',serif; font-size:1.3rem; margin-bottom:8px;">先让灵感成形</div>
+        <p style="font-size:0.8rem; color:var(--ink-soft); line-height:1.6; margin-bottom:14px;">模型只返回待审阅的创作素材；本机规则会整理成安全草案。</p>
+        <!-- 引导卡（新：置灰原因前置） -->
+        <div class="guide-card annotate" data-note="新：置灰原因前置引导卡">
+          <div class="gc-title">还没有模型档案</div>
+          <div class="gc-body">先到 <b>设置 → 本地模型</b> 添加一个（填 Base URL 和模型名即可），或展开下方内联表单直接创建。</div>
+          <div class="gc-actions"><button class="gc-btn primary">去添加模型</button><button class="gc-btn">展开内联表单</button></div>
+        </div>
+        <div class="section-label" style="margin:14px 0 8px;">题材预设</div>
+        <div class="genre-chips">
+          <span class="genre-chip on">悬疑探案</span><span class="genre-chip">英雄成长</span><span class="genre-chip">政治阴谋</span><span class="genre-chip">灾难求生</span><span class="genre-chip">恋爱攻略</span><span class="genre-chip">蒸汽朋克西部</span>
+        </div>
+        <div style="margin-top:12px;">
+          <div class="section-label" style="margin:0 0 6px;">题材</div>
+          <div style="background:var(--bg-card-2); border:1px solid var(--line); border-radius:7px; padding:9px 12px; font-size:0.85rem;">悬疑探案：受家属委托整理逝者故居，在遗物间拼凑逝者从未说出口的人生</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手机 C：结局卡（genre 化标题） -->
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="tabbar">
+        <span class="tab active">游玩</span><span class="tab">世界</span><span class="tab">设置</span>
+        <span class="svc"><span class="status-dot"></span>已就绪</span>
+      </div>
+      <div style="padding:16px 18px;">
+        <div style="font-family:Georgia,'Songti SC',serif; font-size:1.4rem; margin-bottom:12px;">旅程完成</div>
+        <div style="background:var(--gold-soft); border:1px solid rgba(232,197,106,0.3); border-radius:10px; padding:14px 16px; margin-bottom:14px;">
+          <div style="font-size:0.72rem; color:var(--ink-faint); letter-spacing:1.5px; margin-bottom:6px;">结局 · 真相收网</div>
+          <div style="font-size:1.1rem; font-weight:600;">所有线索在这一刻闭合。</div>
+          <p style="font-size:0.8rem; color:var(--ink-soft); margin-top:8px; line-height:1.6;">钟表匠坠楼当晚，三座钟的齿轮被人调换。你不是第一个发现的人——但你是第一个说出来的人。</p>
+        </div>
+        <div class="section-label" style="margin:0 0 8px;">这段旅程留下了</div>
+        <div class="stat"><span>最终路线</span><b>李文博路线</b></div>
+        <div class="stat"><span>关键线索</span><b>×3</b></div>
+        <div class="stat"><span>回合</span><b>30</b></div>
+        <div class="stat"><span>结局</span><b>真相收网</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider-label">交互对照速查</div>
+<table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin-bottom:30px;">
+  <tr style="color:var(--ink-faint); text-align:left; border-bottom:1px solid var(--line);">
+    <th style="padding:8px 10px;">交互点</th><th style="padding:8px;">v1.0.0（实测）</th><th style="padding:8px;">v1.3.0 提案（本原型）</th>
+  </tr>
+  <tr><td style="padding:8px 10px;">置灰按钮</td><td style="padding:8px; color:var(--danger);">置灰无解释，用户卡死</td><td style="padding:8px; color:var(--ok);">旁边显示原因 + 两条出路</td></tr>
+  <tr><td style="padding:8px 10px;">首次模型档案</td><td style="padding:8px; color:var(--danger);">只有设置页提示一次，切页即断链</td><td style="padding:8px; color:var(--ok);">引导卡跟随操作上下文，可内联创建</td></tr>
+  <tr><td style="padding:8px 10px;">战斗反馈</td><td style="padding:8px;">无（战斗按钮没入口）</td><td style="padding:8px; color:var(--ok);">掷骰/伤害/HP 变化三行结算卡</td></tr>
+  <tr><td style="padding:8px 10px;">选项 vs 自由输入</td><td style="padding:8px; color:var(--danger);">打选项原文被静默当自由行动</td><td style="padding:8px; color:var(--ok);">命中时提示可直接点击选项</td></tr>
+  <tr><td style="padding:8px 10px;">结局标题</td><td style="padding:8px; color:var(--danger);">全部世界同一套雾港模板结局</td><td style="padding:8px; color:var(--ok);">genre 化标题 + 墓志铭（每个题材不同）</td></tr>
+  <tr><td style="padding:8px 10px;">回合开头</td><td style="padding:8px; color:var(--danger);">同一开头最多 8/30 回合</td><td style="padding:8px; color:var(--ok);">recent_openings prompt 约束 + 重复开头截断兜底</td></tr>
+</table>
+
+<p class="prototype-note">此原型为静态高保真演示：数据为四题材 120 回合实测后整理的代表性内容；交互逻辑已在生产代码中实现并有测试覆盖（置灰原因判定 draftGateReason、选项命中 matchChoiceByInput、d20 结算 command_engine）。</p>
+
+</div>
+</body>
+</html>
