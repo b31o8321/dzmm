@@ -16,6 +16,7 @@ from .model_request_feedback import (
     model_timeout_detail,
 )
 from .narrative_output import (
+    ENDING_CLOSURE_PROMPT,
     NARRATIVE_OLLAMA_NUM_PREDICT,
     NARRATIVE_OPENAI_MAX_TOKENS,
     NARRATIVE_SYSTEM_PROMPT,
@@ -185,6 +186,23 @@ def request_director_note(profile: Mapping[str, Any], prompt: dict[str, Any]) ->
     else:
         request_payload["temperature"] = 0.3
         request_payload["max_tokens"] = 256
+    return _post_chat(profile, request_payload)
+
+
+def request_ending_closure(profile: Mapping[str, Any], prompt: dict[str, Any]) -> Any:
+    request_payload: dict[str, Any] = {
+        "model": profile["model_name"],
+        "messages": [
+            {"role": "system", "content": str(prompt.get("system") or ENDING_CLOSURE_PROMPT)},
+            {"role": "user", "content": _dump({k: v for k, v in prompt.items() if k != "system"})},
+        ],
+        "stream": False,
+    }
+    if profile["provider_type"] == "ollama":
+        request_payload["options"] = {"temperature": 0.7, "num_predict": 320}
+    else:
+        request_payload["temperature"] = 0.7
+        request_payload["max_tokens"] = 512
     return _post_chat(profile, request_payload)
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 from typing import Any, Literal
 
@@ -866,16 +867,17 @@ def _rewrite_endings(endings: list[dict[str, Any]], labels: dict[str, Any]) -> N
     gets the kind-stable id plus a genre title for the ending card.
     """
     templates = labels.get("endings") or {}
-    seen_kinds: set[str] = set()
+    kind_counts: Counter[str] = Counter()
     for ending in endings:
         kind = ending.get("kind")
         template = templates.get(kind)
         if template is None:
             continue
-        if kind not in seen_kinds:
-            seen_kinds.add(kind)
-            ending["id"] = f"ending-{kind}"
-        ending["narrative_key"] = f"ending.{kind}"
+        kind_counts[kind] += 1
+        ordinal = kind_counts[kind]
+        suffix = "" if ordinal == 1 else f"-{ordinal}"
+        ending["id"] = f"ending-{kind}{suffix}"
+        ending["narrative_key"] = f"ending.{kind}{suffix}"
         ending["title"] = template["title"]
         if template.get("epitaph"):
             ending["epitaph"] = template["epitaph"]

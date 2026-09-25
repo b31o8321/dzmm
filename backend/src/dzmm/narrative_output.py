@@ -211,6 +211,28 @@ def clean_narrative_output(content: str | None) -> str | None:
     return value.strip() or None
 
 
+ENDING_CLOSURE_PROMPT = (
+    "你是互动叙事游戏的收束旁白。旅程刚刚抵达正式结局。"
+    "基于本回合叙事和结局信息，写 2-3 句定制收束旁白：收束主要人物的弧线，"
+    "点出这个世界因为玩家的选择而变得不同。不要复述事件清单，"
+    "不要提及系统、规则或选项。只输出收束旁白正文。"
+)
+
+
+def build_ending_closure_prompt(
+    state: dict[str, Any], definition: dict[str, Any], final_narrative: str
+) -> dict[str, Any]:
+    ending = state.get("ending") or {}
+    return {
+        "system": ENDING_CLOSURE_PROMPT,
+        "ending_title": ending.get("title") or "",
+        "ending_kind": ending.get("kind") or "",
+        "world": definition.get("name") or "",
+        "hero": (state.get("hero") or {}).get("name") or "",
+        "final_narrative": final_narrative[:600],
+    }
+
+
 def model_response_was_truncated(provider_type: str, payload: Any) -> bool:
     """Read provider completion metadata instead of guessing from punctuation."""
 

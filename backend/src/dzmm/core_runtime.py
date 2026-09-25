@@ -45,6 +45,7 @@ from .narrative import (
 )
 from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import (
+    build_ending_closure_prompt,
     extract_gm_actions,
     model_response_was_truncated,
     opening_overlap_ratio,
@@ -1249,6 +1250,57 @@ class LocalCoreRuntime:
             name=f"dzmm-director-{run_id[:8]}-{revision}",
             daemon=True,
         ).start()
+        threading.Thread(
+            target=self._run_ending_closure,
+            args=(run_id, revision, api_key),
+            name=f"dzmm-ending-{run_id[:8]}-{revision}",
+            daemon=True,
+        ).start()
+
+    def _run_ending_closure(self, run_id: str, revision: int, api_key: object) -> None:
+        """After the ending locks, generate a bespoke closure narration.
+
+        Fire-and-forget: any failure leaves the ending card with kind label only.
+        """
+        try:
+            with self._connect() as connection:
+                run = connection.execute(
+                    "SELECT model_profile_id, state FROM local_runs WHERE id = ?", (run_id,)
+                ).fetchone()
+                profile = (
+                    connection.execute(
+                        "SELECT * FROM local_model_profiles WHERE id = ?",
+                        (run["model_profile_id"],),
+                    ).fetchone()
+                    if run is not None and run["model_profile_id"]
+                    else None
+                )
+            if run is None or profile is None:
+                return
+            definition = self._definition_for_run(run_id)
+            state = json.loads(run["state"])
+            with self._connect() as connection:
+                last_turn_row = connection.execute(
+                    "SELECT narrative FROM local_turns WHERE run_id = ? ORDER BY sequence DESC LIMIT 1",
+                    (run_id,),
+                ).fetchone()
+            final_turn = last_turn_row["narrative"] if last_turn_row else ""
+            prompt = build_ending_closure_prompt(state, definition, final_turn)
+            body = request_ending_closure(
+                {**dict(profile), "api_key": api_key}, prompt
+            )
+            content = chat_content(profile["provider_type"], body)
+            closure = clean_narrative_output(content)
+            if not closure:
+                return
+            with self._connect() as connection:
+                connection.execute(
+                    "UPDATE local_runs SET state = json_set(state, '$.ending.narrative', ?) "
+                    "WHERE id = ?",
+                    (closure[:600], run_id),
+                )
+        except Exception as error:  # noqa: BLE001 - closure must never surface
+            logger.debug("ending closure skipped for %s@%s: %s", run_id, revision, error)
 
     def _run_director_note(self, run_id: str, revision: int, api_key: object) -> None:
         try:
