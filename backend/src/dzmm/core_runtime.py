@@ -23,6 +23,7 @@ from .embedded_model_profiles import EmbeddedModelProfileStore
 from .embedded_model_requests import (
     clean_model_narrative,
     request_director_note,
+    request_ending_closure,
     request_narrative,
     request_world_draft,
     strip_json_fence,
@@ -46,6 +47,7 @@ from .narrative import (
 from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import (
     build_ending_closure_prompt,
+    clean_narrative_output,
     extract_gm_actions,
     model_response_was_truncated,
     opening_overlap_ratio,
