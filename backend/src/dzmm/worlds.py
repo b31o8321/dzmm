@@ -43,6 +43,7 @@ class ComposeWorldInput(BaseModel):
     world_definition: dict[str, Any]
     hero: HeroInput
     model_profile_id: str | None = None
+    legacy: list[dict[str, Any]] | None = None
 
 
 class ComposeWorldResult(BaseModel):
@@ -57,6 +58,7 @@ class ComposeWorldResult(BaseModel):
 
 class CreateRunInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    legacy: list[dict[str, Any]] | None = None
 
     request_id: str = Field(min_length=1, max_length=80)
     world_version_id: str | None = Field(default=None, max_length=36)
@@ -163,6 +165,7 @@ class WorldComposer:
                 hero=payload.hero,
                 model_profile_id=payload.model_profile_id,
                 now=now,
+                carried_legacy=payload.legacy,
             )
             await session.execute(
                 insert(compose_requests).values(
@@ -235,6 +238,7 @@ class WorldComposer:
                 hero=payload.hero,
                 model_profile_id=payload.model_profile_id,
                 now=now,
+                carried_legacy=getattr(payload, "legacy", None),
             )
             await session.execute(
                 insert(run_create_requests).values(
@@ -276,9 +280,10 @@ class WorldComposer:
         hero: HeroInput,
         model_profile_id: str | None,
         now: datetime,
+        carried_legacy: list[dict[str, Any]] | None = None,
     ) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
         hero_id, run_id = (str(uuid4()) for _ in range(2))
-        state = _initial_state(definition, hero_id, hero)
+        state = _initial_state(definition, hero_id, hero, carried_legacy)
         try:
             contract_validator("run_state.schema.json").validate(state)
         except ValidationError as error:
@@ -471,11 +476,16 @@ class WorldComposer:
         return payload.model_profile_id
 
 
-def _initial_state(definition: dict[str, Any], hero_id: str, hero: HeroInput) -> dict[str, Any]:
+def _initial_state(
+    definition: dict[str, Any],
+    hero_id: str,
+    hero: HeroInput,
+    carried_legacy: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     hero_state = {"id": hero_id, "name": hero.name, "profile": hero.profile}
     if hero.combat is not None:
         hero_state["combat"] = hero.combat
-    return initial_state(definition, hero_state)
+    return initial_state(definition, hero_state, carried_legacy)
 
 
 def _fingerprint(payload: ComposeWorldInput) -> str:

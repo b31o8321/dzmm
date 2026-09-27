@@ -1058,7 +1058,15 @@ def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str
     # 由引擎校验并限幅，允许随自由回合提交
     return any(
         command.get("type")
-        not in {"narrate", "move", "discover", "adjust_clock", "choose_story_choice"}
+        not in {
+            "narrate",
+            "move",
+            "discover",
+            "adjust_clock",
+            "choose_story_choice",
+            "collect_clue",
+            "accuse",
+        }
         for command in commands
     )
 
