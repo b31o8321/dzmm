@@ -5,16 +5,19 @@ import re
 from copy import deepcopy
 from typing import Any
 
+from .loop_memory import initial_loop_memory
+from .time_system import initial_clock
+
 
 class NarrativeRuleError(ValueError):
     pass
 
 
 _CAPABILITIES_BY_RULESET = {
-    "trpg": {"trpg", "resources", "combat"},
-    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
-    "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
-    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources"},
+    "trpg": {"trpg", "resources", "combat", "time", "loop", "countdown"},
+    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
+    "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
+    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
 }
 
 
@@ -89,6 +92,21 @@ def validate_definition(definition: dict[str, Any]) -> None:
     for flag in story["flags"]:
         if not set(flag["writers"]) <= {f"choice:{choice_id}" for choice_id in seen_choices}:
             raise NarrativeRuleError("story flag declares an unknown writer")
+
+
+def _initial_clock_with_countdown(definition: dict[str, Any]) -> dict[str, Any]:
+    """Build the clock block; countdown worlds carry their tick and warn threshold."""
+
+    clock = initial_clock(definition.get("time_system") or {})
+    config = definition.get("clock_config")
+    if isinstance(config, dict) and config.get("tick_per_turn") is not None:
+        try:
+            tick = max(0, min(1440, int(config["tick_per_turn"])))
+            warn = max(0, min(10080, int(config.get("warn_at") or 0)))
+        except (TypeError, ValueError):
+            return clock
+        clock["countdown"] = {"tick_per_turn": tick, "warn_at": warn}
+    return clock
 
 
 def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str, Any]:
@@ -180,6 +198,23 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
         "entities": {},
         "events": {},
         "combat": {"participants": {}},
+        "loop_memory": (
+            initial_loop_memory()
+            if "loop" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            else None
+        ),
+        "loop": (
+            {"count": 1, "max_loops": max(1, min(100, int((definition.get("loop_config") or {}).get("max_loops") or 1))),
+             "anchor_turn": 0, "trigger": (definition.get("loop_config") or {}).get("trigger") or ["time"],
+             "deja_vu": {}}
+            if definition.get("loop_config")
+            else None
+        ),
+        "clock": (
+            _initial_clock_with_countdown(definition)
+            if "time" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            else None
+        ),
         "location_state": {
             location["id"]: {
                 "known": index == 0,
@@ -932,6 +967,12 @@ def _matches(condition: object, state: dict[str, Any]) -> bool:
     if set(condition) == {"relationship", "dimension", "at_least"}:
         relation = state["relationships"].get(condition["relationship"])
         return relation is not None and relation["dimensions"].get(condition["dimension"], -101) >= condition["at_least"]
+    if set(condition) == {"clock_below"}:
+        clock = state.get("clock") or {}
+        return clock.get("now_minutes", 0) <= int(condition["clock_below"])
+    if set(condition) == {"clock_above"}:
+        clock = state.get("clock") or {}
+        return clock.get("now_minutes", 0) >= int(condition["clock_above"])
     raise NarrativeRuleError("unsupported ending condition")
 
 

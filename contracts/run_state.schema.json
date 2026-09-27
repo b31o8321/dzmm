@@ -918,6 +918,202 @@
           "additionalProperties": false
         }
       ]
+    },
+    "loop_memory": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "count"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "knowledge": {
+              "type": "array",
+              "maxItems": 24,
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "text",
+                  "discovered_turn"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "discovered_turn": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "summaries": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "required": [
+                  "loop_no",
+                  "summary"
+                ],
+                "properties": {
+                  "loop_no": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "clock": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "now_minutes",
+            "start_minutes"
+          ],
+          "properties": {
+            "now_minutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10080
+            },
+            "start_minutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "loop_at_minutes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10080
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "day": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "per_turn_max": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "unit": {
+              "type": "string",
+              "maxLength": 10
+            },
+            "countdown": {
+              "type": "object",
+              "required": [
+                "tick_per_turn",
+                "warn_at"
+              ],
+              "properties": {
+                "tick_per_turn": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1440
+                },
+                "warn_at": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10080
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "loop": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "count",
+            "max_loops",
+            "anchor_turn"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "max_loops": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "anchor_turn": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "trigger": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "time",
+                  "death",
+                  "manual"
+                ]
+              }
+            },
+            "deja_vu": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "anchor": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   },
   "additionalProperties": false

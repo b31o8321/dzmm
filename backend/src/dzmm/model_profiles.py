@@ -14,6 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from .loop_memory import loop_memories_for_prompt, loop_summaries_for_prompt
+from .loop_mode import drift_directive
 from .model_protocol import chat_content as _chat_content
 from .model_protocol import chat_endpoint, probe_body
 from .model_request_feedback import model_connection_detail, model_timeout_detail
@@ -716,6 +718,27 @@ def _narration_body(
             # The narrator also has a lightweight seam in unit tests and for
             # partially imported content; omit optional choice context there.
             choice_context = []
+    clock_block = state.get("clock") if isinstance(state.get("clock"), dict) else None
+    loop_block = state.get("loop") if isinstance(state.get("loop"), dict) else None
+    loop_memory_block = state.get("loop_memory") if isinstance(state.get("loop_memory"), dict) else None
+    loop_context: dict[str, Any] | None = None
+    if loop_block is not None:
+        loop_context = {
+            "count": loop_block.get("count"),
+            "max_loops": loop_block.get("max_loops"),
+            "deja_vu": loop_block.get("deja_vu") or {},
+            "directive": drift_directive(
+                int(loop_block.get("count") or 1),
+                "世界刚回到循环锚点：NPC 不记得循环内的具体事件，"
+                "但会按 deja_vu 强度表现出似曾相识的既视感。",
+            ),
+        }
+    loop_memory_payload: dict[str, Any] | None = None
+    if loop_memory_block is not None:
+        loop_memory_payload = {
+            "knowledge": loop_memories_for_prompt(loop_memory_block),
+            "summaries": loop_summaries_for_prompt(loop_memory_block),
+        }
     selected_choice: dict[str, str] | None = None
     selected_choice_id = next(
         (
@@ -747,6 +770,9 @@ def _narration_body(
                     "ruleset": state.get("ruleset", {}).get("id"),
                     "chapter": state.get("chapter"),
                     "route": state.get("route"),
+                    "clock": clock_block,
+                    "loop_context": loop_context,
+                    "loop_memory": loop_memory_payload,
                     "relationships": state.get("relationships", {}),
                     "ending": state.get("ending"),
                     "player_input": player_input,

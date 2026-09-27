@@ -69,6 +69,84 @@
     },
     "story": {
       "$ref": "#/$defs/story"
+    },
+    "loop_config": {
+      "type": "object",
+      "required": [
+        "max_loops"
+      ],
+      "properties": {
+        "max_loops": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "trigger": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "time",
+              "death",
+              "manual"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "time_system": {
+      "type": "object",
+      "required": [
+        "start_minutes"
+      ],
+      "properties": {
+        "start_minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1439
+        },
+        "loop_at_minutes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10080
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "per_turn_max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 10
+        }
+      },
+      "additionalProperties": false
+    },
+    "clock_config": {
+      "type": "object",
+      "required": [
+        "tick_per_turn"
+      ],
+      "properties": {
+        "tick_per_turn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "warn_at": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10080
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
@@ -210,7 +288,10 @@
               "relationships",
               "routes",
               "endings",
-              "resources"
+              "resources",
+              "time",
+              "loop",
+              "countdown"
             ]
           }
         },

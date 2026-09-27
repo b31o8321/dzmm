@@ -11,6 +11,7 @@ from collections.abc import Callable
 from secrets import randbelow
 from typing import Any
 
+from ..loop_memory import discover_knowledge
 from ..narrative import (
     NarrativeRuleError,
     advance_chapter,
@@ -59,6 +60,37 @@ def apply_commands(
             if not isinstance(sides, int) or not 2 <= sides <= 100:
                 raise error_type("roll_dice requires sides from 2 to 100")
             outcomes.append({"type": "roll_dice", "sides": sides, "result": randbelow(sides) + 1})
+        elif command_type == "adjust_clock":
+            capabilities = set((state.get("ruleset") or {}).get("enabled_capabilities") or [])
+            if not capabilities & {"countdown", "time"}:
+                raise error_type("adjust_clock requires a time or countdown run")
+            clock = state.get("clock")
+            if not isinstance(clock, dict):
+                raise error_type("adjust_clock requires a clock-enabled run")
+            delta = payload.get("delta")
+            if isinstance(delta, bool) or not isinstance(delta, int):
+                raise error_type("adjust_clock requires an integer delta")
+            ceiling = int(clock.get("start_minutes") or 0) or (int(clock.get("now_minutes") or 0) + 1440)
+            loop_at = int(clock.get("loop_at_minutes") or 0)
+            ceiling = max(ceiling, loop_at)
+            now = max(0, min(ceiling, int(clock.get("now_minutes") or 0) + delta))
+            clock["now_minutes"] = now
+            outcomes.append({"type": "clock_adjusted", "delta": delta, "now_minutes": now})
+        elif command_type == "discover":
+            _require_capability(state, "loop", error_type)
+            memory = state.get("loop_memory")
+            if not isinstance(memory, dict):
+                raise error_type("discover requires a loop-enabled run")
+            entry, notes = discover_knowledge(
+                memory,
+                payload.get("id"),
+                payload.get("text"),
+                int(state.get("revision") or 0),
+            )
+            for note in notes:
+                outcomes.append({"type": "discover_rejected", "reason": note})
+            if entry is not None:
+                outcomes.append({"type": "knowledge_discovered", "id": entry["id"], "text": entry["text"]})
         elif command_type == "attack":
             _require_capability(state, "combat", error_type)
             try:
