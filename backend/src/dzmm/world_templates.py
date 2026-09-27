@@ -409,3 +409,147 @@ def d20_frontier_template() -> dict[str, Any]:
         "world_definition": deepcopy(definition),
         "hero": {"name": "艾登", "profile": {"origin": "frontier-scout"}, "combat": {"max_hp": 22}},
     }
+
+
+def clocktower_mystery_template() -> dict[str, Any]:
+    """Deduction preset: 钟楼谜案 — clue collection and accusation. (v1.6.0)"""
+    return {
+        "world_definition": {
+            "schema_version": 3,
+            "name": "钟楼谜案",
+            "lorebook": {"entries": []},
+            "character_cards": [],
+            "locations": [
+                {"id": "manor-hall", "name": "宅邸大厅"},
+                {"id": "clockwork-tower", "name": "钟楼机房"},
+                {"id": "old-chapel", "name": "旧礼拜堂"},
+            ],
+            "factions": [{"id": "manor-staff", "name": "宅邸仆从"}],
+            "npcs": [
+                {"id": "butler-graves", "name": "管家格雷夫斯", "location_id": "manor-hall"},
+                {"id": "watchmaker-isa", "name": "钟表匠伊莎", "location_id": "clockwork-tower"},
+                {"id": "sister-maren", "name": "玛伦嬷嬷", "location_id": "old-chapel"},
+            ],
+            "events": [],
+            "resources": [{"id": "magnifier", "name": "黄铜放大镜"}],
+            "ruleset": {
+                "id": "hybrid",
+                "enabled_capabilities": [
+                    "trpg", "resources", "deduction",
+                    "chapters", "choices", "relationships", "routes", "endings",
+                ],
+            },
+            "mystery": {
+                "culprit_id": "butler-graves",
+                "required_clues": ["stopped-pendulum", "borrowed-key"],
+                "max_accusations": 2,
+                "wrong_accusation_ending_id": "scapegoat",
+            },
+            "story": {
+                "chapters": [
+                    {
+                        "id": "ch1",
+                        "title": "停摆的钟",
+                        "order": 1,
+                        "next_chapter_id": None,
+                        "choices": [
+                            {"id": "inspect-tower", "label": "检查钟楼机房",
+                             "effects": [{"type": "set_story_flag", "flag_id": "tower-inspected", "value": True}]},
+                            {"id": "question-staff", "label": "盘问仆从",
+                             "effects": [{"type": "set_story_flag", "flag_id": "staff-questioned", "value": True}]},
+                        ],
+                    }
+                ],
+                "flags": [
+                    {"id": "tower-inspected", "default": False, "writers": ["choice:inspect-tower"]},
+                    {"id": "staff-questioned", "default": False, "writers": ["choice:question-staff"]},
+                ],
+                "relationships": [],
+                "relationship_events": [],
+                "routes": [],
+                "endings": [
+                    {"id": "case-closed", "kind": "good", "priority": 100,
+                     "narrative_key": "ending.case_closed",
+                     "title": "真相收网", "epitaph": "钟声再度响起。",
+                     "when": {"flag": "__accusation_correct__", "equals": True}},
+                    {"id": "scapegoat", "kind": "bad", "priority": 60,
+                     "narrative_key": "ending.wrong_accusation",
+                     "title": "替罪之火", "epitaph": "真凶仍在暗处。",
+                     "when": {"flag": "__never__", "equals": True}},
+                ],
+            },
+        },
+        "hero": {"name": "顾问侦探", "profile": {"origin": " CID 顾问"}},
+    }
+
+
+def ember_cellar_template() -> dict[str, Any]:
+    """Roguelike preset: 烬火地窖 — death carries boons into the next run. (v1.6.0)"""
+    return {
+        "world_definition": {
+            "schema_version": 3,
+            "name": "烬火地窖",
+            "lorebook": {"entries": []},
+            "character_cards": [],
+            "locations": [
+                {"id": "gate-hall", "name": "门厅"},
+                {"id": "cinder-shrine", "name": "烬火神龛"},
+                {"id": "rat-warren", "name": "鼠人巢穴"},
+            ],
+            "factions": [{"id": "rat-clan", "name": "鼠人部族"}],
+            "npcs": [
+                {"id": "shrine-keeper", "name": "守龛人", "location_id": "cinder-shrine"},
+                {"id": "rat-elder", "name": "鼠人长老", "location_id": "rat-warren"},
+            ],
+            "events": [],
+            "resources": [{"id": "torch", "name": "火把"}],
+            "ruleset": {
+                "id": "hybrid",
+                "enabled_capabilities": [
+                    "trpg", "resources", "roguelike",
+                    "chapters", "choices", "relationships", "routes", "endings",
+                ],
+            },
+            "legacy_config": {
+                "boons": [
+                    {"id": "ember-charm", "label": "烬火护符：首击伤害 +2"},
+                    {"id": "rat-tome", "label": "鼠人典籍：解锁地下暗语"},
+                    {"id": "iron-ration", "label": "铁壁干粮：起始补给翻倍"},
+                ],
+            },
+            "story": {
+                "chapters": [
+                    {
+                        "id": "ch1",
+                        "title": "下潜",
+                        "order": 1,
+                        "next_chapter_id": None,
+                        "choices": [
+                            {"id": "descend-gate", "label": "穿过门厅下潜",
+                             "effects": [{"type": "set_story_flag", "flag_id": "descended", "value": True}]},
+                            {"id": "pray-shrine", "label": "向烬火神龛祈祷",
+                             "effects": [{"type": "set_story_flag", "flag_id": "blessed", "value": True}]},
+                        ],
+                    }
+                ],
+                "flags": [
+                    {"id": "descended", "default": False, "writers": ["choice:descend-gate"]},
+                    {"id": "blessed", "default": False, "writers": ["choice:pray-shrine"]},
+                ],
+                "relationships": [],
+                "relationship_events": [],
+                "routes": [],
+                "endings": [
+                    {"id": "bottom-reached", "kind": "good", "priority": 100,
+                     "narrative_key": "ending.bottom_reached",
+                     "title": "触及烬火", "epitaph": "地窖的心跳与你同频。",
+                     "when": {"flag": "descended", "equals": True}},
+                    {"id": "ash-fallen", "kind": "bad", "priority": 50,
+                     "narrative_key": "ending.ash_fallen",
+                     "title": "灰烬长眠", "epitaph": "下一人将带着你的余温下潜。",
+                     "when": {"flag": "blessed", "equals": True}},
+                ],
+            },
+        },
+        "hero": {"name": "下潜者", "profile": {"origin": "流放的掘宝人"}},
+    }

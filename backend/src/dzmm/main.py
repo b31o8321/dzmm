@@ -60,7 +60,12 @@ from .core import (
 from .db import create_engine
 from .genre_presets import genre_preset_list
 from .persistence import director_notes
-from .world_templates import d20_frontier_template, fog_harbor_template
+from .world_templates import (
+    clocktower_mystery_template,
+    d20_frontier_template,
+    ember_cellar_template,
+    fog_harbor_template,
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -156,6 +161,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/v2/world-templates/d20-frontier")
     async def get_d20_frontier_template() -> dict[str, object]:
         return d20_frontier_template()
+
+    @app.get("/api/v2/world-templates/clocktower-mystery")
+    async def get_clocktower_mystery_template() -> dict[str, object]:
+        return clocktower_mystery_template()
+
+    @app.get("/api/v2/world-templates/ember-cellar")
+    async def get_ember_cellar_template() -> dict[str, object]:
+        return ember_cellar_template()
 
     @app.get("/api/v2/genre-presets")
     async def get_genre_presets() -> list[dict[str, object]]:
