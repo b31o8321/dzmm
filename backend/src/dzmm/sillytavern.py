@@ -75,6 +75,20 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
     book = data.get("character_book") if isinstance(data.get("character_book"), dict) else {}
     entries = book.get("entries", [])
     lorebook_entries, warnings = _entries_to_lorebook_entries(entries, "card")
+    system_prompt = _string(data.get("system_prompt"))
+    if system_prompt:
+        lorebook_entries.insert(
+            0,
+            {
+                "id": "system-prompt",
+                "title": "system prompt",
+                "body": system_prompt[:2000],
+                "activation": "always",
+                "keywords": [],
+                "priority": 0,
+                "source": {"sillytavern": {"field": "data.system_prompt"}},
+            },
+        )
     profile = {
         key: data[key]
         for key in ("description", "personality", "scenario", "first_mes", "mes_example")
@@ -105,6 +119,7 @@ def _import_v3_card(payload: dict[str, Any]) -> ImportedContent:
             source_format="sillytavern_v3_character_card",
             supported_fields=[
                 "data.name",
+                "data.system_prompt",
                 "data.character_book.entries",
                 *[f"data.{key}" for key in _V3_PRESERVED_EXTRAS],
             ],

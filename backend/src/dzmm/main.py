@@ -304,6 +304,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "database": await diagnostic_snapshot(app.state.sessions),
         }
 
+    @app.post("/api/v2/content/sillytavern:preview")
+    async def preview_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:
+        world_version_id = payload.world_version_id
+        try:
+            return await app.state.content.preview_sillytavern(payload, world_version_id)
+        except (TypeError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except ContentNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.post("/api/v2/content/sillytavern:import")
     async def import_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:
         try:

@@ -43,7 +43,9 @@ def apply_commands(
     for command in commands:
         validate_command(command)
         command_type = command["type"]
-        if state["ending"] is not None:
+        if state["ending"] is not None and command_type not in {"narrate", "offer_choices"}:
+            # 同一回合内锁定结局后的收尾 narrate 合法（如指证后的场景收束）；
+            # 其余命令在结局锁定后一律只读
             raise error_type("ending is locked; this run is read-only")
         payload = command.get("payload", {})
         if command_type == "narrate":

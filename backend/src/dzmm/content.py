@@ -21,6 +21,7 @@ class SillyTavernImportInput(BaseModel):
 
     content: dict[str, Any] | None = None
     png_base64: str | None = Field(default=None, min_length=1, max_length=24 * 1024 * 1024)
+    world_version_id: str | None = None
 
     @model_validator(mode="after")
     def require_exactly_one_source(self) -> SillyTavernImportInput:
@@ -70,6 +71,51 @@ class ContentService:
             return import_sillytavern(payload.content)
         assert payload.png_base64 is not None
         return import_sillytavern_png(payload.png_base64)
+
+    async def preview_sillytavern(
+        self, payload: SillyTavernImportInput, world_version_id: str | None = None
+    ) -> dict[str, Any]:
+        """Dry-run the ST import and flag conflicts against an existing world.
+
+        No persistence happens; the caller gets the same ImportedContent the
+        import would produce plus a conflicts list (duplicate ids, title
+        collisions against the target world's current lorebook).
+        """
+        imported = (
+            self.import_sillytavern(payload)
+        )
+        conflicts: list[dict[str, Any]] = []
+        if world_version_id is None:
+            return {"imported": imported.model_dump(mode="json"), "conflicts": conflicts}
+        async with self._session_factory() as session:
+            row = await session.execute(
+                select(world_versions.c.definition).where(
+                    world_versions.c.id == world_version_id
+                )
+            )
+            definition = row.scalar_one_or_none()
+        if definition is None:
+            raise ContentNotFoundError("world version not found")
+        existing_entries = {
+            entry.get("id"): entry
+            for entry in definition["lorebook"]["entries"]
+            if isinstance(entry, dict)
+        }
+        existing_titles = {
+            str(entry.get("title") or "").strip()
+            for entry in definition["lorebook"]["entries"]
+            if isinstance(entry, dict)
+        }
+        for entry in imported.lorebook.get("entries") or []:
+            if entry["id"] in existing_entries:
+                conflicts.append(
+                    {"kind": "duplicate_id", "id": entry["id"], "title": entry["title"]}
+                )
+            elif entry["title"] and entry["title"] in existing_titles:
+                conflicts.append(
+                    {"kind": "duplicate_title", "id": entry["id"], "title": entry["title"]}
+                )
+        return {"imported": imported.model_dump(mode="json"), "conflicts": conflicts}
 
     async def select_lorebook(
         self, world_version_id: str, payload: LorebookSelectionInput
