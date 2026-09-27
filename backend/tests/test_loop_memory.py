@@ -64,3 +64,64 @@ def test_prompt_injection_shapes() -> None:
     assert memories == [{"id": "clue-1", "text": "钟表匠的秘密"}]
     summaries = loop_summaries_for_prompt(memory, limit=1)
     assert summaries == [{"loop_no": 2, "summary": "循环 2 摘要"}]
+
+
+def test_loop_state_lifecycle() -> None:
+    """M2：loop 状态生命周期——initial→anchor→rewind→知识保留/记忆清空/deja_vu。"""
+
+    from dzmm.loop_mode import (
+        anchor_snapshot,
+        bump_deja_vu,
+        initial_loop_state,
+        rewind_to_anchor,
+        should_trigger_death_rewind,
+    )
+
+    definition = {"loop_config": {"max_loops": 3, "trigger": ["time", "death"]}}
+    state = {
+        "revision": 5,
+        "hero": {"name": "林浩"},
+        "npc_state": {"jack": {"id": "jack", "name": "杰克", "favor": 10}},
+        "narrative_context": {"recent_turns": [{"narrative": "旧"}], "run_seed": "s"},
+        "inventory": [{"id": "key", "quantity": 1}],
+        "ending": None,
+        "loop_memory": {"count": 1, "knowledge": [{"id": "c1", "text": "线索", "discovered_turn": 2}], "summaries": []},
+    }
+    loop_state = initial_loop_state(definition, state)
+    assert loop_state["count"] == 1 and loop_state["max_loops"] == 3
+    state["loop"] = loop_state
+    state["loop"]["anchor_state"] = anchor_snapshot(state)
+
+    # 循环内推进：deja_vu 累积
+    bump_deja_vu(state, "jack")
+    assert state["loop"]["deja_vu"]["jack"] == 15
+
+    # 死亡触发 rewind（bad 结局 + death trigger + 未达上限）
+    state["ending"] = {"id": "x", "kind": "bad", "narrative_key": "k"}
+    assert should_trigger_death_rewind(state) is True
+
+    anchor = state["loop"]["anchor_state"]
+    new_state, notes = rewind_to_anchor(state, anchor)
+    assert new_state["loop"]["count"] == 2
+    assert new_state["loop_memory"]["count"] == 2
+    assert new_state["loop_memory"]["knowledge"][0]["text"] == "线索"
+    assert new_state["narrative_context"]["recent_turns"] == []
+    assert new_state["ending"] is None
+    # deja_vu 跨循环保留
+    assert new_state["loop"]["deja_vu"]["jack"] == 15
+    assert notes and "跨循环记忆保留" in notes[0]
+
+    # 达上限后不再 rewind
+    new_state["loop"]["count"] = 3
+    assert should_trigger_death_rewind(new_state) is False
+
+
+def test_drift_directive_escalates() -> None:
+    from dzmm.loop_mode import drift_directive
+
+    base = "重演场景"
+    assert drift_directive(1, base) == base
+    d2 = drift_directive(2, base)
+    d5 = drift_directive(5, base)
+    assert d2 != base and "漂移" in d2
+    assert d5 != d2
