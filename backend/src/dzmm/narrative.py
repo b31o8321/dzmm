@@ -5,16 +5,18 @@ import re
 from copy import deepcopy
 from typing import Any
 
+from .loop_memory import initial_loop_memory
+
 
 class NarrativeRuleError(ValueError):
     pass
 
 
 _CAPABILITIES_BY_RULESET = {
-    "trpg": {"trpg", "resources", "combat"},
-    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
-    "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources"},
-    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources"},
+    "trpg": {"trpg", "resources", "combat", "time", "loop", "countdown"},
+    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
+    "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
+    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
 }
 
 
@@ -180,6 +182,11 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
         "entities": {},
         "events": {},
         "combat": {"participants": {}},
+        "loop_memory": (
+            initial_loop_memory()
+            if "loop" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            else None
+        ),
         "location_state": {
             location["id"]: {
                 "known": index == 0,

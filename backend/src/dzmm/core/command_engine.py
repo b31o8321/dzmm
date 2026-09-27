@@ -11,6 +11,7 @@ from collections.abc import Callable
 from secrets import randbelow
 from typing import Any
 
+from ..loop_memory import discover_knowledge
 from ..narrative import (
     NarrativeRuleError,
     advance_chapter,
@@ -59,6 +60,21 @@ def apply_commands(
             if not isinstance(sides, int) or not 2 <= sides <= 100:
                 raise error_type("roll_dice requires sides from 2 to 100")
             outcomes.append({"type": "roll_dice", "sides": sides, "result": randbelow(sides) + 1})
+        elif command_type == "discover":
+            _require_capability(state, "loop", error_type)
+            memory = state.get("loop_memory")
+            if not isinstance(memory, dict):
+                raise error_type("discover requires a loop-enabled run")
+            entry, notes = discover_knowledge(
+                memory,
+                payload.get("id"),
+                payload.get("text"),
+                int(state.get("revision") or 0),
+            )
+            for note in notes:
+                outcomes.append({"type": "discover_rejected", "reason": note})
+            if entry is not None:
+                outcomes.append({"type": "knowledge_discovered", "id": entry["id"], "text": entry["text"]})
         elif command_type == "attack":
             _require_capability(state, "combat", error_type)
             try:
