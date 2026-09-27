@@ -188,6 +188,13 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
             if "loop" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
             else None
         ),
+        "loop": (
+            {"count": 1, "max_loops": max(1, min(100, int((definition.get("loop_config") or {}).get("max_loops") or 1))),
+             "anchor_turn": 0, "trigger": (definition.get("loop_config") or {}).get("trigger") or ["time"],
+             "deja_vu": {}}
+            if definition.get("loop_config")
+            else None
+        ),
         "clock": (
             initial_clock(definition.get("time_system") or {})
             if "time" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
