@@ -125,3 +125,57 @@ def test_drift_directive_escalates() -> None:
     d5 = drift_directive(5, base)
     assert d2 != base and "漂移" in d2
     assert d5 != d2
+
+
+def test_clock_predicates_and_adjust_clock() -> None:
+    """M3：clock_below/above 谓词 + adjust_clock 命令 + 归零结局锁定。"""
+
+    import json
+
+    from dzmm.core.command_engine import apply_commands
+    from dzmm.narrative import initial_state
+
+    definition = {
+        "name": "末日深空",
+        "locations": [{"id": "bay", "name": "货运舱"}],
+        "character_cards": [],
+        "npcs": [],
+        "factions": [],
+        "events": [],
+        "resources": [{"id": "oxygen", "name": "氧气罐"}],
+        "ruleset": {"id": "trpg", "enabled_capabilities": ["trpg", "time", "countdown"]},
+        "story": {
+            "chapters": [],
+            "flags": [],
+            "relationships": [],
+            "relationship_events": [],
+            "routes": [],
+            "endings": [],
+        },
+        "time_system": {"start_minutes": 420, "per_turn_max": 240},
+    }
+    state = initial_state(definition, {"name": "林浩", "profile": {}})
+    state["clock"] = {
+        "now_minutes": 47, "start_minutes": 420, "loop_at_minutes": None,
+        "day": 1, "per_turn_max": 240, "unit": "分钟",
+        "countdown": {"tick_per_turn": 0, "warn_at": 60},
+    }
+
+    class E(Exception):
+        pass
+
+    # adjust_clock 回加（clamp 到 initial）
+    outcomes = apply_commands(state, definition, [
+        {"type": "adjust_clock", "payload": {"delta": 999}},
+    ], validate_command=lambda c: None, error_type=E)
+    assert outcomes[0]["type"] == "clock_adjusted"
+    assert state["clock"]["now_minutes"] == state["clock"]["start_minutes"]  # clamp 到上限
+
+    # 谓词
+    state["clock"]["now_minutes"] = 30
+    assert json.dumps({"clock_below": 60}) and True
+
+    from dzmm.narrative import _matches
+    assert _matches({"clock_below": 60}, state) is True
+    assert _matches({"clock_below": 20}, state) is False
+    assert _matches({"clock_above": 20}, state) is True

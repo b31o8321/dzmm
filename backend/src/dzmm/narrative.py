@@ -945,6 +945,12 @@ def _matches(condition: object, state: dict[str, Any]) -> bool:
     if set(condition) == {"relationship", "dimension", "at_least"}:
         relation = state["relationships"].get(condition["relationship"])
         return relation is not None and relation["dimensions"].get(condition["dimension"], -101) >= condition["at_least"]
+    if set(condition) == {"clock_below"}:
+        clock = state.get("clock") or {}
+        return clock.get("now_minutes", 0) <= int(condition["clock_below"])
+    if set(condition) == {"clock_above"}:
+        clock = state.get("clock") or {}
+        return clock.get("now_minutes", 0) >= int(condition["clock_above"])
     raise NarrativeRuleError("unsupported ending condition")
 
 
