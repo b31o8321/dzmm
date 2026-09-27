@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../local_host_port.dart';
+import '../widgets/loop_hud.dart';
 import '../widgets/operation_status.dart';
 import '../widgets/runtime_error.dart';
 
@@ -483,6 +484,7 @@ class _PlayPageState extends State<PlayPage> {
               controller: _storyScroll,
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
               children: [
+                LoopHud(state: _run!.state),
                 _StatePanel(
                   location: currentLocation,
                   chapter: latestBeat?['title'] as String?,
