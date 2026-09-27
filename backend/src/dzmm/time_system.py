@@ -60,6 +60,22 @@ def advance_clock(clock: dict[str, Any], minutes: int) -> dict[str, Any]:
     return clock
 
 
+def tick_countdown(clock: dict[str, Any]) -> int:
+    """Countdown worlds: subtract the declared per-turn tick, floored at zero.
+
+    Returns the applied tick (0 when the clock has no countdown block).
+    """
+
+    block = clock.get("countdown")
+    if not isinstance(block, dict):
+        return 0
+    tick = int(block.get("tick_per_turn") or 0)
+    if tick <= 0:
+        return 0
+    clock["now_minutes"] = max(0, int(clock.get("now_minutes") or 0) - tick)
+    return tick
+
+
 def reached_loop_boundary(clock: dict[str, Any]) -> bool:
     """True when the clock has reached the loop boundary (if declared)."""
 

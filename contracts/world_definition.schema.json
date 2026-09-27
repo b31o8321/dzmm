@@ -128,6 +128,25 @@
         }
       },
       "additionalProperties": false
+    },
+    "clock_config": {
+      "type": "object",
+      "required": [
+        "tick_per_turn"
+      ],
+      "properties": {
+        "tick_per_turn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "warn_at": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10080
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,

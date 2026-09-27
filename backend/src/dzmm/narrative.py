@@ -94,6 +94,21 @@ def validate_definition(definition: dict[str, Any]) -> None:
             raise NarrativeRuleError("story flag declares an unknown writer")
 
 
+def _initial_clock_with_countdown(definition: dict[str, Any]) -> dict[str, Any]:
+    """Build the clock block; countdown worlds carry their tick and warn threshold."""
+
+    clock = initial_clock(definition.get("time_system") or {})
+    config = definition.get("clock_config")
+    if isinstance(config, dict) and config.get("tick_per_turn") is not None:
+        try:
+            tick = max(0, min(1440, int(config["tick_per_turn"])))
+            warn = max(0, min(10080, int(config.get("warn_at") or 0)))
+        except (TypeError, ValueError):
+            return clock
+        clock["countdown"] = {"tick_per_turn": tick, "warn_at": warn}
+    return clock
+
+
 def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str, Any]:
     story = definition["story"]
     chapters = sorted(story["chapters"], key=lambda chapter: chapter["order"])
@@ -196,7 +211,7 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
             else None
         ),
         "clock": (
-            initial_clock(definition.get("time_system") or {})
+            _initial_clock_with_countdown(definition)
             if "time" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
             else None
         ),

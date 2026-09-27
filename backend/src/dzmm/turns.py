@@ -42,7 +42,7 @@ from .persistence import (
     worlds,
 )
 from .story_beats import build_deterministic_narrative, build_turn_story_beat
-from .time_system import propose_time_cost, reached_loop_boundary
+from .time_system import propose_time_cost, reached_loop_boundary, tick_countdown
 
 logger = logging.getLogger(__name__)
 
@@ -962,10 +962,22 @@ def _ensure_loop_anchor(state: dict[str, Any]) -> None:
 
 
 def _advance_turn_clock(state: dict[str, Any], outcomes: list[dict[str, Any]]) -> None:
-    """Time capability: every turn advances the clock by the engine default."""
+    """Time capability: countdown clocks tick down, others advance by the default."""
 
     clock = state.get("clock")
     if not isinstance(clock, dict):
+        return
+    tick = tick_countdown(clock)
+    if tick > 0:
+        outcomes.append(
+            {
+                "type": "time_advanced",
+                "minutes": -tick,
+                "now_minutes": int(clock.get("now_minutes") or 0),
+                "day": int(clock.get("day") or 1),
+                "countdown": True,
+            }
+        )
         return
     _, applied, notes = propose_time_cost(clock, TURN_DEFAULT_MINUTES)
     outcome: dict[str, Any] = {

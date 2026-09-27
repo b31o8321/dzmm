@@ -71,11 +71,11 @@ def rewind_to_anchor(
     new_memory["count"] = loop["count"]
     new_state["loop_memory"] = new_memory
 
-    # NPC deja_vu survives (meta-impression, not memory)
-    old_deja = (state.get("loop") or {}).get("deja_vu") or {}
-    npc_state = new_state.get("npc_state") or {}
-    for npc_id, npc in npc_state.items():
-        npc["deja_vu"] = min(DEJA_VU_MAX, int(old_deja.get(npc_id) or 0))
+    # NPC déjà vu lives solely in loop.deja_vu (contract-safe); make sure NPCs
+    # discovered during the loop are covered before the next round.
+    deja = loop.setdefault("deja_vu", {})
+    for npc_id in new_state.get("npc_state") or {}:
+        deja.setdefault(str(npc_id), 0)
 
     # ephemeral wipe; a loop without a stored seed starts with a fresh one
     new_state["narrative_context"] = {
