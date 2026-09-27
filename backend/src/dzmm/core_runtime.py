@@ -24,11 +24,13 @@ from .embedded_model_requests import (
     clean_model_narrative,
     request_director_note,
     request_ending_closure,
+    request_loop_summary,
     request_narrative,
     request_world_draft,
     strip_json_fence,
 )
 from .generated_world_repair import map_to_safe_story_skeleton, repair_generated_definition
+from .loop_mode import ensure_loop_anchor, maybe_loop_rewind
 from .model_protocol import chat_content
 from .narrative import (
     NarrativeRuleError,
@@ -47,6 +49,7 @@ from .narrative import (
 from .narrative_context import narrative_entity_names, narrative_world_material
 from .narrative_output import (
     build_ending_closure_prompt,
+    build_loop_summary_prompt,
     clean_narrative_output,
     extract_gm_actions,
     model_response_was_truncated,
@@ -60,6 +63,7 @@ from .story_beats import (
     build_opening_story_beat,
     build_turn_story_beat,
 )
+from .time_system import advance_turn_clock
 from .world_templates import fog_harbor_template
 
 logger = logging.getLogger(__name__)
@@ -1063,6 +1067,7 @@ class LocalCoreRuntime:
         if state.get("ending"):
             raise CoreRuntimeError("run has ended; start a new Run or rollback")
         definition = self._definition_for_run(run_id)
+        ensure_loop_anchor(state)
         expected = payload.get("expected_revision")
         if expected != row["revision"]:
             raise CoreRuntimeError("state revision changed; reload before choosing")
@@ -1080,6 +1085,7 @@ class LocalCoreRuntime:
         before = int(row["revision"])
         state["revision"] = before + 1
         outcomes.extend(advance_world_events(state, definition))
+        advance_turn_clock(state, outcomes)
         narrative, gm_actions = self._narrate_turn(
             row,
             definition,
@@ -1108,6 +1114,7 @@ class LocalCoreRuntime:
         initiative = schedule_npc_initiative(state, definition, run_id)
         if initiative:
             outcomes.append(initiative)
+        maybe_loop_rewind(state, narrative, outcomes, before + 1)
         beat = build_turn_story_beat(definition, state, narrative, outcomes)
         self._require_apply_permission(request_id)
         with self._connect() as connection:
@@ -1141,6 +1148,7 @@ class LocalCoreRuntime:
                 (str(uuid4()), run_id, beat["kind"], before + 1, _dump(beat)),
             )
         self._schedule_director(run_id, before + 1, payload.get("api_key"))
+        self._schedule_loop_summaries(run_id, outcomes, payload.get("api_key"))
         return self.get_run(run_id)
 
     def play(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1160,6 +1168,7 @@ class LocalCoreRuntime:
         if state.get("ending"):
             raise CoreRuntimeError("run has ended; start a new Run or rollback")
         definition = self._definition_for_run(run_id)
+        ensure_loop_anchor(state)
         if payload.get("expected_revision") != row["revision"]:
             raise CoreRuntimeError("state revision changed; reload before playing")
         commands = payload.get("commands")
@@ -1175,6 +1184,7 @@ class LocalCoreRuntime:
         before = int(row["revision"])
         state["revision"] = before + 1
         outcomes.extend(advance_world_events(state, definition))
+        advance_turn_clock(state, outcomes)
         narrative, gm_actions = self._narrate_turn(
             row,
             definition,
@@ -1203,6 +1213,7 @@ class LocalCoreRuntime:
         initiative = schedule_npc_initiative(state, definition, run_id)
         if initiative:
             outcomes.append(initiative)
+        maybe_loop_rewind(state, narrative, outcomes, before + 1)
         beat = build_turn_story_beat(definition, state, narrative, outcomes)
         self._require_apply_permission(request_id)
         with self._connect() as connection:
@@ -1236,6 +1247,7 @@ class LocalCoreRuntime:
                 (str(uuid4()), run_id, beat["kind"], before + 1, _dump(beat)),
             )
         self._schedule_director(run_id, before + 1, payload.get("api_key"))
+        self._schedule_loop_summaries(run_id, outcomes, payload.get("api_key"))
         return self.get_run(run_id)
 
     def _schedule_director(self, run_id: str, revision: int, api_key: object) -> None:
@@ -1258,6 +1270,81 @@ class LocalCoreRuntime:
             name=f"dzmm-ending-{run_id[:8]}-{revision}",
             daemon=True,
         ).start()
+
+    def _schedule_loop_summaries(self, run_id: str, outcomes: list[dict], api_key: object) -> None:
+        """Refine rewind-time loop digests into LLM summaries after the commit."""
+
+        for outcome in outcomes:
+            if not isinstance(outcome, dict) or outcome.get("type") != "loop_rewound":
+                continue
+            digest_source = str(outcome.get("digest_source") or "").strip()
+            if not digest_source:
+                continue
+            loop_no = int(outcome.get("loop_count") or 1) - 1
+            threading.Thread(
+                target=self._run_loop_summary,
+                args=(run_id, loop_no, digest_source, api_key),
+                name=f"dzmm-loop-summary-{run_id[:8]}-{loop_no}",
+                daemon=True,
+            ).start()
+
+    def _run_loop_summary(
+        self, run_id: str, loop_no: int, digest_source: str, api_key: object
+    ) -> None:
+        """Replace the truncated fallback digest with an LLM per-loop summary.
+
+        Fire-and-forget: any failure keeps the synchronous truncated digest;
+        the state patch is revision-guarded against concurrent turns.
+        """
+        try:
+            with self._connect() as connection:
+                run = connection.execute(
+                    "SELECT model_profile_id, state, revision FROM local_runs WHERE id = ?",
+                    (run_id,),
+                ).fetchone()
+                profile = (
+                    connection.execute(
+                        "SELECT * FROM local_model_profiles WHERE id = ?",
+                        (run["model_profile_id"],),
+                    ).fetchone()
+                    if run is not None and run["model_profile_id"]
+                    else None
+                )
+            if run is None or profile is None:
+                return
+            state = json.loads(run["state"])
+            memory = state.get("loop_memory") if isinstance(state, dict) else None
+            if not isinstance(memory, dict):
+                return
+            summaries = memory.get("summaries") or []
+            if not any(item.get("loop_no") == loop_no for item in summaries):
+                return
+            definition = self._definition_for_run(run_id)
+            prompt = build_loop_summary_prompt(
+                str(definition.get("name") or ""),
+                str((state.get("hero") or {}).get("name") or ""),
+                loop_no,
+                digest_source,
+            )
+            body = request_loop_summary(
+                {**dict(profile), "api_key": api_key}, prompt
+            )
+            content = chat_content(profile["provider_type"], body)
+            summary = clean_narrative_output(content)
+            if not summary:
+                return
+            for item in summaries:
+                if item.get("loop_no") == loop_no:
+                    item["summary"] = summary[:200]
+            with self._connect() as connection:
+                changed = connection.execute(
+                    "UPDATE local_runs SET state = ? WHERE id = ? AND revision = ?",
+                    (_dump(state), run_id, run["revision"]),
+                )
+                if changed.rowcount != 1:
+                    logger.debug("loop summary skipped for %s@%s: revision moved", run_id, loop_no)
+        except Exception as error:  # noqa: BLE001 - summary refinement must never surface
+            logger.debug("loop summary skipped for %s@%s: %s", run_id, loop_no, error)
 
     def _run_ending_closure(self, run_id: str, revision: int, api_key: object) -> None:
         """After the ending locks, generate a bespoke closure narration.
@@ -1553,6 +1640,9 @@ def _validate_command(command: dict[str, Any]) -> None:
         "choose_story_choice",
         "advance_chapter",
         "evaluate_endings",
+        "discover",
+        "adjust_clock",
+        "rewind_to_anchor",
     }:
         raise CoreRuntimeError("unsupported TurnCommand")
 
