@@ -945,7 +945,8 @@ def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str
 
     if "choices" not in definition["ruleset"]["enabled_capabilities"]:
         return False
-    return any(command.get("type") not in {"narrate", "move"} for command in commands)
+    # discover 是记忆写入而非章节状态变更，允许随自由回合提交
+    return any(command.get("type") not in {"narrate", "move", "discover"} for command in commands)
 
 
 def _validate_command(command: dict[str, Any]) -> None:
