@@ -1744,3 +1744,56 @@ h3 {
   border-color: rgba(126, 200, 160, 0.5);
   background: rgba(126, 200, 160, 0.08);
 }
+
+.clock-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 18px; font-size: 0.82rem; color: var(--ink-soft);
+  border-bottom: 1px dashed var(--line);
+}
+.clock-bar.warn { color: var(--danger); border-bottom-color: rgba(224,122,106,0.4); }
+.loop-badge {
+  margin-left: auto; padding: 2px 10px; border-radius: 10px;
+  background: rgba(46,196,160,0.12); border: 1px solid rgba(46,196,160,0.3);
+  color: var(--accent); font-size: 0.74rem;
+}
+.loop-badge.final {
+  background: rgba(232,197,106,0.15); border-color: rgba(232,197,106,0.4); color: var(--gold);
+}
+.knowledge-item {
+  font-size: 0.78rem; color: var(--ink-soft); font-style: italic;
+  padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,0.06);
+}
+
+.clock-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 18px; font-size: 0.82rem; color: var(--ink-soft);
+  border-bottom: 1px dashed var(--line);
+}
+.clock-bar.warn { color: var(--danger); border-bottom-color: rgba(224,122,106,0.4); }
+.loop-badge {
+  margin-left: auto; padding: 2px 10px; border-radius: 10px;
+  background: rgba(46,196,160,0.12); border: 1px solid rgba(46,196,160,0.3);
+  color: var(--accent); font-size: 0.74rem;
+}
+.loop-badge.final {
+  background: rgba(232,197,106,0.15); border-color: rgba(232,197,106,0.4); color: var(--gold);
+}
+.knowledge-item {
+  font-size: 0.78rem; color: var(--ink-soft); font-style: italic;
+  padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,0.06);
+}
+
+.clock-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 22px; font-size: 0.82rem; color: var(--ink-soft);
+  border-bottom: 1px dashed var(--line);
+}
+.clock-bar.warn { color: var(--danger); border-bottom-color: rgba(224,122,106,0.4); }
+.loop-badge {
+  margin-left: auto; padding: 2px 10px; border-radius: 10px;
+  background: rgba(46,196,160,0.12); border: 1px solid rgba(46,196,160,0.3);
+  color: var(--accent); font-size: 0.74rem;
+}
+.loop-badge.final {
+  background: rgba(232,197,106,0.15); border-color: rgba(232,197,106,0.4); color: var(--gold);
+}

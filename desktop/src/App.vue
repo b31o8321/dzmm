@@ -1172,6 +1172,24 @@ async function recoverRun(runId: string, options: { silentIfMissing?: boolean; p
 }
 
 const attackSnapshot = ref<{ bonus: number; hp: number } | null>(null)
+const clockWarn = computed(() => {
+  const clock = run.value?.state?.clock
+  const countdown = clock?.countdown
+  return Boolean(countdown && (clock.now_minutes % 1440) <= countdown.warn_at)
+})
+const clockLabel = computed(() => {
+  const clock = run.value?.state?.clock
+  if (!clock) return ''
+  const minutes = clock.now_minutes % 1440
+  const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
+  const mm = String(minutes % 60).padStart(2, '0')
+  return `第 ${clock.day} 天 · ${hh}:${mm}${clock.unit ? ' ' + clock.unit : ''}`
+})
+const loopBadge = computed(() => {
+  const loop = run.value?.state?.loop
+  if (!loop) return null
+  return { count: loop.count, max: loop.max_loops, final: loop.count >= loop.max_loops }
+})
 const combatFeedback = ref<{
   roll: number
   bonus: number
@@ -1412,6 +1430,9 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <div v-if="run?.state?.clock" class="clock-bar" :class="{ warn: clockWarn }">
+      🕐 {{ clockLabel }}<span v-if="loopBadge" class="loop-badge" :class="{ final: loopBadge.final }">第 {{ loopBadge.count }} 次循环</span>
+    </div>
     <section v-if="step !== 'settings'" class="route-strip" aria-label="跑团路径">
       <span :class="{ active: step === 'worlds' || step === 'compose' || step === 'ai-compose' }">世界</span><b>—</b>
       <span :class="{ active: step === 'ai-review' || step === 'confirm' }">确认</span><b>—</b>

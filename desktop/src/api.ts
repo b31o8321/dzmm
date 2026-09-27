@@ -35,6 +35,27 @@ export type RunState = {
       defeated: boolean
     }>
   }
+  clock?: {
+    now_minutes: number
+    start_minutes: number
+    loop_at_minutes: number | null
+    day: number
+    per_turn_max: number
+    unit: string
+    countdown?: { tick_per_turn: number; warn_at: number }
+  } | null
+  loop?: {
+    count: number
+    max_loops: number
+    anchor_turn: number
+    trigger: Array<'time' | 'death' | 'manual'>
+    deja_vu?: Record<string, number>
+  } | null
+  loop_memory?: {
+    count: number
+    knowledge: Array<{ id: string; text: string; discovered_turn: number }>
+    summaries: Array<{ loop_no: number; summary: string }>
+  } | null
 }
 
 export type ComposedRun = {

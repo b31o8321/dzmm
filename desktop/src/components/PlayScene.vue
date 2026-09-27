@@ -35,6 +35,31 @@ const combatFeedback = defineModel<{
   targetName: string
 } | null>('combatFeedback', { default: null })
 
+const clockInfo = computed(() => {
+  const clock = props.run.state.clock
+  if (!clock) return null
+  const minutes = clock.now_minutes % 1440
+  const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
+  const mm = String(minutes % 60).padStart(2, '0')
+  const countdown = clock.countdown
+  const warn = countdown ? minutes <= countdown.warn_at : false
+  return {
+    label: `第 ${clock.day} 天 · ${hh}:${mm}${clock.unit ? ' ' + clock.unit : ''}`,
+    warn,
+    countdown: Boolean(countdown),
+  }
+})
+const loopBadge = computed(() => {
+  const loop = props.run.state.loop
+  if (!loop) return null
+  return { count: loop.count, max: loop.max_loops, final: loop.count >= loop.max_loops }
+})
+const knowledgePanel = computed(() => {
+  const memory = props.run.state.loop_memory
+  if (!memory?.knowledge?.length) return []
+  return memory.knowledge.map((item) => ({ id: item.id, text: item.text }))
+})
+
 const combatEnabled = computed(() =>
   props.run.state.ruleset.enabled_capabilities.includes('combat'),
 )
@@ -119,6 +144,10 @@ function rollbackLabel(targetId: string | null) {
 <template>
   <section class="scene play-scene">
     <aside class="run-state">
+      <template v-if="knowledgePanel.length">
+        <p class="eyebrow">跨循环记忆</p>
+        <p v-for="item in knowledgePanel" :key="item.id" class="knowledge-item">· {{ item.text }}</p>
+      </template>
       <p class="eyebrow">{{ activeChapter ? '当前章节' : '当前坐标' }}</p>
       <h2 v-if="activeChapter">{{ activeChapterTitle }}</h2>
       <h2>{{ locationLabel }}</h2>
