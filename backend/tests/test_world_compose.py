@@ -91,6 +91,7 @@ def test_compose_is_atomic_idempotent_and_recovers_run(migrated_client) -> None:
         "relationships": {},
         "ending": None,
         "loop_memory": None,
+        "clock": None,
     }
     assert table_counts(database) == {
         "worlds": 1,

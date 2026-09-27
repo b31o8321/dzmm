@@ -821,3 +821,38 @@ def test_repeated_opening_is_trimmed_and_overlap_measured() -> None:
     # 不相关开头不截断
     untouched = trim_repeated_opening("对白先行：先别动。艾登举起灯。", recent)
     assert untouched == "对白先行：先别动。艾登举起灯。"
+
+
+def test_time_system_clock_advances_and_clamps() -> None:
+    """v1.4.0 M1：行动耗时模型提议+引擎裁决，跨日与边界。"""
+
+    from dzmm.time_system import (
+        format_clock,
+        initial_clock,
+        propose_time_cost,
+        reached_loop_boundary,
+    )
+
+    clock = initial_clock({"start_minutes": 360, "loop_at_minutes": 1380, "per_turn_max": 240})
+    assert format_clock(clock) == "第 1 天 · 06:00（分钟）"
+
+    clock, applied, _ = propose_time_cost(clock, 180)
+    assert applied == 180 and format_clock(clock) == "第 1 天 · 09:00（分钟）"
+
+    # 越界 clamp 到 per_turn_max
+    clock, applied, notes = propose_time_cost(clock, 999)
+    assert applied == 240 and notes
+
+    # 非数值回退默认 30
+    clock, applied, notes = propose_time_cost(clock, "not-a-number")
+    assert applied == 30
+
+    # 跨日（多次推进到次日）
+    for _ in range(6):
+        clock, applied, _ = propose_time_cost(clock, 240)
+    assert clock["day"] >= 2
+
+    # loop 边界
+    assert not reached_loop_boundary({"now_minutes": 100, "loop_at_minutes": 1380})
+    assert reached_loop_boundary({"now_minutes": 1380, "loop_at_minutes": 1380})
+    assert not reached_loop_boundary({"now_minutes": 100, "loop_at_minutes": None})

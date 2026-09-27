@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from .loop_memory import initial_loop_memory
+from .time_system import initial_clock
 
 
 class NarrativeRuleError(ValueError):
@@ -185,6 +186,11 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
         "loop_memory": (
             initial_loop_memory()
             if "loop" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            else None
+        ),
+        "clock": (
+            initial_clock(definition.get("time_system") or {})
+            if "time" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
             else None
         ),
         "location_state": {
