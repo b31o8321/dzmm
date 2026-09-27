@@ -61,7 +61,9 @@ def apply_commands(
                 raise error_type("roll_dice requires sides from 2 to 100")
             outcomes.append({"type": "roll_dice", "sides": sides, "result": randbelow(sides) + 1})
         elif command_type == "adjust_clock":
-            _require_capability(state, "countdown", error_type)
+            capabilities = set((state.get("ruleset") or {}).get("enabled_capabilities") or [])
+            if not capabilities & {"countdown", "time"}:
+                raise error_type("adjust_clock requires a time or countdown run")
             clock = state.get("clock")
             if not isinstance(clock, dict):
                 raise error_type("adjust_clock requires a clock-enabled run")
@@ -69,6 +71,8 @@ def apply_commands(
             if isinstance(delta, bool) or not isinstance(delta, int):
                 raise error_type("adjust_clock requires an integer delta")
             ceiling = int(clock.get("start_minutes") or 0) or (int(clock.get("now_minutes") or 0) + 1440)
+            loop_at = int(clock.get("loop_at_minutes") or 0)
+            ceiling = max(ceiling, loop_at)
             now = max(0, min(ceiling, int(clock.get("now_minutes") or 0) + delta))
             clock["now_minutes"] = now
             outcomes.append({"type": "clock_adjusted", "delta": delta, "now_minutes": now})

@@ -1098,6 +1098,17 @@
                   "manual"
                 ]
               }
+            },
+            "deja_vu": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "anchor": {
+              "type": "object"
             }
           },
           "additionalProperties": false

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 from typing import Any
+from uuid import uuid4
 
 DEJA_VU_MAX = 100
 DEJA_VU_STEP = 15
@@ -76,9 +77,10 @@ def rewind_to_anchor(
     for npc_id, npc in npc_state.items():
         npc["deja_vu"] = min(DEJA_VU_MAX, int(old_deja.get(npc_id) or 0))
 
-    # ephemeral wipe
+    # ephemeral wipe; a loop without a stored seed starts with a fresh one
     new_state["narrative_context"] = {
-        "run_seed": new_state.get("narrative_context", {}).get("run_seed", ""),
+        "run_seed": new_state.get("narrative_context", {}).get("run_seed")
+        or uuid4().hex,
         "turn_index": 0,
         "recent_turns": [],
         "current_hook": {"key": "", "directive": "", "turn": "0"},
