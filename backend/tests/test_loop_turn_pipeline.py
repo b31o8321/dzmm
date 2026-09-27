@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 
 def time_world_payload(request_id: str) -> dict:
     # hybrid 规则集要求 chapters/choices/endings；无 loop_config 即纯时间世界
@@ -176,14 +178,12 @@ def test_time_loop_rewinds_at_boundary_preserving_knowledge(migrated_client) -> 
     assert len(state["loop_memory"]["summaries"]) == 1
     assert state["narrative_context"]["recent_turns"] == []
     rewind_outcomes = [item for item in result["outcomes"] if item["type"] == "loop_rewound"]
-    assert rewind_outcomes == [
-        {
-            "type": "loop_rewound",
-            "trigger": "time",
-            "loop_count": 2,
-            "notes": ["跨循环记忆保留：1 条"],
-        }
-    ]
+    assert len(rewind_outcomes) == 1
+    assert rewind_outcomes[0]["type"] == "loop_rewound"
+    assert rewind_outcomes[0]["trigger"] == "time"
+    assert rewind_outcomes[0]["loop_count"] == 2
+    assert rewind_outcomes[0]["notes"] == ["跨循环记忆保留：1 条"]
+    assert rewind_outcomes[0]["digest_source"].strip()
     assert state["ending"] is None
 
     # The anchor survives the rewind so a second boundary can rewind again.
@@ -275,3 +275,87 @@ def test_final_bad_ending_locks_when_loops_exhausted(migrated_client) -> None:
 
     recovered = client.get(f"/api/v2/runs/{run_id}")
     assert recovered.json()["status"] == "completed"
+
+
+def test_loop_summary_refined_by_model_after_rewind(migrated_client, monkeypatch) -> None:
+    """Rewind stores the truncated fallback digest, then the background task
+    replaces it with the model summary (fire-and-forget, never blocks the turn)."""
+
+    import sqlite3
+    import time
+
+    from dzmm.model_profiles import ModelNarrator
+
+    client, db_path = migrated_client
+    profile = client.post(
+        "/api/v2/model-profiles",
+        json={
+            "name": "summary-test",
+            "provider_type": "ollama",
+            "base_url": "http://127.0.0.1:11434",
+            "model_name": "qwen2.5:7b",
+        },
+    ).json()
+    payload = loop_world_payload("loop-summary", trigger=["time"])
+    payload["model_profile_id"] = profile["id"]
+
+    async def fake_narrate_with_actions(
+        self,
+        profile,
+        definition,
+        state,
+        player_input,
+        outcomes,
+        lore_entries,
+        *,
+        variation_seed="",
+        director_note=None,
+    ):
+        return "钟声再次响起，回廊的烛火矮了三分。看门人抬眼望了望钟楼。", []
+
+    prompts: list[dict] = []
+
+    async def fake_summary_completion(self, profile, prompt):
+        prompts.append(prompt)
+        return "第1次循环：玩家探索了回廊，发现了三座钟的齿轮线索，钟声响起时被拉回起点。"
+
+    monkeypatch.setattr(ModelNarrator, "narrate_with_actions", fake_narrate_with_actions)
+    monkeypatch.setattr(ModelNarrator, "director_completion", fake_summary_completion)
+
+    created = client.post("/api/v2/worlds:compose", json=payload)
+    assert created.status_code == 201, created.text
+    run_id = created.json()["run_id"]
+
+    result = _turn(
+        client,
+        run_id,
+        "t1",
+        0,
+        [
+            {"type": "discover", "payload": {"id": "watchmaker-secret", "text": "三座钟的齿轮"}},
+            {"type": "narrate", "payload": {}},
+        ],
+    )
+    state = result["state"]
+    assert state["loop"]["count"] == 2
+    # 同步回退摘要已随 rewind 落库
+    fallback = state["loop_memory"]["summaries"][0]["summary"]
+    assert fallback
+
+    deadline = time.monotonic() + 5
+    refined = None
+    while time.monotonic() < deadline:
+        with sqlite3.connect(db_path) as connection:
+            row = connection.execute(
+                "SELECT state FROM runs WHERE id = ?", (run_id,)
+            ).fetchone()
+        summaries = (json.loads(row[0]).get("loop_memory") or {}).get("summaries") or []
+        refined = next(
+            (item["summary"] for item in summaries if item.get("loop_no") == 1), None
+        )
+        if refined == "第1次循环：玩家探索了回廊，发现了三座钟的齿轮线索，钟声响起时被拉回起点。":
+            break
+        time.sleep(0.05)
+    assert refined == "第1次循环：玩家探索了回廊，发现了三座钟的齿轮线索，钟声响起时被拉回起点。"
+    assert prompts and prompts[0]["loop_no"] == 1
+    assert prompts[0]["digest_source"].strip()

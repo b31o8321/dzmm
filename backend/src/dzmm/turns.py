@@ -30,7 +30,7 @@ from .narrative import (
     settle_pending_interactions,
     settle_world_events,
 )
-from .narrative_output import extract_gm_actions
+from .narrative_output import build_loop_summary_prompt, extract_gm_actions
 from .operation_control import OperationRegistry
 from .persistence import (
     director_notes,
@@ -285,6 +285,7 @@ class TurnCoordinator:
                 created=True,
             )
         self._schedule_director_task(run_id, after_revision)
+        self._schedule_loop_summary_tasks(run_id, outcomes)
         return result
 
     async def play_choice(self, run_id: str, payload: ChoiceTurnInput) -> TurnResult:
@@ -561,6 +562,7 @@ class TurnCoordinator:
             return
         for outcome in turn.outcomes:
             yield "command_applied", outcome
+        self._schedule_loop_summary_tasks(run_id, turn.outcomes)
         yield (
             "turn_completed",
             {
@@ -874,6 +876,105 @@ class TurnCoordinator:
         self._director_tasks.add(task)
         task.add_done_callback(self._director_tasks.discard)
 
+    def _schedule_loop_summary_tasks(
+        self, run_id: str, outcomes: list[dict[str, Any]]
+    ) -> None:
+        """Refine rewind-time loop digests into LLM summaries after the commit."""
+
+        for outcome in outcomes:
+            if outcome.get("type") != "loop_rewound":
+                continue
+            digest_source = str(outcome.get("digest_source") or "").strip()
+            if not digest_source:
+                continue
+            loop_no = int(outcome.get("loop_count") or 1) - 1
+            task = asyncio.get_running_loop().create_task(
+                self._run_loop_summary(run_id, loop_no, digest_source)
+            )
+            self._director_tasks.add(task)
+            task.add_done_callback(self._director_tasks.discard)
+
+    async def _run_loop_summary(self, run_id: str, loop_no: int, digest_source: str) -> None:
+        """Replace the truncated fallback digest with an LLM per-loop summary.
+
+        Fire-and-forget: any failure keeps the synchronous truncated digest.
+        The state patch is revision-guarded so a concurrent turn never loses writes.
+        """
+
+        try:
+            async with self._session_factory() as session:
+                run_row = (
+                    await session.execute(
+                        select(
+                            runs.c.state,
+                            runs.c.state_revision,
+                            runs.c.model_profile_id,
+                            world_versions.c.definition,
+                        )
+                        .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                        .where(runs.c.id == run_id)
+                    )
+                ).mappings().one_or_none()
+                profile_row = None
+                if run_row is not None and run_row["model_profile_id"]:
+                    profile_row = (
+                        await session.execute(
+                            select(model_profiles).where(
+                                model_profiles.c.id == run_row["model_profile_id"]
+                            )
+                        )
+                    ).mappings().one_or_none()
+            if run_row is None or profile_row is None:
+                return
+            profile = _profile_from_row(
+                {
+                    "model_id": profile_row["id"],
+                    "model_name_label": profile_row["name"],
+                    "provider_type": profile_row["provider_type"],
+                    "base_url": profile_row["base_url"],
+                    "model_name": profile_row["model_name"],
+                    "api_key_ref": profile_row["api_key_ref"],
+                }
+            )
+            if profile is None:
+                return
+            state = run_row["state"]
+            memory = state.get("loop_memory") if isinstance(state, dict) else None
+            if not isinstance(memory, dict):
+                return
+            summaries = memory.get("summaries") or []
+            if not any(item.get("loop_no") == loop_no for item in summaries):
+                return
+            prompt = build_loop_summary_prompt(
+                run_row["definition"].get("name") or "",
+                (state.get("hero") or {}).get("name") or "",
+                loop_no,
+                digest_source,
+            )
+            completion = getattr(self._narrator, "director_completion", None)
+            if completion is None:
+                return
+            summary = str(await completion(profile, prompt) or "").strip()
+            if not summary:
+                return
+            summary = summary[:LOOP_DIGEST_MAX]
+            for item in summaries:
+                if item.get("loop_no") == loop_no:
+                    item["summary"] = summary
+            async with self._session_factory() as session, session.begin():
+                changed = await session.execute(
+                    update(runs)
+                    .where(
+                        runs.c.id == run_id,
+                        runs.c.state_revision == run_row["state_revision"],
+                    )
+                    .values(state=state)
+                )
+                if changed.rowcount != 1:
+                    logger.debug("loop summary skipped for %s@%s: revision moved", run_id, loop_no)
+        except Exception as error:  # noqa: BLE001 - summary refinement must never surface
+            logger.debug("loop summary skipped for %s@%s: %s", run_id, loop_no, error)
+
     async def _run_director_note(self, run_id: str, revision: int) -> None:
         try:
             async with self._session_factory() as session:
@@ -1001,6 +1102,18 @@ def _loop_digest(state: dict[str, Any], narrative: str) -> str:
     return " ".join(pieces)[:LOOP_DIGEST_MAX]
 
 
+def _loop_digest_source(state: dict[str, Any], narrative: str) -> str:
+    """Uncapped source text for the background LLM summary refinement."""
+
+    recent = [
+        str(item.get("narrative") or "")
+        for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+        if isinstance(item, dict)
+    ]
+    pieces = [piece for piece in [*recent[-4:], narrative] if piece]
+    return " ".join(pieces)[:4000]
+
+
 def _maybe_loop_rewind(
     state: dict[str, Any],
     narrative: str,
@@ -1030,7 +1143,8 @@ def _maybe_loop_rewind(
         return
     trigger = "time" if time_hit else "death"
     memory = state.setdefault("loop_memory", initial_loop_memory())
-    append_loop_summary(memory, count, _loop_digest(state, narrative))
+    digest_source = _loop_digest_source(state, narrative)
+    append_loop_summary(memory, count, digest_source[:LOOP_DIGEST_MAX])
     for npc_id in state.get("npc_state") or {}:
         bump_deja_vu(state, str(npc_id))
     new_state, notes = rewind_to_anchor(state, anchor)
@@ -1043,6 +1157,7 @@ def _maybe_loop_rewind(
             "trigger": trigger,
             "loop_count": count + 1,
             "notes": notes,
+            "digest_source": digest_source,
         }
     )
 
