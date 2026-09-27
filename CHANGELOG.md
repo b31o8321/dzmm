@@ -1,5 +1,35 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.4.0] - 2026-09-27
+
+**特殊题材模式：时间系统、循环 rewind、倒计时与三层循环记忆**
+
+### 新增
+- 时间系统（time capability）：世界声明 `time_system`，每回合按引擎默认耗时推进
+  时钟（模型/玩家可用 `adjust_clock` 调整），跨日滚动，ClockBar 显示时刻与天数
+- 循环模式（loop capability）：世界声明 `loop_config`，首个回合冻结锚点快照；
+  时钟到达 `loop_at_minutes` 边界或坏结局+death 触发时自动 rewind——状态回到
+  循环起点，`max_loops` 用尽后坏结局正常锁定
+- 三层循环记忆：跨循环知识（`discover` 引擎白名单写入，rewind 保留）、
+  按循环分段摘要、NPC 既视感（deja_vu 递进）；GM payload 注入
+  clock/loop_context/loop_memory（知识+前循环梗概+漂移指令）
+- 倒计时模式（countdown capability）：`clock_config`（tick_per_turn/warn_at），
+  每回合 tick 递减，`clock_below`/`clock_above` 结局谓词，归零强制坏结局
+- 桌面端循环 HUD：时钟条、循环徽章、跨循环知识面板
+- turn_command 契约扩展：discover / adjust_clock / rewind_to_anchor
+
+### 修复
+- rewind 后 run_seed 空串违反 run_state 契约（改为生成新循环种子）
+- NPC deja_vu 写入 npc_state 违反契约（收回 loop.deja_vu 单一来源）
+- adjust_clock 对 time 能力开放且上限扩到 loop_at_minutes
+- discover / choose_story_choice / adjust_clock 豁免 choices 规划器门控
+
+### 验证
+- backend 207 tests 全绿（含 5 个循环管线集成测试：时钟推进、时间触发 rewind
+  +知识保留、max_loops 停止、死亡触发 rewind、结局锁定）；desktop 45 vitest
+- PC 真模型（LM Studio qwen3-14b）双模式验收：循环世界到达边界自动 rewind
+  （count=2、知识保留、时钟重置）；倒计时世界 tick 递减并锁定获救好结局
+
 ## [v1.3.0] - 2026-09-26
 
 **剧情质量与引导打磨：结局 genre 化、开头反惯性、战斗结算卡、Director 可见化**
