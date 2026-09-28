@@ -509,6 +509,9 @@ class LocalCoreRuntime:
                 definition=definition,
                 hero=hero,
                 model_profile_id=str(profile_id) if profile_id else None,
+                carried_legacy=(
+                    payload.get("legacy") if isinstance(payload.get("legacy"), list) else None
+                ),
             )
         return {
             "world_id": world_id,
@@ -679,6 +682,7 @@ class LocalCoreRuntime:
         definition: dict[str, Any],
         hero: dict[str, Any],
         model_profile_id: str | None,
+        carried_legacy: list[dict[str, Any]] | None = None,
     ) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
         hero_id, run_id = str(uuid4()), str(uuid4())
         hero_value = {
@@ -686,7 +690,7 @@ class LocalCoreRuntime:
             "name": str(hero.get("name") or "旅行者"),
             "profile": hero.get("profile") or {},
         }
-        state = initial_state(definition, hero_value)
+        state = initial_state(definition, hero_value, carried_legacy)
         opening = build_opening_story_beat(definition, hero_value)
         connection.execute(
             "INSERT INTO local_heroes(id, world_version_id, name, profile) VALUES (?, ?, ?, ?)",
@@ -1643,6 +1647,8 @@ def _validate_command(command: dict[str, Any]) -> None:
         "discover",
         "adjust_clock",
         "rewind_to_anchor",
+        "collect_clue",
+        "accuse",
     }:
         raise CoreRuntimeError("unsupported TurnCommand")
 

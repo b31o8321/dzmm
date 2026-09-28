@@ -14,10 +14,10 @@ class NarrativeRuleError(ValueError):
 
 
 _CAPABILITIES_BY_RULESET = {
-    "trpg": {"trpg", "resources", "combat", "time", "loop", "countdown"},
-    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
-    "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
-    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown"},
+    "trpg": {"trpg", "resources", "combat", "time", "loop", "countdown", "deduction", "roguelike"},
+    "story_adventure": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown", "deduction", "roguelike"},
+    "relationship_drama": {"chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown", "deduction", "roguelike"},
+    "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown", "deduction", "roguelike"},
 }
 
 
@@ -31,6 +31,12 @@ def validate_definition(definition: dict[str, Any]) -> None:
         raise NarrativeRuleError("trpg ruleset requires trpg capability")
     if ruleset_id != "trpg" and not {"chapters", "choices", "endings"} <= capabilities:
         raise NarrativeRuleError(f"ruleset {ruleset_id} requires chapters, choices and endings")
+    if "deduction" in capabilities and not definition.get("mystery"):
+        raise NarrativeRuleError("deduction capability requires a mystery block")
+    if definition.get("mystery") and "deduction" not in capabilities:
+        raise NarrativeRuleError("mystery block requires the deduction capability")
+    if definition.get("legacy_config") and "roguelike" not in capabilities:
+        raise NarrativeRuleError("legacy_config requires the roguelike capability")
 
     story = definition["story"]
     _require_unique(story["chapters"], "chapter")
@@ -109,7 +115,34 @@ def _initial_clock_with_countdown(definition: dict[str, Any]) -> dict[str, Any]:
     return clock
 
 
-def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str, Any]:
+def _initial_legacy(
+    definition: dict[str, Any], carried_legacy: list[dict[str, Any]] | None
+) -> dict[str, Any]:
+    """Roguelike worlds: carry at most 3 whitelisted boons into a new run."""
+
+    declared = {
+        boon.get("id"): boon
+        for boon in (definition.get("legacy_config") or {}).get("boons") or []
+        if isinstance(boon, dict) and boon.get("id")
+    }
+    boons: list[dict[str, Any]] = []
+    for boon in carried_legacy or []:
+        if not isinstance(boon, dict):
+            continue
+        declared_boon = declared.get(str(boon.get("id") or ""))
+        if declared_boon is None or any(item["id"] == declared_boon["id"] for item in boons):
+            continue
+        boons.append({"id": str(declared_boon["id"]), "label": str(declared_boon.get("label") or "")})
+        if len(boons) >= 3:
+            break
+    return {"boons": boons}
+
+
+def initial_state(
+    definition: dict[str, Any],
+    hero: dict[str, Any],
+    carried_legacy: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     story = definition["story"]
     chapters = sorted(story["chapters"], key=lambda chapter: chapter["order"])
     locations = definition.get("locations") or []
@@ -201,6 +234,18 @@ def initial_state(definition: dict[str, Any], hero: dict[str, Any]) -> dict[str,
         "loop_memory": (
             initial_loop_memory()
             if "loop" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            else None
+        ),
+        "deduction": (
+            {"clues": [], "accusations": []}
+            if "deduction" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            and definition.get("mystery")
+            else None
+        ),
+        "legacy": (
+            _initial_legacy(definition, carried_legacy)
+            if "roguelike" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
+            and definition.get("legacy_config")
             else None
         ),
         "loop": (

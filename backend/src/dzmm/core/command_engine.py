@@ -43,7 +43,9 @@ def apply_commands(
     for command in commands:
         validate_command(command)
         command_type = command["type"]
-        if state["ending"] is not None:
+        if state["ending"] is not None and command_type not in {"narrate", "offer_choices"}:
+            # 同一回合内锁定结局后的收尾 narrate 合法（如指证后的场景收束）；
+            # 其余命令在结局锁定后一律只读
             raise error_type("ending is locked; this run is read-only")
         payload = command.get("payload", {})
         if command_type == "narrate":
@@ -91,6 +93,60 @@ def apply_commands(
                 outcomes.append({"type": "discover_rejected", "reason": note})
             if entry is not None:
                 outcomes.append({"type": "knowledge_discovered", "id": entry["id"], "text": entry["text"]})
+        elif command_type == "collect_clue":
+            _require_capability(state, "deduction", error_type)
+            block = state.get("deduction")
+            if not isinstance(block, dict):
+                raise error_type("collect_clue requires a deduction-enabled run")
+            clue_id = str(payload.get("id") or "").strip()
+            text = str(payload.get("text") or "").strip()[:200]
+            if not clue_id or not text:
+                raise error_type("collect_clue requires id and text")
+            clues = block.setdefault("clues", [])
+            existing = next((item for item in clues if item["id"] == clue_id), None)
+            if existing is not None:
+                existing["text"] = text
+                outcomes.append({"type": "clue_updated", "id": clue_id})
+            elif len(clues) >= 24:
+                raise error_type("collect_clue reached the 24-clue cap")
+            else:
+                clues.append({"id": clue_id, "text": text, "turn": int(state.get("revision") or 0)})
+                outcomes.append({"type": "clue_collected", "id": clue_id, "text": text})
+        elif command_type == "accuse":
+            _require_capability(state, "deduction", error_type)
+            block = state.get("deduction")
+            if not isinstance(block, dict):
+                raise error_type("accuse requires a deduction-enabled run")
+            mystery = definition.get("mystery") or {}
+            if not mystery.get("culprit_id"):
+                raise error_type("accuse requires a mystery block with culprit_id")
+            suspect_id = str(payload.get("suspect_id") or "").strip()
+            if not suspect_id:
+                raise error_type("accuse requires suspect_id")
+            accusations = block.setdefault("accusations", [])
+            max_accusations = max(1, min(10, int(mystery.get("max_accusations") or 1)))
+            if len(accusations) >= max_accusations:
+                raise error_type("accuse reached the configured accusation cap")
+            correct = suspect_id == str(mystery["culprit_id"])
+            accusations.append(
+                {"suspect_id": suspect_id, "correct": correct, "turn": int(state.get("revision") or 0)}
+            )
+            if correct:
+                outcomes.append({"type": "accusation_correct", "suspect_id": suspect_id})
+                state["ending"] = {
+                    "id": "case-closed",
+                    "kind": "good",
+                    "narrative_key": "ending.case_closed",
+                }
+            else:
+                outcomes.append({"type": "accusation_wrong", "suspect_id": suspect_id})
+                if len(accusations) >= max_accusations:
+                    wrong_ending_id = str(mystery.get("wrong_accusation_ending_id") or "").strip()
+                    state["ending"] = {
+                        "id": wrong_ending_id or "wrong-accusation",
+                        "kind": "bad",
+                        "narrative_key": "ending.wrong_accusation",
+                    }
         elif command_type == "attack":
             _require_capability(state, "combat", error_type)
             try:

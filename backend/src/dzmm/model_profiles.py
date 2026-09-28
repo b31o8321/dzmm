@@ -773,6 +773,25 @@ def _narration_body(
                     "clock": clock_block,
                     "loop_context": loop_context,
                     "loop_memory": loop_memory_payload,
+                    "deduction_context": (
+                        {
+                            "known_clues": [
+                                {"id": item["id"], "text": item["text"]}
+                                for item in (state.get("deduction") or {}).get("clues") or []
+                            ],
+                            "accusations": [
+                                {"suspect_id": item["suspect_id"], "correct": item["correct"]}
+                                for item in (state.get("deduction") or {}).get("accusations") or []
+                            ],
+                        }
+                        if isinstance(state.get("deduction"), dict)
+                        else None
+                    ),
+                    "legacy_context": (
+                        {"boons": (state.get("legacy") or {}).get("boons") or []}
+                        if isinstance(state.get("legacy"), dict)
+                        else None
+                    ),
                     "relationships": state.get("relationships", {}),
                     "ending": state.get("ending"),
                     "player_input": player_input,

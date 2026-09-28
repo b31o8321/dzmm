@@ -23,7 +23,9 @@
         "evaluate_endings",
         "discover",
         "adjust_clock",
-        "rewind_to_anchor"
+        "rewind_to_anchor",
+        "collect_clue",
+        "accuse"
       ]
     },
     "payload": {

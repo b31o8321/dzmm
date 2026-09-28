@@ -389,3 +389,56 @@ def test_sillytavern_world_info_import_and_export_round_trips(migrated_client) -
     assert entries["0"]["extensions"] == {"timing": "before"}
     assert entries["1"]["key"] == ["lighthouse keeper"]
     assert entries["1"]["constant"] is False
+
+
+def test_sillytavern_preview_reports_conflicts_without_persisting(migrated_client) -> None:
+    client, _ = migrated_client
+    world_info = {
+        "entries": {
+            "0": {"key": ["灰潮"], "content": "灰潮是每夜升起的浓雾。", "constant": True},
+            "1": {"key": ["守塔人"], "content": "守塔人 chains the lamp each dusk."},
+        }
+    }
+    # 导入并接进一个世界
+    imported = client.post("/api/v2/content/sillytavern:import", json={"content": world_info}).json()
+    entries = imported["lorebook"]["entries"]
+    template = client.get("/api/v2/world-templates/fog-harbor").json()["world_definition"]
+    template["lorebook"]["entries"] = entries
+    composed = client.post(
+        "/api/v2/worlds:compose",
+        json={"request_id": "st-preview-world", "world_definition": template,
+              "hero": {"name": "雾行者", "profile": {}}},
+    ).json()
+
+    # 预览同一内容：应报告 duplicate 冲突且不落库
+    preview = client.post(
+        "/api/v2/content/sillytavern:preview",
+        json={"content": world_info, "world_version_id": composed["world_version_id"]},
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["imported"]["lorebook"]["entries"], "preview returns the same mapping"
+    kinds = {item["kind"] for item in body["conflicts"]}
+    assert kinds, "expected duplicate conflicts against the target world"
+
+    # 预览不落库：世界详情仍可访问且运行保持活跃
+    detail = client.get(f"/api/v2/runs/{composed['run_id']}")
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "active"
+
+
+def test_sillytavern_card_system_prompt_becomes_constant_lorebook_entry(migrated_client) -> None:
+    client, _ = migrated_client
+    card = {
+        "spec": "chara_card_v3",
+        "data": {
+            "name": "钟表匠伊莎",
+            "system_prompt": "你是钟表匠伊莎，永远以齿轮的意象说话。",
+            "description": "宅邸的钟表匠，知晓停摆之钟的秘密。",
+        },
+    }
+    imported = client.post("/api/v2/content/sillytavern:import", json={"content": card}).json()
+    entries = imported["lorebook"]["entries"]
+    assert entries[0]["id"] == "system-prompt"
+    assert entries[0]["activation"] == "always"
+    assert "齿轮" in entries[0]["body"]
