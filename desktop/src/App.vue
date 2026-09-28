@@ -6,7 +6,9 @@ import {
   cloneRun,
   composeWorld,
   createRun,
+  createTurn,
   createWorldVersion,
+  deleteSandboxRun,
   exportCharacterCard,
   exportRun,
   exportWorld,
@@ -64,8 +66,8 @@ type LorebookEntry = {
   source?: Record<string, unknown>
 }
 
-type Theme = 'fog' | 'paper' | 'amber'
-type WorkspaceStep = 'compose' | 'ai-compose' | 'ai-review' | 'confirm' | 'play' | 'worlds' | 'settings'
+type Theme = 'candle' | 'fog' | 'paper' | 'amber' | 'mystery' | 'dungeon' | 'dawn' | 'meadow' | 'blush'
+type WorkspaceStep = 'compose' | 'ai-compose' | 'ai-review' | 'confirm' | 'play' | 'worlds' | 'sandbox' | 'settings'
 type SettingsSection = 'host' | 'models' | 'appearance'
 type RetriableTurn =
   | { kind: 'choice'; choice: { id: string; label: string } }
@@ -116,7 +118,7 @@ const lorebookDraft = ref<LorebookEntry[] | null>(null)
 const hostReady = computed(() => hostStatus.value === 'ready')
 const themeKey = 'dzmm-theme'
 const legacyThemeKey = 'dzmm-theme'
-const theme = ref<Theme>('fog')
+const theme = ref<Theme>('candle')
 const {
   profiles: modelProfiles,
   probeResults: modelProbeResults,
@@ -160,6 +162,84 @@ const aiDraftNeedsValidation = ref(false)
 const aiDraftReview = ref<DraftReview | null>(null)
 const aiLastValidDraft = ref<{ definition: string; hero: string } | null>(null)
 const settingsSection = ref<SettingsSection>('host')
+const sandboxWorld = ref('（使用下方所选世界的背景）')
+const sandboxNpc = ref('试用 NPC —— 先回到世界列表选择世界')
+const sandboxOpening = ref('昨夜钟楼为什么停摆？')
+const sandboxRunId = ref<string | null>(null)
+const sandboxLines = ref<Array<{ who: 'npc' | 'me'; text: string }>>([])
+const sandboxBusy = ref(false)
+const sandboxNpcOptions = computed(() => {
+  const npcs = (selectedWorld.value?.definition as { npcs?: Array<{ id: string; name: string }> })
+    ?.npcs ?? []
+  return npcs.length ? npcs.map((npc) => `${npc.id} —— ${npc.name}`) : ['试用 NPC —— 先回到世界列表选择世界']
+})
+const sandboxNpcId = computed(() => (sandboxNpc.value.split(' —— ')[0] ?? '').trim())
+
+const sandboxFollowUp = ref('')
+
+async function startSandbox() {
+  if (!selectedWorld.value || sandboxBusy.value) return
+  sandboxBusy.value = true
+  try {
+    const world = selectedWorld.value
+    const composed = await composeWorld({
+      request_id: requestId('sandbox'),
+      world_definition: world.definition,
+      hero: { name: '试用者', profile: {} },
+      sandbox: true,
+    })
+    sandboxRunId.value = composed.run_id
+    const opening = sandboxOpening.value.trim() || '我想先了解一下这里。'
+    sandboxLines.value = [{ who: 'me', text: opening }]
+    const turn = await createTurn(composed.run_id, {
+      request_id: requestId('sandbox-turn'),
+      expected_revision: composed.state.revision,
+      player_input: opening,
+      commands: [{ type: 'narrate', payload: {} }],
+    })
+    if (turn.narrative) sandboxLines.value.push({ who: 'npc', text: turn.narrative })
+  } catch (error) {
+    notice.value = `试玩场未能开始：${error instanceof Error ? error.message : error}`
+    sandboxRunId.value = null
+  } finally {
+    sandboxBusy.value = false
+  }
+}
+
+async function sendSandboxFollowUp() {
+  const runId = sandboxRunId.value
+  if (!runId || sandboxBusy.value || !sandboxFollowUp.value.trim()) return
+  sandboxBusy.value = true
+  const text = sandboxFollowUp.value.trim()
+  sandboxFollowUp.value = ''
+  try {
+    sandboxLines.value.push({ who: 'me', text })
+    const run = await getRun(runId)
+    const turn = await createTurn(runId, {
+      request_id: requestId('sandbox-turn'),
+      expected_revision: run.state.revision,
+      player_input: text,
+      commands: [{ type: 'narrate', payload: {} }],
+    })
+    sandboxLines.value.push({ who: 'npc', text: turn.narrative || '……' })
+  } catch (error) {
+    sandboxLines.value.push({ who: 'me', text: `（这轮没有写成：${error instanceof Error ? error.message : error}）` })
+  } finally {
+    sandboxBusy.value = false
+  }
+}
+
+async function discardSandbox() {
+  const runId = sandboxRunId.value
+  sandboxRunId.value = null
+  sandboxLines.value = []
+  if (!runId) return
+  try {
+    await deleteSandboxRun(runId)
+  } catch {
+    // 试玩数据不可见，删除失败不影响用户
+  }
+}
 const portableFileInput = ref<HTMLInputElement | null>(null)
 let activeStreamController: AbortController | null = null
 const storageBoundaryNotice = '本机独立保存世界与旅程；旧版 DZMM 存档不会自动迁移或覆盖。需要带入内容时，请主动导入世界包或旅程快照。'
@@ -277,10 +357,13 @@ function applyTheme(nextTheme: Theme) {
 
 function restoreTheme() {
   const storedTheme = localStorage.getItem(themeKey) ?? localStorage.getItem(legacyThemeKey)
-  if (storedTheme === 'fog' || storedTheme === 'paper' || storedTheme === 'amber') {
-    applyTheme(storedTheme)
+  const knownThemes: Theme[] = [
+    'candle', 'fog', 'paper', 'amber', 'mystery', 'dungeon', 'dawn', 'meadow', 'blush',
+  ]
+  if (storedTheme && knownThemes.includes(storedTheme as Theme)) {
+    applyTheme(storedTheme as Theme)
   } else {
-    applyTheme('fog')
+    applyTheme('candle')
   }
 }
 
@@ -1434,7 +1517,7 @@ onUnmounted(() => {
       🕐 {{ clockLabel }}<span v-if="loopBadge" class="loop-badge" :class="{ final: loopBadge.final }">第 {{ loopBadge.count }} 次循环</span>
     </div>
     <section v-if="step !== 'settings'" class="route-strip" aria-label="跑团路径">
-      <span :class="{ active: step === 'worlds' || step === 'compose' || step === 'ai-compose' }">世界</span><b>—</b>
+      <span :class="{ active: step === 'worlds' || step === 'compose' || step === 'ai-compose' || step === 'sandbox' }">世界</span><b>—</b>
       <span :class="{ active: step === 'ai-review' || step === 'confirm' }">确认</span><b>—</b>
       <span :class="{ active: step === 'play' }">游玩</span>
     </section>
@@ -1458,9 +1541,9 @@ onUnmounted(() => {
       </header>
       <div class="settings-layout">
         <nav class="settings-nav" aria-label="设置分类">
-          <button type="button" :class="{ active: settingsSection === 'host' }" @click="() => void selectSettingsSection('host')"><b>本机服务</b><small>状态、诊断与恢复</small></button>
-          <button type="button" :class="{ active: settingsSection === 'models' }" @click="() => void selectSettingsSection('models')"><b>本地模型</b><small>完整协议档案</small></button>
-          <button type="button" :class="{ active: settingsSection === 'appearance' }" @click="() => void selectSettingsSection('appearance')"><b>外观</b><small>适配故事的主题</small></button>
+          <button type="button" :class="{ active: settingsSection === 'host' }" @click="() => void selectSettingsSection('host')"><b>通用</b><small>本机服务、诊断与数据</small></button>
+          <button type="button" :class="{ active: settingsSection === 'models' }" @click="() => void selectSettingsSection('models')"><b>模型</b><small>完整协议档案：类型+地址+模型名</small></button>
+          <button type="button" :class="{ active: settingsSection === 'appearance' }" @click="() => void selectSettingsSection('appearance')"><b>画面</b><small>氛围主题：题材决定桌布与烛色</small></button>
         </nav>
         <section class="settings-panel">
           <template v-if="settingsSection === 'host'">
@@ -1505,9 +1588,19 @@ onUnmounted(() => {
             />
           </template>
           <template v-else>
-            <p class="eyebrow">外观</p><h2>让界面适合正在发生的故事</h2>
-            <p class="settings-intro">主题只改变这台电脑的视觉氛围，不改变世界、角色、旅程或故事结果。</p>
-            <div class="theme-grid"><button v-for="option in [{ id: 'fog', name: '雾夜', note: '深海绿与旧金色，适合夜间剧情' }, { id: 'paper', name: '纸页', note: '暖白与松绿，适合创作和阅读' }, { id: 'amber', name: '琥珀', note: '深棕与金色，适合悬疑与遗迹' }]" :key="option.id" type="button" :class="['theme-option', option.id, { selected: theme === option.id }]" @click="applyTheme(option.id as Theme)"><b>{{ option.name }}</b><small>{{ option.note }}</small><span>{{ theme === option.id ? '当前使用' : '切换主题' }}</span></button></div>
+            <p class="eyebrow">画面</p><h2>让界面适合正在发生的故事</h2>
+            <p class="settings-intro">题材决定桌布与烛色：暗色系适合悬疑、循环与遗迹；晨光/青原/糖霜三套亮色适合治愈、正向冒险与甜向故事。主题只改变视觉氛围，不改变世界、角色、旅程或故事结果。</p>
+            <div class="theme-grid"><button v-for="option in [
+              { id: 'candle', name: '烛光手稿', note: '时之回廊 · 胡桃木与琥珀，默认' },
+              { id: 'fog', name: '雾夜', note: '深海绿与旧金色，适合夜间剧情' },
+              { id: 'paper', name: '纸页', note: '暖白与松绿，适合创作和阅读' },
+              { id: 'amber', name: '琥珀', note: '深棕与金色，适合悬疑与遗迹' },
+              { id: 'mystery', name: '月下钟楼', note: '钟楼谜案 · 冷蓝银青，推理氛围' },
+              { id: 'dungeon', name: '烬火余温', note: '余烬地牢 · 烟黑烬橙，肉鸽氛围' },
+              { id: 'dawn', name: '晨光便笺', note: '治愈日常 · 暖米亮色' },
+              { id: 'meadow', name: '青原风歌', note: '正向冒险 · 浅绿亮色' },
+              { id: 'blush', name: '糖霜信笺', note: '甜恋情感 · 粉白亮色' },
+            ]" :key="option.id" type="button" :class="['theme-option', option.id, { selected: theme === option.id }]" @click="applyTheme(option.id as Theme)"><b>{{ option.name }}</b><small>{{ option.note }}</small><span>{{ theme === option.id ? '当前使用' : '切换主题' }}</span></button></div>
           </template>
         </section>
       </div>
@@ -1516,7 +1609,7 @@ onUnmounted(() => {
     <section v-else-if="step === 'worlds'" class="scene world-center">
       <div class="world-center-heading">
         <div><p class="eyebrow">我的世界</p><h1>回到熟悉的世界，<br />或开启新的故事。</h1></div>
-        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button></div>
+        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button><button class="minor-action" type="button" @click="step = 'sandbox'">NPC 试玩场</button></div>
       </div>
       <div v-if="!worlds.length" class="world-center-empty">
         <h2>还没有世界</h2><p>从一个世界书、角色卡或雾港模板开始；确认后才会生成第一局。</p>
@@ -1588,6 +1681,37 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <section v-else-if="step === 'sandbox'" class="scene sandbox-scene">
+      <div class="world-center-heading">
+        <div><p class="eyebrow">NPC 试玩场</p><h1>先和角色聊几句，<br />再决定要不要定型。</h1></div>
+        <div class="world-create-actions"><button class="minor-action" type="button" @click="step = 'worlds'">回到世界列表</button></div>
+      </div>
+      <p class="settings-intro">试玩对话只验证语气与设定，不会写入任何正式存档，也不计入世界局数；丢弃试玩即彻底删除。先在世界列表选中一个世界，再开始对话。</p>
+      <div class="sandbox-layout">
+        <form class="sandbox-form" @submit.prevent>
+          <label>世界（来自世界列表的当前选择）<input :value="selectedWorld ? selectedWorld.name : '—— 未选择世界 ——'" disabled /></label>
+          <label>NPC 角色卡<select v-model="sandboxNpc"><option v-for="option in sandboxNpcOptions" :key="option" :value="option">{{ option }}</option></select></label>
+          <label>你想先聊什么<input v-model="sandboxOpening" placeholder="例如：昨夜钟楼为什么停摆？" /></label>
+          <button type="button" class="minor-action" :disabled="sandboxBusy || !selectedWorld" @click="() => void startSandbox()">{{ sandboxRunId ? '重新开始试玩' : '开始试玩对话' }}</button>
+          <div class="sandbox-notes"><span class="note-chip warn">对话不写入存档</span><span class="note-chip">沙盒运行 · 可随时丢弃</span></div>
+          <button v-if="sandboxRunId" type="button" class="minor-action" :disabled="sandboxBusy" @click="() => void discardSandbox()">丢弃这次试玩</button>
+        </form>
+        <div class="sandbox-chat" aria-label="试玩对话">
+          <template v-if="sandboxLines.length">
+            <p v-for="(line, index) in sandboxLines" :key="index" class="sandbox-line" :class="line.who">
+              <b v-if="line.who === 'npc'">{{ sandboxNpc.split(' —— ')[1] ?? 'NPC' }}</b>{{ line.text }}
+            </p>
+          </template>
+          <p v-else class="sandbox-line npc"><b>提示</b>选择世界与 NPC，写下开场问题，点「开始试玩对话」。</p>
+        </div>
+      </div>
+      <form v-if="sandboxRunId" class="sandbox-form" style="margin-top:14px" @submit.prevent="() => void sendSandboxFollowUp()">
+        <div class="composer-row" style="display:flex; gap:10px">
+          <input v-model="sandboxFollowUp" placeholder="接着聊……" style="flex:1" />
+          <button type="submit" :disabled="sandboxBusy || !sandboxFollowUp.trim()">发送</button>
+        </div>
+      </form>
+    </section>
     <section v-else-if="step === 'ai-compose'" class="scene compose-scene ai-compose-scene">
       <div class="scene-copy">
         <p class="eyebrow">AI World Draft</p>

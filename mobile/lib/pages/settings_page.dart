@@ -127,15 +127,25 @@ class _SettingsPageState extends State<SettingsPage> {
       if (_notice != null) ...[const SizedBox(height: 8), Text(_notice!)],
       const SizedBox(height: 20),
       Text('外观', style: Theme.of(context).textTheme.titleLarge),
+      Text(
+        '题材决定桌布与烛色：暗色适合悬疑、循环与遗迹；晨光/青原/糖霜三套亮色适合治愈、正向冒险与甜向故事。',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
       for (final value in AppTheme.values)
         ListTile(
           selected: value == widget.theme,
           onTap: () => widget.onTheme(value),
           trailing: value == widget.theme ? const Icon(Icons.check) : null,
           title: Text(switch (value) {
+            AppTheme.candle => '烛光手稿 · 默认',
             AppTheme.fog => '雾夜',
             AppTheme.paper => '纸页',
             AppTheme.amber => '琥珀',
+            AppTheme.mystery => '月下钟楼 · 推理',
+            AppTheme.dungeon => '烬火余温 · 肉鸽',
+            AppTheme.dawn => '晨光便笺 · 治愈（亮）',
+            AppTheme.meadow => '青原风歌 · 正向冒险（亮）',
+            AppTheme.blush => '糖霜信笺 · 甜恋（亮）',
           }),
         ),
     ],
