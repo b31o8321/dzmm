@@ -64,7 +64,7 @@ type LorebookEntry = {
   source?: Record<string, unknown>
 }
 
-type Theme = 'fog' | 'paper' | 'amber'
+type Theme = 'candle' | 'fog' | 'paper' | 'amber' | 'mystery' | 'dungeon' | 'dawn' | 'meadow' | 'blush'
 type WorkspaceStep = 'compose' | 'ai-compose' | 'ai-review' | 'confirm' | 'play' | 'worlds' | 'settings'
 type SettingsSection = 'host' | 'models' | 'appearance'
 type RetriableTurn =
@@ -116,7 +116,7 @@ const lorebookDraft = ref<LorebookEntry[] | null>(null)
 const hostReady = computed(() => hostStatus.value === 'ready')
 const themeKey = 'dzmm-theme'
 const legacyThemeKey = 'dzmm-theme'
-const theme = ref<Theme>('fog')
+const theme = ref<Theme>('candle')
 const {
   profiles: modelProfiles,
   probeResults: modelProbeResults,
@@ -277,10 +277,13 @@ function applyTheme(nextTheme: Theme) {
 
 function restoreTheme() {
   const storedTheme = localStorage.getItem(themeKey) ?? localStorage.getItem(legacyThemeKey)
-  if (storedTheme === 'fog' || storedTheme === 'paper' || storedTheme === 'amber') {
-    applyTheme(storedTheme)
+  const knownThemes: Theme[] = [
+    'candle', 'fog', 'paper', 'amber', 'mystery', 'dungeon', 'dawn', 'meadow', 'blush',
+  ]
+  if (storedTheme && knownThemes.includes(storedTheme as Theme)) {
+    applyTheme(storedTheme as Theme)
   } else {
-    applyTheme('fog')
+    applyTheme('candle')
   }
 }
 
@@ -1458,9 +1461,9 @@ onUnmounted(() => {
       </header>
       <div class="settings-layout">
         <nav class="settings-nav" aria-label="设置分类">
-          <button type="button" :class="{ active: settingsSection === 'host' }" @click="() => void selectSettingsSection('host')"><b>本机服务</b><small>状态、诊断与恢复</small></button>
-          <button type="button" :class="{ active: settingsSection === 'models' }" @click="() => void selectSettingsSection('models')"><b>本地模型</b><small>完整协议档案</small></button>
-          <button type="button" :class="{ active: settingsSection === 'appearance' }" @click="() => void selectSettingsSection('appearance')"><b>外观</b><small>适配故事的主题</small></button>
+          <button type="button" :class="{ active: settingsSection === 'host' }" @click="() => void selectSettingsSection('host')"><b>通用</b><small>本机服务、诊断与数据</small></button>
+          <button type="button" :class="{ active: settingsSection === 'models' }" @click="() => void selectSettingsSection('models')"><b>模型</b><small>完整协议档案：类型+地址+模型名</small></button>
+          <button type="button" :class="{ active: settingsSection === 'appearance' }" @click="() => void selectSettingsSection('appearance')"><b>画面</b><small>氛围主题：题材决定桌布与烛色</small></button>
         </nav>
         <section class="settings-panel">
           <template v-if="settingsSection === 'host'">
@@ -1505,9 +1508,19 @@ onUnmounted(() => {
             />
           </template>
           <template v-else>
-            <p class="eyebrow">外观</p><h2>让界面适合正在发生的故事</h2>
-            <p class="settings-intro">主题只改变这台电脑的视觉氛围，不改变世界、角色、旅程或故事结果。</p>
-            <div class="theme-grid"><button v-for="option in [{ id: 'fog', name: '雾夜', note: '深海绿与旧金色，适合夜间剧情' }, { id: 'paper', name: '纸页', note: '暖白与松绿，适合创作和阅读' }, { id: 'amber', name: '琥珀', note: '深棕与金色，适合悬疑与遗迹' }]" :key="option.id" type="button" :class="['theme-option', option.id, { selected: theme === option.id }]" @click="applyTheme(option.id as Theme)"><b>{{ option.name }}</b><small>{{ option.note }}</small><span>{{ theme === option.id ? '当前使用' : '切换主题' }}</span></button></div>
+            <p class="eyebrow">画面</p><h2>让界面适合正在发生的故事</h2>
+            <p class="settings-intro">题材决定桌布与烛色：暗色系适合悬疑、循环与遗迹；晨光/青原/糖霜三套亮色适合治愈、正向冒险与甜向故事。主题只改变视觉氛围，不改变世界、角色、旅程或故事结果。</p>
+            <div class="theme-grid"><button v-for="option in [
+              { id: 'candle', name: '烛光手稿', note: '时之回廊 · 胡桃木与琥珀，默认' },
+              { id: 'fog', name: '雾夜', note: '深海绿与旧金色，适合夜间剧情' },
+              { id: 'paper', name: '纸页', note: '暖白与松绿，适合创作和阅读' },
+              { id: 'amber', name: '琥珀', note: '深棕与金色，适合悬疑与遗迹' },
+              { id: 'mystery', name: '月下钟楼', note: '钟楼谜案 · 冷蓝银青，推理氛围' },
+              { id: 'dungeon', name: '烬火余温', note: '余烬地牢 · 烟黑烬橙，肉鸽氛围' },
+              { id: 'dawn', name: '晨光便笺', note: '治愈日常 · 暖米亮色' },
+              { id: 'meadow', name: '青原风歌', note: '正向冒险 · 浅绿亮色' },
+              { id: 'blush', name: '糖霜信笺', note: '甜恋情感 · 粉白亮色' },
+            ]" :key="option.id" type="button" :class="['theme-option', option.id, { selected: theme === option.id }]" @click="applyTheme(option.id as Theme)"><b>{{ option.name }}</b><small>{{ option.note }}</small><span>{{ theme === option.id ? '当前使用' : '切换主题' }}</span></button></div>
           </template>
         </section>
       </div>
