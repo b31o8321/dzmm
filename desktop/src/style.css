@@ -1945,3 +1945,101 @@ h3 {
 .loop-badge.final {
   background: rgba(232,197,106,0.15); border-color: rgba(232,197,106,0.4); color: var(--gold);
 }
+
+/* ===== NPC 试玩场（v1.6.0 P2） ===== */
+.sandbox-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.sandbox-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.sandbox-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted-bright);
+}
+.sandbox-form select,
+.sandbox-form input {
+  border: 1px solid var(--input-line);
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: 13.5px;
+  padding: 9px 11px;
+}
+.sandbox-form select:focus,
+.sandbox-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.sandbox-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.note-chip {
+  font-size: 10.5px;
+  font-family: ui-monospace, "SF Mono", monospace;
+  color: var(--muted-bright);
+  border: 1px dashed var(--line-strong);
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--surface-raised);
+}
+.note-chip.good {
+  color: var(--success);
+  border-color: var(--success);
+}
+.note-chip.warn {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.sandbox-chat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 280px;
+}
+.sandbox-line {
+  max-width: 85%;
+  font-size: 13.5px;
+  padding: 9px 13px;
+  border-radius: 9px;
+  color: var(--ink);
+}
+.sandbox-line.npc {
+  align-self: flex-start;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+}
+.sandbox-line.npc b {
+  font-family: "Noto Serif SC", serif;
+  margin-right: 8px;
+  color: var(--heading);
+}
+.sandbox-line.me {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+@media (max-width: 860px) {
+  .sandbox-layout {
+    grid-template-columns: 1fr;
+  }
+}

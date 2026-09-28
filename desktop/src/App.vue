@@ -65,7 +65,7 @@ type LorebookEntry = {
 }
 
 type Theme = 'candle' | 'fog' | 'paper' | 'amber' | 'mystery' | 'dungeon' | 'dawn' | 'meadow' | 'blush'
-type WorkspaceStep = 'compose' | 'ai-compose' | 'ai-review' | 'confirm' | 'play' | 'worlds' | 'settings'
+type WorkspaceStep = 'compose' | 'ai-compose' | 'ai-review' | 'confirm' | 'play' | 'worlds' | 'sandbox' | 'settings'
 type SettingsSection = 'host' | 'models' | 'appearance'
 type RetriableTurn =
   | { kind: 'choice'; choice: { id: string; label: string } }
@@ -160,6 +160,9 @@ const aiDraftNeedsValidation = ref(false)
 const aiDraftReview = ref<DraftReview | null>(null)
 const aiLastValidDraft = ref<{ definition: string; hero: string } | null>(null)
 const settingsSection = ref<SettingsSection>('host')
+const sandboxWorld = ref('时之沙漏·永夜回廊 —— 每次钟响，时间回到锚点')
+const sandboxNpc = ref('看门人 —— 沉默寡言，害怕钟声倒数')
+const sandboxOpening = ref('昨夜钟楼为什么停摆？')
 const portableFileInput = ref<HTMLInputElement | null>(null)
 let activeStreamController: AbortController | null = null
 const storageBoundaryNotice = '本机独立保存世界与旅程；旧版 DZMM 存档不会自动迁移或覆盖。需要带入内容时，请主动导入世界包或旅程快照。'
@@ -1437,7 +1440,7 @@ onUnmounted(() => {
       🕐 {{ clockLabel }}<span v-if="loopBadge" class="loop-badge" :class="{ final: loopBadge.final }">第 {{ loopBadge.count }} 次循环</span>
     </div>
     <section v-if="step !== 'settings'" class="route-strip" aria-label="跑团路径">
-      <span :class="{ active: step === 'worlds' || step === 'compose' || step === 'ai-compose' }">世界</span><b>—</b>
+      <span :class="{ active: step === 'worlds' || step === 'compose' || step === 'ai-compose' || step === 'sandbox' }">世界</span><b>—</b>
       <span :class="{ active: step === 'ai-review' || step === 'confirm' }">确认</span><b>—</b>
       <span :class="{ active: step === 'play' }">游玩</span>
     </section>
@@ -1529,7 +1532,7 @@ onUnmounted(() => {
     <section v-else-if="step === 'worlds'" class="scene world-center">
       <div class="world-center-heading">
         <div><p class="eyebrow">我的世界</p><h1>回到熟悉的世界，<br />或开启新的故事。</h1></div>
-        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button></div>
+        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button><button class="minor-action" type="button" @click="step = 'sandbox'">NPC 试玩场</button></div>
       </div>
       <div v-if="!worlds.length" class="world-center-empty">
         <h2>还没有世界</h2><p>从一个世界书、角色卡或雾港模板开始；确认后才会生成第一局。</p>
@@ -1601,6 +1604,26 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <section v-else-if="step === 'sandbox'" class="scene sandbox-scene">
+      <div class="world-center-heading">
+        <div><p class="eyebrow">NPC 试玩场</p><h1>先和角色聊几句，<br />再决定要不要定型。</h1></div>
+        <div class="world-create-actions"><button class="minor-action" type="button" @click="step = 'worlds'">回到世界列表</button></div>
+      </div>
+      <p class="settings-intro">试玩对话只验证语气与设定，不会写入任何正式存档；满意后把角色与世界书保存下来，再进完整向导组装战役。正式功能随 v1.6.0 后端落地，当前为交互预览。</p>
+      <div class="sandbox-layout">
+        <form class="sandbox-form" @submit.prevent>
+          <label>世界背景（可先只写一句话）<select v-model="sandboxWorld"><option>时之沙漏·永夜回廊 —— 每次钟响，时间回到锚点</option><option>钟楼谜案 —— 宅邸钟停摆，真相藏在齿轮里</option></select></label>
+          <label>NPC 角色卡<select v-model="sandboxNpc"><option>看门人 —— 沉默寡言，害怕钟声倒数</option><option>钟表匠伊莎 —— 以齿轮意象说话，知晓停摆之谜</option></select></label>
+          <label>你想先聊什么<input v-model="sandboxOpening" placeholder="例如：昨夜钟楼为什么停摆？" /></label>
+          <div class="sandbox-notes"><span class="note-chip">世界书已注入 3 条</span><span class="note-chip good">NPC 记忆 2 条</span><span class="note-chip warn">对话不写入存档</span></div>
+        </form>
+        <div class="sandbox-chat" aria-label="试玩对话预览">
+          <p class="sandbox-line npc"><b>看门人</b>你又来了。……每次钟停的时候你都在。想知道昨夜的事？去问钟，别问我。</p>
+          <p class="sandbox-line me">{{ sandboxOpening || '昨夜有人进过机房吗？' }}</p>
+          <p class="sandbox-line npc"><b>看门人</b>（迟疑）……钥匙倒是没少。但钟摆卡住的方向，不像是外人所为。</p>
+        </div>
+      </div>
+    </section>
     <section v-else-if="step === 'ai-compose'" class="scene compose-scene ai-compose-scene">
       <div class="scene-copy">
         <p class="eyebrow">AI World Draft</p>
