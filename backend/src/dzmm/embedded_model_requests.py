@@ -189,6 +189,26 @@ def request_director_note(profile: Mapping[str, Any], prompt: dict[str, Any]) ->
     return _post_chat(profile, request_payload)
 
 
+LOOP_SUMMARY_PROMPT_FALLBACK = "你是时间循环叙事的循环摘要器。只输出不超过 200 字的中文摘要正文。"
+
+
+def request_loop_summary(profile: Mapping[str, Any], prompt: dict[str, Any]) -> Any:
+    request_payload: dict[str, Any] = {
+        "model": profile["model_name"],
+        "messages": [
+            {"role": "system", "content": str(prompt.get("system") or LOOP_SUMMARY_PROMPT_FALLBACK)},
+            {"role": "user", "content": _dump({k: v for k, v in prompt.items() if k != "system"})},
+        ],
+        "stream": False,
+    }
+    if profile["provider_type"] == "ollama":
+        request_payload["options"] = {"temperature": 0.4, "num_predict": 320}
+    else:
+        request_payload["temperature"] = 0.4
+        request_payload["max_tokens"] = 512
+    return _post_chat(profile, request_payload)
+
+
 def request_ending_closure(profile: Mapping[str, Any], prompt: dict[str, Any]) -> Any:
     request_payload: dict[str, Any] = {
         "model": profile["model_name"],

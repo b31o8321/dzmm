@@ -16,8 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from .contracts import contract_validator
 from .core.command_engine import apply_commands as apply_core_commands
 from .director import build_director_prompt, is_note_fresh, parse_director_note, should_run_director
-from .loop_memory import append_loop_summary, initial_loop_memory
-from .loop_mode import anchor_snapshot, bump_deja_vu, rewind_to_anchor, should_trigger_death_rewind
+from .loop_mode import LOOP_DIGEST_MAX, ensure_loop_anchor, maybe_loop_rewind
 from .lore import select_lorebook
 from .model_profiles import ModelNarrator, ModelProfile, NarrationError, _clean_narrative
 from .narrative import (
@@ -30,7 +29,7 @@ from .narrative import (
     settle_pending_interactions,
     settle_world_events,
 )
-from .narrative_output import extract_gm_actions
+from .narrative_output import build_loop_summary_prompt, extract_gm_actions
 from .operation_control import OperationRegistry
 from .persistence import (
     director_notes,
@@ -42,7 +41,7 @@ from .persistence import (
     worlds,
 )
 from .story_beats import build_deterministic_narrative, build_turn_story_beat
-from .time_system import propose_time_cost, reached_loop_boundary, tick_countdown
+from .time_system import advance_turn_clock
 
 logger = logging.getLogger(__name__)
 
@@ -184,13 +183,13 @@ class TurnCoordinator:
                 )
 
             state = deepcopy(run["state"])
-            _ensure_loop_anchor(state)
+            ensure_loop_anchor(state)
             outcomes = _apply_commands(state, run["definition"], payload.commands)
             before_revision = run["state_revision"]
             after_revision = before_revision + 1
             state["revision"] = after_revision
             outcomes.extend(advance_world_events(state, run["definition"]))
-            _advance_turn_clock(state, outcomes)
+            advance_turn_clock(state, outcomes)
             try:
                 contract_validator("run_state.schema.json").validate(state)
             except ValidationError as error:
@@ -220,7 +219,7 @@ class TurnCoordinator:
             initiative = schedule_npc_initiative(state, run["definition"], run_id)
             if initiative:
                 outcomes.append(initiative)
-            _maybe_loop_rewind(state, narrative, outcomes, after_revision)
+            maybe_loop_rewind(state, narrative, outcomes, after_revision)
             try:
                 contract_validator("run_state.schema.json").validate(state)
             except ValidationError as error:
@@ -285,6 +284,7 @@ class TurnCoordinator:
                 created=True,
             )
         self._schedule_director_task(run_id, after_revision)
+        self._schedule_loop_summary_tasks(run_id, outcomes)
         return result
 
     async def play_choice(self, run_id: str, payload: ChoiceTurnInput) -> TurnResult:
@@ -452,7 +452,7 @@ class TurnCoordinator:
             return
 
         state = deepcopy(run["state"])
-        _ensure_loop_anchor(state)
+        ensure_loop_anchor(state)
         try:
             outcomes = _apply_commands(state, run["definition"], commands)
         except RevisionConflictError as error:
@@ -462,7 +462,7 @@ class TurnCoordinator:
         after_revision = before_revision + 1
         state["revision"] = after_revision
         outcomes.extend(advance_world_events(state, run["definition"]))
-        _advance_turn_clock(state, outcomes)
+        advance_turn_clock(state, outcomes)
         try:
             contract_validator("run_state.schema.json").validate(state)
         except ValidationError as error:
@@ -534,7 +534,7 @@ class TurnCoordinator:
             initiative = schedule_npc_initiative(state, run["definition"], run_id)
             if initiative:
                 outcomes.append(initiative)
-            _maybe_loop_rewind(state, narrative, outcomes, after_revision)
+            maybe_loop_rewind(state, narrative, outcomes, after_revision)
             try:
                 contract_validator("run_state.schema.json").validate(state)
             except ValidationError as error:
@@ -561,6 +561,7 @@ class TurnCoordinator:
             return
         for outcome in turn.outcomes:
             yield "command_applied", outcome
+        self._schedule_loop_summary_tasks(run_id, turn.outcomes)
         yield (
             "turn_completed",
             {
@@ -874,6 +875,105 @@ class TurnCoordinator:
         self._director_tasks.add(task)
         task.add_done_callback(self._director_tasks.discard)
 
+    def _schedule_loop_summary_tasks(
+        self, run_id: str, outcomes: list[dict[str, Any]]
+    ) -> None:
+        """Refine rewind-time loop digests into LLM summaries after the commit."""
+
+        for outcome in outcomes:
+            if outcome.get("type") != "loop_rewound":
+                continue
+            digest_source = str(outcome.get("digest_source") or "").strip()
+            if not digest_source:
+                continue
+            loop_no = int(outcome.get("loop_count") or 1) - 1
+            task = asyncio.get_running_loop().create_task(
+                self._run_loop_summary(run_id, loop_no, digest_source)
+            )
+            self._director_tasks.add(task)
+            task.add_done_callback(self._director_tasks.discard)
+
+    async def _run_loop_summary(self, run_id: str, loop_no: int, digest_source: str) -> None:
+        """Replace the truncated fallback digest with an LLM per-loop summary.
+
+        Fire-and-forget: any failure keeps the synchronous truncated digest.
+        The state patch is revision-guarded so a concurrent turn never loses writes.
+        """
+
+        try:
+            async with self._session_factory() as session:
+                run_row = (
+                    await session.execute(
+                        select(
+                            runs.c.state,
+                            runs.c.state_revision,
+                            runs.c.model_profile_id,
+                            world_versions.c.definition,
+                        )
+                        .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                        .where(runs.c.id == run_id)
+                    )
+                ).mappings().one_or_none()
+                profile_row = None
+                if run_row is not None and run_row["model_profile_id"]:
+                    profile_row = (
+                        await session.execute(
+                            select(model_profiles).where(
+                                model_profiles.c.id == run_row["model_profile_id"]
+                            )
+                        )
+                    ).mappings().one_or_none()
+            if run_row is None or profile_row is None:
+                return
+            profile = _profile_from_row(
+                {
+                    "model_id": profile_row["id"],
+                    "model_name_label": profile_row["name"],
+                    "provider_type": profile_row["provider_type"],
+                    "base_url": profile_row["base_url"],
+                    "model_name": profile_row["model_name"],
+                    "api_key_ref": profile_row["api_key_ref"],
+                }
+            )
+            if profile is None:
+                return
+            state = run_row["state"]
+            memory = state.get("loop_memory") if isinstance(state, dict) else None
+            if not isinstance(memory, dict):
+                return
+            summaries = memory.get("summaries") or []
+            if not any(item.get("loop_no") == loop_no for item in summaries):
+                return
+            prompt = build_loop_summary_prompt(
+                run_row["definition"].get("name") or "",
+                (state.get("hero") or {}).get("name") or "",
+                loop_no,
+                digest_source,
+            )
+            completion = getattr(self._narrator, "director_completion", None)
+            if completion is None:
+                return
+            summary = str(await completion(profile, prompt) or "").strip()
+            if not summary:
+                return
+            summary = summary[:LOOP_DIGEST_MAX]
+            for item in summaries:
+                if item.get("loop_no") == loop_no:
+                    item["summary"] = summary
+            async with self._session_factory() as session, session.begin():
+                changed = await session.execute(
+                    update(runs)
+                    .where(
+                        runs.c.id == run_id,
+                        runs.c.state_revision == run_row["state_revision"],
+                    )
+                    .values(state=state)
+                )
+                if changed.rowcount != 1:
+                    logger.debug("loop summary skipped for %s@%s: revision moved", run_id, loop_no)
+        except Exception as error:  # noqa: BLE001 - summary refinement must never surface
+            logger.debug("loop summary skipped for %s@%s: %s", run_id, loop_no, error)
+
     async def _run_director_note(self, run_id: str, revision: int) -> None:
         try:
             async with self._session_factory() as session:
@@ -947,104 +1047,6 @@ class TurnCoordinator:
         if row is None or not is_note_fresh(int(row["turn"]), current_turn):
             return None
         return {"tension": row["tension"], "hook": row["hook"], "turn": int(row["turn"])}
-
-
-LOOP_DIGEST_MAX = 200
-TURN_DEFAULT_MINUTES = 30
-
-
-def _ensure_loop_anchor(state: dict[str, Any]) -> None:
-    """Freeze the turn-0 anchor the first time a loop-enabled run takes a turn."""
-
-    loop = state.get("loop")
-    if isinstance(loop, dict) and not isinstance(loop.get("anchor"), dict):
-        loop["anchor"] = anchor_snapshot(state)
-
-
-def _advance_turn_clock(state: dict[str, Any], outcomes: list[dict[str, Any]]) -> None:
-    """Time capability: countdown clocks tick down, others advance by the default."""
-
-    clock = state.get("clock")
-    if not isinstance(clock, dict):
-        return
-    tick = tick_countdown(clock)
-    if tick > 0:
-        outcomes.append(
-            {
-                "type": "time_advanced",
-                "minutes": -tick,
-                "now_minutes": int(clock.get("now_minutes") or 0),
-                "day": int(clock.get("day") or 1),
-                "countdown": True,
-            }
-        )
-        return
-    _, applied, notes = propose_time_cost(clock, TURN_DEFAULT_MINUTES)
-    outcome: dict[str, Any] = {
-        "type": "time_advanced",
-        "minutes": applied,
-        "now_minutes": int(clock.get("now_minutes") or 0),
-        "day": int(clock.get("day") or 1),
-    }
-    if notes:
-        outcome["notes"] = notes
-    outcomes.append(outcome)
-
-
-def _loop_digest(state: dict[str, Any], narrative: str) -> str:
-    recent = [
-        str(item.get("narrative") or "")
-        for item in (state.get("narrative_context") or {}).get("recent_turns") or []
-        if isinstance(item, dict)
-    ]
-    pieces = [piece for piece in [*recent[-2:], narrative] if piece]
-    return " ".join(pieces)[:LOOP_DIGEST_MAX]
-
-
-def _maybe_loop_rewind(
-    state: dict[str, Any],
-    narrative: str,
-    outcomes: list[dict[str, Any]],
-    after_revision: int,
-) -> None:
-    """Loop capability: a time-boundary or death trigger rewinds to the anchor.
-
-    Cross-loop layers (knowledge, per-loop summaries, NPC déjà vu) survive;
-    everything else returns to the turn-0 anchor. Runs at max_loops never
-    rewind, so a final bad ending locks normally.
-    """
-
-    loop = state.get("loop")
-    if not isinstance(loop, dict):
-        return
-    count = int(loop.get("count") or 1)
-    if count >= int(loop.get("max_loops") or 1):
-        return
-    anchor = loop.get("anchor")
-    if not isinstance(anchor, dict):
-        return
-    triggers = loop.get("trigger") or []
-    time_hit = "time" in triggers and reached_loop_boundary(state.get("clock") or {})
-    death_hit = should_trigger_death_rewind(state)
-    if not (time_hit or death_hit):
-        return
-    trigger = "time" if time_hit else "death"
-    memory = state.setdefault("loop_memory", initial_loop_memory())
-    append_loop_summary(memory, count, _loop_digest(state, narrative))
-    for npc_id in state.get("npc_state") or {}:
-        bump_deja_vu(state, str(npc_id))
-    new_state, notes = rewind_to_anchor(state, anchor)
-    new_state["revision"] = after_revision
-    state.clear()
-    state.update(new_state)
-    outcomes.append(
-        {
-            "type": "loop_rewound",
-            "trigger": trigger,
-            "loop_count": count + 1,
-            "notes": notes,
-        }
-    )
 
 
 def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str, Any]]) -> bool:

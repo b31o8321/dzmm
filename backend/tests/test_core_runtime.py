@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from dzmm.core_runtime import (
@@ -638,3 +640,68 @@ def test_core_world_delete_cascades_runs_turns_and_history(tmp_path) -> None:
             "local_run_create_requests",
         ):
             assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+
+
+def test_embedded_core_rewinds_time_loop_and_ticks_countdown(tmp_path) -> None:
+    """The transport-free runtime (Android/desktop-embedded) runs the same
+    time-advance and loop-rewind semantics as the HTTP turn pipeline."""
+
+    template = fog_harbor_template()
+    base = template["world_definition"]
+
+    loop_def = json.loads(json.dumps(base))
+    loop_def["name"] = "时之沙漏·永夜回廊"
+    loop_def["ruleset"] = {
+        "id": "hybrid",
+        "enabled_capabilities": ["trpg", "resources", "time", "loop", "chapters", "choices", "relationships", "routes", "endings"],
+    }
+    loop_def["loop_config"] = {"max_loops": 3, "trigger": ["time", "death"]}
+    loop_def["time_system"] = {"start_minutes": 360, "loop_at_minutes": 390, "per_turn_max": 240, "unit": "分钟"}
+    runtime = LocalCoreRuntime(tmp_path / "loop.db")
+    run_id = runtime.compose(
+        {"world_definition": loop_def, "hero": {"name": "循环者", "profile": {}}}
+    )["run_id"]
+
+    first = runtime.play(
+        run_id,
+        {
+            "request_id": "loop-core-1",
+            "expected_revision": 0,
+            "player_input": "我在回廊中辨认昨日的裂痕。",
+            "commands": [
+                {"type": "discover", "payload": {"id": "watchmaker-secret", "text": "三座钟的齿轮"}},
+                {"type": "narrate", "payload": {}},
+            ],
+        },
+    )
+    state = first["state"]
+    assert state["loop"]["count"] == 2
+    assert state["clock"]["now_minutes"] == 360
+    assert [item["id"] for item in state["loop_memory"]["knowledge"]] == ["watchmaker-secret"]
+    assert state["loop_memory"]["summaries"][0]["summary"]
+
+    cd_def = json.loads(json.dumps(base))
+    cd_def["name"] = "黯星余烬"
+    cd_def["ruleset"] = {
+        "id": "hybrid",
+        "enabled_capabilities": ["trpg", "resources", "time", "countdown", "chapters", "choices", "relationships", "routes", "endings"],
+    }
+    cd_def["time_system"] = {"start_minutes": 60, "per_turn_max": 240, "unit": "分钟"}
+    cd_def["clock_config"] = {"tick_per_turn": 30, "warn_at": 30}
+    cd_runtime = LocalCoreRuntime(tmp_path / "countdown.db")
+    cd_run = cd_runtime.compose(
+        {"world_definition": cd_def, "hero": {"name": "林浩", "profile": {}}}
+    )["run_id"]
+    cd_state = cd_runtime.play(
+        cd_run,
+        {
+            "request_id": "cd-core-1",
+            "expected_revision": 0,
+            "player_input": "我检查残余的魔力储备。",
+            "commands": [
+                {"type": "adjust_clock", "payload": {"delta": -20}},
+                {"type": "narrate", "payload": {}},
+            ],
+        },
+    )["state"]
+    assert cd_state["clock"]["now_minutes"] == 10

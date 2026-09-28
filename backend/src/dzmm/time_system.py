@@ -98,3 +98,39 @@ def format_clock(clock: dict[str, Any]) -> str:
     day = int(clock.get("day") or 1)
     unit = clock.get("unit") or "分钟"
     return f"第 {day} 天 · {minutes // 60:02d}:{minutes % 60:02d}（{unit}）"
+
+TURN_DEFAULT_MINUTES = 30
+
+
+def advance_turn_clock(state: dict[str, Any], outcomes: list[dict[str, Any]]) -> None:
+    """Time capability: countdown clocks tick down, others advance by the default.
+
+    Appends a ``time_advanced`` outcome when the state carries a clock block.
+    """
+
+    clock = state.get("clock")
+    if not isinstance(clock, dict):
+        return
+    tick = tick_countdown(clock)
+    if tick > 0:
+        outcomes.append(
+            {
+                "type": "time_advanced",
+                "minutes": -tick,
+                "now_minutes": int(clock.get("now_minutes") or 0),
+                "day": int(clock.get("day") or 1),
+                "countdown": True,
+            }
+        )
+        return
+    _, applied, notes = propose_time_cost(clock, TURN_DEFAULT_MINUTES)
+    outcome: dict[str, Any] = {
+        "type": "time_advanced",
+        "minutes": applied,
+        "now_minutes": int(clock.get("now_minutes") or 0),
+        "day": int(clock.get("day") or 1),
+    }
+    if notes:
+        outcome["notes"] = notes
+    outcomes.append(outcome)
+

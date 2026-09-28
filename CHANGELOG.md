@@ -1,5 +1,32 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.5.0] - 2026-09-28
+
+**循环题材打磨：LLM 循环摘要、双通道语义一致、安卓循环 HUD**
+
+### 新增
+- LLM 循环摘要：rewind 时先落 200 字截断摘要兜底（不阻塞回合），提交后由后台任务
+  （与 Director 注释同款 fire-and-forget 模式）请求模型生成精修摘要并替换
+  （带 revision 守卫，失败静默保留兜底摘要）
+- 安卓端循环 HUD（LoopHud）：时钟条（天数/时刻/进度）、倒计时余量告警、
+  循环徽章（最终循环态）、跨循环记忆面板（知识 + 循环摘要）；普通世界零渲染
+- 模板端点新增验收用例：集成测试直接驱动安卓内嵌 Python 运行时完成
+  循环 rewind 与倒计时两条主路径（真运行时、非 mock）
+
+### 修复
+- 嵌入式运行时（Android Chaquopy / 桌面内嵌宿主）与 HTTP 管线语义不一致：
+  时钟推进、循环锚点、rewind 触发此前只在 HTTP 通道生效，安卓上的循环世界
+  不会回卷——共享助手下沉到 loop_mode/time_system 后双通道接入
+- 嵌入式命令白名单补 discover / adjust_clock / rewind_to_anchor
+
+### 验证
+- backend 209 tests 全绿（新增 LLM 摘要精修与嵌入式运行时循环语义测试）；
+  mobile 29 tests 全绿 + 模拟器集成验收 2 条全过（截图
+  eval/score-upgrade/screens/v150-mobile/）
+- 已知限制（外部依赖）：qwen3-14b（LM Studio 小上下文）在 ~14 回合后
+  GM payload 超限，30 回合长跑 LLM 侧未跑通；详见
+  eval/score-upgrade/v150-longrun-metrics.md
+
 ## [v1.4.0] - 2026-09-27
 
 **特殊题材模式：时间系统、循环 rewind、倒计时与三层循环记忆**

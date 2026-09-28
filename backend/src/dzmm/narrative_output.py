@@ -238,6 +238,26 @@ def build_ending_closure_prompt(
     }
 
 
+LOOP_SUMMARY_PROMPT = (
+    "你是时间循环叙事的循环摘要器。给定一次刚结束的循环的过程文本，"
+    "写不超过 200 字的中文摘要：保留关键事件、玩家获得或失去的东西、"
+    "NPC 的态度与立场、以及尚未解决的钩子。按时间顺序陈述，"
+    "不要评价、不要写未来计划、不要提及系统或循环机制。只输出摘要正文。"
+)
+
+
+def build_loop_summary_prompt(
+    world: str, hero: str, loop_no: int, digest_source: str
+) -> dict[str, Any]:
+    return {
+        "system": LOOP_SUMMARY_PROMPT,
+        "world": world,
+        "hero": hero,
+        "loop_no": loop_no,
+        "digest_source": digest_source[:4000],
+    }
+
+
 def model_response_was_truncated(provider_type: str, payload: Any) -> bool:
     """Read provider completion metadata instead of guessing from punctuation."""
 

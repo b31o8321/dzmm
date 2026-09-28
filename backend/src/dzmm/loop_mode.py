@@ -12,6 +12,9 @@ import copy
 from typing import Any
 from uuid import uuid4
 
+from .loop_memory import append_loop_summary, initial_loop_memory
+from .time_system import reached_loop_boundary
+
 DEJA_VU_MAX = 100
 DEJA_VU_STEP = 15
 
@@ -133,3 +136,75 @@ def drift_directive(loop_count: int, base: str) -> str:
     ]
     idx = min(loop_count - 2, len(escalations) - 1)
     return f"{base}；本轮漂移：{escalations[idx]}"
+
+LOOP_DIGEST_MAX = 200
+
+
+def ensure_loop_anchor(state: dict[str, Any]) -> None:
+    """Freeze the turn-0 anchor the first time a loop-enabled run takes a turn."""
+
+    loop = state.get("loop")
+    if isinstance(loop, dict) and not isinstance(loop.get("anchor"), dict):
+        loop["anchor"] = anchor_snapshot(state)
+
+
+def loop_digest_source(state: dict[str, Any], narrative: str) -> str:
+    """Uncapped source text for the background LLM summary refinement."""
+
+    recent = [
+        str(item.get("narrative") or "")
+        for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+        if isinstance(item, dict)
+    ]
+    pieces = [piece for piece in [*recent[-4:], narrative] if piece]
+    return " ".join(pieces)[:4000]
+
+
+def maybe_loop_rewind(
+    state: dict[str, Any],
+    narrative: str,
+    outcomes: list[dict[str, Any]],
+    after_revision: int,
+) -> None:
+    """Loop capability: a time-boundary or death trigger rewinds to the anchor.
+
+    Cross-loop layers (knowledge, per-loop summaries, NPC deja vu) survive;
+    everything else returns to the turn-0 anchor. Runs at max_loops never
+    rewind, so a final bad ending locks normally. The synchronous truncated
+    digest is appended immediately; a background LLM refinement may replace it.
+    """
+
+    loop = state.get("loop")
+    if not isinstance(loop, dict):
+        return
+    count = int(loop.get("count") or 1)
+    if count >= int(loop.get("max_loops") or 1):
+        return
+    anchor = loop.get("anchor")
+    if not isinstance(anchor, dict):
+        return
+    triggers = loop.get("trigger") or []
+    time_hit = "time" in triggers and reached_loop_boundary(state.get("clock") or {})
+    death_hit = should_trigger_death_rewind(state)
+    if not (time_hit or death_hit):
+        return
+    trigger = "time" if time_hit else "death"
+    memory = state.setdefault("loop_memory", initial_loop_memory())
+    digest_source = loop_digest_source(state, narrative)
+    append_loop_summary(memory, count, digest_source[:LOOP_DIGEST_MAX])
+    for npc_id in state.get("npc_state") or {}:
+        bump_deja_vu(state, str(npc_id))
+    new_state, notes = rewind_to_anchor(state, anchor)
+    new_state["revision"] = after_revision
+    state.clear()
+    state.update(new_state)
+    outcomes.append(
+        {
+            "type": "loop_rewound",
+            "trigger": trigger,
+            "loop_count": count + 1,
+            "notes": notes,
+            "digest_source": digest_source,
+        }
+    )
+
