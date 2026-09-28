@@ -143,3 +143,12 @@ director_notes = Table(
     Column("hook", String(200), nullable=False),
     Column("created_at", DateTime(), nullable=False),
 )
+
+distillations = Table(
+    "distillations",
+    metadata,
+    Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True),
+    Column("kind", String(40), primary_key=True),
+    Column("content", JSON(), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+)

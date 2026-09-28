@@ -33,6 +33,7 @@ class ImportReport(BaseModel):
     preserved_fields: list[str]
     ignored_fields: list[str]
     warnings: list[str]
+    source_url: str | None = None
 
 
 class ImportedContent(BaseModel):

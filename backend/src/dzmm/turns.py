@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from .asset_distill import build_corpus, build_distill_prompt, parse_distill_content
 from .contracts import contract_validator
 from .core.command_engine import apply_commands as apply_core_commands
 from .director import build_director_prompt, is_note_fresh, parse_director_note, should_run_director
@@ -33,6 +34,7 @@ from .narrative_output import build_loop_summary_prompt, extract_gm_actions
 from .operation_control import OperationRegistry
 from .persistence import (
     director_notes,
+    distillations,
     model_profiles,
     runs,
     story_beats,
@@ -874,6 +876,90 @@ class TurnCoordinator:
         task = asyncio.get_running_loop().create_task(self._run_director_note(run_id, revision))
         self._director_tasks.add(task)
         task.add_done_callback(self._director_tasks.discard)
+
+    def schedule_distillation(self, run_id: str) -> None:
+        """Fire the v1.7.0 asset distillation for a finished-enough run."""
+
+        task = asyncio.get_running_loop().create_task(self._run_distillation(run_id))
+        self._director_tasks.add(task)
+        task.add_done_callback(self._director_tasks.discard)
+
+    async def _run_distillation(self, run_id: str) -> None:
+        """Distill a run corpus into bible/fingerprint/chronicle assets.
+
+        Fire-and-forget like director notes: failures leave no rows and the
+        caller can re-run distill at any time.
+        """
+        try:
+            async with self._session_factory() as session:
+                run_row = (
+                    await session.execute(
+                        select(
+                            runs.c.state,
+                            runs.c.model_profile_id,
+                            world_versions.c.definition,
+                        )
+                        .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                        .where(runs.c.id == run_id)
+                    )
+                ).mappings().one_or_none()
+                profile_row = None
+                if run_row is not None and run_row["model_profile_id"]:
+                    profile_row = (
+                        await session.execute(
+                            select(model_profiles).where(
+                                model_profiles.c.id == run_row["model_profile_id"]
+                            )
+                        )
+                    ).mappings().one_or_none()
+                turn_rows = (
+                    await session.execute(
+                        select(
+                            turns.c.sequence,
+                            turns.c.kind,
+                            turns.c.player_input,
+                            turns.c.narrative,
+                        )
+                        .where(turns.c.run_id == run_id)
+                        .order_by(turns.c.sequence.asc())
+                    )
+                ).mappings().all()
+            if run_row is None or profile_row is None:
+                return
+            profile = _profile_from_row(
+                {
+                    "model_id": profile_row["id"],
+                    "model_name_label": profile_row["name"],
+                    "provider_type": profile_row["provider_type"],
+                    "base_url": profile_row["base_url"],
+                    "model_name": profile_row["model_name"],
+                    "api_key_ref": profile_row["api_key_ref"],
+                }
+            )
+            if profile is None:
+                return
+            state = run_row["state"]
+            corpus = build_corpus(state, [dict(row) for row in turn_rows])
+            hero = str((state.get("hero") or {}).get("name") or "主角")
+            world = str(run_row["definition"].get("name") or "")
+            completion = getattr(self._narrator, "director_completion", None)
+            if completion is None:
+                return
+            for kind in ("character-bible", "dialogue-fingerprint", "chronicle"):
+                prompt = build_distill_prompt(kind, hero, world, corpus)
+                raw = await completion(profile, prompt)
+                content = parse_distill_content(kind, str(raw or ""))
+                async with self._session_factory() as session, session.begin():
+                    await session.execute(
+                        insert(distillations).values(
+                            run_id=run_id,
+                            kind=kind,
+                            content=content,
+                            created_at=datetime.now(UTC).replace(tzinfo=None),
+                        )
+                    )
+        except Exception as error:  # noqa: BLE001 - distillation must never surface
+            logger.debug("distillation skipped for %s: %s", run_id, error)
 
     def _schedule_loop_summary_tasks(
         self, run_id: str, outcomes: list[dict[str, Any]]
