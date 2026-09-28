@@ -358,11 +358,15 @@ export function getRun(runId: string) {
 }
 
 export function createTurn(runId: string, payload: object) {
-  return request<{ state: RunState }>(`/runs/${runId}/turns`, {
+  return request<{ state: RunState; narrative: string }>(`/runs/${runId}/turns`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   })
+}
+
+export function deleteSandboxRun(runId: string) {
+  return request<void>(`/runs/${runId}`, { method: 'DELETE' })
 }
 
 export function chooseTurn(runId: string, payload: object) {

@@ -6,7 +6,9 @@ import {
   cloneRun,
   composeWorld,
   createRun,
+  createTurn,
   createWorldVersion,
+  deleteSandboxRun,
   exportCharacterCard,
   exportRun,
   exportWorld,
@@ -160,9 +162,84 @@ const aiDraftNeedsValidation = ref(false)
 const aiDraftReview = ref<DraftReview | null>(null)
 const aiLastValidDraft = ref<{ definition: string; hero: string } | null>(null)
 const settingsSection = ref<SettingsSection>('host')
-const sandboxWorld = ref('时之沙漏·永夜回廊 —— 每次钟响，时间回到锚点')
-const sandboxNpc = ref('看门人 —— 沉默寡言，害怕钟声倒数')
+const sandboxWorld = ref('（使用下方所选世界的背景）')
+const sandboxNpc = ref('试用 NPC —— 先回到世界列表选择世界')
 const sandboxOpening = ref('昨夜钟楼为什么停摆？')
+const sandboxRunId = ref<string | null>(null)
+const sandboxLines = ref<Array<{ who: 'npc' | 'me'; text: string }>>([])
+const sandboxBusy = ref(false)
+const sandboxNpcOptions = computed(() => {
+  const npcs = (selectedWorld.value?.definition as { npcs?: Array<{ id: string; name: string }> })
+    ?.npcs ?? []
+  return npcs.length ? npcs.map((npc) => `${npc.id} —— ${npc.name}`) : ['试用 NPC —— 先回到世界列表选择世界']
+})
+const sandboxNpcId = computed(() => (sandboxNpc.value.split(' —— ')[0] ?? '').trim())
+
+const sandboxFollowUp = ref('')
+
+async function startSandbox() {
+  if (!selectedWorld.value || sandboxBusy.value) return
+  sandboxBusy.value = true
+  try {
+    const world = selectedWorld.value
+    const composed = await composeWorld({
+      request_id: requestId('sandbox'),
+      world_definition: world.definition,
+      hero: { name: '试用者', profile: {} },
+      sandbox: true,
+    })
+    sandboxRunId.value = composed.run_id
+    const opening = sandboxOpening.value.trim() || '我想先了解一下这里。'
+    sandboxLines.value = [{ who: 'me', text: opening }]
+    const turn = await createTurn(composed.run_id, {
+      request_id: requestId('sandbox-turn'),
+      expected_revision: composed.state.revision,
+      player_input: opening,
+      commands: [{ type: 'narrate', payload: {} }],
+    })
+    if (turn.narrative) sandboxLines.value.push({ who: 'npc', text: turn.narrative })
+  } catch (error) {
+    notice.value = `试玩场未能开始：${error instanceof Error ? error.message : error}`
+    sandboxRunId.value = null
+  } finally {
+    sandboxBusy.value = false
+  }
+}
+
+async function sendSandboxFollowUp() {
+  const runId = sandboxRunId.value
+  if (!runId || sandboxBusy.value || !sandboxFollowUp.value.trim()) return
+  sandboxBusy.value = true
+  const text = sandboxFollowUp.value.trim()
+  sandboxFollowUp.value = ''
+  try {
+    sandboxLines.value.push({ who: 'me', text })
+    const run = await getRun(runId)
+    const turn = await createTurn(runId, {
+      request_id: requestId('sandbox-turn'),
+      expected_revision: run.state.revision,
+      player_input: text,
+      commands: [{ type: 'narrate', payload: {} }],
+    })
+    sandboxLines.value.push({ who: 'npc', text: turn.narrative || '……' })
+  } catch (error) {
+    sandboxLines.value.push({ who: 'me', text: `（这轮没有写成：${error instanceof Error ? error.message : error}）` })
+  } finally {
+    sandboxBusy.value = false
+  }
+}
+
+async function discardSandbox() {
+  const runId = sandboxRunId.value
+  sandboxRunId.value = null
+  sandboxLines.value = []
+  if (!runId) return
+  try {
+    await deleteSandboxRun(runId)
+  } catch {
+    // 试玩数据不可见，删除失败不影响用户
+  }
+}
 const portableFileInput = ref<HTMLInputElement | null>(null)
 let activeStreamController: AbortController | null = null
 const storageBoundaryNotice = '本机独立保存世界与旅程；旧版 DZMM 存档不会自动迁移或覆盖。需要带入内容时，请主动导入世界包或旅程快照。'
@@ -1609,20 +1686,31 @@ onUnmounted(() => {
         <div><p class="eyebrow">NPC 试玩场</p><h1>先和角色聊几句，<br />再决定要不要定型。</h1></div>
         <div class="world-create-actions"><button class="minor-action" type="button" @click="step = 'worlds'">回到世界列表</button></div>
       </div>
-      <p class="settings-intro">试玩对话只验证语气与设定，不会写入任何正式存档；满意后把角色与世界书保存下来，再进完整向导组装战役。正式功能随 v1.6.0 后端落地，当前为交互预览。</p>
+      <p class="settings-intro">试玩对话只验证语气与设定，不会写入任何正式存档，也不计入世界局数；丢弃试玩即彻底删除。先在世界列表选中一个世界，再开始对话。</p>
       <div class="sandbox-layout">
         <form class="sandbox-form" @submit.prevent>
-          <label>世界背景（可先只写一句话）<select v-model="sandboxWorld"><option>时之沙漏·永夜回廊 —— 每次钟响，时间回到锚点</option><option>钟楼谜案 —— 宅邸钟停摆，真相藏在齿轮里</option></select></label>
-          <label>NPC 角色卡<select v-model="sandboxNpc"><option>看门人 —— 沉默寡言，害怕钟声倒数</option><option>钟表匠伊莎 —— 以齿轮意象说话，知晓停摆之谜</option></select></label>
+          <label>世界（来自世界列表的当前选择）<input :value="selectedWorld ? selectedWorld.name : '—— 未选择世界 ——'" disabled /></label>
+          <label>NPC 角色卡<select v-model="sandboxNpc"><option v-for="option in sandboxNpcOptions" :key="option" :value="option">{{ option }}</option></select></label>
           <label>你想先聊什么<input v-model="sandboxOpening" placeholder="例如：昨夜钟楼为什么停摆？" /></label>
-          <div class="sandbox-notes"><span class="note-chip">世界书已注入 3 条</span><span class="note-chip good">NPC 记忆 2 条</span><span class="note-chip warn">对话不写入存档</span></div>
+          <button type="button" class="minor-action" :disabled="sandboxBusy || !selectedWorld" @click="() => void startSandbox()">{{ sandboxRunId ? '重新开始试玩' : '开始试玩对话' }}</button>
+          <div class="sandbox-notes"><span class="note-chip warn">对话不写入存档</span><span class="note-chip">沙盒运行 · 可随时丢弃</span></div>
+          <button v-if="sandboxRunId" type="button" class="minor-action" :disabled="sandboxBusy" @click="() => void discardSandbox()">丢弃这次试玩</button>
         </form>
-        <div class="sandbox-chat" aria-label="试玩对话预览">
-          <p class="sandbox-line npc"><b>看门人</b>你又来了。……每次钟停的时候你都在。想知道昨夜的事？去问钟，别问我。</p>
-          <p class="sandbox-line me">{{ sandboxOpening || '昨夜有人进过机房吗？' }}</p>
-          <p class="sandbox-line npc"><b>看门人</b>（迟疑）……钥匙倒是没少。但钟摆卡住的方向，不像是外人所为。</p>
+        <div class="sandbox-chat" aria-label="试玩对话">
+          <template v-if="sandboxLines.length">
+            <p v-for="(line, index) in sandboxLines" :key="index" class="sandbox-line" :class="line.who">
+              <b v-if="line.who === 'npc'">{{ sandboxNpc.split(' —— ')[1] ?? 'NPC' }}</b>{{ line.text }}
+            </p>
+          </template>
+          <p v-else class="sandbox-line npc"><b>提示</b>选择世界与 NPC，写下开场问题，点「开始试玩对话」。</p>
         </div>
       </div>
+      <form v-if="sandboxRunId" class="sandbox-form" style="margin-top:14px" @submit.prevent="() => void sendSandboxFollowUp()">
+        <div class="composer-row" style="display:flex; gap:10px">
+          <input v-model="sandboxFollowUp" placeholder="接着聊……" style="flex:1" />
+          <button type="submit" :disabled="sandboxBusy || !sandboxFollowUp.trim()">发送</button>
+        </div>
+      </form>
     </section>
     <section v-else-if="step === 'ai-compose'" class="scene compose-scene ai-compose-scene">
       <div class="scene-copy">
