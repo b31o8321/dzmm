@@ -1,5 +1,32 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.6.0] - 2026-09-28
+
+**创作与体验：新 UI 落地、推理与肉鸽题材、NPC 试玩场**
+
+### 新增
+- UI 重设计（已批准原型 v2 全量实施）：9 套氛围主题（烛光手稿新默认；月下钟楼/烬火余温/
+  雾港灯影/黄铜齿轮暗色系 + 晨光便笺/青原风歌/糖霜信笺亮色系，正向题材配亮色）、
+  叙事手稿化（装订线卡片/页边注记/衬线对白）、设置分组文案对齐、手机端主题对齐
+- 推理题材（deduction capability）：mystery 配置块 + collect_clue/accuse 命令，
+  指证正确锁定 case-closed 好结局，错误达上限锁定冤案坏结局；模板世界「钟楼谜案」
+- 肉鸽题材（roguelike capability）：legacy_config 遗产白名单继承（上限 3，未知 ID 丢弃，
+  安全默认空）；compose/新旅程可携带遗产；模板世界「烬火地窖」
+- NPC 试玩场：世界+NPC 对话验证（sandbox=true 运行，不计入世界局数、不进旅程列表，
+  仅沙盒运行可删除）；桌面端全流程接线（开场/追问/丢弃）
+- SillyTavern 导入预览：sillytavern:preview 干跑端点 + 重复 ID/标题冲突提示；
+  角色卡 system_prompt 映射为常驻世界书条目
+
+### 修复
+- GM payload 叙事记忆预算：只保留最近 4 回合（叙事 240 字/对话 4×120），
+  ~4k 字硬上限——修复长局在小上下文本地模型上的溢出（~14 回合后 400/truncated）
+- 同回合内锁定结局后的收尾 narrate 不再误判为只读违规
+- adjust_clock 对 time 能力开放且上限扩到 loop_at_minutes
+
+### 验证
+- backend 224 tests + ruff 全绿；desktop 45 vitest + 构建绿；mobile 29 tests 全绿
+- 资产包/蒸馏见 v1.7.0 规划：docs/plans/2026-09-28-v1.6.0-v1.7.0-plan.md
+
 ## [v1.5.0] - 2026-09-28
 
 **循环题材打磨：LLM 循环摘要、双通道语义一致、安卓循环 HUD**
