@@ -44,6 +44,7 @@ class ComposeWorldInput(BaseModel):
     hero: HeroInput
     model_profile_id: str | None = None
     legacy: list[dict[str, Any]] | None = None
+    sandbox: bool = False
 
 
 class ComposeWorldResult(BaseModel):
@@ -166,6 +167,7 @@ class WorldComposer:
                 model_profile_id=payload.model_profile_id,
                 now=now,
                 carried_legacy=payload.legacy,
+                sandbox=payload.sandbox,
             )
             await session.execute(
                 insert(compose_requests).values(
@@ -281,9 +283,12 @@ class WorldComposer:
         model_profile_id: str | None,
         now: datetime,
         carried_legacy: list[dict[str, Any]] | None = None,
+        sandbox: bool = False,
     ) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
         hero_id, run_id = (str(uuid4()) for _ in range(2))
         state = _initial_state(definition, hero_id, hero, carried_legacy)
+        if sandbox:
+            state["sandbox"] = True
         try:
             contract_validator("run_state.schema.json").validate(state)
         except ValidationError as error:

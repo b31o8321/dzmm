@@ -302,10 +302,18 @@ class WorldLifecycle:
             session, world_versions.c.id, world_versions.c.world_id == world_id
         )
         version_ids = select(world_versions.c.id).where(world_versions.c.world_id == world_id)
-        run_count = await _count(session, runs.c.id, runs.c.world_version_id.in_(version_ids))
+        # 试玩场（sandbox）运行不计入世界统计，也不出现在旅程列表
+        not_sandbox = runs.c.state["sandbox"].as_boolean().is_not(True)
+        run_count = (
+            await session.execute(
+                select(func.count(runs.c.id)).where(
+                    runs.c.world_version_id.in_(version_ids), not_sandbox
+                )
+            )
+        ).scalar_one()
         latest_run = await session.execute(
             select(runs.c.id)
-            .where(runs.c.world_version_id.in_(version_ids))
+            .where(runs.c.world_version_id.in_(version_ids), not_sandbox)
             .order_by(runs.c.updated_at.desc(), runs.c.id.desc())
             .limit(1)
         )
@@ -339,6 +347,7 @@ class WorldLifecycle:
             .join(world_versions, world_versions.c.id == runs.c.world_version_id)
             .join(heroes, heroes.c.id == runs.c.hero_id)
             .where(world_versions.c.world_id == world_id)
+            .where(runs.c.state["sandbox"].as_boolean().is_not(True))
             .order_by(runs.c.updated_at.desc(), runs.c.id.desc())
         )
         return [RunSummary(**row) for row in result.mappings()]

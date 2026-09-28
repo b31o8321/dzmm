@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import API_VERSION, APP_NAME
@@ -59,7 +59,7 @@ from .core import (
 )
 from .db import create_engine
 from .genre_presets import genre_preset_list
-from .persistence import director_notes
+from .persistence import director_notes, runs, story_beats, turns
 from .world_templates import (
     clocktower_mystery_template,
     d20_frontier_template,
@@ -544,6 +544,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return (await app.state.model_profiles.set_default(profile_id)).model_dump(mode="json")
         except ModelProfileConflictError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/v2/runs/{run_id}", status_code=204)
+    async def delete_sandbox_run(run_id: str) -> None:
+        """Delete a sandbox playtest run. Non-sandbox runs are protected."""
+        async with app.state.sessions() as session, session.begin():
+            row = await session.execute(select(runs.c.state).where(runs.c.id == run_id))
+            state = row.scalar_one_or_none()
+            if state is None:
+                raise HTTPException(status_code=404, detail="run not found")
+            if not state.get("sandbox"):
+                raise HTTPException(
+                    status_code=409,
+                    detail="only sandbox playtest runs can be deleted",
+                )
+            await session.execute(delete(turns).where(turns.c.run_id == run_id))
+            await session.execute(delete(story_beats).where(story_beats.c.run_id == run_id))
+            await session.execute(delete(runs).where(runs.c.id == run_id))
 
     @app.delete("/api/v2/model-profiles/{profile_id}", status_code=204)
     async def delete_model_profile(profile_id: str) -> None:
