@@ -686,6 +686,48 @@ def _response_detail(response: httpx.Response) -> str:
     return "unstructured response"
 
 
+NARRATIVE_MEMORY_TURNS = 4
+NARRATIVE_MEMORY_CHARS = 240
+DIALOGUE_TEXT_CHARS = 120
+GM_TEXT_CHARS = 200
+
+
+def _narrative_memory_payload(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Budgeted recent-turn memory for the GM payload.
+
+    Long sessions grew the payload without bound and overflowed small-context
+    local models (~turn 14 on an 8k model). The engine keeps the most recent
+    four turns with trimmed narratives/dialogues; cross-loop layers live in
+    loop_memory and are unaffected.
+    """
+
+    recent = (state.get("narrative_context") or {}).get("recent_turns") or []
+    memory: list[dict[str, Any]] = []
+    for item in recent[-NARRATIVE_MEMORY_TURNS:]:
+        if not isinstance(item, dict):
+            continue
+        dialogues = [
+            {
+                "speaker": str(d.get("speaker") or "")[:40],
+                "text": str(d.get("text") or "")[:DIALOGUE_TEXT_CHARS],
+            }
+            for d in item.get("dialogues") or []
+            if isinstance(d, dict)
+        ][:4]
+        memory.append(
+            {
+                "turn": item.get("turn"),
+                "player_input": str(item.get("player_input") or "")[:GM_TEXT_CHARS],
+                "narrative": str(item.get("narrative") or "")[:NARRATIVE_MEMORY_CHARS],
+                "outcomes": [
+                    {"type": o.get("type")} for o in item.get("outcomes") or [] if isinstance(o, dict)
+                ][:6],
+                "dialogues": dialogues,
+            }
+        )
+    return memory
+
+
 def _narration_body(
     profile: ModelProfile,
     definition: dict[str, Any],
@@ -796,7 +838,7 @@ def _narration_body(
                     "ending": state.get("ending"),
                     "player_input": player_input,
                     "validated_outcomes": outcomes,
-                    "narrative_memory": state.get("narrative_context", {}).get("recent_turns", []),
+                    "narrative_memory": _narrative_memory_payload(state),
                     "recent_openings": [
                         str(item.get("narrative") or "")[:30]
                         for item in (state.get("narrative_context", {}) or {}).get("recent_turns") or []
