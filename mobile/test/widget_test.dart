@@ -532,9 +532,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('旧版 DZMM 存档不会自动迁移'), findsOneWidget);
-    expect(find.text('雾夜'), findsOneWidget);
-    expect(find.text('纸页'), findsOneWidget);
-    expect(find.text('琥珀'), findsOneWidget);
+    // 9 项主题超出首屏：逐项滚动到可见再断言
+    final scrollable = find.byType(Scrollable).last;
+    for (final label in [
+      '月下钟楼 · 推理',
+      '烬火余温 · 肉鸽',
+      '晨光便笺 · 治愈（亮）',
+      '青原风歌 · 正向冒险（亮）',
+      '糖霜信笺 · 甜恋（亮）',
+    ]) {
+      await tester.scrollUntilVisible(find.text(label), 200, scrollable: scrollable);
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final label in ['烛光手稿 · 默认', '雾夜', '纸页', '琥珀']) {
+      await tester.scrollUntilVisible(find.text(label), -200, scrollable: scrollable);
+      expect(find.text(label), findsOneWidget);
+    }
   });
 
   testWidgets('world card opens an existing run and shows a real opening', (

@@ -30,7 +30,7 @@ class _DzmmMobileAppState extends State<DzmmMobileApp> {
   late final LocalHostPort _port = widget.port ?? EmbeddedPythonLocalHostPort();
   late final SessionStore _store =
       widget.sessionStore ?? const SecureSessionStore();
-  AppTheme _theme = AppTheme.fog;
+  AppTheme _theme = AppTheme.candle;
 
   @override
   void initState() {
@@ -42,7 +42,7 @@ class _DzmmMobileAppState extends State<DzmmMobileApp> {
     final stored = await _store.readTheme();
     if (!mounted) return;
     setState(
-      () => _theme = AppTheme.values.byName(stored ?? AppTheme.fog.name),
+      () => _theme = AppTheme.values.byName(stored ?? AppTheme.candle.name),
     );
   }
 
