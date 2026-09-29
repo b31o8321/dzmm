@@ -1,0 +1,35 @@
+{
+ "date": "2026-09-30",
+ "model": "qwen3-14b (LM Studio, 192.168.31.169:1234)",
+ "code": "v1.7.0 + payload budget phase 2 (worktree source sidecar)",
+ "design": "三个原创再创作世界（取意小说/动漫/影视公共母题，无 IP 内容）× 12 回合",
+ "results": {
+  "summer-echo 蝉鸣海镇的夏日重演（时间循环）": {
+   "done": 6,
+   "failures": 6,
+   "opening_repeats": 2,
+   "note": "时钟 300→540 推进与 loop 边界判定正常；间发 truncated"
+  },
+  "ember-ark 深空方舟的四十五分钟（倒计时）": {
+   "done": 3,
+   "failures": 9,
+   "note": "模型端格式漂移：输出元文本「（请在此处填写你的回答）#答案」→ HTTP 400；倒计时 tick 裁决正常"
+  },
+  "snow-night-train 雪夜夜行列车（推理）": {
+   "done": 9,
+   "failures": 3,
+   "opening_repeats": 3,
+   "note": "成功率最高；clue/accuse 管线可用"
+  }
+ },
+ "conclusions": [
+  "引擎侧（时钟/循环/倒计时/推理命令）在三世界全部正确；失败全部来自模型端（truncated/120s/格式漂移）",
+  "qwen3-14b 不适合做长跑标准测试的稳定基线；GPT 5.6 对比轮是拿到干净基线的正道",
+  "推理题材的成功率最高（75%），适合作为课件演示题材"
+ ],
+ "next": [
+  "GPT 5.6 对比轮（Codex key/地址，等配置接入）",
+  "手机模拟器题材轮（loop 世界走内嵌运行时）",
+  "用本轮新数据更新分享课件（P7/P27 复测数字、P28 模型对比占位）"
+ ]
+}
