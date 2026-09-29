@@ -1,5 +1,28 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.7.0] - 2026-09-28
+
+**资产生态启程：URL 导入与存档蒸馏**
+
+### 新增
+- URL 导入（P0）：世界中心「从链接导入」——粘贴 ST 卡 JSON/PNG 或世界书链接，
+  内容嗅探后走现有导入管线；ImportReport 带 source_url 溯源；16MB 上限、
+  仅 http(s)、失败给可读错误
+- 存档蒸馏 MVP（P1）：结局页「蒸馏这份存档」——后台把游玩语料蒸馏成
+  角色小传 / 台词指纹 / 事件年表三份资产（迁移 0014 distillations 表，
+  fire-and-forget 不阻塞回合）；一键导出 Markdown 写作素材包
+- 蒸馏端点：POST /runs/{id}:distill（无模型档案 409 提示）、
+  GET /runs/{id}/distillations、GET /runs/{id}/distillations:export
+
+### 设计决策
+- 蒸馏走用户已有模型配置（可配置管道 MVP）；产物仅本地，导出为显式动作
+- 不做账户/市场；源与目录浏览（P3）、hero 跨局复用（P2）、媒体移植（P4）后续版本
+  规划见 docs/plans/2026-09-28-v1.7.0-asset-ecosystem-plan.md
+
+### 验证
+- backend 229 tests + ruff 全绿（新增 5 项：URL 导入嗅探/拒绝、蒸馏三资产落库、
+  无档案 409、markdown 导出）；desktop 45 vitest + 构建绿
+
 ## [v1.6.0] - 2026-09-28
 
 **创作与体验：新 UI 落地、推理与肉鸽题材、NPC 试玩场**
