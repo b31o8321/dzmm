@@ -21,7 +21,11 @@ import {
   generateAIWorldDraft,
   importSillyTavern,
   importSillyTavernPng,
+  importAssetFromUrl,
   importWorld,
+  distillRun,
+  listDistillations,
+  exportDistillations,
   listWorlds,
   purgeWorld,
   rollbackTurn,
@@ -165,6 +169,63 @@ const settingsSection = ref<SettingsSection>('host')
 const sandboxWorld = ref('（使用下方所选世界的背景）')
 const sandboxNpc = ref('试用 NPC —— 先回到世界列表选择世界')
 const sandboxOpening = ref('昨夜钟楼为什么停摆？')
+const linkImportUrl = ref('')
+const linkImportBusy = ref(false)
+const distillBusy = ref(false)
+const distillNote = ref('')
+const distillationSections = ref<string[]>([])
+
+async function startLinkImport() {
+  const url = linkImportUrl.value.trim() || (linkImportUrl.value = window.prompt('粘贴资产链接（ST 卡 JSON/PNG 或世界书）') ?? '')
+  if (!url || linkImportBusy.value) return
+  linkImportBusy.value = true
+  try {
+    const imported = await importAssetFromUrl(url)
+    importedContent.value = imported
+    notice.value = `链接资产已导入：${imported.character_cards.length} 张角色卡、${imported.lorebook.entries.length} 条世界书。已带入创作表单，确认后创建世界。`
+    step.value = 'compose'
+  } catch (error) {
+    notice.value = `链接导入失败：${error instanceof Error ? error.message : error}`
+  } finally {
+    linkImportBusy.value = false
+  }
+}
+
+async function distillCurrentRun() {
+  const current = run.value
+  if (!current || distillBusy.value) return
+  distillBusy.value = true
+  distillNote.value = ''
+  try {
+    await distillRun(current.run_id)
+    distillNote.value = '蒸馏已在后台开始，约十几秒后可查看结果。'
+    setTimeout(async () => {
+      try {
+        const listed = await listDistillations(current.run_id)
+        distillationSections.value = listed.map((item) => item.kind)
+        if (listed.length) distillNote.value = '蒸馏完成，可导出为写作素材。'
+      } catch {
+        distillNote.value = '蒸馏仍在后台进行，稍后可再查看。'
+      }
+    }, 15000)
+  } catch (error) {
+    distillNote.value = `蒸馏未能开始：${error instanceof Error ? error.message : error}`
+  } finally {
+    distillBusy.value = false
+  }
+}
+
+async function exportDistillMarkdown() {
+  const current = run.value
+  if (!current) return
+  const exported = await exportDistillations(current.run_id)
+  const blob = new Blob([exported.markdown], { type: 'text/markdown' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${current.world_id.slice(0, 8)}-distilled.md`
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
 const sandboxRunId = ref<string | null>(null)
 const sandboxLines = ref<Array<{ who: 'npc' | 'me'; text: string }>>([])
 const sandboxBusy = ref(false)
@@ -1609,7 +1670,7 @@ onUnmounted(() => {
     <section v-else-if="step === 'worlds'" class="scene world-center">
       <div class="world-center-heading">
         <div><p class="eyebrow">我的世界</p><h1>回到熟悉的世界，<br />或开启新的故事。</h1></div>
-        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button><button class="minor-action" type="button" @click="step = 'sandbox'">NPC 试玩场</button></div>
+        <div class="world-create-actions"><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startCreatingWorld">手动新建</button><button type="button" :disabled="busy || !hostReady" @click="startCreatingAIWorld">AI 创作世界</button><button class="minor-action" type="button" :disabled="busy || !hostReady" @click="startLinkImport">从链接导入</button><button class="minor-action" type="button" @click="step = 'sandbox'">NPC 试玩场</button></div>
       </div>
       <div v-if="!worlds.length" class="world-center-empty">
         <h2>还没有世界</h2><p>从一个世界书、角色卡或雾港模板开始；确认后才会生成第一局。</p>
@@ -1841,6 +1902,16 @@ onUnmounted(() => {
       <button :disabled="busy || !hostReady" @click="enterRun">进入故事开场</button>
     </section>
 
+    <section v-else-if="run && run.state.ending" class="distill-card" aria-label="资产蒸馏">
+      <p class="eyebrow">资产蒸馏</p>
+      <p class="settings-intro">把这段旅程蒸馏成角色小传、台词指纹与事件年表——写小说、排短剧、开新周目都用得上。后台运行，不阻塞任何操作。</p>
+      <div class="world-create-actions">
+        <button class="minor-action" type="button" :disabled="distillBusy" @click="() => void distillCurrentRun()">{{ distillBusy ? '蒸馏中…' : '蒸馏这份存档' }}</button>
+        <button v-if="distillationSections.length" class="minor-action" type="button" @click="() => void exportDistillMarkdown()">导出 Markdown</button>
+      </div>
+      <p v-if="distillNote" class="field-hint" role="status">{{ distillNote }}</p>
+      <p v-if="distillationSections.length" class="field-hint">已就绪：{{ distillationSections.join(' / ') }}</p>
+    </section>
     <PlayScene
       v-else-if="run"
       v-model:player-input="playerInput"

@@ -393,6 +393,33 @@ export function rollbackTurn(runId: string, payload: object) {
   })
 }
 
+export function importAssetFromUrl(url: string) {
+  return request<ImportedContent>('/content/assets:import-from-url', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+}
+
+export function distillRun(runId: string) {
+  return request<{ run_id: string; kinds: string[]; status: string }>(
+    `/runs/${runId}:distill`,
+    { method: 'POST' },
+  )
+}
+
+export function listDistillations(runId: string) {
+  return request<Array<{ kind: string; content: Record<string, unknown>; created_at: string }>>(
+    `/runs/${runId}/distillations`,
+  )
+}
+
+export function exportDistillations(runId: string) {
+  return request<{ run_id: string; markdown: string; sections: string[] }>(
+    `/runs/${runId}/distillations:export`,
+  )
+}
+
 export function importSillyTavern(content: object) {
   return request<ImportedContent>('/content/sillytavern:import', {
     method: 'POST',

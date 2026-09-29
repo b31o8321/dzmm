@@ -11,7 +11,9 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import API_VERSION, APP_NAME
+from .asset_import import AssetImportError, import_asset_from_url
 from .config import Settings
+from .content import AssetUrlImportInput
 from .contracts import contract_manifest
 from .core import (
     AIWorldDraftGenerationError,
@@ -59,7 +61,15 @@ from .core import (
 )
 from .db import create_engine
 from .genre_presets import genre_preset_list
-from .persistence import director_notes, runs, story_beats, turns
+from .persistence import (
+    director_notes,
+    distillations,
+    model_profiles,
+    runs,
+    story_beats,
+    turns,
+    world_versions,
+)
 from .world_templates import (
     clocktower_mystery_template,
     d20_frontier_template,
@@ -304,6 +314,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "database": await diagnostic_snapshot(app.state.sessions),
         }
 
+    @app.post("/api/v2/content/assets:import-from-url")
+    async def import_from_url(payload: AssetUrlImportInput) -> dict[str, object]:
+        try:
+            imported = import_asset_from_url(payload.url)
+        except AssetImportError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return imported.model_dump(mode="json")
+
     @app.post("/api/v2/content/sillytavern:preview")
     async def preview_sillytavern(payload: SillyTavernImportInput) -> dict[str, object]:
         world_version_id = payload.world_version_id
@@ -544,6 +562,95 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return (await app.state.model_profiles.set_default(profile_id)).model_dump(mode="json")
         except ModelProfileConflictError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/api/v2/runs/{run_id}:distill")
+    async def distill_run(run_id: str) -> dict[str, object]:
+        """Distill a run's corpus into asset drafts (background, fire-and-forget)."""
+        from .asset_distill import DISTILLATION_KINDS
+
+        async with app.state.sessions() as session:
+            row = await session.execute(
+                select(runs.c.state, runs.c.model_profile_id).where(runs.c.id == run_id)
+            )
+            run = row.mappings().one_or_none()
+            profile_id = run["model_profile_id"] if run is not None else None
+            profile_row = (
+                await session.execute(
+                    select(model_profiles.c.id).where(model_profiles.c.id == profile_id)
+                )
+            ).scalar_one_or_none()
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if profile_row is None:
+            raise HTTPException(
+                status_code=409,
+                detail="蒸馏需要本局已绑定模型档案；先在设置中选择默认模型。",
+            )
+        app.state.turn_coordinator.schedule_distillation(run_id)
+        return {"run_id": run_id, "kinds": list(DISTILLATION_KINDS), "status": "accepted"}
+
+    @app.get("/api/v2/runs/{run_id}/distillations")
+    async def list_distillations(run_id: str) -> list[dict[str, object]]:
+        async with app.state.sessions() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        distillations.c.kind,
+                        distillations.c.content,
+                        distillations.c.created_at,
+                    ).where(distillations.c.run_id == run_id)
+                )
+            ).mappings().all()
+        return [
+            {"kind": row["kind"], "content": row["content"], "created_at": row["created_at"].isoformat()}
+            for row in rows
+        ]
+
+    @app.get("/api/v2/runs/{run_id}/distillations:export")
+    async def export_distillations(run_id: str) -> dict[str, object]:
+        async with app.state.sessions() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        distillations.c.kind,
+                        distillations.c.content,
+                    ).where(distillations.c.run_id == run_id)
+                )
+            ).mappings().all()
+            run_row = (
+                await session.execute(
+                    select(runs.c.state, world_versions.c.definition)
+                    .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                    .where(runs.c.id == run_id)
+                )
+            ).mappings().one_or_none()
+        if run_row is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        hero = str((run_row["state"].get("hero") or {}).get("name") or "主角")
+        world = str(run_row["definition"].get("name") or "")
+        sections: dict[str, str] = {}
+        for row in rows:
+            kind = row["kind"]
+            content = row["content"]
+            if kind == "character-bible":
+                sections["角色小传"] = str(content.get("text") or content.get("raw") or "")
+            elif kind == "dialogue-fingerprint":
+                lines = []
+                for key in ("口头禅", "句式习惯"):
+                    for item in content.get(key) or []:
+                        lines.append(f"- {item}")
+                for sample in content.get("情绪语气样本") or []:
+                    lines.append(f"- [{sample.get('情绪')}] {sample.get('示例')}")
+                sections["台词指纹"] = "\n".join(lines) or "（语料不足）"
+            elif kind == "chronicle":
+                lines = []
+                for event in content.get("events") or []:
+                    lines.append(f"- 回合 {event.get('回合')}：{event.get('事件')}（{event.get('影响')}）")
+                sections["事件年表"] = "\n".join(lines) or "（语料不足）"
+        markdown = f"# {world} · {hero} 的可再创作素材\n\n"
+        for title, body in sections.items():
+            markdown += f"## {title}\n\n{body}\n\n"
+        return {"run_id": run_id, "markdown": markdown, "sections": list(sections)}
 
     @app.delete("/api/v2/runs/{run_id}", status_code=204)
     async def delete_sandbox_run(run_id: str) -> None:

@@ -16,6 +16,12 @@ from .persistence import world_versions, worlds
 from .sillytavern import ImportedContent, import_sillytavern, import_sillytavern_png
 
 
+class AssetUrlImportInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(min_length=8, max_length=2048)
+
+
 class SillyTavernImportInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
