@@ -1,0 +1,31 @@
+{
+ "countdown": {
+  "mode": "countdown",
+  "turns_requested": 30,
+  "turns_done": 13,
+  "failures": 17,
+  "opening_repeats_within_recent4": 2,
+  "opening_overlap_diag_mean": 0.0,
+  "cross_loop_4gram_overlap": null,
+  "clock_trace": [
+   700,
+   680,
+   660,
+   700,
+   680,
+   660,
+   700,
+   680,
+   660,
+   640,
+   700,
+   680,
+   660
+  ],
+  "note_clock": "tick −20/回合与玩家 adjust +120（clamp 到 720 上限）裁决全程正确",
+  "mean_chars": 295,
+  "mean_secs": 12.2,
+  "residual": "turn 起间发 truncated 与 120s 无返回（模型端状态波动），非 payload 体积",
+  "evidence": "/tmp/v170_longrun_countdown.log"
+ }
+}

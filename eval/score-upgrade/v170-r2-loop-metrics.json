@@ -1,0 +1,48 @@
+{
+ "loop": {
+  "mode": "loop",
+  "turns_requested": 30,
+  "turns_done": 12,
+  "failures": 18,
+  "opening_repeats_within_recent4": 7,
+  "opening_overlap_diag_mean": 0.0,
+  "cross_loop_4gram_overlap": 0.316,
+  "loop_counts": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "clock_trace": [
+   390,
+   420,
+   450,
+   480,
+   510,
+   540,
+   570,
+   360,
+   390,
+   420,
+   450,
+   480
+  ],
+  "mean_chars": 288,
+  "mean_secs": 10.8,
+  "comparison_v150_baseline": {
+   "baseline_turns_done": 6,
+   "baseline_failures": 24,
+   "note": "payload 预算后成功回合翻倍（6→12）、首次进入第 2 次循环并取得跨循环跑偏样本"
+  },
+  "residual": "turn2-5/8-11 间发 truncated；turn20-22 120s 无返回（模型端状态），非 payload 体积",
+  "evidence": "/tmp/v170_longrun_loop2.log"
+ }
+}
