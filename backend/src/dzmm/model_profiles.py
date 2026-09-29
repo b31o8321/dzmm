@@ -846,12 +846,32 @@ def _narration_body(
                     ][-3:],
                     "variation_directive": variation,
                     "director_note": director_note,
-                    "npc_state": state.get("npc_state", {}),
+                    "npc_state": {
+                        npc_id: {
+                            "name": npc.get("name"),
+                            "met": npc.get("met"),
+                            "present": npc.get("location_id") == state.get("location_id"),
+                            "state": npc.get("state"),
+                            "favor": npc.get("favor"),
+                            "reputation": npc.get("reputation"),
+                            "deja_vu": (state.get("loop") or {}).get("deja_vu", {}).get(npc_id),
+                        }
+                        for npc_id, npc in (state.get("npc_state") or {}).items()
+                        if npc.get("met")
+                    },
                     "faction_state": state.get("faction_state", {}),
                     "campaign_state": state.get("campaign_state"),
                     "location_state": state.get("location_state", {}),
-                    "active_events": state.get("active_events", []),
-                    "plot_threads": state.get("plot_threads", []),
+                    "active_events": [
+                        {"id": event.get("id"), "description": str(event.get("description") or "")[:120]}
+                        for event in state.get("active_events", []) if event.get("status") == "active"
+                    ][:6],
+                    "plot_threads": [
+                        {"id": thread.get("id"), "type": thread.get("type"),
+                         "description": str(thread.get("description") or "")[:120],
+                         "importance": thread.get("importance")}
+                        for thread in state.get("plot_threads", []) if thread.get("status") == "active"
+                    ][:6],
                     "pending_interactions": state.get("pending_interactions", []),
                     "available_choices": choice_context,
                     "selected_choice": selected_choice,
