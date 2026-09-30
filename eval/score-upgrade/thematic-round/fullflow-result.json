@@ -1,0 +1,7 @@
+{
+  "date": "2026-09-30",
+  "model": "gpt-5.6-sol (qwen3 不可达——LM Studio 下线，阻塞已记录)",
+  "snow-night-train": {"flow": "narrate×2 → collect_clue×2 → accuse 正确 → case-closed good ending", "result": "PASS", "turns": 5},
+  "summer-echo": {"flow": "choose chase-firefly → advance → evaluate → dawn-escape good ending", "result": "PASS", "turns": 1},
+  "note": "qwen3 恢复后可用同脚本（PROFILE 换回）复跑对照"
+}
