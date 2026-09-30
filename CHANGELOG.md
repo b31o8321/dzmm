@@ -1,5 +1,20 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.7.1] - 2026-09-30
+
+**维护版：payload 预算二阶段 + 多题材测试资产**
+
+### 修复
+- GM payload 二阶段预算：npc_state 只保留已遇 NPC 的展示字段
+  （name/met/present/favor/reputation/deja_vu），plot_threads 与 active_events
+  只保留 active 且描述截断 120 字——典型 payload 7.7k→6.4k 字且不随局长增长
+
+### 测试资产
+- 三个原创再创作世界（时间循环/倒计时/推理）+ 多题材驱动脚本
+- GPT-5.6 vs qwen3-14b 对比报告（36/36 vs 18/36，见
+  eval/score-upgrade/thematic-round/report-gpt56-vs-qwen3.json）
+- 模拟器 thematic 验收测试 + 截图；v1.7.0 全量测试报告 R1-R3
+
 ## [v1.7.0] - 2026-09-28
 
 **资产生态启程：URL 导入与存档蒸馏**
