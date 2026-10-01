@@ -1,5 +1,29 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.9.0] - 2026-09-30
+
+**系统层可玩性：任务与奖励、技能检定、道具提案、全动作验证**
+
+### 新增
+- 任务系统（带奖励）：世界定义 story.quests（完成 flag → 奖励引擎自动发放，
+  每任务一次）——奖励支持 道具（资源白名单）/ 新线索（剧情线注入）/ 技能解锁
+- 技能检定：skill_check 命令（d20 + 受训加值 +3 vs DC 5–25，
+  大成功/成功/失败/大失败四档）；未受训 +0 可掷
+- gm_actions v2：propose_inventory_change（资源白名单 + delta ±3 限幅 +
+  reason_key 审计）；同回合锁定结局后的收尾 narrate 合法
+- NPC 主动性可见化：pending_interactions 写入 GM payload 独立块 +
+  system prompt 要求 NPC 主动开口 + 对白格式锚定
+- 世界定义支持 story.quests 与技能清单扩展（契约更新）
+
+### 修复
+- choices 规划器豁免清单补齐：skill_check / inventory_change /
+  collect_clue / adjust_clock / discover（测试轮全动作驱动依赖）
+
+### 验证
+- backend 237 tests + ruff 全绿；desktop 45 vitest + 构建绿；mobile 29 tests 全绿
+- 全动作基线（7B × 60 回合混合动作）：3/3 地点点亮、14 次 move、5 次技能检定、
+  道具流动（healing-herb ×2）、49/49 成功回合全含 NPC 对白
+
 ## [v1.8.0] - 2026-09-30
 
 **主角跨局复用 + 小说素材出口（资产生态 P2 首切片）**
