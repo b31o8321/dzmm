@@ -12,10 +12,12 @@ def api(path, payload=None):
         headers={"content-type": "application/json"},
         method="POST" if payload is not None else "GET")
     try:
-        with urllib.request.urlopen(req, timeout=180) as r:
+        with urllib.request.urlopen(req, timeout=360) as r:
             return r.status, json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read().decode() or "{}")
+    except (TimeoutError, urllib.error.URLError) as e:
+        return 0, {"detail": f"client timeout: {e}"}
 
 def log(m): print(m, flush=True)
 

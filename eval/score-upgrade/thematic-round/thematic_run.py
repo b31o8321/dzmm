@@ -14,7 +14,7 @@ def api(path, payload=None):
         headers={"content-type": "application/json"},
         method="POST" if payload is not None else "GET")
     try:
-        with urllib.request.urlopen(req, timeout=180) as r:
+        with urllib.request.urlopen(req, timeout=600) as r:
             return r.status, json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read().decode() or "{}")
