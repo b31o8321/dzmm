@@ -563,6 +563,68 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ModelProfileConflictError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/api/v2/runs/{run_id}/novel:export")
+    async def export_novel_material(run_id: str) -> dict[str, object]:
+        """Assemble a short-story material pack: narrative + distilled assets."""
+        async with app.state.sessions() as session:
+            run_row = (
+                await session.execute(
+                    select(runs.c.state, world_versions.c.definition)
+                    .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                    .where(runs.c.id == run_id)
+                )
+            ).mappings().one_or_none()
+            turn_rows = (
+                await session.execute(
+                    select(turns.c.sequence, turns.c.narrative)
+                    .where(turns.c.run_id == run_id, turns.c.kind == "turn")
+                    .order_by(turns.c.sequence.asc())
+                )
+            ).mappings().all()
+            distilled = (
+                await session.execute(
+                    select(distillations.c.kind, distillations.c.content).where(
+                        distillations.c.run_id == run_id
+                    )
+                )
+            ).mappings().all()
+        if run_row is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        hero = str((run_row["state"].get("hero") or {}).get("name") or "主角")
+        world = str(run_row["definition"].get("name") or "")
+
+        sections: dict[str, str] = {}
+        body = "\n\n".join(
+            f"【第 {row['sequence']} 回合】\n{row['narrative']}" for row in turn_rows
+        )
+        sections["正文素材"] = body or "（尚无回合叙事）"
+        for row in distilled:
+            content = row["content"]
+            if row["kind"] == "character-bible":
+                sections["人物小传"] = str(content.get("text") or content.get("raw") or "")
+            elif row["kind"] == "chronicle":
+                lines = [
+                    f"- 第 {e.get('回合')} 幕：{e.get('事件')}（{e.get('影响')}）"
+                    for e in content.get("events") or []
+                ]
+                sections["事件年表"] = "\n".join(lines) or "（未蒸馏）"
+            elif row["kind"] == "dialogue-fingerprint":
+                lines = [f"- {i}" for i in content.get("口头禅") or []]
+                for s in content.get("情绪语气样本") or []:
+                    lines.append(f"- [{s.get('情绪')}] {s.get('示例')}")
+                sections["台词样本"] = "\n".join(lines) or "（未蒸馏）"
+
+        markdown = f"# {world} · {hero} —— 短篇素材包\n\n"
+        for title, body_text in sections.items():
+            markdown += f"## {title}\n\n{body_text}\n\n"
+        return {
+            "run_id": run_id,
+            "hero": hero,
+            "world": world,
+            "markdown": markdown,
+            "sections": list(sections),
+        }
+
     @app.post("/api/v2/runs/{run_id}:distill")
     async def distill_run(run_id: str) -> dict[str, object]:
         """Distill a run's corpus into asset drafts (background, fire-and-forget)."""

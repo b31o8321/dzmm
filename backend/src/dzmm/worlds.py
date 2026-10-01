@@ -64,6 +64,7 @@ class CreateRunInput(BaseModel):
     request_id: str = Field(min_length=1, max_length=80)
     world_version_id: str | None = Field(default=None, max_length=36)
     hero: HeroInput
+    hero_id: str | None = Field(default=None, max_length=36)
     model_profile_id: str | None = None
 
 
@@ -233,6 +234,51 @@ class WorldComposer:
             await self._validate_model_profile(session, payload.model_profile_id)
 
             now = datetime.now(UTC).replace(tzinfo=None)
+            carried_hero: dict[str, Any] | None = None
+            if payload.hero_id:
+                prior = await session.execute(
+                    select(
+                        heroes.c.id,
+                        heroes.c.name,
+                        heroes.c.profile,
+                    )
+                    .join(runs, runs.c.hero_id == heroes.c.id)
+                    .join(world_versions, world_versions.c.id == runs.c.world_version_id)
+                    .where(
+                        heroes.c.id == payload.hero_id,
+                        world_versions.c.world_id == world_id,
+                    )
+                    .limit(1)
+                )
+                prior_row = prior.mappings().one_or_none()
+                if prior_row is None:
+                    raise DomainValidationError(
+                        "hero_id does not belong to this world"
+                    )
+                endings: list[str] = []
+                run_total = 0
+                prior_runs = await session.execute(
+                    select(runs.c.state).where(runs.c.hero_id == payload.hero_id)
+                )
+                for prior_state in prior_runs.scalars():
+                    run_total += 1
+                    if prior_state.get("ending"):
+                        endings.append(
+                            str(
+                                prior_state["ending"].get("title")
+                                or prior_state["ending"].get("narrative_key")
+                                or "未名结局"
+                            )
+                        )
+                carried_hero = {
+                    "id": prior_row["id"],
+                    "name": prior_row["name"],
+                    "profile": dict(prior_row["profile"] or {}),
+                    "carried": {
+                        "previous_runs": run_total,
+                        "past_endings": endings[:5],
+                    },
+                }
             hero_id, run_id, state, opening = await self._insert_run(
                 session,
                 world_version_id=version["id"],
@@ -241,6 +287,7 @@ class WorldComposer:
                 model_profile_id=payload.model_profile_id,
                 now=now,
                 carried_legacy=getattr(payload, "legacy", None),
+                carried_hero=carried_hero,
             )
             await session.execute(
                 insert(run_create_requests).values(
@@ -284,9 +331,16 @@ class WorldComposer:
         now: datetime,
         carried_legacy: list[dict[str, Any]] | None = None,
         sandbox: bool = False,
+        carried_hero: dict[str, Any] | None = None,
     ) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
-        hero_id, run_id = (str(uuid4()) for _ in range(2))
+        if carried_hero:
+            hero_id = str(carried_hero["id"])
+        else:
+            hero_id = str(uuid4())
+        run_id = str(uuid4())
         state = _initial_state(definition, hero_id, hero, carried_legacy)
+        if carried_hero:
+            state["hero"] = carried_hero
         if sandbox:
             state["sandbox"] = True
         try:
@@ -296,14 +350,15 @@ class WorldComposer:
         opening = build_opening_story_beat(
             definition, {"id": hero_id, "name": hero.name, "profile": hero.profile}
         )
-        await session.execute(
-            insert(heroes).values(
-                id=hero_id,
-                name=hero.name,
-                profile=hero.profile,
-                created_at=now,
+        if carried_hero is None:
+            await session.execute(
+                insert(heroes).values(
+                    id=hero_id,
+                    name=hero.name,
+                    profile=hero.profile,
+                    created_at=now,
+                )
             )
-        )
         await session.execute(
             insert(runs).values(
                 id=run_id,
