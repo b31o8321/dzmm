@@ -116,7 +116,7 @@ def test_gm_actions_are_private_allowlisted_and_deduplicated() -> None:
     )
     assert visible == "潮声里传来一阵脚步。"
     assert len(actions) == 2
-    outcomes = apply_gm_actions(state, actions)
+    outcomes = apply_gm_actions(state, {"resources": []}, actions)
     assert outcomes == [
         {
             "type": "plot_thread_introduced",
@@ -129,7 +129,7 @@ def test_gm_actions_are_private_allowlisted_and_deduplicated() -> None:
     assert clean_narrative_output(
         "正文<!--DZMM_ACTIONS {\"actions\":[] }-->"
     ) == "正文"
-    assert apply_gm_actions(state, actions) == []
+    assert apply_gm_actions(state, {"resources": []}, actions) == []
 
 
 def test_narrative_cleanup_removes_qwen_choice_meta_but_keeps_scene() -> None:
@@ -201,6 +201,7 @@ def test_gm_actions_change_npc_reputation_with_hard_bounds() -> None:
     state["revision"] = 4
     outcomes = apply_gm_actions(
         state,
+        {"resources": []},
         [
             {
                 "type": "adjust_npc_reputation",
@@ -257,6 +258,7 @@ def test_npc_reputation_predicate_can_gate_world_events() -> None:
     assert advance_world_events(state, definition) == []
     apply_gm_actions(
         state,
+        {"resources": []},
         [{"type": "adjust_npc_reputation", "npc_id": "lan", "delta": 15}],
     )
 

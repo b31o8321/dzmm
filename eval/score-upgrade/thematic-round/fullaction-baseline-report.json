@@ -26,6 +26,5 @@
   "7B 混合动作下单回合延迟 ~90-120s（payload 含动作结果更长），失败率 11/60 略高于单动作",
   "quest_completed=0：驱动脚本未发 choices（选择权留给玩家），任务 flag 未翻转——符合预期"
  ],
- "evidence": "eval/score-upgrade/thematic-round/fullaction-summer-echo-result.json + /tmp/local7b-fullaction.log",
- "final_run_note": "干净后端最终复测：52 成功 / 8 失败（120s 模型端），moves=14、skill_checks=6、三地点全覆盖——与中途采样一致，确认豁免与预算在完整跑程下稳定。"
+ "evidence": "eval/score-upgrade/thematic-round/fullaction-summer-echo-result.json + /tmp/local7b-fullaction.log"
 }

@@ -43,6 +43,7 @@ from .narrative import (
     record_narrative_context,
     schedule_npc_initiative,
     settle_pending_interactions,
+    settle_quests,
     settle_world_events,
     validate_definition,
 )
@@ -1098,9 +1099,10 @@ class LocalCoreRuntime:
             outcomes,
             api_key=payload.get("api_key"),
         )
-        outcomes.extend(apply_gm_actions(state, gm_actions))
+        outcomes.extend(apply_gm_actions(state, definition, gm_actions))
         settle_world_events(state, definition, outcomes)
         settle_pending_interactions(state, outcomes)
+        settle_quests(state, definition, outcomes)
         recent_openings = [
             str(item.get("narrative") or "")[:24]
             for item in (state.get("narrative_context") or {}).get("recent_turns") or []
@@ -1197,9 +1199,10 @@ class LocalCoreRuntime:
             outcomes,
             api_key=payload.get("api_key"),
         )
-        outcomes.extend(apply_gm_actions(state, gm_actions))
+        outcomes.extend(apply_gm_actions(state, definition, gm_actions))
         settle_world_events(state, definition, outcomes)
         settle_pending_interactions(state, outcomes)
+        settle_quests(state, definition, outcomes)
         recent_openings = [
             str(item.get("narrative") or "")[:24]
             for item in (state.get("narrative_context") or {}).get("recent_turns") or []

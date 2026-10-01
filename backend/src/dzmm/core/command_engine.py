@@ -147,6 +147,40 @@ def apply_commands(
                         "kind": "bad",
                         "narrative_key": "ending.wrong_accusation",
                     }
+        elif command_type == "skill_check":
+            _require_capability(state, "trpg", error_type)
+            skill = str(payload.get("skill") or "").strip()
+            if not skill:
+                raise error_type("skill_check requires skill")
+            hero = state.get("hero") or {}
+            skills = hero.get("skills") or []
+            trained = skill in skills
+            dc = payload.get("dc")
+            if isinstance(dc, bool) or not isinstance(dc, int) or not 5 <= dc <= 25:
+                raise error_type("skill_check requires dc from 5 to 25")
+            roll = randbelow(20) + 1
+            modifier = 3 if trained else 0
+            total = roll + modifier
+            success = total >= dc
+            if roll == 20:
+                degree = "critical_success"
+                success = True
+            elif roll == 1:
+                degree = "critical_failure"
+                success = False
+            else:
+                degree = "success" if success else "failure"
+            outcomes.append({
+                "type": "skill_check_result",
+                "skill": skill,
+                "trained": trained,
+                "roll": roll,
+                "modifier": modifier,
+                "dc": dc,
+                "total": total,
+                "degree": degree,
+                "success": success,
+            })
         elif command_type == "attack":
             _require_capability(state, "combat", error_type)
             try:
