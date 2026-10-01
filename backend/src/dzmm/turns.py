@@ -31,7 +31,13 @@ from .narrative import (
     settle_quests,
     settle_world_events,
 )
-from .narrative_output import build_loop_summary_prompt, extract_gm_actions
+from .narrative_output import (
+    build_loop_summary_prompt,
+    extract_gm_actions,
+    normalize_inline_dialogue,
+    opening_overlap_ratio,
+    trim_repeated_opening,
+)
 from .operation_control import OperationRegistry
 from .persistence import (
     director_notes,
@@ -99,6 +105,35 @@ class RevisionConflictError(ValueError):
 
 class TurnIdempotencyConflictError(ValueError):
     pass
+
+
+def _post_process_narrative(state: dict, definition: dict, narrative: str) -> str:
+    """Deterministic anti-drift pass shared with the embedded runtime.
+
+    The 120-turn probe showed opening-template inertia and dialogue-format
+    drift on 7B models; trim_repeated_opening/normalize_inline_dialogue were
+    previously only wired into core_runtime, leaving the HTTP pipeline
+    (desktop main path) unprotected.
+    """
+
+    if not narrative:
+        return narrative
+    recent_openings = [
+        str(item.get("narrative") or "")[:24]
+        for item in (state.get("narrative_context") or {}).get("recent_turns") or []
+        if isinstance(item, dict)
+    ][-3:]
+    narrative = trim_repeated_opening(narrative, recent_openings)
+    npc_names = [
+        npc.get("name") for npc in definition.get("npcs") or [] if isinstance(npc, dict)
+    ]
+    narrative = normalize_inline_dialogue(narrative, npc_names)
+    diagnostics = state.setdefault("diagnostics", {})
+    if isinstance(diagnostics, dict):
+        diagnostics["opening_overlap"] = round(
+            opening_overlap_ratio(narrative, recent_openings), 2
+        )
+    return narrative
 
 
 class TurnCoordinator:
@@ -213,6 +248,7 @@ class TurnCoordinator:
                 variation_seed=run_id,
                 director_note=director_note,
             )
+            narrative = _post_process_narrative(state, run["definition"], narrative)
             outcomes.extend(apply_gm_actions(state, run["definition"], gm_actions))
             settle_world_events(state, run["definition"], outcomes)
             settle_pending_interactions(state, outcomes)
@@ -527,6 +563,7 @@ class TurnCoordinator:
                 and "</think>" not in raw_narrative
             ):
                 raise NarrationError("model returned no valid narrative content")
+            narrative = _post_process_narrative(state, run["definition"], narrative)
             if profile is not None and narrative and not emitted_narrative:
                 yield "narrative_delta", {"text": narrative}
             outcomes.extend(apply_gm_actions(state, run["definition"], gm_actions))

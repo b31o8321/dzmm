@@ -334,7 +334,7 @@ def test_narrator_turns_timeout_into_actionable_player_feedback() -> None:
 
     with pytest.raises(
         NarrationError,
-        match="模型在 120 秒内没有返回内容.*没有写入结果.*重试",
+        match="模型在 300 秒内没有返回内容.*没有写入结果.*重试",
     ):
         asyncio.run(
             narrator.narrate(
@@ -379,7 +379,7 @@ def test_stream_timeout_uses_the_same_player_feedback() -> None:
         httpx.MockTransport(lambda _: (_ for _ in ()).throw(httpx.ReadTimeout("")))
     )
 
-    with pytest.raises(NarrationError, match="模型在 120 秒内没有返回内容"):
+    with pytest.raises(NarrationError, match="模型在 300 秒内没有返回内容"):
         asyncio.run(collect_stream(narrator, profile))
 
 
@@ -629,7 +629,8 @@ def test_narrator_rejects_provider_reported_truncation() -> None:
             )
         )
 
-    assert seen["body"]["options"]["num_predict"] == 1024
+    from dzmm.narrative_output import NARRATIVE_OLLAMA_NUM_PREDICT as _NUM_PREDICT
+    assert seen["body"]["options"]["num_predict"] == _NUM_PREDICT
 
 
 def test_narrator_streams_openai_deltas_only_after_protocol_completion() -> None:

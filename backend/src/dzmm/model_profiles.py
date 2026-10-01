@@ -855,7 +855,7 @@ def _narration_body(
                     "validated_outcomes": outcomes,
                     "narrative_memory": _narrative_memory_payload(state),
                     "recent_openings": [
-                        str(item.get("narrative") or "")[:30]
+                        str(item.get("narrative") or "")[:60]
                         for item in (state.get("narrative_context", {}) or {}).get("recent_turns") or []
                         if isinstance(item, dict)
                     ][-3:],

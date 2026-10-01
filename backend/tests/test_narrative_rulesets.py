@@ -856,3 +856,50 @@ def test_time_system_clock_advances_and_clamps() -> None:
     assert not reached_loop_boundary({"now_minutes": 100, "loop_at_minutes": 1380})
     assert reached_loop_boundary({"now_minutes": 1380, "loop_at_minutes": 1380})
     assert not reached_loop_boundary({"now_minutes": 100, "loop_at_minutes": None})
+
+
+def test_normalize_inline_dialogue_rewrites_drifted_lines() -> None:
+    """120 回合报告缺陷#2：对白格式漂移为『名字：台词』行内冒号式（63/120 回合）。"""
+
+    from dzmm.narrative_output import normalize_inline_dialogue
+
+    names = ["海爷", "铃音巫女"]
+    # 漂移行：已知 NPC 名 + 未加引号 → 补锚定引号
+    value = normalize_inline_dialogue("铃音巫女：那边有什么东西在动。\n浪声不停。", names)
+    assert value == "铃音巫女：「那边有什么东西在动。」\n浪声不停。"
+    # 已有引号但缺闭合 → 只补闭合
+    value = normalize_inline_dialogue("海爷：「潮水要变了。", names)
+    assert value == "海爷：「潮水要变了。」"
+    # 非 NPC 名（旁白标签/方向）不动
+    value = normalize_inline_dialogue("提示：天黑了。北方：旧仓库。", names)
+    assert value == "提示：天黑了。北方：旧仓库。"
+    # 正确锚定格式原样保留
+    value = normalize_inline_dialogue("海爷低声说：「跟我来。」", names)
+    assert value == "海爷低声说：「跟我来。」"
+
+
+def test_turn_pipeline_applies_narrative_post_processing() -> None:
+    """双通道缺口：HTTP 管道此前缺少 trim/对白规范化（仅嵌入式通道有）。"""
+
+    from dzmm.turns import _post_process_narrative
+
+    definition = {"npcs": [{"id": "miko", "name": "铃音巫女"}]}
+    state = {
+        "narrative_context": {
+            "recent_turns": [
+                {"narrative": "蝉鸣从栈桥尽头涌来，像潮水一样不肯退去。"}
+            ]
+        }
+    }
+    processed = _post_process_narrative(
+        state, definition, "铃音巫女：影又出现了一次。她转身就走。"
+    )
+    assert processed == "铃音巫女：「影又出现了一次。她转身就走。」"
+    # 重复开头被截断：与 recent_turns 开头完全一致时跳过首句
+    processed = _post_process_narrative(
+        state,
+        definition,
+        "蝉鸣从栈桥尽头涌来，像潮水一样不肯退去。新的分歧从这里开始。",
+    )
+    assert not processed.startswith("蝉鸣从栈桥")
+    assert state["diagnostics"]["opening_overlap"] >= 0.0

@@ -1269,6 +1269,11 @@
           }
         }
       ]
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "逐回合质量诊断（如 opening_overlap 重复开头重叠度）；非玩法状态，仅用于评估与排障"
     }
   },
   "additionalProperties": false

@@ -324,3 +324,36 @@ def trim_repeated_opening(narrative: str, recent_openings: list[str], prefix_len
             return narrative[sentence_end.end():].lstrip()
         return narrative
     return narrative
+
+
+_INLINE_DIALOGUE_RE = re.compile(r"^([^\n：:]{1,12})[：:](.+)$", re.MULTILINE)
+_DIALOGUE_QUOTES = {"「": "」", "『": "』", "“": "”", "\"": "\""}
+
+
+def normalize_inline_dialogue(narrative: str, npc_names: list[str]) -> str:
+    """Rewrite drifted ``名字：台词`` lines into anchored ``名字：「台词」``.
+
+    7B models drift from the anchored dialogue format over long runs (63/120
+    turns in the 120-turn probe). Only lines whose prefix is a known NPC name
+    are rewritten, and only when the rest of the line is not already quoted;
+    other ``X：`` patterns (narration labels, directions) are left untouched.
+    """
+
+    if not narrative or not npc_names:
+        return narrative
+    names = {name.strip() for name in npc_names if name and name.strip()}
+    if not names:
+        return narrative
+
+    def _rewrite(match: re.Match[str]) -> str:
+        speaker, body = match.group(1).strip(), match.group(2).strip()
+        if speaker not in names or not body:
+            return match.group(0)
+        if body[0] in _DIALOGUE_QUOTES:
+            close = _DIALOGUE_QUOTES[body[0]]
+            if body.endswith(close):
+                return match.group(0)
+            return f"{speaker}：{body}{close}"
+        return f"{speaker}：「{body}」"
+
+    return _INLINE_DIALOGUE_RE.sub(_rewrite, narrative)

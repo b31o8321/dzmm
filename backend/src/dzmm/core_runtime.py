@@ -54,6 +54,7 @@ from .narrative_output import (
     clean_narrative_output,
     extract_gm_actions,
     model_response_was_truncated,
+    normalize_inline_dialogue,
     opening_overlap_ratio,
     trim_repeated_opening,
 )
@@ -1109,6 +1110,10 @@ class LocalCoreRuntime:
             if isinstance(item, dict)
         ][-3:]
         narrative = trim_repeated_opening(narrative, recent_openings)
+        narrative = normalize_inline_dialogue(
+            narrative,
+            [npc.get("name") for npc in definition.get("npcs") or [] if isinstance(npc, dict)],
+        )
         diagnostics = state.setdefault("diagnostics", {})
         if isinstance(diagnostics, dict):
             diagnostics["opening_overlap"] = round(
@@ -1209,6 +1214,10 @@ class LocalCoreRuntime:
             if isinstance(item, dict)
         ][-3:]
         narrative = trim_repeated_opening(narrative, recent_openings)
+        narrative = normalize_inline_dialogue(
+            narrative,
+            [npc.get("name") for npc in definition.get("npcs") or [] if isinstance(npc, dict)],
+        )
         diagnostics = state.setdefault("diagnostics", {})
         if isinstance(diagnostics, dict):
             diagnostics["opening_overlap"] = round(
