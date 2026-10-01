@@ -236,6 +236,10 @@ def initial_state(
             if "loop" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
             else None
         ),
+        "quests": (
+            {q["id"]: {"status": "active", "completed_turn": 0} for q in (story.get("quests") or [])}
+            or None
+        ),
         "deduction": (
             {"clues": [], "accusations": []}
             if "deduction" in deepcopy(definition["ruleset"]).get("enabled_capabilities", [])
@@ -633,7 +637,11 @@ _GM_THREAD_TYPES = {"quest", "hook", "mystery", "major_event"}
 _GM_REPUTATION_REASON = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
 
 
-def apply_gm_actions(state: dict[str, Any], actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def apply_gm_actions(
+    state: dict[str, Any],
+    definition: dict[str, Any],
+    actions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Apply the small, reversible portion of model-authored world evolution.
 
     Models may introduce or resolve narrative threads and hidden events.  They
@@ -749,6 +757,27 @@ def apply_gm_actions(state: dict[str, Any], actions: list[dict[str, Any]]) -> li
             event["resolved_turn"] = revision
             event["resolution"] = resolution
             outcomes.append({"type": "hidden_event_resolved", "event_id": event_id})
+        elif action_type == "propose_inventory_change":
+            item_id = str(action.get("item_id") or "").strip()
+            delta = action.get("delta")
+            reason = str(action.get("reason_key") or "").strip()[:64]
+            known_resources = {
+                r.get("id") for r in definition.get("resources", []) if isinstance(r, dict)
+            }
+            if item_id not in known_resources:
+                continue
+            if isinstance(delta, bool) or not isinstance(delta, int) or not -3 <= delta <= 3 or delta == 0:
+                continue
+            if not reason:
+                continue
+            _change_inventory(state["inventory"], item_id, delta)
+            outcomes.append({
+                "type": "inventory_changed",
+                "item_id": item_id,
+                "delta": delta,
+                "cause": "gm_proposal",
+                "reason_key": reason,
+            })
         elif action_type == "adjust_npc_reputation":
             npc_id = str(action.get("npc_id") or "").strip()
             reason = str(action.get("reason_key") or action.get("reason") or "narrative").strip()
@@ -888,6 +917,59 @@ def advance_chapter(state: dict[str, Any], definition: dict[str, Any]) -> dict[s
         "chapter_id": current["id"],
         "next_chapter_id": current["next_chapter_id"],
     }
+
+
+def settle_quests(
+    state: dict[str, Any], definition: dict[str, Any], outcomes: list[dict[str, Any]]
+) -> None:
+    """Auto-complete quests whose completion flag flipped true, granting rewards once.
+
+    Rewards: item → inventory (resource whitelist), clue → new plot thread,
+    skill → hero skill (feeds skill_check). Each quest grants at most once.
+    """
+
+    quests_state = state.get("quests")
+    quests_def = (definition.get("story") or {}).get("quests") or []
+    if not quests_state or not quests_def:
+        return
+    revision = int(state.get("revision") or 0)
+    resources = {r["id"] for r in definition.get("resources", [])}
+    for quest in quests_def:
+        quest_id = quest["id"]
+        block = quests_state.get(quest_id)
+        if not block or block.get("status") == "completed":
+            continue
+        flag = (quest.get("completion") or {}).get("flag")
+        if not flag or not state.get("flags", {}).get(flag):
+            continue
+        block["status"] = "completed"
+        block["completed_turn"] = revision
+        outcomes.append({"type": "quest_completed", "quest_id": quest_id, "title": quest.get("title")})
+        for reward in quest.get("rewards") or []:
+            rtype = reward.get("type")
+            if rtype == "item":
+                item_id = str(reward.get("item_id") or "")
+                if item_id in resources:
+                    qty = int(reward.get("quantity") or 1)
+                    _change_inventory(state["inventory"], item_id, qty)
+                    outcomes.append({"type": "quest_reward_item", "quest_id": quest_id, "item_id": item_id, "quantity": qty})
+            elif rtype == "clue":
+                text = str(reward.get("text") or "新的线索")
+                threads = state.setdefault("plot_threads", [])
+                clue_id = f"clue-{quest_id}"
+                if not any(t.get("id") == clue_id for t in threads):
+                    threads.append({
+                        "id": clue_id, "type": "hook", "description": text[:240],
+                        "introduced_turn": revision, "importance": 2, "status": "active", "resolution": "",
+                    })
+                    outcomes.append({"type": "quest_reward_clue", "quest_id": quest_id, "text": text[:120]})
+            elif rtype == "skill":
+                skill = str(reward.get("skill") or "").strip()
+                hero = state.setdefault("hero", {})
+                skills = hero.setdefault("skills", [])
+                if skill and skill not in skills:
+                    skills.append(skill)
+                    outcomes.append({"type": "quest_reward_skill", "quest_id": quest_id, "skill": skill})
 
 
 def evaluate_endings(state: dict[str, Any], definition: dict[str, Any]) -> dict[str, Any]:

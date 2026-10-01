@@ -11,7 +11,6 @@ def test_hero_reuse_keeps_identity_and_carries_snapshot(migrated_client) -> None
     world_id = first["world_id"]
     hero_id = first["hero_id"]
 
-    detail = client.get(f"/api/v2/worlds/{world_id}").json()
     second = client.post(
         f"/api/v2/worlds/{world_id}/runs",
         json={

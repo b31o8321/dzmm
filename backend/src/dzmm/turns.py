@@ -28,6 +28,7 @@ from .narrative import (
     record_narrative_context,
     schedule_npc_initiative,
     settle_pending_interactions,
+    settle_quests,
     settle_world_events,
 )
 from .narrative_output import build_loop_summary_prompt, extract_gm_actions
@@ -212,9 +213,10 @@ class TurnCoordinator:
                 variation_seed=run_id,
                 director_note=director_note,
             )
-            outcomes.extend(apply_gm_actions(state, gm_actions))
+            outcomes.extend(apply_gm_actions(state, run["definition"], gm_actions))
             settle_world_events(state, run["definition"], outcomes)
             settle_pending_interactions(state, outcomes)
+            settle_quests(state, run["definition"], outcomes)
             record_narrative_context(
                 state, run["definition"], run_id, payload.player_input, narrative, outcomes
             )
@@ -527,9 +529,10 @@ class TurnCoordinator:
                 raise NarrationError("model returned no valid narrative content")
             if profile is not None and narrative and not emitted_narrative:
                 yield "narrative_delta", {"text": narrative}
-            outcomes.extend(apply_gm_actions(state, gm_actions))
+            outcomes.extend(apply_gm_actions(state, run["definition"], gm_actions))
             settle_world_events(state, run["definition"], outcomes)
             settle_pending_interactions(state, outcomes)
+            settle_quests(state, run["definition"], outcomes)
             record_narrative_context(
                 state, run["definition"], run_id, payload.player_input, narrative, outcomes
             )
@@ -1152,6 +1155,7 @@ def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str
             "choose_story_choice",
             "collect_clue",
             "accuse",
+            "skill_check",
         }
         for command in commands
     )
