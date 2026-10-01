@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DZMM v1.9.0 方案 · 系统层可玩性：评估地图与增强计划（评审稿）</title>
+<style>
+:root{
+  --bg:#12100d; --panel:#1c1813; --panel2:#211c15; --ink:#e8ddc8; --ink-dim:#a8977a;
+  --amber:#e2a558; --amber-dim:rgba(226,165,88,.35); --narr:#8fd4b8; --narr-dim:rgba(143,212,184,.35);
+  --rule:#d98a6a; --rule-dim:rgba(217,138,106,.35); --mid:#7d9cc0; --mid-dim:rgba(125,156,192,.3);
+  --line:rgba(232,221,200,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC",sans-serif;line-height:1.75;font-size:15px;padding:48px 24px 96px}
+.wrap{max-width:960px;margin:0 auto}
+h1{font-family:"Noto Serif SC",serif;font-size:30px;color:var(--ink);line-height:1.35;margin-bottom:6px}
+.kicker{font-size:11px;letter-spacing:5px;color:var(--amber);margin-bottom:14px}
+.sub{color:var(--ink-dim);font-size:14px;margin-bottom:34px}
+h2{font-family:"Noto Serif SC",serif;font-size:21px;color:var(--amber);margin:44px 0 14px;padding-top:18px;border-top:1px solid var(--line)}
+h3{font-size:15.5px;color:var(--ink);margin:20px 0 8px}
+p{margin-bottom:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 24px;margin-bottom:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:1px;padding:2px 10px;border-radius:3px;border:1px solid;margin-bottom:8px}
+.tag.p0{color:var(--rule);border-color:var(--rule-dim)}
+.tag.p1{color:var(--amber);border-color:var(--amber-dim)}
+.tag.p2{color:var(--mid);border-color:var(--mid-dim)}
+.tag.ok{color:var(--narr);border-color:var(--narr-dim)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+th{text-align:left;color:var(--ink-dim);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:1px}
+td{padding:8px 10px;border-bottom:1px solid rgba(232,221,200,.06);vertical-align:top}
+.pill{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:700}
+.pill.yes{background:rgba(143,212,184,.15);color:var(--narr)}
+.pill.part{background:rgba(226,165,88,.15);color:var(--amber)}
+.pill.no{background:rgba(217,138,106,.15);color:var(--rule)}
+.evi{font-family:ui-monospace,"SF Mono",monospace;font-size:11.5px;color:var(--ink-dim)}
+.decision{background:linear-gradient(180deg,rgba(226,165,88,.10),rgba(226,165,88,.03));border:1px solid var(--amber-dim);border-radius:10px;padding:18px 22px;margin-top:20px}
+.decision li{margin:8px 0 8px 20px}
+code{font-family:ui-monospace,"SF Mono",monospace;font-size:12.5px;background:rgba(232,221,200,.08);padding:1px 6px;border-radius:3px;color:var(--amber)}
+.note{font-size:12.5px;color:var(--ink-dim)}
+.big{font-family:ui-monospace,"SF Mono",monospace;font-size:26px;font-weight:700;color:var(--ink)}
+.stat{display:flex;flex-direction:column;align-items:center;gap:2px}
+.stat small{color:var(--ink-dim);font-size:11px}
+@media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">DZMM · v1.9.0 立项方案 · 评审稿（待用户确认后实施）</div>
+  <h1>系统层可玩性：RPG 内容维度评估地图与增强计划</h1>
+  <p class="sub">依据：本机 7B × 120 回合全量数据（eval/score-upgrade/local7b-120run-report.json）+ 引擎代码取证 · 2026-09-30 · 结论先行：<b style="color:var(--ink)">引擎有 7 个系统，模型只驱动了 2 个——本方案补齐写路径、裁决与世界触发器，并建立 12 维评估体系。</b></p>
+
+  <!-- ============ S1 证据回顾 ============ -->
+  <h2>① 120 回合证据回顾（为什么这个版本要做这个）</h2>
+  <div class="card">
+    <div class="grid3" style="text-align:center;margin:6px 0">
+      <div class="stat"><span class="big" style="color:var(--narr)">120/120</span><small>回合零失败（稳定性达标）</small></div>
+      <div class="stat"><span class="big" style="color:var(--rule)">0</span><small>地点移动 / 道具获得 / 战斗 / 骰子 / 声誉调整</small></div>
+      <div class="stat"><span class="big" style="color:var(--amber)">10 + 6</span><small>剧情线引入 + 隐藏事件创建（解决 0）</small></div>
+    </div>
+    <p style="margin-top:14px">稳定性与引擎语义全程无缺陷；但 <b>系统层全部静止</b>——背包恒空、零战斗、零骰子、零声誉变化、剧情线只引入不收敛。玩家 120 回合体验 ≈ 「在原地听一个会重复的故事」。</p>
+    <h3>关键证据与勘误</h3>
+    <table>
+      <tr><th style="width:26%">系统</th><th>120 回合实测证据</th></tr>
+      <tr><td>地点</td><td>120 回合 <b>零移动</b>（驱动无 move、模型无提议）；3 个地点基本闲置</td></tr>
+      <tr><td>道具</td><td>inventory 恒空；<b>模型无道具提案通道</b>（gm_actions 白名单不含）</td></tr>
+      <tr><td>战斗</td><td>完整 d20 系统存在（attack/HP/伤害骰）但 <b>0 次触发</b>——世界模板无遭遇战配置</td></tr>
+      <tr><td>骰子</td><td>roll_dice 存在但 <b>0 次</b>；无通用技能检定机制</td></tr>
+      <tr><td>声誉</td><td>adjust_npc_reputation 通道存在（±25 限幅）但 7B <b>从未使用</b></td></tr>
+      <tr><td>阵营</td><td>faction_state 有读无写——<b>全仓没有任何调整路径</b></td></tr>
+      <tr><td>NPC 主动性 <span class="pill part">勘误</span></td><td><b>勘误前报告有误</b>：npc_initiative_scheduled 实际触发 <b>60 次</b>（seq1 起每两回合一次），机制正常。真实缺口 = 调度后模型未将其演绎为可见的 NPC 主动对白 + UI 无 pending 提示（7B 遵循率问题）</td></tr>
+      <tr><td>剧情线</td><td>引入 10 / 解决 0；120 回合无一条闭环</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">失败分类纪律：以上均为「系统未被驱动」，非引擎缺陷——引擎侧 120 回合零缺陷已被 GPT-5.6 全流程验证交叉确认。</p>
+  </div>
+
+  <!-- ============ S2 12 维评估地图 ============ -->
+  <h2>② 12 维评估地图（现状 → 缺口 → 增强 → 优先级）</h2>
+  <table>
+    <tr><th style="width:15%">维度</th><th style="width:11%">引擎</th><th style="width:26%">120 回合实测</th><th style="width:30%">增强方案</th><th style="width:8%">优先级</th></tr>
+    <tr><td><b>地点移动</b></td><td><span class="pill yes">有</span></td><td>0 移动；3 地点闲置</td><td>全动作驱动 + 模型移动提议（gm_actions v2）</td><td class="pill p0">P0</td></tr>
+    <tr><td><b>道具/资源</b></td><td><span class="pill yes">有</span></td><td>背包恒空；无提案通道</td><td><b>gm_actions 新增 propose_inventory_change</b>（资源白名单+限幅）；模板注入拾取点</td><td class="pill p0">P0</td></tr>
+    <tr><td><b>战斗</b></td><td><span class="pill yes">有</span></td><td>0 触发</td><td>模板默认遭遇战配置（NPC met + 敌对态）；评估战斗结果分布</td><td class="pill p0">P0</td></tr>
+    <tr><td><b>技能检定</b></td><td><span class="pill no">无</span></td><td>无机制</td><td><b>新增 skill_check</b>：属性调整值 + 难度 DC + 引擎 d20 裁决；gm_actions 可提议</td><td class="pill p0">P0</td></tr>
+    <tr><td><b>NPC 主动性</b></td><td><span class="pill yes">有（勘误）</span></td><td>调度 60 次但不可见</td><td>pending_interactions 进 GM payload 显式块 + UI 提示条；7B 遵循率入评估</td><td class="pill p0">P0</td></tr>
+    <tr><td><b>对白质量</b></td><td><span class="pill part">部分</span></td><td>63/120 回合格式漂移 + 张冠李戴</td><td>GM payload 附 NPC 台词锚定示例；清洗规则规范「名字：」行内格式</td><td class="pill p1">P1</td></tr>
+    <tr><td><b>关系/好感</b></td><td><span class="pill part">部分</span></td><td>favor/reputation 恒 0</td><td>声誉提案引导（prompt 强调）+ 关系维度变化经事件写入</td><td class="pill p1">P1</td></tr>
+    <tr><td><b>任务目标</b></td><td><span class="pill no">无</span></td><td>剧情线 10 引入 0 解决</td><td>正式 quest 结构（接受→进行→完成+奖励）；剧情线收敛入结局评估</td><td class="pill p1">P1</td></tr>
+    <tr><td><b>记忆一致性</b></td><td><span class="pill part">部分</span></td><td>未系统评估</td><td>评估指标：NPC 记忆矛盾检测（对白 vs dialogue memory）</td><td class="pill p1">P1</td></tr>
+    <tr><td><b>世界规则一致性</b></td><td><span class="pill part">部分</span></td><td>循环语义正确 ✓</td><td>循环/倒计时规则遵守度入评估（NPC 不应记得循环内事件）</td><td class="pill p2">P2</td></tr>
+    <tr><td><b>阵营</b></td><td><span class="pill no">读无写</span></td><td>静止</td><td>faction standing 调整路径（随任务/战斗结算）</td><td class="pill p2">P2</td></tr>
+    <tr><td><b>经济</b></td><td><span class="pill no">无</span></td><td>—</td><td>货币/交易系统（可选，后置）</td><td class="pill p2">P3</td></tr>
+  </table>
+
+  <!-- ============ S3 三支柱方案 ============ -->
+  <h2>③ 增强方案：三支柱（全部沿用「模型提议 → 引擎裁决 → 限幅审计」既有模式）</h2>
+
+  <div class="card">
+    <span class="tag p0">支柱 A · P0</span><h3 style="margin-top:0">模型写路径扩展（gm_actions v2）——解决「模型不能动系统层」的根因</h3>
+    <p>现有 gm_actions 只能写剧情线/隐藏事件/声誉。新增两个提案类型，引擎全权裁决：</p>
+    <table>
+      <tr><th style="width:30%">提案类型</th><th>payload</th><th>引擎裁决规则</th></tr>
+      <tr><td><code>propose_inventory_change</code></td><td>{item_id, delta, reason_key}</td><td>item_id 必须在世界 resources 白名单；delta ∈ [-3,+3]；净存量 ≥0；每回合 ≤1 次</td></tr>
+      <tr><td><code>propose_skill_check</code></td><td>{skill, dc, target, reason_key}</td><td>skill ∈ 世界声明清单；DC 5–25；引擎掷 d20+调整值 → 成功/失败 outcome 交给模型叙事</td></tr>
+    </table>
+    <p class="note">配套：NARRATIVE_SYSTEM_PROMPT 增补两个提案的使用时机说明；outcome 新类型进 TurnResult（无契约破坏——outcomes 为自由 JSON）。7B/14B 遵循率入评估（弱模型不用也不劣化现状）。</p>
+  </div>
+
+  <div class="card">
+    <span class="tag p0">支柱 B · P0</span><h3 style="margin-top:0">引擎裁决扩展——技能检定 + NPC 主动性可见化</h3>
+    <p><b>skill_check 机制</b>：世界 ruleset 声明技能清单（潜行/说服/察觉…），hero/NC 携带调整值；引擎侧 <code>apply_skill_check(state, definition, payload)</code> 掷 d20+调整值 vs DC，产出成功等级（大成功/成功/失败/大失败），失败可挂状态效果（P2 扩展）。</p>
+    <p><b>NPC 主动性可见化</b>：pending_interactions 已调度即写入 GM payload 独立块（含 NPC 名与 instruction），并要求模型在叙事中<b>以该 NPC 主动开口开场</b>；UI 侧 PlayScene 增加「{{npc}} 想找你」提示条；评估增加「主动性演绎率」指标（调度→可见对白的转化）。</p>
+    <p><b>对白格式锚定</b>：GM payload 按在场 NPC 附一句格式示例（『海爷低声说：「……」』），清洗规则对「名字：」行内冒号式做重排告警。</p>
+  </div>
+
+  <div class="card">
+    <span class="tag p1">支柱 C · P1</span><h3 style="margin-top:0">世界模板与评估体系——让系统被点亮、被度量</h3>
+    <p><b>模板注入</b>：三大模板世界默认携带遭遇战配置（敌对 NPC + 战斗规则）、道具拾取点（resources 布点）、NPC 主动性参数、技能清单与 DC 建议。</p>
+    <p><b>全动作驱动脚本</b>（评估核心）：thematic_run.py 升级为混合动作模式——narrate 60% / move 15% / roll 或 skill_check 10% / inventory 10% / choose 5%，按回合比例轮换；新增 12 维指标采集（地点覆盖、战斗次数与结果分布、道具净流、声誉/关系变化、事件闭环率、主动性演绎率、任务完成率、记忆矛盾数）。</p>
+    <p><b>验收方式</b>：7B 与 GPT-5.6 各跑 120 回合全动作对照——期望两模型都能点亮 ≥8/12 维度，GPT 5.6 零引擎失败。</p>
+  </div>
+
+  <!-- ============ S4 实施 ============ -->
+  <h2>④ 实施计划与验收门</h2>
+  <table>
+    <tr><th style="width:14%">阶段</th><th style="width:44%">内容</th><th>验收 gate</th></tr>
+    <tr><td><b>Phase 1</b><br>评估先行</td><td>全动作驱动脚本 + 12 维指标采集；7B 跑一轮 60 回合基线（对照本轮 120 回合单动作数据）</td><td>基线报告落盘；≥5 个此前静止维度被点亮或确认仍静止（如实）</td></tr>
+    <tr><td><b>Phase 2</b><br>增强核心</td><td>支柱 A（gm_actions v2 两个提案）+ 支柱 B（skill_check + 主动性可见化 + 对白锚定）+ 契约/测试</td><td>232+ 测试全绿；真模型冒烟各提案至少成功一次且引擎限幅生效</td></tr>
+    <tr><td><b>Phase 3</b><br>世界与复测</td><td>模板注入遭遇/道具/技能/主动性；全动作 120 回合复测（7B + GPT 5.6 对照）</td><td>≥8/12 维度点亮；开头重复不劣化；结局仍可达成</td></tr>
+    <tr><td><b>Phase 4</b><br>收尾</td><td>P1 残余（quest 结构、关系事件、记忆矛盾评估）视进度；v1.9.0 发版申请</td><td>发版前请示（沿用惯例）</td></tr>
+  </table>
+  <p class="note">工程量估算：Phase 1 ≈ 半天；Phase 2 ≈ 1.5 天；Phase 3 ≈ 1 天；Phase 4 ≈ 0.5–1 天。</p>
+
+  <!-- ============ S5 风险与非目标 ============ -->
+  <h2>⑤ 风险与非目标</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">风险与对策</h3>
+      <table>
+        <tr><th style="width:38%">风险</th><th>对策</th></tr>
+        <tr><td>弱模型滥用新写路径（乱给道具/乱掷骰）</td><td>引擎限幅 + 白名单 + 每回合次数上限；滥用进 outcomes 审计</td></tr>
+        <tr><td>GM payload 再膨胀</td><td>新增块走预算（技能清单/示例各 ≤200 字），不突破 ~4k 上限</td></tr>
+        <tr><td>7B 遵循率低导致增强空转</td><td>提案是「可选项」——模型不用不劣化现状；GPT 5.6 作为遵循率上界参照</td></tr>
+        <tr><td>契约变动</td><td>skill 清单进 world_definition（可选项）；outcome 新类型为自由 JSON，无破坏</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">非目标（本版不做）</h3>
+      <li style="margin-left:20px">经济/货币系统（P3 可选）</li>
+      <li style="margin-left:20px">阵营 standing 写路径（P2，随任务系统一并）</li>
+      <li style="margin-left:20px">状态效果机完整实现（本版只挂失败态锚点）</li>
+      <li style="margin-left:20px">hero 继承深化、短剧分场、关系网蒸馏（1.8.x/2.0 排期）</li>
+      <li style="margin-left:20px">Windows 真机、≥16k 模型（外部依赖不变）</li>
+    </div>
+  </div>
+
+  <!-- ============ S6 决策点 ============ -->
+  <h2>⑥ 需要你拍板的决策点</h2>
+  <div class="decision">
+    <ol>
+      <li><b>范围确认</b>：P0 四项（地点/道具/战斗/技能）+ NPC 主动性可见化为本版核心，P1/P2 后置——是否同意？</li>
+      <li><b>技能检定模型</b>：d20 + 调整值 vs DC（D20 派，与现有战斗一致）——还是想要 2d10/叙事向判定？</li>
+      <li><b>道具提案权限</b>：模型可提议「获得」还是只「消耗」（获得更爽但需防刷；引擎限幅 ±3 且需 reason 是否足够）？</li>
+      <li><b>技能清单归属</b>：技能定义放世界定义（作者可定制）还是引擎内置通用集（简单）？建议：引擎内置基础集 + 世界可扩展。</li>
+    </ol>
+    <p style="margin-top:12px">确认后按 Phase 1→4 实施；每个 Phase 末汇报证据。</p>
+  </div>
+
+  <p class="note" style="margin-top:30px">证据：eval/score-upgrade/local7b-120run-report.json · thematic-round/ · 引擎取证 narrative.py:391–447（主动性）、combat.py（战斗）、command_engine.py:59（骰子）、narrative_output.py:35–38（gm_actions 白名单）· 本页为评审稿，确认后按 Phase 实施</p>
+</div>
+</body>
+</html>
