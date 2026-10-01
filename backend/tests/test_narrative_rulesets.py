@@ -903,3 +903,31 @@ def test_turn_pipeline_applies_narrative_post_processing() -> None:
     )
     assert not processed.startswith("蝉鸣从栈桥")
     assert state["diagnostics"]["opening_overlap"] >= 0.0
+
+
+def test_normalize_inline_dialogue_rewrites_quote_wrapped_drift() -> None:
+    """长跑实测：qwen2.5 把整行用直引号包裹成『“名字：”台词“』。"""
+
+    from dzmm.narrative_output import normalize_inline_dialogue
+
+    names = ["铃音巫女"]
+    value = normalize_inline_dialogue(
+        "“铃音巫女：”这里有什么东西吗？看来你比上次更仔细了。“", names
+    )
+    assert value == "铃音巫女：「这里有什么东西吗？看来你比上次更仔细了。」"
+    # 未知说话人保持原样
+    value = normalize_inline_dialogue("“路人：”你好。“", names)
+    assert value == "“路人：”你好。“"
+
+
+def test_normalize_inline_dialogue_rewrites_midline_quote_wrapped_drift() -> None:
+    """长跑实测：引号包裹漂移可嵌入行中（对白后紧跟叙述）。"""
+
+    from dzmm.narrative_output import normalize_inline_dialogue
+
+    names = ["铃音巫女", "老潜水员海爷"]
+    value = normalize_inline_dialogue(
+        "“铃音巫女：”那里有什么东西吗？看来你比上次更仔细了。“老潜水员海爷的声音从附近传来。”",
+        names,
+    )
+    assert value == "铃音巫女：「那里有什么东西吗？看来你比上次更仔细了。」老潜水员海爷的声音从附近传来。”"

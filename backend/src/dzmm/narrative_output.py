@@ -327,6 +327,8 @@ def trim_repeated_opening(narrative: str, recent_openings: list[str], prefix_len
 
 
 _INLINE_DIALOGUE_RE = re.compile(r"^([^\n：:]{1,12})[：:](.+)$", re.MULTILINE)
+_QUOTE_WRAPPED_DIALOGUE_RE = re.compile(r"[“\"」]([^“”：:\n]{1,12})[：:][”\"「]([^“”\n]{1,160}?)[“\"]")
+_STRAIGHT_QUOTE_DIALOGUE_RE = re.compile(r"^([^“”：:\n]{1,18}[：:])“(.*)”\s*$", re.MULTILINE)
 _DIALOGUE_QUOTES = {"「": "」", "『": "』", "“": "”", "\"": "\""}
 
 
@@ -337,6 +339,8 @@ def normalize_inline_dialogue(narrative: str, npc_names: list[str]) -> str:
     turns in the 120-turn probe). Only lines whose prefix is a known NPC name
     are rewritten, and only when the rest of the line is not already quoted;
     other ``X：`` patterns (narration labels, directions) are left untouched.
+    Also unifies structurally-correct straight-quoted dialogue
+    (``名字…说：“…”``) to the CJK corner brackets the client expects.
     """
 
     if not narrative or not npc_names:
@@ -351,9 +355,26 @@ def normalize_inline_dialogue(narrative: str, npc_names: list[str]) -> str:
             return match.group(0)
         if body[0] in _DIALOGUE_QUOTES:
             close = _DIALOGUE_QUOTES[body[0]]
-            if body.endswith(close):
+            # body 内已出现闭合符即视为完整引用（行尾可能有叙述或孤儿引号）
+            if close in body:
                 return match.group(0)
             return f"{speaker}：{body}{close}"
         return f"{speaker}：「{body}」"
 
-    return _INLINE_DIALOGUE_RE.sub(_rewrite, narrative)
+    # qwen2.5 特有的直引号包裹漂移：『“名字：”台词“』 → 名字：「台词」
+    narrative = _QUOTE_WRAPPED_DIALOGUE_RE.sub(
+        lambda m: f"{m.group(1)}：「{m.group(2)}」"
+        if m.group(1).strip() in names
+        else m.group(0),
+        narrative,
+    )
+    # 结构正确的对白仅引号字形偏差（铃音巫女轻声说：“…”）→ 统一为「」
+    def _straight(match: re.Match[str]) -> str:
+        prefix = match.group(1)
+        speaker = prefix.split("：", 1)[0].strip()
+        for name in names:
+            if speaker == name or (speaker.startswith(name) and len(speaker) - len(name) <= 6):
+                return f"{prefix}「{match.group(2)}」"
+        return match.group(0)
+
+    return _STRAIGHT_QUOTE_DIALOGUE_RE.sub(_straight, _INLINE_DIALOGUE_RE.sub(_rewrite, narrative))
