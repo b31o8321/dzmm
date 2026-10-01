@@ -112,6 +112,14 @@ def strip_json_fence(content: str) -> str:
     return value.strip()
 
 
+def _ollama_context_size(model_name: str) -> int:
+    lowered = (model_name or "").lower()
+    for marker, size in (("128k", 131072), ("64k", 65536), ("32k", 32768), ("16k", 16384), ("8k", 8192)):
+        if marker in lowered:
+            return size
+    return 16384
+
+
 def request_narrative(profile: Mapping[str, Any], context: dict[str, Any]) -> Any:
     request_payload: dict[str, Any] = {
         "model": profile["model_name"],

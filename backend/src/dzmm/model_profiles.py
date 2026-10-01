@@ -729,6 +729,20 @@ def _narrative_memory_payload(state: dict[str, Any]) -> list[dict[str, Any]]:
     return memory
 
 
+def _ollama_context_size(model_name: str) -> int:
+    """Infer a safe context window from the model name (Ollama defaults to 4096).
+
+    Model names often declare their trained context (e.g. "-32k", "-128k").
+    Without num_ctx, Ollama silently truncates the oldest prompt content —
+    the root cause of long-session quality degradation on local models.
+    """
+    lowered = (model_name or "").lower()
+    for marker, size in (("128k", 131072), ("64k", 65536), ("32k", 32768), ("16k", 16384), ("8k", 8192)):
+        if marker in lowered:
+            return size
+    return 16384  # safe default for modern instruct models
+
+
 def _narration_body(
     profile: ModelProfile,
     definition: dict[str, Any],
@@ -903,6 +917,7 @@ def _narration_body(
                 "temperature": 0.85,
                 "top_p": 0.9,
                 "num_predict": NARRATIVE_OLLAMA_NUM_PREDICT,
+                "num_ctx": _ollama_context_size(profile.model_name),
             },
         }
     body: dict[str, Any] = {
