@@ -120,6 +120,7 @@ model_profiles = Table(
     Column("base_url", String(500), nullable=False),
     Column("model_name", String(200), nullable=False),
     Column("api_key_ref", String(120)),
+    Column("context_size"),
     Column("is_default", Boolean(), nullable=False, default=False),
     Column("created_at", DateTime(), nullable=False),
 )
