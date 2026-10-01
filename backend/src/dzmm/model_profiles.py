@@ -35,7 +35,7 @@ from .persistence import model_profiles, runs
 
 # Local 12B+ models on Apple Silicon can take well past two minutes for long
 # completions; the default stays backwards compatible but is overridable.
-NARRATION_TIMEOUT_SECONDS = float(os.environ.get("DZMM_NARRATION_TIMEOUT", "120"))
+NARRATION_TIMEOUT_SECONDS = float(os.environ.get("DZMM_NARRATION_TIMEOUT", "300"))
 PROBE_TIMEOUT_SECONDS = 10.0
 DRAFT_OPENAI_MAX_TOKENS = 6000
 
