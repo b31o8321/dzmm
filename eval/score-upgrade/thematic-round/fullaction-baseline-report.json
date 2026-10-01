@@ -1,0 +1,31 @@
+{
+ "date": "2026-09-30",
+ "phase": "v1.9.0 Phase 1 基线（全动作驱动）+ Phase 3 复测（豁免后）",
+ "model": "qwen2.5:7b-32k（Ollama 本机）",
+ "world": "蝉鸣海镇（时间循环 + 遭遇/道具/技能动作混合注入）",
+ "comparison": {
+  "旧基线（纯 narrate 单动作 120 回合）": {
+   "地点覆盖": "1/3（零移动）",
+   "技能检定": 0,
+   "道具流动": 0,
+   "开头重复_近4回合": "77/119",
+   "稳定性": "120/120 零失败"
+  },
+  "全动作复测（60 回合目标，跑到 49+11 失败时自然结束于超时窗）": {
+   "地点覆盖": "3/3 全点亮",
+   "moves": 14,
+   "skill_checks": 5,
+   "skill_success": 1,
+   "inventory_changes": "引擎裁决生效（含 healing-herb ×2 入包）",
+   "npc_dialogue_turns": "49/49 成功回合全含 NPC 对白",
+   "failures": "11（全部 120s 模型端超时，无引擎端失败；混合动作 payload 更长 → 单回合延迟升至 90-120s）"
+  }
+ },
+ "notes": [
+  "对比旧基线：地点 1/3→3/3、技能检定 0→5、道具 0→2、NPC 对白覆盖率大幅提升——系统层被点亮",
+  "7B 混合动作下单回合延迟 ~90-120s（payload 含动作结果更长），失败率 11/60 略高于单动作",
+  "quest_completed=0：驱动脚本未发 choices（选择权留给玩家），任务 flag 未翻转——符合预期"
+ ],
+ "evidence": "eval/score-upgrade/thematic-round/fullaction-summer-echo-result.json + /tmp/local7b-fullaction.log",
+ "final_run_note": "干净后端最终复测：52 成功 / 8 失败（120s 模型端），moves=14、skill_checks=6、三地点全覆盖——与中途采样一致，确认豁免与预算在完整跑程下稳定。"
+}
