@@ -27,7 +27,17 @@
       "minimum": 0
     },
     "hero": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "maxItems": 12
+        }
+      }
     },
     "narrative_context": {
       "type": "object",
@@ -1230,6 +1240,35 @@
     },
     "sandbox": {
       "type": "boolean"
+    },
+    "quests": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "active",
+                  "completed"
+                ]
+              },
+              "completed_turn": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
     }
   },
   "additionalProperties": false
