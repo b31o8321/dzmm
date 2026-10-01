@@ -1,0 +1,37 @@
+{
+ "round": 1,
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "name": "任务奖励只发一次（重复回合不重发）",
+   "pass": true,
+   "detail": "relic 1->1, re-complete=False"
+  },
+  {
+   "name": "道具提案滥用拦截（超限/未知/负库存）",
+   "pass": true,
+   "detail": "relic=0（全部应被拒）"
+  },
+  {
+   "name": "skill_check DC 边界（0/40 拒绝，15 合法）",
+   "pass": true,
+   "detail": "边界全拦截"
+  },
+  {
+   "name": "结局锁定后 narrate 合法 / collect_clue 拒绝",
+   "pass": true,
+   "detail": "post-ending narrate/clue rejected: 409"
+  },
+  {
+   "name": "NPC 主动性不堆积（≤1）",
+   "pass": true,
+   "detail": "pending 轨迹 [0, 0, 0, 0]"
+  },
+  {
+   "name": "payload 预算（12 回合混合动作不溢出）",
+   "pass": true,
+   "detail": "12 回合混合动作全通过"
+  }
+ ]
+}
