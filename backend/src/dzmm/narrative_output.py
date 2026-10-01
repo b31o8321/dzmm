@@ -9,7 +9,7 @@ from typing import Any
 # Qwen 7B often needs more than 384 tokens for a complete Chinese scene plus
 # its private GM action marker; keep a bounded budget while avoiding routine
 # truncation before the player receives a finished hook.
-NARRATIVE_OLLAMA_NUM_PREDICT = 1024
+NARRATIVE_OLLAMA_NUM_PREDICT = 4096
 NARRATIVE_OPENAI_MAX_TOKENS = 480
 # OpenAI-compatible local models often append a private continuation marker
 # before stopping; leave enough room to finish the visible scene and marker.
