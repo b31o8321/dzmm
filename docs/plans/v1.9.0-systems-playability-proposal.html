@@ -48,7 +48,7 @@ code{font-family:ui-monospace,"SF Mono",monospace;font-size:12.5px;background:rg
 </head>
 <body>
 <div class="wrap">
-  <div class="kicker">DZMM · v1.9.0 立项方案 · 评审稿（待用户确认后实施）</div>
+  <div class="kicker">DZMM · v1.9.0 立项方案 · 已确认（2026-09-30 四项决策拍板，进入实施）</div>
   <h1>系统层可玩性：RPG 内容维度评估地图与增强计划</h1>
   <p class="sub">依据：本机 7B × 120 回合全量数据（eval/score-upgrade/local7b-120run-report.json）+ 引擎代码取证 · 2026-09-30 · 结论先行：<b style="color:var(--ink)">引擎有 7 个系统，模型只驱动了 2 个——本方案补齐写路径、裁决与世界触发器，并建立 12 维评估体系。</b></p>
 
@@ -87,7 +87,7 @@ code{font-family:ui-monospace,"SF Mono",monospace;font-size:12.5px;background:rg
     <tr><td><b>NPC 主动性</b></td><td><span class="pill yes">有（勘误）</span></td><td>调度 60 次但不可见</td><td>pending_interactions 进 GM payload 显式块 + UI 提示条；7B 遵循率入评估</td><td class="pill p0">P0</td></tr>
     <tr><td><b>对白质量</b></td><td><span class="pill part">部分</span></td><td>63/120 回合格式漂移 + 张冠李戴</td><td>GM payload 附 NPC 台词锚定示例；清洗规则规范「名字：」行内格式</td><td class="pill p1">P1</td></tr>
     <tr><td><b>关系/好感</b></td><td><span class="pill part">部分</span></td><td>favor/reputation 恒 0</td><td>声誉提案引导（prompt 强调）+ 关系维度变化经事件写入</td><td class="pill p1">P1</td></tr>
-    <tr><td><b>任务目标</b></td><td><span class="pill no">无</span></td><td>剧情线 10 引入 0 解决</td><td>正式 quest 结构（接受→进行→完成+奖励）；剧情线收敛入结局评估</td><td class="pill p1">P1</td></tr>
+    <tr><td><b>任务目标</b> <span class="pill p0" style="border:none">已升级 P0</span></td><td><span class="pill no">无</span></td><td>剧情线 10 引入 0 解决</td><td><b>quest 结构带奖励</b>：完成条件（flag）→ 奖励（宝箱道具/新线索/技能解锁）引擎自动发放；剧情线收敛入结局评估</td><td class="pill p0">P0</td></tr>
     <tr><td><b>记忆一致性</b></td><td><span class="pill part">部分</span></td><td>未系统评估</td><td>评估指标：NPC 记忆矛盾检测（对白 vs dialogue memory）</td><td class="pill p1">P1</td></tr>
     <tr><td><b>世界规则一致性</b></td><td><span class="pill part">部分</span></td><td>循环语义正确 ✓</td><td>循环/倒计时规则遵守度入评估（NPC 不应记得循环内事件）</td><td class="pill p2">P2</td></tr>
     <tr><td><b>阵营</b></td><td><span class="pill no">读无写</span></td><td>静止</td><td>faction standing 调整路径（随任务/战斗结算）</td><td class="pill p2">P2</td></tr>
@@ -113,6 +113,7 @@ code{font-family:ui-monospace,"SF Mono",monospace;font-size:12.5px;background:rg
     <p><b>skill_check 机制</b>：世界 ruleset 声明技能清单（潜行/说服/察觉…），hero/NC 携带调整值；引擎侧 <code>apply_skill_check(state, definition, payload)</code> 掷 d20+调整值 vs DC，产出成功等级（大成功/成功/失败/大失败），失败可挂状态效果（P2 扩展）。</p>
     <p><b>NPC 主动性可见化</b>：pending_interactions 已调度即写入 GM payload 独立块（含 NPC 名与 instruction），并要求模型在叙事中<b>以该 NPC 主动开口开场</b>；UI 侧 PlayScene 增加「{{npc}} 想找你」提示条；评估增加「主动性演绎率」指标（调度→可见对白的转化）。</p>
     <p><b>对白格式锚定</b>：GM payload 按在场 NPC 附一句格式示例（『海爷低声说：「……」』），清洗规则对「名字：」行内冒号式做重排告警。</p>
+    <p><b>任务系统（带奖励）</b>：世界定义 <code>story.quests</code>：{id, title, completion:{flag}, rewards:[{type: item|clue|skill, ...}]}。flag 翻转 → 引擎自动标记完成并发放奖励（item 进背包走资源白名单限幅；clue 注入新剧情线；skill 加入 hero 技能集供检定）。每任务奖励仅发一次，outcome 留审计。</p>
   </div>
 
   <div class="card">
@@ -127,7 +128,7 @@ code{font-family:ui-monospace,"SF Mono",monospace;font-size:12.5px;background:rg
   <table>
     <tr><th style="width:14%">阶段</th><th style="width:44%">内容</th><th>验收 gate</th></tr>
     <tr><td><b>Phase 1</b><br>评估先行</td><td>全动作驱动脚本 + 12 维指标采集；7B 跑一轮 60 回合基线（对照本轮 120 回合单动作数据）</td><td>基线报告落盘；≥5 个此前静止维度被点亮或确认仍静止（如实）</td></tr>
-    <tr><td><b>Phase 2</b><br>增强核心</td><td>支柱 A（gm_actions v2 两个提案）+ 支柱 B（skill_check + 主动性可见化 + 对白锚定）+ 契约/测试</td><td>232+ 测试全绿；真模型冒烟各提案至少成功一次且引擎限幅生效</td></tr>
+    <tr><td><b>Phase 2</b><br>增强核心</td><td>支柱 A（gm_actions v2 两个提案）+ 支柱 B（skill_check + 任务系统带奖励 + 主动性可见化 + 对白锚定）+ 契约/测试</td><td>232+ 测试全绿；真模型冒烟各提案至少成功一次且引擎限幅生效</td></tr>
     <tr><td><b>Phase 3</b><br>世界与复测</td><td>模板注入遭遇/道具/技能/主动性；全动作 120 回合复测（7B + GPT 5.6 对照）</td><td>≥8/12 维度点亮；开头重复不劣化；结局仍可达成</td></tr>
     <tr><td><b>Phase 4</b><br>收尾</td><td>P1 残余（quest 结构、关系事件、记忆矛盾评估）视进度；v1.9.0 发版申请</td><td>发版前请示（沿用惯例）</td></tr>
   </table>
@@ -165,7 +166,10 @@ code{font-family:ui-monospace,"SF Mono",monospace;font-size:12.5px;background:rg
       <li><b>道具提案权限</b>：模型可提议「获得」还是只「消耗」（获得更爽但需防刷；引擎限幅 ±3 且需 reason 是否足够）？</li>
       <li><b>技能清单归属</b>：技能定义放世界定义（作者可定制）还是引擎内置通用集（简单）？建议：引擎内置基础集 + 世界可扩展。</li>
     </ol>
-    <p style="margin-top:12px">确认后按 Phase 1→4 实施；每个 Phase 末汇报证据。</p>
+    <ol start="5">
+      <li><b>决策结果（2026-09-30 用户确认）</b>：① 同意，且 <b>任务目标升级进 P0</b>——事件与任务是 RPG 关键内容，任务需带奖励（宝箱/新线索/技能）；② 技能检定 = d20+调整值 vs DC；③ 道具提案 = 获得+消耗均可（引擎限幅 ±3 + reason_key）；④ 技能清单 = 引擎内置基础集 + 世界可扩展。</li>
+    </ol>
+    <p style="margin-top:12px">按 Phase 1→4 实施；每个 Phase 末汇报证据。</p>
   </div>
 
   <p class="note" style="margin-top:30px">证据：eval/score-upgrade/local7b-120run-report.json · thematic-round/ · 引擎取证 narrative.py:391–447（主动性）、combat.py（战斗）、command_engine.py:59（骰子）、narrative_output.py:35–38（gm_actions 白名单）· 本页为评审稿，确认后按 Phase 实施</p>
