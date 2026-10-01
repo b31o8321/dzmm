@@ -1,5 +1,20 @@
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
+## [v1.8.0] - 2026-09-30
+
+**主角跨局复用 + 小说素材出口（资产生态 P2 首切片）**
+
+### 新增
+- 主角跨局复用：create_run 接受 hero_id 复用同世界已有主角——身份保留，
+  携带「过往旅程」快照（完成局数 + 历史结局标题）；外世界 hero_id 拒绝 422
+- 小说素材导出：GET /runs/{id}/novel:export 组装回合叙事 + 蒸馏产物
+  （人物小传/事件年表/台词样本）为一份短篇素材 markdown
+- 方案稿：docs/plans/v1.8.0-plan.md（继承策略=成长快照，属性/关系不继承）
+
+### 验证
+- backend 232 tests + ruff 全绿（新增 3 项：复用身份保持、外世界拒绝、导出组装）
+- GPT-5.6 双世界全流程 PASS（雪夜 clue→accuse→case-closed；夏日破环→dawn-escape）
+
 ## [v1.7.1] - 2026-09-30
 
 **维护版：payload 预算二阶段 + 多题材测试资产**
