@@ -815,6 +815,34 @@ void main() {
     );
   });
 
+  testWidgets('creation form survives tab switches (IndexedStack keep-alive)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      DzmmMobileApp(port: _FakePort(), sessionStore: _MemoryStore()),
+    );
+    await tester.tap(find.text('创作'));
+    await tester.pumpAndSettle();
+
+    // 修改核心冲突字段为独特内容
+    await tester.enterText(
+      find.widgetWithText(TextField, '核心冲突'),
+      '独特的冲突标记 ABC123',
+    );
+    await tester.pump();
+
+    // 切走再切回：旧实现销毁页面状态，字段会回到默认文案
+    await tester.tap(find.text('世界'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('创作'));
+    await tester.pumpAndSettle();
+
+    final conflict = tester.widget<TextField>(
+      find.widgetWithText(TextField, '核心冲突'),
+    );
+    expect(conflict.controller?.text, '独特的冲突标记 ABC123');
+  });
+
   testWidgets('model setup explains missing fields before calling the host', (
     tester,
   ) async {

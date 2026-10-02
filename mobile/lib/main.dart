@@ -158,6 +158,8 @@ class _LocalShellState extends State<_LocalShell> {
   int _tab = 0;
   String? _activeRunId;
   String? _recoveryNotice;
+  // 保活全部页签：创作过程中的 AI 草案/表单状态不因切页丢失（IndexedStack）
+  final GlobalKey<_WorldsPageState> _worldsKey = GlobalKey<_WorldsPageState>();
   late final Future<Map<String, dynamic>> _health = widget.port.runtimeHealth();
 
   @override
@@ -229,6 +231,7 @@ class _LocalShellState extends State<_LocalShell> {
   Widget build(BuildContext context) {
     final pages = [
       _WorldsPage(
+        key: _worldsKey,
         port: widget.port,
         onOpenRun: _openRun,
         onCreate: () => setState(() => _tab = 1),
@@ -291,13 +294,20 @@ class _LocalShellState extends State<_LocalShell> {
                   ),
                 ),
               ),
-            Expanded(child: pages[_tab]),
+            Expanded(
+              // IndexedStack 保活：页签切换不再销毁/重建页面状态
+              child: IndexedStack(index: _tab, children: pages),
+            ),
           ],
         ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (index) => setState(() => _tab = index),
+        onDestinationSelected: (index) {
+          setState(() => _tab = index);
+          // 保活后世界列表不再随切页重建，回到页签时主动刷新
+          if (index == 0) _worldsKey.currentState?._reload();
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.public_outlined), label: '世界'),
           NavigationDestination(
@@ -318,6 +328,7 @@ class _LocalShellState extends State<_LocalShell> {
 
 class _WorldsPage extends StatefulWidget {
   const _WorldsPage({
+    super.key,
     required this.port,
     required this.onOpenRun,
     required this.onCreate,
