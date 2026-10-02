@@ -1,0 +1,31 @@
+{
+ "locations_visited": [
+  "lantern-alley",
+  "shrine-steps",
+  "tidewharf"
+ ],
+ "moves": 2,
+ "skill_checks": 1,
+ "skill_success": 1,
+ "inventory_changes": 0,
+ "inventory_final": [],
+ "npc_dialogue_turns": 6,
+ "quest_completed": 0,
+ "attacks": 1,
+ "attack_hits": 1,
+ "enemy_defeated": false,
+ "ending": null,
+ "clock_trace": [
+  330,
+  360,
+  390,
+  420,
+  450,
+  480
+ ],
+ "chars_total": 1626,
+ "secs_total": 280.20000000000005,
+ "done": 6,
+ "failures": 0,
+ "requested": 6
+}
