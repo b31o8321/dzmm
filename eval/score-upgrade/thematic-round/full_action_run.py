@@ -120,4 +120,4 @@ metrics["inventory_final"] = composed and api(f"/runs/{run_id}")[1]["state"].get
 metrics["done"] = done; metrics["failures"] = fails; metrics["requested"] = turns_n
 out = f"/Users/norman/development/dzmm/eval/score-upgrade/thematic-round/fullaction-{mode}-result.json"
 json.dump(metrics, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=str)
-log(f"METRICS: {json.dumps({k: metrics[k] for k in ('done','failures','moves','skill_checks','locations_visited','quest_completed','ending')}, ensure_ascii=False, default=str)}")
+log(f"METRICS: {json.dumps({k: metrics[k] for k in ('done','failures','moves','skill_checks','attacks','enemy_defeated','locations_visited','quest_completed','ending')}, ensure_ascii=False, default=str)}")
