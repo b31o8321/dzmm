@@ -29,18 +29,22 @@ trim_repeated_opening / opening_overlap_ratio 此前只接在嵌入式运行时
 双通道不齐问题。已在 turns.py 两通道接入共享 _post_process_narrative
 （41a38d8），contract 补 diagnostics 属性。
 
-## 四、本机模型可行性（今晚实测）
+## 四、本机模型可行性（2026-10-02 修正版；初判"qwen3.5 不可用"已被推翻）
 
-| 模型 | 上下文 | 单回合延迟 | 结论 |
-|---|---|---|---|
-| qwen2.5:7b | 32k | 30-60s（单动作）/ 90-120s（混合动作） | ✅ 本机长跑基准模型 |
-| qwen3.5:9b / abliterated 9B | 32k | >3-5 min/回合 | ❌ 不可用（~1 tok/s，负载/温度正常仍慢） |
-| qwen3.5-9b-no-think（Modelfile 变体） | 16k | 300s 超时未完成首回合 | ❌ Modelfile 未真正关思考 + 生成过慢 |
-| GPT 5.6（代理） | - | ~20-40s/回合 | ✅ 质量与稳定性最佳，36/36 |
+根因修正：qwen3.5 不认 qwen3 时代的 `/no_think` 软开关，DZMM 原机制下每回合
+思考烧光 num_predict → 300s 超时。原生 `think:false` 才有效（58da5c1 已对
+全部 8 个 Ollama 请求体生效，自动适用）。
 
-补充：qwen3.5-9b-no-think 的 Modelfile 实际没有 PARAMETER think false
-（只有 FROM/TEMPLATE/stop/temperature），"no-think" 名不副实；DZMM 请求体
-think:false 是真正生效的关闭路径。
+| 模型 | 关思考后速度（GPU 独占实测） | 结论 |
+|---|---|---|
+| qwen2.5:7b（32k ctx） | 30-60s/回合（120 回合零失败） | ✅ 稳定性基准 |
+| qwen3.5:9b（16k ctx） | 10.4 tok/s；DZMM 管道 32-74s/回合 | ✅ 可用，叙事质量抽样优于 qwen2.5 |
+| huihui_ai/qwen3.5-abliterated:9b | **17.2 tok/s**（比原版更快） | ✅ 可用，本机速度最优候选 |
+| GPT 5.6（代理） | ~20-40s/回合 | ✅ 质量与稳定性最佳，36/36 |
+
+历史坏数据备查：初判"~1.1 tok/s / >3-5min 每回合"为思考中毒 + GPU 排队
+污染的假象；no-think Modelfile 变体实际不含 think 参数（名不副实），可删。
+60 回合 qwen3.5 完整长跑被手动暂停（已完成 13/60 零失败），待 GPU 空闲续跑。
 
 ## 五、剩余风险与下一步
 
