@@ -40,6 +40,7 @@ class _PlayPageState extends State<PlayPage> {
   Timer? _operationTicker;
   DateTime? _operationStartedAt;
   String? _activeRequestId;
+  String? _lastFeedback;
   String? _destination;
   Future<void> Function()? _retryAction;
   final _action = TextEditingController();
@@ -267,6 +268,166 @@ class _PlayPageState extends State<PlayPage> {
     }
   }
 
+  List<({String id, String name, int quantity})> get _usableInventory {
+    final run = _run;
+    if (run == null) return const [];
+    final effects = _mapValue(run.presentation['resource_effects']);
+    final names = _mapValue(run.presentation['resources']);
+    final items = <({String id, String name, int quantity})>[];
+    for (final entry in run.state['inventory'] as List<dynamic>? ?? const []) {
+      final item = _mapValue(entry);
+      final id = item['id']?.toString();
+      if (id == null || !effects.containsKey(id)) continue;
+      final quantity = item['quantity'];
+      if (quantity is! num || quantity <= 0) continue;
+      items.add((
+        id: id,
+        name: names[id]?.toString() ?? id,
+        quantity: quantity.toInt(),
+      ));
+    }
+    return items;
+  }
+
+  List<_CombatTarget> get _combatTargets {
+    final run = _run;
+    if (run == null) return const [];
+    final state = run.state;
+    final ruleset = _mapValue(state['ruleset']);
+    final capabilities =
+        ruleset['enabled_capabilities'] as List<dynamic>? ?? const [];
+    if (!capabilities.contains('combat')) return const [];
+    final participants = _mapValue(_mapValue(state['combat'])['participants']);
+    final location = state['location_id'];
+    final targets = <_CombatTarget>[];
+    _mapValue(state['npc_state']).forEach((id, raw) {
+      final npc = _mapValue(raw);
+      if (npc['met'] != true) return;
+      final npcLocation = npc['location_id'];
+      if (npcLocation != null && npcLocation != location) return;
+      final participant = _mapValue(participants[id.toString()]);
+      targets.add(
+        _CombatTarget(
+          id: id.toString(),
+          name: npc['name']?.toString() ?? id.toString(),
+          hp: participant['hp'] as int?,
+          maxHp: participant['max_hp'] as int?,
+          defeated: participant['defeated'] == true,
+        ),
+      );
+    });
+    return targets;
+  }
+
+  List<String> get _availableSkills {
+    final run = _run;
+    if (run == null) return const [];
+    final skills = _mapValue(run.presentation['skills']);
+    final base = (skills['base'] as List<dynamic>? ?? const [])
+        .map((skill) => skill.toString())
+        .toSet();
+    final world = (skills['world'] as List<dynamic>? ?? const [])
+        .map((skill) => skill.toString())
+        .toSet();
+    return {...base, ...world, ..._trainedSkills}.toList()..sort();
+  }
+
+  Set<String> get _trainedSkills {
+    final run = _run;
+    if (run == null) return const {};
+    final hero = _mapValue(run.state['hero']);
+    return (hero['skills'] as List<dynamic>? ?? const [])
+        .map((skill) => skill.toString())
+        .toSet();
+  }
+
+  /// 从最新回合的引擎裁决结果提取玩家可感知反馈（战斗/检定/物品）。
+  void _extractFeedback(RunSnapshot next) {
+    final turns = next.turns;
+    if (turns.isEmpty) return;
+    final outcomes = (turns.last['outcomes'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((o) => Map<String, dynamic>.from(o))
+        .toList(growable: false);
+    final parts = <String>[];
+    for (final o in outcomes) {
+      final type = o['type'];
+      if (type == 'attack') {
+        final hit = o['hit'] == true;
+        parts.add(
+          hit
+              ? '攻击命中：d20 掷出 ${o['roll']}，伤害 ${o['damage']}'
+              : '攻击未命中：d20 掷出 ${o['roll']}',
+        );
+      } else if (type == 'skill_check_result') {
+        parts.add(
+          '${o['skill']} 检定：${o['total']} vs DC ${o['dc']} · '
+          '${o['success'] == true ? '成功' : '失败'}',
+        );
+      } else if (type == 'item_used') {
+        final healed = o['healed'];
+        if (healed is num && healed > 0) {
+          parts.add('使用了物品，恢复 $healed 点');
+        } else {
+          parts.add('使用了物品');
+        }
+      }
+    }
+    if (parts.isNotEmpty && mounted) {
+      setState(() => _lastFeedback = parts.join('；'));
+    }
+  }
+
+  /// 带前置引擎命令的回合（攻击/检定/物品使用），命令先于 narrate 结算。
+  Future<void> _playWithCommand(
+    String input,
+    Map<String, dynamic> command,
+  ) async {
+    final run = _run;
+    if (run == null || input.trim().isEmpty) return;
+    final requestId = 'cmd-${DateTime.now().microsecondsSinceEpoch}';
+    _retryAction = () => _playWithCommand(input, command);
+    _activeRequestId = requestId;
+    await _markPendingRunOperation(true);
+    _beginOperation('正在结算本回合；成功前不会写入半个回合。');
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _showModelGeneration();
+      final next = await widget.port.playTurn(run.runId, {
+        'request_id': requestId,
+        'expected_revision': run.state['revision'],
+        'player_input': input,
+        'commands': [command, {'type': 'narrate', 'payload': {}}],
+      });
+      if (mounted && _activeRequestId == requestId) {
+        _advanceOperation(
+          LocalHostOperationStage.applying,
+          '叙事已返回，正在读取保存后的状态…',
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _run = next;
+        _destination = _initialDestination(next);
+      });
+      _extractFeedback(next);
+      _scrollToLatest();
+    } catch (error) {
+      if (mounted && _activeRequestId == requestId) {
+        setState(() => _error = error.toString());
+      }
+    } finally {
+      if (mounted && _activeRequestId == requestId) {
+        _activeRequestId = null;
+      }
+      _endOperation();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _playNarrative() async {
     final run = _run;
     final input = _action.text.trim();
@@ -485,6 +646,10 @@ class _PlayPageState extends State<PlayPage> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
               children: [
                 LoopHud(state: _run!.state),
+                _QuestPanel(
+                  questState: _mapValue(_run!.state['quests']),
+                  titles: _mapValue(_run!.presentation['quests']),
+                ),
                 _StatePanel(
                   location: currentLocation,
                   chapter: latestBeat?['title'] as String?,
@@ -551,7 +716,7 @@ class _PlayPageState extends State<PlayPage> {
               elevation: 12,
               color: Theme.of(context).colorScheme.surface,
               child: SizedBox(
-                height: MediaQuery.sizeOf(context).height * 0.46,
+                height: MediaQuery.sizeOf(context).height * 0.5,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
                   child: Column(
@@ -600,40 +765,89 @@ class _PlayPageState extends State<PlayPage> {
                             ),
                           ),
                       ],
-                      if (_error == null && latestBeat != null)
-                        Expanded(
-                          child: SingleChildScrollView(
-                            controller: _actionScroll,
-                            padding: const EdgeInsets.only(top: 8),
-                            child: _StoryBeatCard(
-                              beat: latestBeat,
-                              current: true,
-                            ),
+                      if (_error == null)
+                      Expanded(
+                        child: SingleChildScrollView(
+                          controller: _actionScroll,
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (latestBeat != null)
+                                _StoryBeatCard(beat: latestBeat, current: true),
+                              if (_lastFeedback != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      _lastFeedback!,
+                                      style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_combatTargets.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: _CombatDeck(
+                                    targets: _combatTargets,
+                                    busy: _busy,
+                                    onAttack: (targetId, targetName) =>
+                                        _playWithCommand('攻击$targetName', {
+                                      'type': 'attack',
+                                      'payload': {'target_id': targetId},
+                                    }),
+                                  ),
+                                ),
+                              if (_run!.availableChoices.isEmpty)
+                                _FreeActionPanel(
+                                  presentation: presentation,
+                                  destination: _destination,
+                                  action: _action,
+                                  busy: _busy,
+                                  onDestination: (value) =>
+                                      setState(() => _destination = value),
+                                  onSubmit: _playNarrative,
+                                )
+                              else
+                                for (final choice in _run!.availableChoices)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: FilledButton.tonal(
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _choose(choice),
+                                      child: Text(choice['label'] as String),
+                                    ),
+                                  ),
+                              _SkillsItemsPanel(
+                                availableSkills: _availableSkills,
+                                trainedSkills: _trainedSkills,
+                                inventoryItems: _usableInventory,
+                                busy: _busy,
+                                onSkillCheck: (skill, dc) => _playWithCommand(
+                                  '$skill 检定',
+                                  {
+                                    'type': 'skill_check',
+                                    'payload': {'skill': skill, 'dc': dc},
+                                  },
+                                ),
+                                onUseItem: (itemId, itemName) =>
+                                    _playWithCommand('使用$itemName', {
+                                  'type': 'use_item',
+                                  'payload': {'item_id': itemId},
+                                }),
+                              ),
+                            ],
                           ),
-                        )
-                      else
-                        const Spacer(),
-                      if (_error != null)
-                        const Spacer()
-                      else if (_run!.availableChoices.isEmpty)
-                        _FreeActionPanel(
-                          presentation: presentation,
-                          destination: _destination,
-                          action: _action,
-                          busy: _busy,
-                          onDestination: (value) =>
-                              setState(() => _destination = value),
-                          onSubmit: _playNarrative,
-                        )
-                      else
-                        for (final choice in _run!.availableChoices)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: FilledButton.tonal(
-                              onPressed: _busy ? null : () => _choose(choice),
-                              child: Text(choice['label'] as String),
-                            ),
-                          ),
+                        ),
+                      ),
+                    if (_error != null) const Spacer(),
                     ],
                   ),
                 ),
@@ -1047,6 +1261,7 @@ class _FreeActionPanel extends StatelessWidget {
           controller: action,
           minLines: 1,
           maxLines: 3,
+          maxLength: 4000,
           decoration: const InputDecoration(
             labelText: '记录行动',
             hintText: '例如：观察码头的灯号，再向前走一步',
@@ -1100,4 +1315,242 @@ String _presentationLabel(
 
 String _relationshipDimensionLabel(String dimension) {
   return const {'affection': '好感', 'trust': '信任'}[dimension] ?? '关系';
+}
+
+class _CombatTarget {
+  const _CombatTarget({
+    required this.id,
+    required this.name,
+    required this.hp,
+    required this.maxHp,
+    required this.defeated,
+  });
+
+  final String id;
+  final String name;
+  final int? hp;
+  final int? maxHp;
+  final bool defeated;
+}
+
+/// 战斗入口：与桌面 combat deck 对齐（目标 + HP + 倒下态 + 空目标提示）。
+class _CombatDeck extends StatelessWidget {
+  const _CombatDeck({
+    required this.targets,
+    required this.busy,
+    required this.onAttack,
+  });
+
+  final List<_CombatTarget> targets;
+  final bool busy;
+  final void Function(String targetId, String targetName) onAttack;
+
+  @override
+  Widget build(BuildContext context) {
+    if (targets.isEmpty) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '当前地点没有可攻击的目标——先探索触发遭遇，或继续推进剧情。',
+          style: TextStyle(fontSize: 12),
+        ),
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final target in targets)
+          if (target.defeated)
+            Chip(label: Text('${target.name}（已倒下）'))
+          else
+            FilledButton.tonalIcon(
+              onPressed: busy ? null : () => onAttack(target.id, target.name),
+              icon: const Icon(Icons.gavel, size: 16),
+              label: Text(
+                target.hp != null && target.maxHp != null
+                    ? '攻击 ${target.name} · ${target.hp}/${target.maxHp}'
+                    : '攻击 ${target.name}',
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+/// 任务进度：状态来自引擎 quests 硬状态，标题来自世界定义。
+class _QuestPanel extends StatelessWidget {
+  const _QuestPanel({required this.questState, required this.titles});
+
+  final Map<String, dynamic> questState;
+  final Map<String, dynamic> titles;
+
+  static const _statusLabels = {
+    'active': '进行中',
+    'pending': '待激活',
+    'completed': '已完成',
+    'expired': '已过期',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (questState.isEmpty) return const SizedBox.shrink();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('任务', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            for (final entry in questState.entries)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        titles[entry.key]?.toString() ?? entry.key,
+                      ),
+                    ),
+                    Text(
+                      _statusLabels[
+                              _mapValue(entry.value)['status']?.toString()] ??
+                          '进行中',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 技能检定 + 物品使用：引擎能力（skill_check / use_item）的手机入口。
+class _SkillsItemsPanel extends StatefulWidget {
+  const _SkillsItemsPanel({
+    required this.availableSkills,
+    required this.trainedSkills,
+    required this.inventoryItems,
+    required this.busy,
+    required this.onSkillCheck,
+    required this.onUseItem,
+  });
+
+  final List<String> availableSkills;
+  final Set<String> trainedSkills;
+  final List<({String id, String name, int quantity})> inventoryItems;
+  final bool busy;
+  final void Function(String skill, int dc) onSkillCheck;
+  final void Function(String itemId, String itemName) onUseItem;
+
+  @override
+  State<_SkillsItemsPanel> createState() => _SkillsItemsPanelState();
+}
+
+class _SkillsItemsPanelState extends State<_SkillsItemsPanel> {
+  String? _skill;
+  final TextEditingController _dc = TextEditingController(text: '12');
+
+  @override
+  void dispose() {
+    _dc.dispose();
+    super.dispose();
+  }
+
+  int get _dcValue {
+    final parsed = int.tryParse(_dc.text.trim());
+    if (parsed == null || parsed < 5 || parsed > 25) return 12;
+    return parsed;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skills = widget.availableSkills;
+    return ExpansionTile(
+      title: const Text('检定与物品'),
+      subtitle: const Text('技能检定与带效果的物品使用'),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      children: [
+        if (skills.isEmpty)
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('当前世界没有可用技能。'),
+          )
+        else ...[
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _skill ?? skills.first,
+                  decoration: const InputDecoration(labelText: '技能'),
+                  items: [
+                    for (final skill in skills)
+                      DropdownMenuItem(
+                        value: skill,
+                        child: Text(
+                          widget.trainedSkills.contains(skill)
+                              ? '$skill（受训 +3）'
+                              : skill,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _skill = value),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 88,
+                child: TextField(
+                  controller: _dc,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'DC',
+                    helperText: '5-25',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: widget.busy
+                  ? null
+                  : () => widget.onSkillCheck(
+                      _skill ?? skills.first, _dcValue),
+              icon: const Icon(Icons.casino),
+              label: const Text('掷骰检定'),
+            ),
+          ),
+        ],
+        if (widget.inventoryItems.isEmpty)
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('背包里没有可使用的物品。'),
+          )
+        else ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('可使用物品'),
+          ),
+          for (final item in widget.inventoryItems)
+            ListTile(
+              dense: true,
+              title: Text('${item.name} ×${item.quantity}'),
+              trailing: TextButton(
+                onPressed: widget.busy
+                    ? null
+                    : () => widget.onUseItem(item.id, item.name),
+                child: const Text('使用'),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
 }

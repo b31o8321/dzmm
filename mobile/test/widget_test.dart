@@ -1047,4 +1047,257 @@ void main() {
     expect(port.validatedWorldName, '新世界');
     expect(find.text('草案已通过本机规则校验'), findsOneWidget);
   });
+
+testWidgets('ADV1 空白行动不发起回合', (tester) async {
+  final port = _AdversarialPort();
+  final store = _MemoryStore()..session = const LocalSession(runId: 'run-1');
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: store));
+  await tester.pumpAndSettle();
+
+  await tester.enterText(find.widgetWithText(TextField, '记录行动'), '   ');
+  await tester.tap(find.text('提交行动'));
+  await tester.pump();
+
+  expect(port.playTurnCalls, 0);
+});
+
+testWidgets('ADV2 4000 字符与 emoji 行动正常提交且不崩溃', (tester) async {
+  final port = _AdversarialPort();
+  final store = _MemoryStore()..session = const LocalSession(runId: 'run-1');
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: store));
+  await tester.pumpAndSettle();
+
+  final longInput = '🌊${'潮' * 3998}';
+  await tester.enterText(find.widgetWithText(TextField, '记录行动'), longInput);
+  await tester.tap(find.text('提交行动'));
+  await tester.pumpAndSettle();
+
+  expect(port.playTurnCalls, 1);
+  expect(port.submittedInputs.single, longInput);
+});
+
+testWidgets('ADV3 创作页横屏状态保留', (tester) async {
+  tester.view.physicalSize = const Size(1280, 720);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+  await tester.pumpWidget(DzmmMobileApp(port: _FakePort(), sessionStore: _MemoryStore()));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('创建本机世界'));
+  await tester.pumpAndSettle();
+
+  await tester.enterText(
+    find.widgetWithText(TextField, '核心冲突'),
+    '横屏冲突标记 XYZ789',
+  );
+  await tester.pump();
+
+  // 旋转为竖屏再横屏，字段内容应保留（State 保活）
+  tester.view.physicalSize = const Size(720, 1280);
+  await tester.pumpAndSettle();
+  tester.view.physicalSize = const Size(1280, 720);
+  await tester.pumpAndSettle();
+
+  final conflict = tester.widget<TextField>(
+    find.widgetWithText(TextField, '核心冲突'),
+  );
+  expect(conflict.controller?.text, '横屏冲突标记 XYZ789');
+});
+
+testWidgets('ADV4 模型档案保存连点只创建一次', (tester) async {
+  final port = _AdversarialPort();
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: _MemoryStore()));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('模型'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('新建'));
+  await tester.pumpAndSettle();
+
+  await tester.enterText(find.widgetWithText(TextField, '名称'), '连点模型');
+  await tester.enterText(find.widgetWithText(TextField, '模型名'), 'qwen2.5:7b');
+  await tester.drag(find.byType(ListView), const Offset(0, -420));
+  await tester.pump();
+  await tester.tap(find.text('保存模型档案'));
+  await tester.tap(find.text('保存模型档案'));
+  await tester.pumpAndSettle();
+
+  expect(port.createProfileCalls, 1);
+});
+testWidgets('T3 战斗目标可见且攻击命令入通道', (tester) async {
+  final port = _AdversarialPort();
+  final store = _MemoryStore()..session = const LocalSession(runId: 'run-1');
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: store));
+  await tester.pumpAndSettle();
+
+  expect(find.textContaining('攻击 夜潮鬼影'), findsOneWidget);
+  await tester.tap(find.text('攻击 夜潮鬼影 · 5/8'));
+  await tester.pumpAndSettle();
+
+  expect(port.playTurnCalls, 1);
+  expect(
+    port.submittedCommands.first['type'],
+    'attack',
+  );
+  expect(
+    (port.submittedCommands.first['payload'] as Map)['target_id'],
+    'tide-wraith',
+  );
+});
+
+testWidgets('T3 任务面板展示引擎任务状态', (tester) async {
+  final port = _AdversarialPort();
+  final store = _MemoryStore()..session = const LocalSession(runId: 'run-1');
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: store));
+  await tester.pumpAndSettle();
+
+  // 任务面板位于懒列表缓存区，offstage 语义下用 skipOffstage 断言其渲染
+  expect(
+    find.text('寻找遗物', skipOffstage: false),
+    findsOneWidget,
+  );
+  expect(find.text('进行中', skipOffstage: false), findsOneWidget);
+});
+
+testWidgets('T3 技能检定入口按所选技能与 DC 发命令', (tester) async {
+  final port = _AdversarialPort();
+  final store = _MemoryStore()..session = const LocalSession(runId: 'run-1');
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: store));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('检定与物品'));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('掷骰检定'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('掷骰检定'));
+  await tester.pumpAndSettle();
+
+  expect(port.playTurnCalls, 1);
+  final command = port.submittedCommands.first;
+  expect(command['type'], 'skill_check');
+  expect((command['payload'] as Map)['skill'], 'insight');
+  expect((command['payload'] as Map)['dc'], 12);
+});
+
+testWidgets('T3 可使用物品带使用按钮并触发 use_item', (tester) async {
+  final port = _AdversarialPort();
+  final store = _MemoryStore()..session = const LocalSession(runId: 'run-1');
+  await tester.pumpWidget(DzmmMobileApp(port: port, sessionStore: store));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('检定与物品'));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('使用'));
+  await tester.pumpAndSettle();
+  expect(find.text('治疗草药 ×2'), findsOneWidget);
+  await tester.tap(find.text('使用'));
+  await tester.pumpAndSettle();
+
+  final command = port.submittedCommands.first;
+  expect(command['type'], 'use_item');
+  expect((command['payload'] as Map)['item_id'], 'healing-herb');
+});
 }
+
+/// ===== T1 敌意功能轮（eval/mobile-maturity/adversarial-r1）=====
+/// 降级说明：无真机/模拟器，敌意场景以 widget 级确定性测试承载，
+/// 同时作为回归资产。真机专属项（logcat/MIUI 安装）记为阻塞。
+
+class _AdversarialPort extends _FakePort {
+  int playTurnCalls = 0;
+  final List<String> submittedInputs = [];
+  int createProfileCalls = 0;
+
+  final List<Map<String, dynamic>> submittedCommands = [];
+
+  @override
+  Future<RunSnapshot> getRun(String runId) async => RunSnapshot({
+    'run_id': runId,
+    'state': {
+      'revision': 0,
+      'ending': null,
+      'location_id': 'tidewharf',
+      'ruleset': {'enabled_capabilities': ['trpg', 'resources', 'combat', 'chapters', 'choices', 'endings']},
+      'hero': {'name': '米拉', 'skills': ['insight']},
+      'npc_state': {
+        'tide-wraith': {
+          'id': 'tide-wraith',
+          'name': '夜潮鬼影',
+          'met': true,
+          'location_id': 'tidewharf',
+        },
+      },
+      'combat': {
+        'participants': {
+          'tide-wraith': {'role': 'npc', 'max_hp': 8, 'hp': 5, 'defeated': false},
+        },
+      },
+      'inventory': [
+        {'id': 'healing-herb', 'quantity': 2},
+      ],
+      'quests': {
+        'find-relic': {'status': 'active', 'completed_turn': 0, 'activated_turn': 0},
+      },
+    },
+    'presentation': {
+      'world_name': '蝉鸣海镇',
+      'locations': {'tidewharf': '潮声栈桥'},
+      'resources': {'healing-herb': '治疗草药'},
+      'resource_effects': {'healing-herb': {'heal': 5}},
+      'skills': {'base': ['insight', 'survival'], 'world': []},
+      'quests': {'find-relic': '寻找遗物'},
+    },
+    'story_beats': [
+      {
+        'kind': 'opening',
+        'title': '敌意轮',
+        'location': '潮声栈桥',
+        'narrative': '米拉抵达雾港码头，故事从此刻开始。',
+        'objective': '确认眼前的局势。',
+        'guidance': '自由行动。',
+      },
+    ],
+    'available_choices': const [],
+    'turns': <Map<String, dynamic>>[],
+  });
+
+  @override
+  Future<RunSnapshot> playTurn(String runId, Map<String, dynamic> payload) async {
+    playTurnCalls += 1;
+    submittedInputs.add(payload['player_input'] as String? ?? '');
+    submittedCommands.addAll(
+      (payload['commands'] as List<dynamic>)
+          .map((c) => Map<String, dynamic>.from(c as Map)),
+    );
+    return RunSnapshot({
+      'run_id': runId,
+      'state': {'revision': 1, 'ending': null},
+      'story_beats': [
+        {
+          'kind': 'turn',
+          'title': '回应',
+          'location': '雾港码头',
+          'narrative': '你做了些什么。',
+          'objective': '继续。',
+          'guidance': '继续。',
+        },
+      ],
+      'available_choices': const [],
+      'turns': <Map<String, dynamic>>[
+        {'id': 't1', 'kind': 'turn', 'sequence': 1, 'player_input': payload['player_input'], 'narrative': '你做了些什么。', 'rollback_target_id': null},
+      ],
+    });
+  }
+
+  @override
+  Future<ModelProfile> createModelProfile(Map<String, dynamic> profile) async {
+    createProfileCalls += 1;
+    return ModelProfile(
+      id: 'adv-profile-$createProfileCalls',
+      name: profile['name'] as String? ?? '未命名',
+      providerType: profile['provider_type'] as String? ?? 'ollama',
+      baseUrl: profile['base_url'] as String? ?? '',
+      modelName: profile['model_name'] as String? ?? '',
+    );
+  }}
