@@ -36,7 +36,9 @@ from .persistence import model_profiles, runs
 # Local 12B+ models on Apple Silicon can take well past two minutes for long
 # completions; the default stays backwards compatible but is overridable.
 NARRATION_TIMEOUT_SECONDS = float(os.environ.get("DZMM_NARRATION_TIMEOUT", "300"))
-PROBE_TIMEOUT_SECONDS = 10.0
+# 探针携带 num_ctx 后，首次连接会触发模型按真实上下文加载——
+# 本机 9B 冷加载 16k 约 16s，10s 会误报超时；30s 覆盖冷加载 + 慢推理。
+PROBE_TIMEOUT_SECONDS = 30.0
 DRAFT_OPENAI_MAX_TOKENS = 6000
 
 # LM Studio supports OpenAI-compatible structured output. Keeping this schema

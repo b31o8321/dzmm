@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from dzmm.model_profiles import (
+    PROBE_TIMEOUT_SECONDS,
     ModelDraftGenerator,
     ModelNarrator,
     ModelProber,
@@ -364,7 +365,7 @@ def test_model_probe_uses_its_short_timeout_in_player_feedback() -> None:
     result = asyncio.run(prober.probe(profile))
 
     assert result.success is False
-    assert result.detail.startswith("模型在 10 秒内没有返回内容。")
+    assert result.detail.startswith(f"模型在 {int(PROBE_TIMEOUT_SECONDS)} 秒内没有返回内容。")
     assert "没有写入结果" in result.detail
 
 
@@ -858,6 +859,8 @@ def test_probe_body_loads_model_at_configured_context() -> None:
 
     explicit = probe_body("ollama", "qwen2.5:7b", 32768)
     assert explicit["options"]["num_ctx"] == 32768
+    # 探针必须关闭思考：否则 qwen3.5 在测试连接时烧光预算/拖垮超时
+    assert explicit["think"] is False
     inferred = probe_body("ollama", "huihui-qwen3.5-9b-no-think:latest")
     assert inferred["options"]["num_ctx"] == 16384
     named = probe_body("ollama", "qwen2.5:7b-32k")
