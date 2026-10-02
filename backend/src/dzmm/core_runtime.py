@@ -1640,6 +1640,8 @@ def _turn_snapshot(turn: sqlite3.Row) -> dict[str, Any]:
         ),
         None,
     )
+    # 保留引擎裁决结果，供客户端渲染战斗/检定/物品使用反馈
+    snapshot["outcomes"] = outcomes
     return snapshot
 
 

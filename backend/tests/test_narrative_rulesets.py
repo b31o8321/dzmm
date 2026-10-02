@@ -931,3 +931,37 @@ def test_normalize_inline_dialogue_rewrites_midline_quote_wrapped_drift() -> Non
         names,
     )
     assert value == "铃音巫女：「那里有什么东西吗？看来你比上次更仔细了。」老潜水员海爷的声音从附近传来。”"
+
+
+def test_run_presentation_exposes_skills_quests_and_resource_effects() -> None:
+    """手机端 T3：技能目录/任务标题/物品使用效果必须随 run 快照下发。"""
+
+    from dzmm.run_presentation import build_run_presentation
+
+    definition = {
+        "name": "雾港",
+        "character_cards": [],
+        "locations": [{"id": "harbor", "name": "雾港码头"}],
+        "resources": [
+            {"id": "herb", "name": "治疗草药", "on_use": {"heal": 5}},
+            {"id": "rock", "name": "石头"},
+        ],
+        "skills": ["ancient-tongue"],
+        "npcs": [],
+        "story": {
+            "chapters": [],
+            "quests": [
+                {"id": "find-key", "title": "找到钥匙", "completion": {"flag": "k"}, "rewards": []}
+            ],
+            "flags": [],
+            "relationships": [],
+            "relationship_events": [],
+            "routes": [],
+            "endings": [],
+        },
+    }
+    presentation = build_run_presentation(definition)
+    assert "insight" in presentation["skills"]["base"]
+    assert presentation["skills"]["world"] == ["ancient-tongue"]
+    assert presentation["quests"] == {"find-key": "找到钥匙"}
+    assert presentation["resource_effects"] == {"herb": {"heal": 5}}
