@@ -4,6 +4,7 @@ import json
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -40,10 +41,12 @@ from .core import (
     PortableService,
     PurgeConfirmation,
     PurgeConfirmationError,
+    RemoteModelsInput,
     RevisionConflictError,
     RunModelProfileConflictError,
     RunModelProfileInput,
     RunNotFoundError,
+    ScanLanInput,
     SillyTavernImportInput,
     TurnCoordinator,
     TurnIdempotencyConflictError,
@@ -61,6 +64,7 @@ from .core import (
 )
 from .db import create_engine
 from .genre_presets import genre_preset_list
+from .model_discovery import fetch_remote_models, scan_lan
 from .persistence import (
     director_notes,
     distillations,
@@ -745,6 +749,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if profile is None:
             raise HTTPException(status_code=404, detail="model profile not found")
         return (await app.state.model_prober.probe(profile)).model_dump(mode="json")
+
+    @app.post("/api/v2/model-profiles:server-models")
+    async def list_remote_models(payload: RemoteModelsInput) -> list[dict[str, str]]:
+        try:
+            names = await fetch_remote_models(
+                payload.provider_type, payload.base_url, payload.api_key
+            )
+        except (httpx.HTTPError, ValueError) as error:
+            raise HTTPException(status_code=502, detail=f"无法获取模型列表：{error}") from error
+        return [{"name": name} for name in names]
+
+    @app.post("/api/v2/model-profiles:scan-lan")
+    async def scan_lan_model_servers(payload: ScanLanInput) -> list[dict[str, object]]:
+        try:
+            return await scan_lan(subnet=payload.subnet, ports=payload.ports)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=502, detail=f"局域网扫描失败：{error}") from error
 
     return app
 

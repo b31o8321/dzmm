@@ -106,6 +106,16 @@ class _FakePort implements LocalHostPort {
       throw UnimplementedError();
 
   @override
+  Future<List<DiscoveredModelServer>> scanLanModelServers() async => const [];
+
+  @override
+  Future<List<String>> listRemoteModels(
+    String providerType,
+    String baseUrl, {
+    String? apiKey,
+  }) async => const [];
+
+  @override
   Future<AIWorldDraft> generateDraft(Map<String, dynamic> brief) =>
       throw UnimplementedError();
 
@@ -814,12 +824,20 @@ void main() {
     await tester.tap(find.text('模型'));
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(ListView).first, const Offset(0, -420));
+    await tester.tap(find.text('新建'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -420));
     await tester.pump();
     await tester.tap(find.text('保存模型档案'));
     await tester.pump();
+    await tester.drag(find.byType(ListView), const Offset(0, 420));
+    await tester.pump();
+    expect(find.text('请输入模型名称'), findsOneWidget);
 
-    expect(find.text('请输入模型名'), findsOneWidget);
+    final modelField = tester.widget<TextField>(
+      find.widgetWithText(TextField, '模型名'),
+    );
+    expect(modelField.decoration?.errorText, '请输入或选择模型名');
   });
 
   testWidgets(
@@ -830,6 +848,9 @@ void main() {
       );
       await tester.tap(find.text('模型'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('新建'));
+      await tester.pumpAndSettle();
+
       final provider = tester.widget<DropdownButtonFormField<String>>(
         find.byType(DropdownButtonFormField<String>),
       );
@@ -840,6 +861,9 @@ void main() {
         find.widgetWithText(TextField, 'Base URL'),
       );
       expect(baseUrl.controller?.text, 'http://127.0.0.1:1234/v1');
+      // 上下文长度下拉存在且默认“自动”
+      expect(find.text('上下文长度'), findsOneWidget);
+      expect(find.text('自动（按模型名推断）'), findsOneWidget);
     },
   );
 

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from .loop_memory import loop_memories_for_prompt, loop_summaries_for_prompt
 from .loop_mode import drift_directive
 from .model_protocol import chat_content as _chat_content
-from .model_protocol import chat_endpoint, probe_body
+from .model_protocol import chat_endpoint, ollama_context_size, probe_body
 from .model_request_feedback import model_connection_detail, model_timeout_detail
 from .model_secrets import ModelSecretStore, default_model_secret_store
 from .narrative import available_choices, narrative_variation
@@ -166,6 +166,17 @@ class ProviderType(StrEnum):
     OLLAMA = "ollama"
     LM_STUDIO = "lm_studio"
     OPENAI_COMPAT = "openai_compat"
+
+
+class RemoteModelsInput(BaseModel):
+    provider_type: str
+    base_url: str
+    api_key: str | None = None
+
+
+class ScanLanInput(BaseModel):
+    subnet: str | None = None
+    ports: list[int] | None = None
 
 
 class ModelProfileInput(BaseModel):
@@ -665,7 +676,7 @@ def _request_headers(
 
 
 def _probe_body(profile: ModelProfile) -> dict[str, Any]:
-    return probe_body(profile.provider_type, profile.model_name)
+    return probe_body(profile.provider_type, profile.model_name, profile.context_size)
 
 
 def _response_detail(response: httpx.Response) -> str:
@@ -729,18 +740,16 @@ def _narrative_memory_payload(state: dict[str, Any]) -> list[dict[str, Any]]:
     return memory
 
 
-def _ollama_context_size(model_name: str) -> int:
+def _ollama_context_size(model_name: str, context_size: int | None = None) -> int:
     """Infer a safe context window from the model name (Ollama defaults to 4096).
 
     Model names often declare their trained context (e.g. "-32k", "-128k").
     Without num_ctx, Ollama silently truncates the oldest prompt content —
     the root cause of long-session quality degradation on local models.
+    Delegates to the shared protocol helper so the probe path stays identical.
     """
-    lowered = (model_name or "").lower()
-    for marker, size in (("128k", 131072), ("64k", 65536), ("32k", 32768), ("16k", 16384), ("8k", 8192)):
-        if marker in lowered:
-            return size
-    return 16384  # safe default for modern instruct models
+    return ollama_context_size(model_name, context_size)
+
 
 
 def _skills_payload(state: dict[str, Any], definition: dict[str, Any]) -> dict[str, Any]:

@@ -170,8 +170,12 @@ def test_contract_keeps_platform_navigation_and_recovery_states_stable() -> None
     desktop_profiles = (
         ROOT / "desktop" / "src" / "composables" / "useModelProfiles.ts"
     ).read_text(encoding="utf-8")
-    android_profiles = (ROOT / "mobile" / "lib" / "pages" / "models_page.dart").read_text(
-        encoding="utf-8"
+    android_profiles = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "mobile" / "lib" / "pages" / "models_page.dart",
+            ROOT / "mobile" / "lib" / "pages" / "model_edit_page.dart",
+        )
     )
     for provider, base_url in presets.items():
         assert provider in desktop_profiles and provider in android_profiles

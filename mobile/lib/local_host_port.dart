@@ -23,6 +23,8 @@ abstract final class LocalHostOperation {
   static const setDefaultModelProfile = 'set_default_model_profile';
   static const deleteModelProfile = 'delete_model_profile';
   static const probeModelProfile = 'probe_model_profile';
+  static const scanLanModelServers = 'scan_lan_model_servers';
+  static const listRemoteModels = 'list_remote_models';
   static const generateAiWorldDraft = 'generate_ai_world_draft';
   static const validateAiWorldDraft = 'validate_ai_world_draft';
   static const composeWorld = 'compose_world';
@@ -188,6 +190,7 @@ class ModelProfile {
     required this.providerType,
     required this.baseUrl,
     required this.modelName,
+    this.contextSize,
     this.isDefault = false,
     this.hasApiKey = false,
   });
@@ -197,6 +200,7 @@ class ModelProfile {
   final String providerType;
   final String baseUrl;
   final String modelName;
+  final int? contextSize;
   final bool isDefault;
   final bool hasApiKey;
 
@@ -206,6 +210,7 @@ class ModelProfile {
     providerType: json['provider_type'] as String,
     baseUrl: json['base_url'] as String,
     modelName: json['model_name'] as String,
+    contextSize: json['context_size'] as int?,
     isDefault: json['is_default'] as bool? ?? false,
     hasApiKey: json['has_api_key'] as bool? ?? false,
   );
@@ -216,9 +221,37 @@ class ModelProfile {
     'provider_type': providerType,
     'base_url': baseUrl,
     'model_name': modelName,
+    if (contextSize != null) 'context_size': contextSize,
     'is_default': isDefault,
     'has_api_key': hasApiKey,
   };
+}
+
+class DiscoveredModelServer {
+  const DiscoveredModelServer({
+    required this.host,
+    required this.port,
+    required this.providerHint,
+    required this.baseUrl,
+    required this.models,
+  });
+
+  final String host;
+  final int port;
+  final String providerHint;
+  final String baseUrl;
+  final List<String> models;
+
+  factory DiscoveredModelServer.fromJson(Map<String, dynamic> json) =>
+      DiscoveredModelServer(
+        host: json['host'] as String,
+        port: json['port'] as int,
+        providerHint: json['provider_hint'] as String? ?? 'openai_compat',
+        baseUrl: json['base_url'] as String,
+        models: (json['models'] as List<dynamic>? ?? const [])
+            .map((name) => name as String)
+            .toList(growable: false),
+      );
 }
 
 class ModelProbeResult {
@@ -314,6 +347,12 @@ abstract class LocalHostPort {
   Future<ModelProfile> setDefaultModelProfile(String profileId);
   Future<void> deleteModelProfile(String profileId);
   Future<ModelProbeResult> probeModelProfile(String profileId);
+  Future<List<DiscoveredModelServer>> scanLanModelServers();
+  Future<List<String>> listRemoteModels(
+    String providerType,
+    String baseUrl, {
+    String? apiKey,
+  });
   Future<AIWorldDraft> generateDraft(Map<String, dynamic> brief);
   Future<AIWorldDraft> validateDraft(Map<String, dynamic> draft);
   Future<ComposeResult> composeWorld(Map<String, dynamic> payload);
@@ -507,6 +546,33 @@ class EmbeddedPythonLocalHostPort implements LocalHostPort {
         if (apiKey != null && apiKey.isNotEmpty) 'api_key': apiKey,
       }),
     );
+  }
+
+  @override
+  Future<List<DiscoveredModelServer>> scanLanModelServers() async {
+    final value = await _call(LocalHostOperation.scanLanModelServers);
+    return (value['servers'] as List<dynamic>? ?? const [])
+        .map(
+          (server) =>
+              DiscoveredModelServer.fromJson(Map<String, dynamic>.from(server as Map)),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<String>> listRemoteModels(
+    String providerType,
+    String baseUrl, {
+    String? apiKey,
+  }) async {
+    final value = await _call(LocalHostOperation.listRemoteModels, {
+      'provider_type': providerType,
+      'base_url': baseUrl,
+      if (apiKey != null && apiKey.isNotEmpty) 'api_key': apiKey,
+    });
+    return (value['models'] as List<dynamic>? ?? const [])
+        .map((model) => (model as Map)['name'] as String)
+        .toList(growable: false);
   }
 
   @override

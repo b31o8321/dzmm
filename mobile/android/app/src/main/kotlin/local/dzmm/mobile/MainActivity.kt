@@ -18,6 +18,8 @@ class MainActivity : FlutterActivity() {
         "generate_ai_world_draft",
         "validate_ai_world_draft",
         "probe_model_profile",
+        "scan_lan_model_servers",
+        "list_remote_models",
     )
     private val supportedOperations = setOf(
         "runtime_health",
@@ -33,6 +35,8 @@ class MainActivity : FlutterActivity() {
         "set_default_model_profile",
         "delete_model_profile",
         "probe_model_profile",
+        "scan_lan_model_servers",
+        "list_remote_models",
         "world_template",
         "compose_world",
         "get_run",

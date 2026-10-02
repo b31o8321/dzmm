@@ -848,3 +848,18 @@ def test_ollama_bodies_request_native_think_off() -> None:
     )
     assert seen["body"]["think"] is False
     assert seen["body"]["options"]["num_ctx"] == 16384
+
+
+def test_probe_body_loads_model_at_configured_context() -> None:
+    """手机实测缺陷：测试连接不带 num_ctx，Ollama 按默认 4096 加载模型，
+    用户看到/复用的上下文就是错的。探针必须与游玩请求同源解析上下文。"""
+
+    from dzmm.model_protocol import probe_body
+
+    explicit = probe_body("ollama", "qwen2.5:7b", 32768)
+    assert explicit["options"]["num_ctx"] == 32768
+    inferred = probe_body("ollama", "huihui-qwen3.5-9b-no-think:latest")
+    assert inferred["options"]["num_ctx"] == 16384
+    named = probe_body("ollama", "qwen2.5:7b-32k")
+    assert named["options"]["num_ctx"] == 32768
+    assert "options" not in probe_body("lm_studio", "qwen3-14b")

@@ -106,6 +106,34 @@ def probe_model_profile(arguments: str = "{}") -> str:
     )
 
 
+def list_remote_models(arguments: str = "{}") -> str:
+    import asyncio
+
+    from dzmm.model_discovery import fetch_remote_models
+
+    value = _arguments(arguments)
+    names = asyncio.run(
+        fetch_remote_models(
+            str(value.get("provider_type") or ""),
+            str(value.get("base_url") or ""),
+            str(value.get("api_key") or "") or None,
+        )
+    )
+    return _result(models=[{"name": name} for name in names])
+
+
+def scan_lan_model_servers(arguments: str = "{}") -> str:
+    import asyncio
+
+    from dzmm.model_discovery import scan_lan
+
+    value = _arguments(arguments)
+    servers = asyncio.run(
+        scan_lan(subnet=value.get("subnet"), ports=value.get("ports"))
+    )
+    return _result(servers=servers)
+
+
 def world_template(arguments: str = "{}") -> str:
     return _result(**fog_harbor_template())
 

@@ -30,6 +30,8 @@ _EXPORTS = {
     "integrity_scan": ("..lifecycle", "integrity_scan"),
     "ModelProber": ("..model_profiles", "ModelProber"),
     "ModelProfileInput": ("..model_profiles", "ModelProfileInput"),
+    "RemoteModelsInput": ("..model_profiles", "RemoteModelsInput"),
+    "ScanLanInput": ("..model_profiles", "ScanLanInput"),
     "ModelProfileConflictError": ("..model_profiles", "ModelProfileConflictError"),
     "ModelProfileService": ("..model_profiles", "ModelProfileService"),
     "NarrationError": ("..model_profiles", "NarrationError"),
