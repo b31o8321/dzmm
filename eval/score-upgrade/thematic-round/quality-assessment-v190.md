@@ -131,3 +131,18 @@ trim_repeated_opening / opening_overlap_ratio 此前只接在嵌入式运行时
   于第 5 回合远程首触（hero 石阶 / 海爷栈桥，跨地点触发精确命中）
 - 存疑修正：主动性调度/结算在当前代码探针中本来就好（0 回合即触发、冷却
   4 精确）——历史"120 回合 0 触发"归因待考，不影响本次增强
+
+## 十、P1 增强落地（2026-10-02，main @ 941ca9c）
+
+- **技能目录**：BASE_SKILLS 引擎基础 8 项 ∪ definition.skills 世界声明 ∪
+  hero 已习得；skill_check 拒绝目录外技能；叙述 payload 新增
+  skills.available/trained 块
+- **物品使用语义**：use_item 命令 + resources[].on_use（heal 恢复 HP/出
+  战斗为 no-op 但照常消耗；flag_id 置位旗标直接驱动任务/结局）；未持有/
+  无效果/未知旗标全拒绝；进 choices 门禁豁免
+- **任务链与限时**：requires_quest（前置完成即激活，定义顺序得当可同回合
+  激活）、deadline_turns（到期未完成→expired 一次性 outcome，完成优先）；
+  状态机 pending/active/completed/expired + activated_turn
+- 附带修复双通道缺口：嵌入式命令白名单此前**连 skill_check 都没有**
+- 确定性测试 4 项新增（目录校验/使用语义+任务联动/链式激活与发奖/限时过
+  期一次性），249 全绿 + ruff 干净
