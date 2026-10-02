@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-03",
+  "baseline": "main @ e19f8e3（含今日模型页重构）",
+  "environment_note": "真机未连接且无模拟器 AVD——按纪律降级为 widget 级确定性测试（mobile/test/widget_test.dart 的 ADV1-ADV4），全部可复跑；真机专属项记为阻塞",
+  "scenarios": [
+    {"id": "ADV1", "scenario": "纯空白行动提交", "expectation": "不发起回合", "result": "PASS", "evidence": "playTurnCalls=0；play_page._playNarrative 有 trim+isEmpty 防线", "classification": "已有防线"},
+    {"id": "ADV2", "scenario": "3999 字符（含 emoji 🌊）行动提交", "expectation": "正常提交不崩溃", "result": "PASS", "evidence": "playTurnCalls=1，全文送达", "classification": "已有防线", "finding": "输入框无 maxLength=4000（桌面有）：≥4001 字符会提交后才吃引擎 422——交互缺陷，进 T3（1 行修复）"},
+    {"id": "ADV3", "scenario": "横屏↔竖屏旋转后创作表单状态", "expectation": "字段内容保留", "result": "PASS", "evidence": "物理尺寸 1280x720↔720x1280 切换后 controller 原文保留", "classification": "已有防线"},
+    {"id": "ADV4", "scenario": "保存模型档案连点", "expectation": "只创建一次", "result": "PASS", "evidence": "createProfileCalls=1（_busy 防重入）", "classification": "已有防线"},
+    {"id": "ADV5", "scenario": "回合生成中杀 App 后重开", "expectation": "无半个回合写入 + 恢复提示", "result": "BLOCKED（真机场景）", "evidence": "widget 级已有等价覆盖：reopens-with-explanation 测试（pendingRunOperation 恢复路径）", "classification": "已有防线（降级覆盖）"},
+    {"id": "ADV6", "scenario": "创作草案生成中按返回", "expectation": "弹出丢失确认", "result": "PASS（今日已修）", "evidence": "PopScope + _confirmExit；有草稿/生成中 canPop=false", "classification": "已有防线"},
+    {"id": "ADV7", "scenario": "世界导入损坏 JSON", "result": "BLOCKED", "evidence": "导入经 FilePicker，widget 测试无法注入文件；错误路径在 settings_page 有 try/catch + _notice 展示（代码走查）", "classification": "待真机验证"},
+    {"id": "ADV8", "scenario": "无模型配置进入创作（模板路径）", "result": "PASS（代码走查）", "evidence": "草案模型可选 __local_template__，generateDraft 无 profile 走确定性模板", "classification": "已有防线"}
+  ],
+  "findings_for_t3": [
+    {"id": "F1", "priority": "P2", "item": "行动输入框补 maxLength=4000（与桌面/引擎一致）"},
+    {"id": "F0", "priority": "P0", "item": "战斗攻击入口缺失（来自 T0 矩阵，手机唯一落后项）"},
+    {"id": "F2", "priority": "P1", "item": "任务/use_item/skill_check 无入口（两端共缺，本轮补手机侧）"},
+    {"id": "F3", "priority": "P1", "item": "创作草案进程级持久化"}
+  ],
+  "blocked": ["真机 logcat 证据（设备未连接）", "MIUI 安装链路复测", "冷杀进程场景"],
+  "summary": "4 PASS / 1 BLOCKED（有降级覆盖）/ 1 PASS（今日已修）/ 2 走查级；新增 4 个确定性回归测试（34/34 全绿）"
+}

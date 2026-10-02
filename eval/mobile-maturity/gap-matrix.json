@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-03",
+  "baseline": "main @ e19f8e3",
+  "desktop_sources": ["desktop/src/components/PlayScene.vue", "desktop/src/App.vue"],
+  "mobile_sources": ["mobile/lib/pages/play_page.dart", "mobile/lib/main.dart", "mobile/lib/widgets/loop_hud.dart"],
+  "items": [
+    {"capability": "选项按钮（available_choices）", "desktop": "yes", "mobile": "yes", "priority": "-", "note": "两端一致；手机为 Chip 列表"},
+    {"capability": "自由文本输入回合", "desktop": "yes", "mobile": "yes", "priority": "-", "note": ""},
+    {"capability": "移动/目的地", "desktop": "yes（目的地下拉）", "mobile": "yes（自动推导目的地）", "priority": "-", "note": "手机弱化但可用"},
+    {"capability": "战斗攻击入口", "desktop": "yes（combat deck：目标+HP+倒下态+空目标提示）", "mobile": "NO", "priority": "P0", "note": "本轮引擎 P0 能力手机完全无入口；已验证 play_page.dart 无 attack"},
+    {"capability": "战斗反馈卡（d20 结果/伤害/倒下）", "desktop": "yes（combatFeedback 卡）", "mobile": "NO", "priority": "P1", "note": "随攻击入口一并补"},
+    {"capability": "回滚（按回合恢复）", "desktop": "yes", "mobile": "yes", "priority": "-", "note": ""},
+    {"capability": "取消进行中操作", "desktop": "yes", "mobile": "yes", "priority": "-", "note": ""},
+    {"capability": "失败重试", "desktop": "yes（重试闭包）", "mobile": "yes（_retryAction）", "priority": "-", "note": ""},
+    {"capability": "流式叙事增量显示", "desktop": "yes（SSE streamTurn + live 区）", "mobile": "NO（playTurn 阻塞式 + 操作状态卡）", "priority": "P2", "note": "体验弱化，非功能缺失"},
+    {"capability": "结局卡 + 旅程回顾（物品/关系/关键行动）", "desktop": "yes", "mobile": "yes", "priority": "-", "note": "已测（ended run 用例）"},
+    {"capability": "物品栏摘要", "desktop": "yes", "mobile": "yes", "priority": "-", "note": ""},
+    {"capability": "关系账本", "desktop": "yes", "mobile": "yes（回顾+反馈页）", "priority": "-", "note": ""},
+    {"capability": "跨循环记忆/时钟 HUD", "desktop": "yes（knowledge 面板 + clock）", "mobile": "yes（LoopHud）", "priority": "-", "note": "手机反而更完整（倒计时条）"},
+    {"capability": "任务列表/进度/奖励提示", "desktop": "NO", "mobile": "NO", "priority": "P1", "note": "引擎 quests 已上线（v1.9.0），两端 UI 均未暴露——共享缺口，本轮在手机补"},
+    {"capability": "use_item 物品使用入口", "desktop": "NO", "mobile": "NO", "priority": "P1", "note": "引擎 use_item 已上线，两端无入口——本轮在手机补"},
+    {"capability": "skill_check 检定入口", "desktop": "NO", "mobile": "NO", "priority": "P1", "note": "引擎 skill_check 已上线，两端无入口——本轮在手机补"},
+    {"capability": "选项文本匹配提示", "desktop": "yes（matchedChoiceHint）", "mobile": "NO", "priority": "P2", "note": "锦上添花"},
+    {"capability": "状态反馈条（state_feedback）", "desktop": "yes（行内）", "mobile": "yes（反馈弹层）", "priority": "-", "note": ""},
+    {"capability": "创作草案进程级持久化（杀 App 恢复）", "desktop": "部分（桌面有 draft 修复链）", "mobile": "NO", "priority": "P1", "note": "IndexedStack 只防切页；进程死亡丢草案"}
+  ],
+  "mobile_only_watchpoints": [
+    "小屏表单滚动/键盘遮挡（T2 走查验证）",
+    "生成中的 Timer.periodic 使 pumpAndSettle 永不静止——UI 已有 elapsed 显示，无阻塞",
+    "真机 MIUI 安装限制（流程性，非产品缺陷）"
+  ],
+  "unknown_items": []
+}
