@@ -253,6 +253,9 @@
           "cooldown_turns": {
             "type": "integer",
             "minimum": 1
+          },
+          "proactive": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -532,6 +535,9 @@
           },
           "instruction": {
             "type": "string"
+          },
+          "first_contact": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

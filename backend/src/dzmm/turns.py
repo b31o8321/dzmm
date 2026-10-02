@@ -1194,6 +1194,7 @@ def _requires_choice_planner(definition: dict[str, Any], commands: list[dict[str
             "accuse",
             "skill_check",
             "inventory_change",
+            "attack",
         }
         for command in commands
     )

@@ -167,6 +167,7 @@ def initial_state(
             "last_spoke_turn": 0,
             "last_initiative_turn": 0,
             "cooldown_turns": max(1, int(npc.get("contact_cooldown_turns", 4) or 4)),
+            "proactive": bool(npc.get("proactive", False)),
         }
         for npc in npc_definitions
     }
@@ -403,14 +404,18 @@ def schedule_npc_initiative(
     revision = int(state.get("revision") or 0)
     candidates: list[tuple[int, str, dict[str, Any]]] = []
     for npc_id, npc in (state.get("npc_state") or {}).items():
-        if not npc.get("met"):
+        proactive = bool(npc.get("proactive", False))
+        if not npc.get("met") and not proactive:
+            # 未接触且非主动型 NPC 不会发起联系（鸡生蛋问题：没见过面就没有候选）
             continue
         last = int(npc.get("last_initiative_turn") or 0)
         cooldown = max(1, int(npc.get("cooldown_turns", 4) or 4))
         if last and revision - last < cooldown:
             continue
         npc_location = npc.get("location_id")
-        if npc_location not in (None, current_location):
+        first_contact = not npc.get("met")
+        if not first_contact and npc_location not in (None, current_location):
+            # 已认识的 NPC 只在同地发起；未接触的主动型 NPC 可远程递信/派人
             continue
         emotion = npc.get("emotion") or {}
         emotion_score = max((int(value) for value in emotion.values()), default=0)
@@ -422,10 +427,10 @@ def schedule_npc_initiative(
             + max(0, emotion_score) // 10
         )
         tie_breaker = hashlib.sha256(f"{variation_seed}:{revision}:{npc_id}".encode()).hexdigest()
-        candidates.append((score, tie_breaker, npc))
+        candidates.append((score, tie_breaker, npc, first_contact))
     if not candidates:
         return None
-    _score, _tie_breaker, selected = max(candidates, key=lambda item: (item[0], item[1]))
+    _score, _tie_breaker, selected, first_contact = max(candidates, key=lambda item: (item[0], item[1]))
     selected["last_initiative_turn"] = revision
     interaction = {
         "id": f"npc-initiative-{revision}-{selected['id']}",
@@ -435,7 +440,12 @@ def schedule_npc_initiative(
         "location_id": current_location,
         "created_turn": revision,
         "status": "pending",
-        "instruction": f"让 {selected['name']} 主动联系玩家，带来一个具体消息、请求或意外。",
+        "first_contact": first_contact,
+        "instruction": (
+            f"让 {selected['name']} 首次主动联系玩家——递信、托人带话或亲自出现，带来一个具体的消息或请求，并自然完成双方初见。"
+            if first_contact
+            else f"让 {selected['name']} 主动联系玩家，带来一个具体消息、请求或意外。"
+        ),
     }
     state.setdefault("pending_interactions", []).append(interaction)
     return {"type": "npc_initiative_scheduled", **interaction}

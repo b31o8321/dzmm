@@ -27,6 +27,8 @@ mode = os.path.basename(world_file).replace(".json", "")
 wd = bundle["world_definition"]
 location_ids = [loc["id"] for loc in wd["locations"]]
 resource_ids = [r["id"] for r in wd.get("resources", [])]
+enemy = next((n for n in wd.get("npcs", []) if isinstance(n.get("combat"), dict)), None)
+enemy_id, enemy_defeated = (enemy["id"] if enemy else None), False
 
 _status, composed = api("/worlds:compose", {
     "request_id": f"fa-{mode}-{uuid.uuid4().hex[:6]}",
@@ -43,6 +45,7 @@ metrics = {
     "moves": 0, "skill_checks": 0, "skill_success": 0,
     "inventory_changes": 0, "inventory_final": None,
     "npc_dialogue_turns": 0, "quest_completed": 0,
+    "attacks": 0, "attack_hits": 0, "enemy_defeated": False,
     "ending": None, "clock_trace": [], "chars_total": 0, "secs_total": 0.0,
 }
 
@@ -63,7 +66,11 @@ for i in range(turns_n):
         else:
             cmds = [{"type": "inventory_change", "payload": {"item_id": resource_ids[0], "delta": 1}},
                     {"type": "narrate", "payload": {}}]
-    # phase 0/3 纯 narrate
+    elif phase == 3 and enemy_id and not enemy_defeated:
+        # 战斗轮换：攻击敌对 NPC 直到倒下
+        cmds = [{"type": "attack", "payload": {"target_id": enemy_id}},
+                {"type": "narrate", "payload": {}}]
+    # phase 0 纯 narrate
 
     t0 = time.time()
     status, body = api(f"/runs/{run_id}/turns", {
@@ -93,6 +100,10 @@ for i in range(turns_n):
             if o.get("success"): metrics["skill_success"] += 1
         elif t == "inventory_changed": metrics["inventory_changes"] += 1
         elif t == "quest_completed": metrics["quest_completed"] += 1
+        elif t == "attack":
+            metrics["attacks"] += 1
+            if o.get("hit"): metrics["attack_hits"] += 1
+            if o.get("defeated"): enemy_defeated = True
     if "「" in narrative or "：”" in narrative or '“' in narrative:
         metrics["npc_dialogue_turns"] += 1
     if st.get("ending"):
