@@ -182,7 +182,7 @@ class _LocalShellState extends State<_LocalShell> {
     if (mounted) {
       setState(() {
         _activeRunId = session.runId;
-        if (session.runId != null) _tab = 2;
+        if (session.runId != null) _tab = 1;
         _recoveryNotice = session.pendingRunOperation
             ? '上一次旅程操作在应用关闭前没有完成；本机没有写入半个回合，你可以重新选择。'
             : null;
@@ -190,14 +190,14 @@ class _LocalShellState extends State<_LocalShell> {
     }
     if (session.runId == null) {
       final profiles = await widget.port.listModelProfiles();
-      if (mounted && profiles.isEmpty) setState(() => _tab = 3);
+      if (mounted && profiles.isEmpty) setState(() => _tab = 2);
     }
   }
 
   Future<void> _openRun(String runId) async {
     setState(() {
       _activeRunId = runId;
-      _tab = 2;
+      _tab = 1;
     });
     final previous = await widget.store.read();
     await widget.store.save(
@@ -220,6 +220,23 @@ class _LocalShellState extends State<_LocalShell> {
     );
   }
 
+  Future<void> _openCreatePage() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => _CreatePage(
+          port: widget.port,
+          onCreated: (runId) async {
+            Navigator.of(context).pop();
+            await _openRun(runId);
+          },
+        ),
+      ),
+    );
+    // 返回世界页时刷新列表，让新创建的世界立即可见
+    _worldsKey.currentState?._reload();
+  }
+
   Future<void> _startNewRun(String worldId) async {
     final detail = await widget.port.getWorld(worldId);
     if (!mounted) return;
@@ -234,9 +251,8 @@ class _LocalShellState extends State<_LocalShell> {
         key: _worldsKey,
         port: widget.port,
         onOpenRun: _openRun,
-        onCreate: () => setState(() => _tab = 1),
+        onCreate: _openCreatePage,
       ),
-      _CreatePage(port: widget.port, onCreated: _openRun),
       PlayPage(
         port: widget.port,
         runId: _activeRunId,
@@ -310,10 +326,6 @@ class _LocalShellState extends State<_LocalShell> {
         },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.public_outlined), label: '世界'),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            label: '创作',
-          ),
           NavigationDestination(
             icon: Icon(Icons.menu_book_outlined),
             label: '游玩',
@@ -895,11 +907,44 @@ class _CreatePageState extends State<_CreatePage> {
     }
   }
 
+  bool get _flowInProgress => _busy || _draft != null;
+
+  Future<bool> _confirmExit() async {
+    if (!_flowInProgress) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('创作尚未完成'),
+        content: const Text('退出将丢失当前表单与草案内容，确定退出？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('继续创作'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 128),
-      children: [
+    return PopScope(
+      canPop: !_flowInProgress,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final allowed = await _confirmExit();
+        if (allowed && context.mounted) Navigator.pop(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('创作世界')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 128),
+          children: [
         Text('AI 世界创作', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 8),
         const Text('模型只生成待审阅草案；确认前不会创建世界、旅程或修改真实存档。'),
@@ -1050,6 +1095,8 @@ class _CreatePageState extends State<_CreatePage> {
           ),
         ],
       ],
+      ),
+        ),
     );
   }
 }

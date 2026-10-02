@@ -508,7 +508,8 @@ void main() {
     expect(find.text('DZMM'), findsOneWidget);
     expect(find.text('本机游戏服务已就绪 · 存档只保存在此设备'), findsOneWidget);
     expect(find.text('世界'), findsOneWidget);
-    expect(find.text('创作'), findsOneWidget);
+    expect(find.text('游玩'), findsOneWidget);
+    expect(find.text('创作'), findsNothing);
     expect(find.text('模型'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('配对'), findsNothing);
@@ -815,32 +816,37 @@ void main() {
     );
   });
 
-  testWidgets('creation form survives tab switches (IndexedStack keep-alive)', (
+  testWidgets('creation opens as its own page and returns to worlds', (
     tester,
   ) async {
     await tester.pumpWidget(
       DzmmMobileApp(port: _FakePort(), sessionStore: _MemoryStore()),
     );
-    await tester.tap(find.text('创作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('创建本机世界'));
     await tester.pumpAndSettle();
 
-    // 修改核心冲突字段为独特内容
+    // 创作页为推入式独立页面：自带标题栏，表单可编辑
+    expect(find.text('创作世界'), findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextField, '核心冲突'),
       '独特的冲突标记 ABC123',
     );
     await tester.pump();
 
-    // 切走再切回：旧实现销毁页面状态，字段会回到默认文案
-    await tester.tap(find.text('世界'));
+    // 空表单（无草案、不忙）返回：直接退出，无需确认
+    await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('创作'));
-    await tester.pumpAndSettle();
+    expect(find.text('创作世界'), findsNothing);
+    expect(find.text('你的世界'), findsOneWidget);
 
+    // 再次进入：全新表单（旧实现遗留状态的问题已随页签移除而消失）
+    await tester.tap(find.text('创建本机世界'));
+    await tester.pumpAndSettle();
     final conflict = tester.widget<TextField>(
       find.widgetWithText(TextField, '核心冲突'),
     );
-    expect(conflict.controller?.text, '独特的冲突标记 ABC123');
+    expect(conflict.controller?.text, '失踪航图正在重开潮门。');
   });
 
   testWidgets('model setup explains missing fields before calling the host', (
@@ -903,6 +909,11 @@ void main() {
       DzmmMobileApp(port: _EndedRunPort(), sessionStore: store),
     );
     await tester.pumpAndSettle();
+    debugPrint('DBG 游玩标签=${find.text('游玩').evaluate().length} '
+        '继续按钮=${find.text('继续本机旅程').evaluate().length} '
+        '错误视图=${find.textContaining('需要恢复').evaluate().length} '
+        '空状态继续=${find.textContaining('旅程').evaluate().length} '
+        '加载圈=${find.byType(CircularProgressIndicator, skipOffstage: false).evaluate().length}');
 
     expect(find.text('旅程完成 · 好结局'), findsOneWidget);
     expect(find.text('潮声渐远，这段旅程已经抵达结局。'), findsOneWidget);
@@ -927,7 +938,8 @@ void main() {
       await tester.pumpWidget(
         DzmmMobileApp(port: port, sessionStore: _MemoryStore()),
       );
-      await tester.tap(find.text('创作'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('创建本机世界'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('生成待审阅草案'));
@@ -969,7 +981,8 @@ void main() {
       await tester.pumpWidget(
         DzmmMobileApp(port: port, sessionStore: _MemoryStore()),
       );
-      await tester.tap(find.text('创作'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('创建本机世界'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('生成待审阅草案'));
       await tester.pump();
@@ -1003,7 +1016,8 @@ void main() {
     await tester.pumpWidget(
       DzmmMobileApp(port: port, sessionStore: _MemoryStore()),
     );
-    await tester.tap(find.text('创作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('创建本机世界'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('生成待审阅草案'));
     await tester.pumpAndSettle();
