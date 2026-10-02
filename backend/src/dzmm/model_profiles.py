@@ -913,6 +913,8 @@ def _narration_body(
             "model": profile.model_name,
             "messages": messages,
             "stream": stream,
+            # 原生开关：qwen3.5 不认 /no_think 软开关，思考会烧光 num_predict
+            "think": False,
             "options": {
                 "temperature": 0.85,
                 "top_p": 0.9,
@@ -953,6 +955,7 @@ def _draft_body(profile: ModelProfile, prompt: dict[str, Any]) -> dict[str, Any]
             "model": profile.model_name,
             "messages": messages,
             "stream": False,
+            "think": False,
             "format": "json",
             "options": {"num_predict": 1800},
         }

@@ -2,6 +2,7 @@ import asyncio
 import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from typing import Any
 
 import httpx
 import pytest
@@ -807,3 +808,43 @@ def test_narration_body_carries_recent_openings_for_anti_repetition() -> None:
     ]
     assert "recent_openings" in body["messages"][0]["content"]
     assert "严禁" in body["messages"][0]["content"]
+
+
+def test_ollama_bodies_request_native_think_off() -> None:
+    """qwen3.5 无视 /no_think 软开关：思考烧光 num_predict（实测 512 预算
+    产出 1817 字思考、0 字正文）。Ollama 必须带原生 think:false。"""
+
+    from dzmm.model_protocol import probe_body
+
+    assert probe_body("ollama", "qwen3.5:9b")["think"] is False
+    assert "think" not in probe_body("lm_studio", "qwen3.5:9b")
+
+    profile = ModelProfile(
+        id="profile-think",
+        name="Ollama",
+        provider_type=ProviderType.OLLAMA,
+        base_url="http://localhost:11434",
+        model_name="qwen3.5:9b",
+    )
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content.decode())
+        return httpx.Response(
+            200,
+            json={"message": {"content": "海浪拍岸。"}, "done": True, "done_reason": "stop"},
+        )
+
+    narrator = ModelNarrator(httpx.MockTransport(handler))
+    asyncio.run(
+        narrator.narrate(
+            profile,
+            {"name": "雾港"},
+            {"hero": {"name": "旅人"}, "location_id": "harbor"},
+            "继续前进",
+            [],
+            [],
+        )
+    )
+    assert seen["body"]["think"] is False
+    assert seen["body"]["options"]["num_ctx"] == 16384

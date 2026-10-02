@@ -23,7 +23,10 @@ def chat_endpoint(provider_type: str, base_url: str) -> str:
 def probe_body(provider_type: str, model_name: str) -> dict[str, Any]:
     messages = [{"role": "user", "content": "Reply with OK."}]
     body: dict[str, Any] = {"model": model_name, "messages": messages, "stream": False}
-    if provider_type != "ollama":
+    if provider_type == "ollama":
+        # qwen3.5 思考模式会拖垮测试连接；原生 think 开关对非思考模型无害
+        body["think"] = False
+    else:
         body["max_tokens"] = 8
     return body
 

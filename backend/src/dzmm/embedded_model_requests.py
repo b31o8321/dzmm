@@ -133,10 +133,12 @@ def request_narrative(profile: Mapping[str, Any], context: dict[str, Any]) -> An
         "stream": False,
     }
     if profile["provider_type"] == "ollama":
+        request_payload["think"] = False
         request_payload["options"] = {
             "temperature": 0.85,
             "top_p": 0.9,
             "num_predict": NARRATIVE_OLLAMA_NUM_PREDICT,
+            "num_ctx": _ollama_context_size(str(profile["model_name"])),
         }
     else:
         request_payload["temperature"] = 0.85
@@ -158,6 +160,7 @@ def request_world_draft(profile: Mapping[str, Any], prompt: dict[str, Any]) -> A
     }
     if profile["provider_type"] == "ollama":
         is_qwen = "qwen" in str(profile.get("model_name") or "").lower()
+        request_payload["think"] = False
         request_payload["options"] = {
             "temperature": 0.2,
             "num_predict": 768 if is_qwen else 2048,
@@ -190,6 +193,7 @@ def request_director_note(profile: Mapping[str, Any], prompt: dict[str, Any]) ->
         "stream": False,
     }
     if profile["provider_type"] == "ollama":
+        request_payload["think"] = False
         request_payload["options"] = {"temperature": 0.3, "num_predict": 256}
     else:
         request_payload["temperature"] = 0.3
@@ -210,6 +214,7 @@ def request_loop_summary(profile: Mapping[str, Any], prompt: dict[str, Any]) -> 
         "stream": False,
     }
     if profile["provider_type"] == "ollama":
+        request_payload["think"] = False
         request_payload["options"] = {"temperature": 0.4, "num_predict": 320}
     else:
         request_payload["temperature"] = 0.4
@@ -227,6 +232,7 @@ def request_ending_closure(profile: Mapping[str, Any], prompt: dict[str, Any]) -
         "stream": False,
     }
     if profile["provider_type"] == "ollama":
+        request_payload["think"] = False
         request_payload["options"] = {"temperature": 0.7, "num_predict": 320}
     else:
         request_payload["temperature"] = 0.7
