@@ -97,6 +97,31 @@ def apply_attack(
     }
 
 
+def apply_heal(
+    state: dict[str, Any], definition: dict[str, Any], participant_id: str, amount: int
+) -> dict[str, Any]:
+    """Restore HP for one participant, capped at max_hp; out-of-combat is a no-op.
+
+    Healing only touches existing participants: outside combat the hero is
+    assumed at full HP, so the effect reports healed=0 instead of spawning
+    combat state as a side effect of using an item.
+    """
+
+    participants = (state.get("combat") or {}).get("participants") or {}
+    participant = participants.get(participant_id)
+    if participant is None or amount <= 0:
+        return {"healed": 0, "hp": None, "max_hp": None}
+    before = int(participant["hp"])
+    participant["hp"] = min(int(participant["max_hp"]), before + int(amount))
+    if participant["hp"] > 0 and participant.get("defeated"):
+        participant["defeated"] = False
+    return {
+        "healed": participant["hp"] - before,
+        "hp": participant["hp"],
+        "max_hp": participant["max_hp"],
+    }
+
+
 def _participant(
     state: dict[str, Any],
     definition: dict[str, Any],

@@ -743,6 +743,16 @@ def _ollama_context_size(model_name: str) -> int:
     return 16384  # safe default for modern instruct models
 
 
+def _skills_payload(state: dict[str, Any], definition: dict[str, Any]) -> dict[str, Any]:
+    """Skill catalog for the narrator: engine base ∪ world-declared, plus trained."""
+
+    from .narrative import BASE_SKILLS
+
+    trained = [str(s) for s in (state.get("hero") or {}).get("skills") or []]
+    available = sorted(BASE_SKILLS | set(definition.get("skills") or []) | set(trained))
+    return {"available": available, "trained": sorted(trained)}
+
+
 def _narration_body(
     profile: ModelProfile,
     definition: dict[str, Any],
@@ -825,6 +835,7 @@ def _narration_body(
                     "location_id": state["location_id"],
                     "current_location": current_location,
                     "ruleset": state.get("ruleset", {}).get("id"),
+                    "skills": _skills_payload(state, definition),
                     "chapter": state.get("chapter"),
                     "route": state.get("route"),
                     "clock": clock_block,

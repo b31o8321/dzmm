@@ -1661,6 +1661,8 @@ def _validate_command(command: dict[str, Any]) -> None:
         "rewind_to_anchor",
         "collect_clue",
         "accuse",
+        "skill_check",
+        "use_item",
     }:
         raise CoreRuntimeError("unsupported TurnCommand")
 

@@ -13,12 +13,13 @@ from typing import Any
 
 from ..loop_memory import discover_knowledge
 from ..narrative import (
+    BASE_SKILLS,
     NarrativeRuleError,
     advance_chapter,
     choose_story_choice,
     evaluate_endings,
 )
-from .combat import apply_attack
+from .combat import apply_attack, apply_heal
 
 
 def apply_commands(
@@ -154,6 +155,10 @@ def apply_commands(
                 raise error_type("skill_check requires skill")
             hero = state.get("hero") or {}
             skills = hero.get("skills") or []
+            # 技能目录：引擎基础集 ∪ 世界声明 ∪ 已习得；目录外一律拒绝
+            known_skills = BASE_SKILLS | set(definition.get("skills") or []) | set(skills)
+            if skill not in known_skills:
+                raise error_type(f"skill_check references an unknown skill: {skill}")
             trained = skill in skills
             dc = payload.get("dc")
             if isinstance(dc, bool) or not isinstance(dc, int) or not 5 <= dc <= 25:
@@ -181,6 +186,38 @@ def apply_commands(
                 "degree": degree,
                 "success": success,
             })
+        elif command_type == "use_item":
+            _require_capability(state, "resources", error_type)
+            item_id = str(payload.get("item_id") or "").strip()
+            if not item_id:
+                raise error_type("use_item requires item_id")
+            if item_id not in known_resources:
+                raise error_type("use_item references an unknown resource")
+            held = sum(i["quantity"] for i in state.get("inventory") or [] if i["id"] == item_id)
+            if held <= 0:
+                raise error_type("use_item requires the item in inventory")
+            resource = next(r for r in definition["resources"] if r.get("id") == item_id)
+            on_use = resource.get("on_use")
+            if not isinstance(on_use, dict) or not on_use:
+                raise error_type(f"item has no usable effect: {item_id}")
+            effect: dict[str, Any] = {"item_id": item_id}
+            heal = on_use.get("heal")
+            if isinstance(heal, bool) or not isinstance(heal, int) or not 1 <= heal <= 50:
+                heal = None
+            flag_id = str(on_use.get("flag_id") or "").strip()
+            known_flags = {f["id"] for f in (definition.get("story") or {}).get("flags") or []}
+            if flag_id and flag_id not in known_flags:
+                raise error_type("use_item flag effect references an unknown story flag")
+            if heal is None and not flag_id:
+                raise error_type("item on_use must declare heal or flag_id")
+            if heal is not None:
+                effect.update(apply_heal(state, definition, "hero", heal))
+            if flag_id:
+                state.setdefault("flags", {})[flag_id] = True
+                effect["flag_id"] = flag_id
+            _change_inventory(state["inventory"], item_id, -1, error_type)
+            effect["type"] = "item_used"
+            outcomes.append(effect)
         elif command_type == "attack":
             _require_capability(state, "combat", error_type)
             try:

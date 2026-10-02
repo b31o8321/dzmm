@@ -26,7 +26,8 @@
         "rewind_to_anchor",
         "collect_clue",
         "accuse",
-        "skill_check"
+        "skill_check",
+        "use_item"
       ]
     },
     "payload": {

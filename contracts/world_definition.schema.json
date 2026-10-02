@@ -215,6 +215,14 @@
         }
       },
       "additionalProperties": false
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "世界自定义技能目录（与引擎基础集、已习得技能并集构成 skill_check 合法范围）"
     }
   },
   "additionalProperties": false,
@@ -935,6 +943,21 @@
                   },
                   "additionalProperties": false
                 }
+              },
+              "requires_quest": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "任务链：前置任务完成后本任务才激活（pending→active）"
+              },
+              "deadline_turns": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "description": "限时：激活后 N 回合内未完成则 expired（完成优先于过期）"
               }
             },
             "additionalProperties": false

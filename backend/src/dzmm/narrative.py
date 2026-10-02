@@ -20,6 +20,19 @@ _CAPABILITIES_BY_RULESET = {
     "hybrid": {"trpg", "combat", "chapters", "choices", "relationships", "routes", "endings", "resources", "time", "loop", "countdown", "deduction", "roguelike"},
 }
 
+# 引擎基础技能目录；世界可通过 definition["skills"] 追加自定义技能，
+# 任务奖励也可授予任意技能（作者意图）。skill_check 只接受三者并集。
+BASE_SKILLS = {
+    "insight",
+    "athletics",
+    "stealth",
+    "investigation",
+    "persuasion",
+    "survival",
+    "medicine",
+    "lore",
+}
+
 
 def validate_definition(definition: dict[str, Any]) -> None:
     ruleset = definition["ruleset"]
@@ -238,7 +251,14 @@ def initial_state(
             else None
         ),
         "quests": (
-            {q["id"]: {"status": "active", "completed_turn": 0} for q in (story.get("quests") or [])}
+            {
+                q["id"]: {
+                    "status": "pending" if q.get("requires_quest") else "active",
+                    "completed_turn": 0,
+                    "activated_turn": 0,
+                }
+                for q in (story.get("quests") or [])
+            }
             or None
         ),
         "deduction": (
@@ -932,8 +952,11 @@ def advance_chapter(state: dict[str, Any], definition: dict[str, Any]) -> dict[s
 def settle_quests(
     state: dict[str, Any], definition: dict[str, Any], outcomes: list[dict[str, Any]]
 ) -> None:
-    """Auto-complete quests whose completion flag flipped true, granting rewards once.
+    """Quest lifecycle: pending → active → completed | expired, rewards once.
 
+    ``requires_quest`` chains a quest behind another one's completion;
+    ``deadline_turns`` expires an active quest N turns after activation
+    (completion wins if the flag flips on the deadline turn itself).
     Rewards: item → inventory (resource whitelist), clue → new plot thread,
     skill → hero skill (feeds skill_check). Each quest grants at most once.
     """
@@ -947,10 +970,26 @@ def settle_quests(
     for quest in quests_def:
         quest_id = quest["id"]
         block = quests_state.get(quest_id)
-        if not block or block.get("status") == "completed":
+        if not block or block.get("status") in ("completed", "expired"):
             continue
+        if block.get("status") == "pending":
+            prereq_block = quests_state.get(str(quest.get("requires_quest") or ""))
+            if not prereq_block or prereq_block.get("status") != "completed":
+                continue
+            block["status"] = "active"
+            block["activated_turn"] = revision
+            outcomes.append({"type": "quest_activated", "quest_id": quest_id, "title": quest.get("title")})
+        deadline = quest.get("deadline_turns")
+        deadline_hit = (
+            isinstance(deadline, int)
+            and deadline > 0
+            and revision - int(block.get("activated_turn") or 0) >= deadline
+        )
         flag = (quest.get("completion") or {}).get("flag")
         if not flag or not state.get("flags", {}).get(flag):
+            if deadline_hit:
+                block["status"] = "expired"
+                outcomes.append({"type": "quest_expired", "quest_id": quest_id, "title": quest.get("title")})
             continue
         block["status"] = "completed"
         block["completed_turn"] = revision

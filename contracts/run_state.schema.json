@@ -1262,11 +1262,17 @@
             "properties": {
               "status": {
                 "enum": [
+                  "pending",
                   "active",
-                  "completed"
+                  "completed",
+                  "expired"
                 ]
               },
               "completed_turn": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "activated_turn": {
                 "type": "integer",
                 "minimum": 0
               }
