@@ -979,7 +979,12 @@ def _draft_body(profile: ModelProfile, prompt: dict[str, Any]) -> dict[str, Any]
             "stream": False,
             "think": False,
             "format": "json",
-            "options": {"num_predict": 1800},
+            "options": {
+                "num_predict": 1800,
+                "num_ctx": _ollama_context_size(
+                    profile.model_name, profile.context_size
+                ),
+            },
         }
     body: dict[str, Any] = {
         "model": profile.model_name,

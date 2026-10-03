@@ -194,7 +194,11 @@ def request_director_note(profile: Mapping[str, Any], prompt: dict[str, Any]) ->
     }
     if profile["provider_type"] == "ollama":
         request_payload["think"] = False
-        request_payload["options"] = {"temperature": 0.3, "num_predict": 256}
+        request_payload["options"] = {
+            "temperature": 0.3,
+            "num_predict": 256,
+            "num_ctx": _ollama_context_size(str(profile.get("model_name") or "")),
+        }
     else:
         request_payload["temperature"] = 0.3
         request_payload["max_tokens"] = 256
@@ -215,7 +219,11 @@ def request_loop_summary(profile: Mapping[str, Any], prompt: dict[str, Any]) -> 
     }
     if profile["provider_type"] == "ollama":
         request_payload["think"] = False
-        request_payload["options"] = {"temperature": 0.4, "num_predict": 320}
+        request_payload["options"] = {
+            "temperature": 0.4,
+            "num_predict": 320,
+            "num_ctx": _ollama_context_size(str(profile.get("model_name") or "")),
+        }
     else:
         request_payload["temperature"] = 0.4
         request_payload["max_tokens"] = 512
@@ -233,7 +241,11 @@ def request_ending_closure(profile: Mapping[str, Any], prompt: dict[str, Any]) -
     }
     if profile["provider_type"] == "ollama":
         request_payload["think"] = False
-        request_payload["options"] = {"temperature": 0.7, "num_predict": 320}
+        request_payload["options"] = {
+            "temperature": 0.7,
+            "num_predict": 320,
+            "num_ctx": _ollama_context_size(str(profile.get("model_name") or "")),
+        }
     else:
         request_payload["temperature"] = 0.7
         request_payload["max_tokens"] = 512

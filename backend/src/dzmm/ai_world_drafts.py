@@ -235,6 +235,22 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
     normalized = deepcopy(payload)
     repairs: list[str] = []
 
+    # 弱模型另一种漂移：跳过 world_name/hero/summary 顶层包装，直接在根上输出
+    # name/locations/characters/lore/... 素材形状。把它提升为素材载荷再走标准映射。
+    if (
+        "world_name" not in normalized
+        and isinstance(normalized.get("locations"), list)
+        and (isinstance(normalized.get("characters"), list) or isinstance(normalized.get("npcs"), list))
+        and "hero" not in normalized
+    ):
+        lifted = dict(normalized)
+        name = str(lifted.pop("name", "") or "").strip()
+        if name:
+            lifted["world_name"] = name
+            lifted.setdefault("summary", f"{name}的原创故事。")
+        repairs.append("模型输出为扁平素材形状，已按世界草案重新包装")
+        return _normalize_creative_source_payload(lifted)
+
     # 部分模型（qwen3-14b 实测）会跳过素材格式，直接输出最终 world_definition 形状。
     # 解包其中可安全映射的创作素材，交给既有校验与骨架；不可救部分由校验兜底。
     wrapper = normalized.get("world_definition")
@@ -276,9 +292,11 @@ def _normalize_creative_source_payload(payload: Any) -> tuple[Any, list[str]]:
             "lore": lore_entries[:4],
             "npcs": [
                 {
-                    key: value
-                    for key, value in npc.items()
-                    if key in {"name", "role", "description", "motivation", "location", "contact_cooldown_turns", "faction", "reputation"}
+                    **{
+                        key: _scalarize(value)
+                        for key, value in npc.items()
+                        if key in {"name", "role", "description", "motivation", "location", "contact_cooldown_turns", "faction", "reputation"}
+                    },
                 }
                 for npc in wrapper.get("npcs") or []
                 if isinstance(npc, dict) and str(npc.get("name") or "").strip()
@@ -593,6 +611,21 @@ def _generation_prompt(payload: AIWorldDraftInput) -> dict[str, Any]:
         "first_slice": "给出三章节互动叙事素材，并补充 1 到 4 个有动机的 NPC、至少 1 个可追踪世界事件、"
         "可选势力和地点连接；Python 会独立生成所有 choice、Flag、关系事件和结局规则。",
     }
+
+
+def _scalarize(value: object) -> object:
+    """Collapse dict-shaped scalars models sometimes emit ({"name": x} → x)."""
+
+    if isinstance(value, dict):
+        for key in ("name", "value", "description", "title", "text"):
+            inner = value.get(key)
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()[:120]
+        return None
+    if isinstance(value, list):
+        parts = [str(item).strip() for item in value if str(item).strip()]
+        return "、".join(parts)[:120] or None
+    return value
 
 
 def _map_creative_source(
