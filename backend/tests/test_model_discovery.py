@@ -1,38 +1,33 @@
 """局域网模型服务发现：目录拉取 + 子网扫描（可注入探针的确定性测试）。"""
 
-import httpx
 import pytest
 
 
 @pytest.mark.anyio
-async def test_fetch_remote_models_ollama_and_openai() -> None:
+async def test_fetch_remote_models_ollama_and_openai(monkeypatch) -> None:
     from dzmm import model_discovery
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/tags":
-            return httpx.Response(200, json={"models": [{"name": "qwen2.5:7b"}, {"name": "llama3:8b"}]})
-        if request.url.path == "/v1/models":
-            return httpx.Response(200, json={"data": [{"id": "qwen3-14b"}]})
-        return httpx.Response(404)
+    seen_urls = []
 
-    transport = httpx.MockTransport(handler)
-    original_client = model_discovery.httpx.AsyncClient
+    def fake_get(url: str, headers: dict, timeout: float):
+        seen_urls.append(url)
+        if url.endswith("/api/tags"):
+            return {"models": [{"name": "qwen2.5:7b"}, {"name": "llama3:8b"}]}
+        if url.endswith("/models"):
+            return {"data": [{"id": "qwen3-14b"}]}
+        raise OSError("not found")
 
-    class _Client(original_client):  # type: ignore[valid-type,misc]
-        def __init__(self, *args, **kwargs):
-            kwargs["transport"] = transport
-            super().__init__(*args, **kwargs)
-
-    model_discovery.httpx.AsyncClient = _Client
-    try:
-        ollama_models = await model_discovery.fetch_remote_models("ollama", "http://192.168.199.5:11434")
-        assert ollama_models == ["qwen2.5:7b", "llama3:8b"]
-        openai_models = await model_discovery.fetch_remote_models(
-            "lm_studio", "http://192.168.199.5:1234"
-        )
-        assert openai_models == ["qwen3-14b"]
-    finally:
-        model_discovery.httpx.AsyncClient = original_client
+    monkeypatch.setattr(model_discovery, "_http_get_json", fake_get)
+    ollama_models = await model_discovery.fetch_remote_models(
+        "ollama", "http://192.168.199.5:11434"
+    )
+    assert ollama_models == ["qwen2.5:7b", "llama3:8b"]
+    openai_models = await model_discovery.fetch_remote_models(
+        "lm_studio", "http://192.168.199.5:1234"
+    )
+    assert openai_models == ["qwen3-14b"]
+    assert seen_urls[0].endswith("/api/tags")
+    assert seen_urls[1].endswith("/v1/models")
 
 
 @pytest.mark.anyio

@@ -9,11 +9,12 @@ subnet sweep is deterministically testable.
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
-
-import httpx
 
 # port → provider hint; order matters only for documentation
 DEFAULT_PORTS: tuple[tuple[int, str], ...] = (
@@ -80,10 +81,11 @@ async def fetch_remote_models(
     normalized = _normalize_base_url(provider_type, base_url)
     path = "/api/tags" if provider_type == "ollama" else "/models"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.get(f"{normalized}{path}", headers=headers)
-        response.raise_for_status()
-        return _models_from_payload(provider_type, response.json())
+    loop = asyncio.get_running_loop()
+    response = await loop.run_in_executor(
+        None, lambda: _http_get_json(f"{normalized}{path}", headers, timeout)
+    )
+    return _models_from_payload(provider_type, response)
 
 
 def _detect_local_subnet() -> str | None:
@@ -119,14 +121,15 @@ async def _classify(host: str, port: int, timeout: float) -> DiscoveredServer | 
         writer.close()
         scheme = "https" if port == 443 else "http"
         base = f"{scheme}://{host}:{port}"
+        loop = asyncio.get_running_loop()
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.get(f"{base}{path}")
-        except (httpx.HTTPError, OSError):
+            url = f"{base}{path}"
+            payload = await loop.run_in_executor(
+                None, lambda url=url: _http_get_json(url, {}, timeout)
+            )
+        except (OSError, ValueError):
             continue
-        if response.status_code != 200:
-            continue
-        models = _models_from_payload(provider, _safe_json(response))
+        models = _models_from_payload(provider, payload)
         if provider == "ollama" or models:
             hint = "lm_studio" if (provider == "openai_compat" and port == 1234) else provider
             return DiscoveredServer(
@@ -139,11 +142,14 @@ async def _classify(host: str, port: int, timeout: float) -> DiscoveredServer | 
     return None
 
 
-def _safe_json(response: httpx.Response) -> Any:
-    try:
-        return response.json()
-    except ValueError:
-        return {}
+def _http_get_json(url: str, headers: dict[str, str], timeout: float) -> Any:
+    """Blocking GET returning parsed JSON; runs on a worker thread."""
+
+    request = urllib.request.Request(url, headers={"accept": "application/json", **headers})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        if getattr(response, "status", 200) != 200:
+            raise OSError(f"HTTP {response.status}")
+        return json.loads(response.read().decode("utf-8"))
 
 
 async def scan_lan(
