@@ -682,6 +682,28 @@ class _CreatePage extends StatefulWidget {
 }
 
 class _CreatePageState extends State<_CreatePage> {
+  static const _randomGenres = <List<String>>[
+    ['潮汐悬疑恋爱冒险', '温柔、危险', '失踪航图正在重开潮门。', '在退潮线住着的流浪图书管理员'],
+    ['废土列车生存录', '苍凉、倔强', '最后一节车厢的种子库开始发芽。', '种子库的少年守护者'],
+    ['夜市妖怪侦探社', '市井、狡黠', '妖怪们排队来委托寻找丢失的名字。', '能看见妖怪尾巴的人类侦探'],
+    ['云端书院修仙录', '清朗、诙谐', '书院的藏书阁在夜里自己重新排列。', '被书灵缠上的插班生'],
+    ['深空边站邮递员', '孤独、温暖', '一封寄给三十年后自己的信提前到了。', '边站唯一的邮递员'],
+    ['雾中旧宅回旋曲', '幽邃、缠绵', '旧宅的钟每次敲响都会多出一位客人。', '来核对房产档案的年轻测绘员'],
+    ['火锅江湖', '热辣、豪爽', '秘密配方被偷，九宫格联盟面临分裂。', '继承了锅底的落魄传人'],
+    ['雨季电子狐狸', '赛博、抒情', '城市的电子狐狸开始在雨夜替人道歉。', '修理义体的实习技师'],
+  ];
+
+  void _fillRandomIdea() {
+    final idea = _randomGenres[DateTime.now().microsecondsSinceEpoch % _randomGenres.length];
+    setState(() {
+      _genre.text = idea[0];
+      _tone.text = idea[1];
+      _conflict.text = idea[2];
+      _randomHeroText = idea[3];
+    });
+  }
+
+  String? _randomHeroText;
   static const _templateProfile = '__local_template__';
   final _genre = TextEditingController(text: '潮汐悬疑恋爱冒险');
   final _tone = TextEditingController(text: '温柔、危险');
@@ -792,6 +814,7 @@ class _CreatePageState extends State<_CreatePage> {
         'genre': _genre.text,
         'tone': _tone.text,
         'core_conflict': _conflict.text,
+        'hero_preference': _randomHeroText ?? '由你设计一个有代入感的主角',
         'ruleset': 'hybrid',
         'model_profile_id': selectedProfile,
         'request_id': draftRequestId,
@@ -945,7 +968,18 @@ class _CreatePageState extends State<_CreatePage> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 128),
           children: [
-        Text('AI 世界创作', style: Theme.of(context).textTheme.headlineMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text('AI 世界创作', style: Theme.of(context).textTheme.headlineMedium),
+            ),
+            TextButton.icon(
+              onPressed: _busy ? null : _fillRandomIdea,
+              icon: const Icon(Icons.casino),
+              label: const Text('随机脑洞'),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         const Text('模型只生成待审阅草案；确认前不会创建世界、旅程或修改真实存档。'),
         const SizedBox(height: 20),

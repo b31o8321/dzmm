@@ -965,3 +965,15 @@ def test_run_presentation_exposes_skills_quests_and_resource_effects() -> None:
     assert presentation["skills"]["world"] == ["ancient-tongue"]
     assert presentation["quests"] == {"find-key": "找到钥匙"}
     assert presentation["resource_effects"] == {"herb": {"heal": 5}}
+
+
+def test_embedded_draft_prompt_requires_chinese_and_carries_hero_preference() -> None:
+    """真机反馈：默认草案输出英文——嵌入式生成 prompt 必须强制中文并透传主角偏好。"""
+
+    import inspect
+
+    from dzmm import core_runtime
+
+    source = inspect.getsource(core_runtime)
+    assert "必须使用简体中文" in source
+    assert 'payload.get("hero_preference")' in source

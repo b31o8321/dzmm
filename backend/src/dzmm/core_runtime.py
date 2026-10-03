@@ -740,7 +740,8 @@ class LocalCoreRuntime:
             "You may add short lorebook, npcs, factions and events arrays; keep at most 2 characters, 2 locations "
             "and 1 item each for npcs/factions/events. Use descriptive names and one-sentence descriptions. "
             "Do not invent rules, effects, predicates or commands: the Python host supplies the validated hybrid "
-            "story mechanics after mapping these names and materials. hero must contain name and profile."
+            "story mechanics after mapping these names and materials. hero must contain name and profile. "
+            "所有文本（名称、描述、人物、地点、事件）必须使用简体中文。"
             if is_compact_qwen
             else (
                 "Return one JSON object with world_definition and hero only; no markdown, no commentary. "
@@ -762,12 +763,16 @@ class LocalCoreRuntime:
                 "The Python host will validate the draft before anything is created."
             )
         )
+        hero_preference = str(payload.get("hero_preference") or "").strip()
         prompt = {
             "genre": payload.get("genre", ""),
             "tone": payload.get("tone", ""),
             "core_conflict": payload.get("core_conflict", ""),
+            "hero_preference": hero_preference or "由你设计一个有代入感的主角",
             "ruleset": payload.get("ruleset", "hybrid"),
-            "instruction": instruction,
+            "instruction": instruction
+            + " 所有世界名称、描述、人物、地点、事件文本必须使用简体中文；"
+            "hero_preference 是主角设定偏好，生成时遵循。",
         }
         body = request_world_draft(
             {**dict(profile), "api_key": payload.get("api_key")}, prompt
