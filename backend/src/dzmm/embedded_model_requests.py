@@ -159,11 +159,13 @@ def request_world_draft(profile: Mapping[str, Any], prompt: dict[str, Any]) -> A
         "stream": False,
     }
     if profile["provider_type"] == "ollama":
-        is_qwen = "qwen" in str(profile.get("model_name") or "").lower()
         request_payload["think"] = False
         request_payload["options"] = {
             "temperature": 0.2,
-            "num_predict": 768 if is_qwen else 2048,
+            # 完整世界 JSON 很长（中文 2000+ 字），小预算必然截断——
+            # 真机「草案暂不能创建」的根因之一。统一给到叙事同级预算。
+            "num_predict": NARRATIVE_OLLAMA_NUM_PREDICT,
+            "num_ctx": _ollama_context_size(str(profile["model_name"])),
         }
     else:
         request_payload["temperature"] = 0.2
