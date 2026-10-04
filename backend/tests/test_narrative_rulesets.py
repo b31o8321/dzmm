@@ -977,3 +977,48 @@ def test_embedded_draft_prompt_requires_chinese_and_carries_hero_preference() ->
     source = inspect.getsource(core_runtime)
     assert "必须使用简体中文" in source
     assert 'payload.get("hero_preference")' in source
+
+def test_safe_skeleton_survives_raw_qwen35_drift_shapes() -> None:
+    """真机草案失败复现形态（huihui qwen3.5 9B 抓包）：story 为标题列表、
+    locations 混裸字符串、items 键、hero 藏在 hero_preference——修复链必须全部吃下。"""
+
+    import json
+
+    from dzmm.core_runtime import LocalCoreRuntime
+    from dzmm.generated_world_repair import map_to_safe_story_skeleton
+
+    raw = json.load(open(__file__).close() or open("/dev/null")) if False else None
+    drift = {
+        "world_definition": {
+            "name": "夜市妖怪侦探社",
+            "story": ["第一章：失落的姓名"],
+            "character_cards": [
+                {"name": "陈有尾", "description": "人类侦探"},
+                {"name": "墨掌柜", "description": "茶寮掌柜"},
+            ],
+            "locations": [
+                {"name": "万味长街", "description": "阴阳夜市"},
+                "断名茶寮",
+            ],
+            "npcs": [{"name": "铁嘴阿婆", "description": "凉茶老人"}],
+            "factions": [{"name": "排队族", "description": "找名字的妖怪"}],
+            "events": [{"name": "更鼓三响", "description": "名字易丢时刻"}],
+            "items": [{"name": "断名古桌", "description": "映照遗忘名字"}],
+        },
+        "hero_preference": {"name": "陈有尾", "profile": "能看见妖怪尾巴的侦探"},
+    }
+    rt = LocalCoreRuntime("/tmp/dzmm-safe-skeleton-test/dzmm-v3.db")
+    try:
+        rt.validate(drift["world_definition"], drift.get("hero"))
+        raise AssertionError("原始漂移形态不应直接通过")
+    except Exception:
+        pass
+    mapped_def, mapped_hero, repairs = map_to_safe_story_skeleton(
+        drift["world_definition"], drift.get("hero_preference")
+    )
+    rt.validate(mapped_def, mapped_hero)
+    assert mapped_def["name"] == "夜市妖怪侦探社"
+    assert mapped_hero["name"] == "陈有尾"
+    assert mapped_hero["profile"]["origin"] == "能看见妖怪尾巴的侦探"
+    assert any("断名茶寮" == loc["name"] for loc in mapped_def["locations"])
+    assert any("story" in r or "章节" in r for r in repairs)

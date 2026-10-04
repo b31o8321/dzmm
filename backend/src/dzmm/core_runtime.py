@@ -786,6 +786,22 @@ class LocalCoreRuntime:
             raise CoreRuntimeError(f"model draft is not valid JSON: {error.msg}") from error
         definition = draft.get("world_definition") if isinstance(draft, dict) else None
         hero = draft.get("hero") if isinstance(draft, dict) else None
+        if not isinstance(hero, dict):
+            # 弱模型会把主角塞进 hero_preference 或扁平字段——按形态兜底提取
+            fallback = draft.get("hero_preference") if isinstance(draft, dict) else None
+            if (
+                isinstance(fallback, dict)
+                and str(fallback.get("name") or "").strip()
+            ):
+                profile = fallback.get("profile")
+                hero = {
+                    "name": str(fallback["name"]).strip()[:80],
+                    "profile": {
+                        "origin": profile.strip()[:200]
+                        if isinstance(profile, str)
+                        else ""
+                    },
+                }
         try:
             self.validate(definition or {}, hero)
         except CoreRuntimeError as error:

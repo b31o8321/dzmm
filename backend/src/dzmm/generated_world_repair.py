@@ -119,9 +119,12 @@ def map_to_safe_story_skeleton(
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     """Keep model-authored names while replacing untrusted mechanics with the vetted template."""
 
-    if not isinstance(definition, dict) or not isinstance(definition.get("story"), dict):
+    if not isinstance(definition, dict):
         return {}, {}, []
     definition = deepcopy(definition)
+    definition, preflight_repairs = _preflight_raw_shapes(definition)
+    if not isinstance(definition.get("story"), dict):
+        return {}, {}, preflight_repairs and [] or []
     story = definition["story"]
     compact_story_repaired = False
     if not isinstance(story.get("chapters"), list):
@@ -148,7 +151,7 @@ def map_to_safe_story_skeleton(
     template = fog_harbor_template()
     safe_definition = deepcopy(template["world_definition"])
     safe_hero = deepcopy(template["hero"])
-    repairs = [
+    repairs = preflight_repairs + [
         "模型 mechanics 未通过 canonical schema，已使用受控 hybrid 规则骨架",
         "模型输出仅映射世界名称与可安全识别的角色/地点名称",
     ]
@@ -179,6 +182,15 @@ def map_to_safe_story_skeleton(
         repairs.append("story surface 已按生成角色与地点名称重写")
     if isinstance(hero, dict) and isinstance(hero.get("name"), str) and hero["name"].strip():
         safe_hero["name"] = hero["name"].strip()[:120]
+        hero_profile = hero.get("profile")
+        hero_origin = ""
+        if isinstance(hero_profile, dict):
+            hero_origin = str(hero_profile.get("origin") or "").strip()
+        elif isinstance(hero_profile, str):
+            hero_origin = hero_profile.strip()
+        if hero_origin:
+            safe_hero["profile"]["origin"] = hero_origin[:200]
+            repairs.append("hero.profile.origin 已安全映射")
         repairs.append("hero.name 已安全映射")
     return safe_definition, safe_hero, repairs
 
@@ -278,6 +290,58 @@ def _rename_story_surface(definition: dict[str, Any]) -> bool:
     ):
         changed = True
     return changed
+
+
+def _preflight_raw_shapes(definition: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Normalize raw model shapes BEFORE the skeleton gate (in place, returns repairs).
+
+    Handles the drift families observed on 7B Chinese models: story as a bare
+    list of chapter titles, locations/npcs/character_cards mixing bare strings
+    with objects, and an ``items`` key carrying what belongs in ``resources``.
+    """
+
+    repairs: list[str] = []
+    story = definition.get("story")
+    if isinstance(story, list):
+        chapters = []
+        for index, item in enumerate(story, start=1):
+            if isinstance(item, dict) and str(item.get("title") or "").strip():
+                chapters.append(
+                    {
+                        "id": f"ch{index}",
+                        "title": str(item["title"])[:120],
+                        "choices": item.get("choices") if isinstance(item.get("choices"), list) else [],
+                    }
+                )
+            elif isinstance(item, str) and item.strip():
+                chapters.append({"id": f"ch{index}", "title": item.strip()[:120], "choices": []})
+        if chapters:
+            definition["story"] = {"chapters": chapters}
+            repairs.append("story 为标题列表，已转换为章节素材")
+
+    for key in ("locations", "character_cards", "npcs", "factions", "events"):
+        entries = definition.get(key)
+        if not isinstance(entries, list):
+            continue
+        converted = []
+        for entry in entries:
+            if isinstance(entry, str) and entry.strip():
+                converted.append({"name": entry.strip()[:120]})
+            elif isinstance(entry, dict) and str(entry.get("name") or "").strip():
+                converted.append(entry)
+        if converted != entries:
+            definition[key] = converted
+            if any(isinstance(entry, str) for entry in entries):
+                repairs.append(f"{key} 中裸字符串名称已转换为命名条目")
+
+    items = definition.pop("items", None)
+    if isinstance(items, list) and items and not definition.get("resources"):
+        definition["resources"] = items
+        repairs.append("items 已重命名为 resources")
+
+    if not isinstance(definition.get("resources"), list):
+        definition["resources"] = []
+    return definition, repairs
 
 
 def _has_named_items(value: object, *, minimum: int) -> bool:
