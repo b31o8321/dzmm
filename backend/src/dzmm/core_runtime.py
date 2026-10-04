@@ -319,7 +319,8 @@ class LocalCoreRuntime:
                     base_url TEXT NOT NULL,
                     model_name TEXT NOT NULL,
                     has_api_key INTEGER NOT NULL DEFAULT 0,
-                    is_default INTEGER NOT NULL DEFAULT 0
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    context_size INTEGER
                 );
                 CREATE TABLE IF NOT EXISTS local_run_create_requests (
                     request_id TEXT PRIMARY KEY,
@@ -334,6 +335,11 @@ class LocalCoreRuntime:
                 connection.execute(
                     "ALTER TABLE local_worlds ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"
                 )
+            profile_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(local_model_profiles)")
+            }
+            if "context_size" not in profile_columns:
+                connection.execute("ALTER TABLE local_model_profiles ADD COLUMN context_size INTEGER")
             run_columns = {row[1] for row in connection.execute("PRAGMA table_info(local_runs)")}
             if "model_profile_id" not in run_columns:
                 connection.execute("ALTER TABLE local_runs ADD COLUMN model_profile_id TEXT")
@@ -774,37 +780,57 @@ class LocalCoreRuntime:
             + " 所有世界名称、描述、人物、地点、事件文本必须使用简体中文；"
             "hero_preference 是主角设定偏好，生成时遵循。",
         }
-        body = request_world_draft(
-            {**dict(profile), "api_key": payload.get("api_key")}, prompt
-        )
-        content = chat_content(profile["provider_type"], body)
-        if not content:
-            raise CoreRuntimeError("model returned no draft content")
-        try:
-            draft = json.loads(strip_json_fence(content))
-        except json.JSONDecodeError as error:
-            raise CoreRuntimeError(f"model draft is not valid JSON: {error.msg}") from error
-        definition = draft.get("world_definition") if isinstance(draft, dict) else None
-        hero = draft.get("hero") if isinstance(draft, dict) else None
-        if not isinstance(hero, dict):
-            # 弱模型会把主角塞进 hero_preference 或扁平字段——按形态兜底提取
-            fallback = draft.get("hero_preference") if isinstance(draft, dict) else None
-            if (
-                isinstance(fallback, dict)
-                and str(fallback.get("name") or "").strip()
-            ):
-                profile = fallback.get("profile")
-                hero = {
-                    "name": str(fallback["name"]).strip()[:80],
-                    "profile": {
-                        "origin": profile.strip()[:200]
-                        if isinstance(profile, str)
-                        else ""
-                    },
+        # 弱模型 JSON 结构漂移是概率性的：修复链之外再给一次全新采样机会。
+        last_issues: list[dict[str, str]] = []
+        last_definition: dict[str, Any] | None = None
+        last_hero: dict[str, Any] | None = None
+        for attempt in range(2):
+            if attempt == 0:
+                body = request_world_draft(
+                    {**dict(profile), "api_key": payload.get("api_key")}, prompt
+                )
+            else:
+                body = request_world_draft(
+                    {**dict(profile), "api_key": payload.get("api_key")}, prompt
+                )
+            content = chat_content(profile["provider_type"], body)
+            if not content:
+                continue
+            try:
+                draft = json.loads(strip_json_fence(content))
+            except json.JSONDecodeError:
+                continue
+            definition = draft.get("world_definition") if isinstance(draft, dict) else None
+            hero = draft.get("hero") if isinstance(draft, dict) else None
+            if not isinstance(hero, dict):
+                fallback = (
+                    draft.get("hero_preference") if isinstance(draft, dict) else None
+                )
+                if isinstance(fallback, dict) and str(fallback.get("name") or "").strip():
+                    hero_profile = fallback.get("profile")
+                    hero = {
+                        "name": str(fallback["name"]).strip()[:80],
+                        "profile": {
+                            "origin": hero_profile.strip()[:200]
+                            if isinstance(hero_profile, str)
+                            else ""
+                        },
+                    }
+            try:
+                self.validate(definition or {}, hero)
+            except CoreRuntimeError as error:
+                last_issues = [{"path": "world_definition", "message": str(error)}]
+                last_definition = definition if isinstance(definition, dict) else None
+                last_hero = hero if isinstance(hero, dict) else None
+            else:
+                return {
+                    "valid": True,
+                    "summary": "模型生成的待审阅草案",
+                    "world_definition": definition,
+                    "hero": hero,
+                    "repairs": [],
+                    "issues": [],
                 }
-        try:
-            self.validate(definition or {}, hero)
-        except CoreRuntimeError as error:
             repaired_definition, repairs = repair_generated_definition(definition)
             if repairs:
                 try:
@@ -837,21 +863,22 @@ class LocalCoreRuntime:
                         "repairs": mapping_repairs,
                         "issues": [],
                     }
-            return {
-                "valid": False,
-                "summary": "这份草案缺少可安全游玩的必要内容，暂时不能创建。",
-                "world_definition": definition if isinstance(definition, dict) else None,
-                "hero": hero if isinstance(hero, dict) else None,
-                "repairs": [],
-                "issues": [{"path": "world_definition", "message": str(error)}],
-            }
+            last_issues = [{"path": "world_definition", "message": str(error)}]
         return {
-            "valid": True,
-            "summary": "模型生成的待审阅草案",
-            "world_definition": definition,
-            "hero": hero,
+            "valid": False,
+            "summary": "两次生成的草案都缺少可安全游玩的必要内容，请重试或更换模型。",
+            "world_definition": last_definition,
+            "hero": last_hero,
             "repairs": [],
-            "issues": [],
+            "issues": last_issues,
+        }
+        return {
+            "valid": False,
+            "summary": "两次生成的草案都缺少可安全游玩的必要内容，请重试或更换模型。",
+            "world_definition": last_definition,
+            "hero": last_hero,
+            "repairs": [],
+            "issues": last_issues,
         }
 
     def get_run(self, run_id: str) -> dict[str, Any]:
