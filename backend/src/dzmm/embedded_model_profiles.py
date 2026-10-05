@@ -119,7 +119,7 @@ class EmbeddedModelProfileStore:
         payload = probe_body(
             row["provider_type"],
             row["model_name"],
-            row["context_size"] if "context_size" in row.keys() else None,
+            row["context_size"] if "context_size" in row.keys() else None  # noqa: SIM118 (sqlite3.Row),
         )
         payload["messages"] = [{"role": "user", "content": "Reply with OK."}]
         headers = {"content-type": "application/json"}

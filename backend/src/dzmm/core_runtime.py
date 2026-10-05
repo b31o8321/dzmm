@@ -16,6 +16,8 @@ from secrets import token_hex
 from typing import Any
 from uuid import uuid4
 
+import json_repair as _json_repair_pkg
+
 from .core.command_engine import apply_commands
 from .core_runtime_errors import CoreRuntimeError
 from .director import build_director_prompt, is_note_fresh, parse_director_note
@@ -813,7 +815,18 @@ class LocalCoreRuntime:
             try:
                 draft = json.loads(strip_json_fence(content))
             except json.JSONDecodeError:
-                continue
+                # 7B 草案常见结构损坏（数组未闭合/裸引号/CJK 引号值）——
+                # 宽容修复后重试解析；仍不可解析才放弃本次采样。
+                try:
+                    draft = json.loads(_json_repair_pkg.repair_json(strip_json_fence(content)))
+                except json.JSONDecodeError:
+                    last_issues = [
+                        {
+                            "path": "world_definition",
+                            "message": "模型返回的草案无法解析为合法 JSON",
+                        }
+                    ]
+                    continue
             definition = draft.get("world_definition") if isinstance(draft, dict) else None
             hero = draft.get("hero") if isinstance(draft, dict) else None
             if not isinstance(hero, dict):

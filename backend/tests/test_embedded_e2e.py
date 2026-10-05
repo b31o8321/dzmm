@@ -11,15 +11,17 @@ import urllib.request
 
 import pytest
 
+
+def _ollama_reachable() -> bool:
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/version", timeout=2) as r:
+            return r.status == 200
+    except OSError:
+        return False
+
+
 pytestmark = [
-    pytest.mark.skipif(
-        _ollama_down := (
-            lambda: (lambda r: r.status != 200)(
-                urllib.request.urlopen("http://localhost:11434/api/version", timeout=2)
-            )
-        )(),
-        reason="本机 Ollama 不可达",
-    )
+    pytest.mark.skipif(not _ollama_reachable(), reason="本机 Ollama 不可达"),
 ]
 
 
@@ -82,7 +84,7 @@ def test_embedded_probe_and_play_turn_carries_num_ctx(tmp_path) -> None:
     """探针/回合请求必须带 num_ctx（Ollama 默认 4096 是长会话劣化根因）。"""
 
     rt = _runtime(tmp_path)
-    model = _profile(rt)
+    _profile(rt)
     result = rt.probe_model_profile("e2e-p")
     assert result["success"] is True, result["detail"]
 

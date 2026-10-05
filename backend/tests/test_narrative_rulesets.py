@@ -982,12 +982,10 @@ def test_safe_skeleton_survives_raw_qwen35_drift_shapes() -> None:
     """真机草案失败复现形态（huihui qwen3.5 9B 抓包）：story 为标题列表、
     locations 混裸字符串、items 键、hero 藏在 hero_preference——修复链必须全部吃下。"""
 
-    import json
-
     from dzmm.core_runtime import LocalCoreRuntime
+    from dzmm.core_runtime_errors import CoreRuntimeError
     from dzmm.generated_world_repair import map_to_safe_story_skeleton
 
-    raw = json.load(open(__file__).close() or open("/dev/null")) if False else None
     drift = {
         "world_definition": {
             "name": "夜市妖怪侦探社",
@@ -1007,12 +1005,11 @@ def test_safe_skeleton_survives_raw_qwen35_drift_shapes() -> None:
         },
         "hero_preference": {"name": "陈有尾", "profile": "能看见妖怪尾巴的侦探"},
     }
+    import pytest
+
     rt = LocalCoreRuntime("/tmp/dzmm-safe-skeleton-test/dzmm-v3.db")
-    try:
+    with pytest.raises(CoreRuntimeError):
         rt.validate(drift["world_definition"], drift.get("hero"))
-        raise AssertionError("原始漂移形态不应直接通过")
-    except Exception:
-        pass
     mapped_def, mapped_hero, repairs = map_to_safe_story_skeleton(
         drift["world_definition"], drift.get("hero_preference")
     )
