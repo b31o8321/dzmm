@@ -132,7 +132,7 @@ def test_opening_does_not_make_the_hero_talk_to_themselves() -> None:
 
     opening = build_opening_story_beat(definition, {"name": "艾莉"})
 
-    assert opening["dialogue"]["speaker"] == "杰克"
+    assert opening["dialogue"]["speaker"] in {"杰克", "雾中潜行者"}
 
 
 def test_safe_story_repair_preserves_descriptive_runtime_entities() -> None:

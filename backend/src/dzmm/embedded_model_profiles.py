@@ -11,7 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from .core_runtime_errors import CoreRuntimeError
-from .model_protocol import chat_content, chat_endpoint
+from .model_protocol import chat_content, chat_endpoint, probe_body
 
 MODEL_PROBE_TIMEOUT_SECONDS = 60
 
@@ -114,11 +114,14 @@ class EmbeddedModelProfileStore:
         if row is None:
             raise CoreRuntimeError("model profile not found")
         endpoint = chat_endpoint(row["provider_type"], row["base_url"])
-        payload = {
-            "model": row["model_name"],
-            "messages": [{"role": "user", "content": "Reply with OK."}],
-            "stream": False,
-        }
+        # 与 HTTP 层共享探针构造：think:false + num_ctx（否则 Ollama 按 4096 加载），
+        # 上下文解析与游玩请求同源（档案 context_size → 模型名推断 → 16384）。
+        payload = probe_body(
+            row["provider_type"],
+            row["model_name"],
+            row["context_size"] if "context_size" in row.keys() else None,
+        )
+        payload["messages"] = [{"role": "user", "content": "Reply with OK."}]
         headers = {"content-type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"

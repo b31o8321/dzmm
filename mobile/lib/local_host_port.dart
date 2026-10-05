@@ -337,7 +337,7 @@ abstract class LocalHostPort {
   Future<ComposeResult> importWorld(Map<String, dynamic> payload);
   Future<Map<String, dynamic>> exportRun(String runId);
   Future<ComposeResult> cloneRun(Map<String, dynamic> payload);
-  Future<Map<String, dynamic>> worldTemplate();
+  Future<Map<String, dynamic>> worldTemplate({String name = 'fog-harbor'});
   Future<List<ModelProfile>> listModelProfiles();
   Future<ModelProfile> createModelProfile(Map<String, dynamic> profile);
   Future<ModelProfile> updateModelProfile(
@@ -461,8 +461,8 @@ class EmbeddedPythonLocalHostPort implements LocalHostPort {
       ComposeResult.fromJson(await _call(LocalHostOperation.cloneRun, payload));
 
   @override
-  Future<Map<String, dynamic>> worldTemplate() =>
-      _call(LocalHostOperation.worldTemplate);
+  Future<Map<String, dynamic>> worldTemplate({String name = 'fog-harbor'}) =>
+      _call(LocalHostOperation.worldTemplate, {'name': name});
 
   @override
   Future<List<ModelProfile>> listModelProfiles() async {

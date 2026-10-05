@@ -66,7 +66,6 @@ from .story_beats import (
     build_turn_story_beat,
 )
 from .time_system import advance_turn_clock
-from .world_templates import fog_harbor_template
 
 logger = logging.getLogger(__name__)
 
@@ -719,12 +718,27 @@ class LocalCoreRuntime:
     def generate_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
         profile_id = payload.get("model_profile_id")
         if not profile_id:
-            template = fog_harbor_template()
+            from .world_templates import (
+                clocktower_mystery_template,
+                d20_frontier_template,
+                ember_cellar_template,
+                fog_harbor_template,
+            )
+
+            templates = {
+                "fog-harbor": fog_harbor_template,
+                "d20-frontier": d20_frontier_template,
+                "clocktower-mystery": clocktower_mystery_template,
+                "ember-cellar": ember_cellar_template,
+            }
+            factory = templates.get(str(payload.get("template") or "fog-harbor"))
+            if factory is None:
+                raise CoreRuntimeError("unknown world template")
+            template = factory()
             definition = dict(template["world_definition"])
-            definition["name"] = str(payload.get("genre") or definition["name"])
             return {
                 "valid": True,
-                "summary": "本机模板是固定的雾港示例，仅用于离线验证游玩流程；它不会根据上面的题材生成新世界。",
+                "summary": "已载入本机模板世界（离线示例，不调用模型）；直接确认即可开始游玩。",
                 "world_definition": definition,
                 "hero": template["hero"],
                 "repairs": [],
@@ -863,7 +877,12 @@ class LocalCoreRuntime:
                         "repairs": mapping_repairs,
                         "issues": [],
                     }
-            last_issues = [{"path": "world_definition", "message": str(error)}]
+            last_issues = [
+                {
+                    "path": "world_definition",
+                    "message": "草案结构无法安全映射为可游玩世界",
+                }
+            ]
         return {
             "valid": False,
             "summary": "两次生成的草案都缺少可安全游玩的必要内容，请重试或更换模型。",

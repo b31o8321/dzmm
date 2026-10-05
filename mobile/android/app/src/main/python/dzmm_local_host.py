@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from dzmm.core_runtime import CoreRuntimeError, LocalCoreRuntime
-from dzmm.world_templates import fog_harbor_template
+from dzmm.world_templates import (
+    clocktower_mystery_template,
+    d20_frontier_template,
+    ember_cellar_template,
+    fog_harbor_template,
+)
 
 
 _runtimes: dict[str, LocalCoreRuntime] = {}
@@ -134,8 +139,20 @@ def scan_lan_model_servers(arguments: str = "{}") -> str:
     return _result(servers=servers)
 
 
+_WORLD_TEMPLATES = {
+    "fog-harbor": fog_harbor_template,
+    "d20-frontier": d20_frontier_template,
+    "clocktower-mystery": clocktower_mystery_template,
+    "ember-cellar": ember_cellar_template,
+}
+
+
 def world_template(arguments: str = "{}") -> str:
-    return _result(**fog_harbor_template())
+    name = _arguments(arguments).get("name") or "fog-harbor"
+    factory = _WORLD_TEMPLATES.get(str(name))
+    if factory is None:
+        raise CoreRuntimeError(f"unknown world template: {name}")
+    return _result(**factory())
 
 
 def compose_world(arguments: str = "{}") -> str:

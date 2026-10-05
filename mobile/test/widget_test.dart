@@ -69,7 +69,7 @@ class _FakePort implements LocalHostPort {
       throw UnimplementedError();
 
   @override
-  Future<Map<String, dynamic>> worldTemplate() async => {};
+  Future<Map<String, dynamic>> worldTemplate({String name = 'fog-harbor'}) async => {};
 
   @override
   Future<List<ModelProfile>> listModelProfiles() async => const [

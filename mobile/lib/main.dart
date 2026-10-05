@@ -230,6 +230,10 @@ class _LocalShellState extends State<_LocalShell> {
             Navigator.of(context).pop();
             await _openRun(runId);
           },
+          onGoToModels: () {
+            Navigator.of(context).pop();
+            setState(() => _tab = 2);
+          },
         ),
       ),
     );
@@ -672,7 +676,13 @@ class _WorldRunsSheetState extends State<_WorldRunsSheet> {
 }
 
 class _CreatePage extends StatefulWidget {
-  const _CreatePage({required this.port, required this.onCreated});
+  final void Function()? onGoToModels;
+
+    const _CreatePage({
+    required this.port,
+    required this.onCreated,
+    this.onGoToModels,
+  });
 
   final LocalHostPort port;
   final Future<void> Function(String) onCreated;
@@ -705,6 +715,13 @@ class _CreatePageState extends State<_CreatePage> {
 
   String? _randomHeroText;
   static const _templateProfile = '__local_template__';
+  static const _templateChoices = <(String, String)>[
+    ('fog-harbor', '雾港·迷雾与灯塔（新手·故事）'),
+    ('d20-frontier', 'd20 边境·荒原哨站（战斗·技能）'),
+    ('clocktower-mystery', '钟楼疑云·倒计时推理（推理·反转）'),
+    ('ember-cellar', '余烬地窖·火光求生（生存·资源）'),
+  ];
+  final String _templateName = 'fog-harbor';
   final _genre = TextEditingController(text: '潮汐悬疑恋爱冒险');
   final _tone = TextEditingController(text: '温柔、危险');
   final _conflict = TextEditingController(text: '失踪航图正在重开潮门。');
@@ -817,6 +834,7 @@ class _CreatePageState extends State<_CreatePage> {
         'hero_preference': _randomHeroText ?? '由你设计一个有代入感的主角',
         'ruleset': 'hybrid',
         'model_profile_id': selectedProfile,
+        'template': _templateName,
         'request_id': draftRequestId,
       });
       if (!mounted || _draftRequestId != draftRequestId) return;
@@ -1003,7 +1021,31 @@ class _CreatePageState extends State<_CreatePage> {
           builder: (context, snapshot) {
             final profiles = snapshot.data ?? const <ModelProfile>[];
             if (profiles.isEmpty) {
-              return const Text('尚未配置本机模型档案；可先在“模型”入口添加。');
+              return Card(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('还没有可用的模型档案。三步开始：'),
+                      const SizedBox(height: 6),
+                      const Text('1. 底部切到「模型」→ 新建\n2. 点「扫描局域网自动发现服务」选一台电脑上的模型\n3. 回到这里点「生成待审阅草案」'),
+                      const SizedBox(height: 10),
+                      FilledButton.tonalIcon(
+                        onPressed: widget.onGoToModels,
+                        icon: const Icon(Icons.settings_input_antenna),
+                        label: const Text('去配置模型'),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '没有模型也能玩：直接用下方「确认并创建本机世界」的雾港离线示例先体验流程。',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }
             final preferredProfile = profiles.firstWhere(
               (profile) => profile.isDefault,
@@ -1013,9 +1055,11 @@ class _CreatePageState extends State<_CreatePage> {
               initialValue: _modelProfileId ?? preferredProfile.id,
               decoration: const InputDecoration(labelText: '草案模型'),
               items: [
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: _templateProfile,
-                  child: Text('本机模板（不调用模型）'),
+                  child: Text(
+                    '本机模板：${_templateChoices.firstWhere((t) => t.$1 == _templateName).$2}',
+                  ),
                 ),
                 for (final profile in profiles)
                   DropdownMenuItem(

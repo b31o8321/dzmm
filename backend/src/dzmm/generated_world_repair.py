@@ -128,11 +128,21 @@ def map_to_safe_story_skeleton(
     story = definition["story"]
     compact_story_repaired = False
     if not isinstance(story.get("chapters"), list):
-        compact_chapters = [
-            {"id": key, "title": str(value)[:120], "choices": []}
-            for key, value in sorted(story.items())
-            if key.startswith("chapter_") and isinstance(value, str) and value.strip()
-        ]
+        compact_chapters = []
+        for key, value in sorted(story.items()):
+            if not key.startswith("chapter_"):
+                continue
+            # 字符串形态：chapter_1: "标题"；dict 形态：chapter_1: {title, text}
+            if isinstance(value, str) and value.strip():
+                compact_chapters.append(
+                    {"id": key, "title": value[:120], "choices": []}
+                )
+            elif isinstance(value, dict):
+                title = str(value.get("title") or value.get("name") or key)[:120]
+                text = str(value.get("text") or value.get("description") or "")[:400]
+                compact_chapters.append(
+                    {"id": key, "title": title, "summary": text, "choices": []}
+                )
         if compact_chapters:
             story["chapters"] = compact_chapters
             compact_story_repaired = True
@@ -144,13 +154,17 @@ def map_to_safe_story_skeleton(
         return {}, {}, []
     model_cards = definition.get("character_cards")
     model_locations = definition.get("locations")
-    if not _has_named_items(model_cards, minimum=2) or not _has_named_items(model_locations, minimum=2):
+    # 主角独立于 character_cards 传入；单个具名 NPC + 主角已足够识别演员表。
+    if not _has_named_items(model_cards, minimum=1) or not _has_named_items(model_locations, minimum=2):
         # A safe mechanics skeleton is not useful if the model did not provide
         # enough player-facing material to identify the world and its cast.
         return {}, {}, []
     template = fog_harbor_template()
     safe_definition = deepcopy(template["world_definition"])
     safe_hero = deepcopy(template["hero"])
+    # 模板自带任务引用模板专属物品/旗标；骨架世界的任务只应由模型素材派生，
+    # 没有就为空——避免悬空引用（如"点亮雾灯"出现在非雾港世界）。
+    safe_definition["story"]["quests"] = []
     repairs = preflight_repairs + [
         "模型 mechanics 未通过 canonical schema，已使用受控 hybrid 规则骨架",
         "模型输出仅映射世界名称与可安全识别的角色/地点名称",

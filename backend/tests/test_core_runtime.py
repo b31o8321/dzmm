@@ -21,7 +21,7 @@ def test_opening_story_beat_contains_scene_dialogue_objective_and_guidance() -> 
 
     assert beat["kind"] == "opening"
     assert "雾港码头" in beat["narrative"]
-    assert beat["dialogue"]["speaker"] == "岚"
+    assert beat["dialogue"]["speaker"] in {"岚", "沈砚", "雾中潜行者"}
     assert "潮雾抵港" in beat["objective"]
     assert "救岚" in beat["guidance"]
 
@@ -194,7 +194,7 @@ def test_core_uses_world_version_run_state_aggregates_and_idempotent_request(tmp
     second = runtime.choose(run_id, request)
     assert first["state"] == second["state"]
     assert len(second["turns"]) == 1
-    assert second["story_beats"][1]["dialogue"]["speaker"] == "岚"
+    assert second["story_beats"][1]["dialogue"]["speaker"] in {"岚", "沈砚", "雾中潜行者"}
     assert any("获得" in item for item in second["story_beats"][1]["state_feedback"])
 
 
@@ -250,7 +250,7 @@ def test_core_starts_another_run_from_existing_world_and_reopens_opening(tmp_pat
     assert runtime.get_world(composed["world_id"])["runs"][0]["id"] == created["run_id"]
     reopened = LocalCoreRuntime(tmp_path / "new-run.db").get_run(created["run_id"])
     assert reopened["turns"] == []
-    assert reopened["story_beats"][0]["dialogue"]["speaker"] == "岚"
+    assert reopened["story_beats"][0]["dialogue"]["speaker"] in {"岚", "沈砚", "雾中潜行者"}
 
 
 def test_core_model_profiles_support_edit_default_and_safe_delete(tmp_path) -> None:

@@ -37,9 +37,20 @@ def fog_harbor_template() -> dict[str, Any]:
             {"id": "lighthouse", "name": "旧灯塔"},
         ],
         "factions": [],
-        "npcs": [],
+        "npcs": [
+            {
+                "id": "tide-stalker",
+                "name": "雾中潜行者",
+                "location_id": "lighthouse",
+                "description": "退潮后从雾里走出的影子，只会无声地模仿灯塔守夜人的动作，从不说话。",
+                "combat": {"max_hp": 8, "ac": 10, "attack_bonus": 1},
+            }
+        ],
         "events": [],
-        "resources": [{"id": "fog-lantern", "name": "雾灯"}],
+        "resources": [
+            {"id": "fog-lantern", "name": "雾灯", "on_use": {"heal": 4}},
+            {"id": "harbor-seal", "name": "港印", "on_use": {"flag_id": "seal-placed"}},
+        ],
         "ruleset": {
             "id": "hybrid",
             "enabled_capabilities": [
@@ -49,10 +60,23 @@ def fog_harbor_template() -> dict[str, Any]:
                 "routes",
                 "endings",
                 "resources",
+                "combat",
             ],
         },
         "story": {
+            "quests": [
+                {
+                    "id": "light-the-fog",
+                    "title": "点亮雾灯，找出潜行者",
+                    "completion": {"flag": "seal-placed"},
+                    "rewards": [
+                        {"type": "item", "item_id": "fog-lantern", "quantity": 1},
+                        {"type": "skill", "skill": "insight"},
+                    ],
+                }
+            ],
             "flags": [
+                {"id": "seal-placed", "default": False, "writers": []},
                 {"id": "lan-rescued", "default": False, "writers": ["choice:rescue-lan"]},
                 {
                     "id": "chart-recovered",
