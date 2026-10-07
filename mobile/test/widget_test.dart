@@ -840,13 +840,13 @@ void main() {
     expect(find.text('创作世界'), findsNothing);
     expect(find.text('你的世界'), findsOneWidget);
 
-    // 再次进入：全新表单（旧实现遗留状态的问题已随页签移除而消失）
+    // 再次进入：草稿持久化生效——上次输入的核心冲突被恢复
     await tester.tap(find.text('创建本机世界'));
     await tester.pumpAndSettle();
     final conflict = tester.widget<TextField>(
       find.widgetWithText(TextField, '核心冲突'),
     );
-    expect(conflict.controller?.text, '失踪航图正在重开潮门。');
+    expect(conflict.controller?.text, '独特的冲突标记 ABC123');
   });
 
   testWidgets('model setup explains missing fields before calling the host', (

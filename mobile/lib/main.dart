@@ -220,14 +220,27 @@ class _LocalShellState extends State<_LocalShell> {
     );
   }
 
+  Future<void> _clearCreationDraft() async {
+    final session = await widget.store.read();
+    await widget.store.save(
+      LocalSession(
+        runId: session.runId,
+        modelProfileId: session.modelProfileId,
+        pendingRunOperation: session.pendingRunOperation,
+      ),
+    );
+  }
+
   Future<void> _openCreatePage() async {
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => _CreatePage(
+          store: widget.store,
           port: widget.port,
           onCreated: (runId) async {
             Navigator.of(context).pop();
+            await _clearCreationDraft();
             await _openRun(runId);
           },
           onGoToModels: () {
@@ -676,16 +689,17 @@ class _WorldRunsSheetState extends State<_WorldRunsSheet> {
 }
 
 class _CreatePage extends StatefulWidget {
-  final void Function()? onGoToModels;
-
-    const _CreatePage({
+  const _CreatePage({
     required this.port,
+    required this.store,
     required this.onCreated,
     this.onGoToModels,
   });
 
   final LocalHostPort port;
+  final SessionStore store;
   final Future<void> Function(String) onCreated;
+  final void Function()? onGoToModels;
 
   @override
   State<_CreatePage> createState() => _CreatePageState();
@@ -741,10 +755,55 @@ class _CreatePageState extends State<_CreatePage> {
   String? _operationLabel;
   int _operationElapsedMs = 0;
   Timer? _operationTicker;
+  Timer? _draftSaveDebounce;
   DateTime? _operationStartedAt;
 
   @override
+  void initState() {
+    super.initState();
+    _restoreDraft();
+    // 表单变化即持久化（防抖 600ms）——进程被杀后草稿可恢复
+    _genre.addListener(_scheduleDraftSave);
+    _tone.addListener(_scheduleDraftSave);
+    _conflict.addListener(_scheduleDraftSave);
+  }
+
+  Future<void> _restoreDraft() async {
+    final session = await widget.store.read();
+    if (!mounted) return;
+    if (session.hasDraft) {
+      setState(() {
+        if (session.draftGenre != null) _genre.text = session.draftGenre!;
+        if (session.draftTone != null) _tone.text = session.draftTone!;
+        if (session.draftConflict != null) _conflict.text = session.draftConflict!;
+        if (session.draftHeroPreference != null) {
+          _randomHeroText = session.draftHeroPreference;
+        }
+      });
+    }
+  }
+
+  void _scheduleDraftSave() {
+    _draftSaveDebounce?.cancel();
+    _draftSaveDebounce = Timer(const Duration(milliseconds: 600), () async {
+      final session = await widget.store.read();
+      await widget.store.save(
+        LocalSession(
+          runId: session.runId,
+          modelProfileId: session.modelProfileId,
+          pendingRunOperation: session.pendingRunOperation,
+          draftGenre: _genre.text,
+          draftTone: _tone.text,
+          draftConflict: _conflict.text,
+          draftHeroPreference: _randomHeroText,
+        ),
+      );
+    });
+  }
+
+  @override
   void dispose() {
+    _draftSaveDebounce?.cancel();
     _operationTicker?.cancel();
     _genre.dispose();
     _tone.dispose();
