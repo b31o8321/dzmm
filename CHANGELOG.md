@@ -1,3 +1,39 @@
+## [v1.10.0] - 2026-10-05
+
+**手机独立模式成型：嵌入式引擎全功能 + 引导/随机/模板四项体验修复**
+
+### 手机端（本版重点）
+- 独立模式落地：Chaquopy 内嵌全引擎，离线+局域网均可游玩；
+  底部导航收敛为 世界/游玩/模型/设置，AI 创作改为推入式页面（含退出确认）
+- 游玩页补齐系统层入口：战斗卡（目标/HP/倒下态）、任务面板（四态）、
+  检定与物品面板（技能下拉+DC 输入、on_use 物品使用）——与桌面端功能对齐
+- 模型配置重构：扫描局域网自动发现服务（Ollama/LM Studio/OpenAI-compat）、
+  模型目录下拉、上下文长度可配（探针与游玩同源）；列表/表单页分离
+- 「随机脑洞」：本地中文灵感池一键填表 + 全中文草案输出
+- 创作页切页保活（IndexedStack）；有草案/生成中退出有确认弹窗
+- 品牌图标（与桌面端同源书卷标记）
+
+### 引擎修复（真机反馈驱动）
+- 嵌入式草案生成三连修：num_predict 768→4096（截断是「缺少可安全游玩」主因）、
+  num_ctx 补齐四处请求、prompt 强制简体中文 + hero_preference 透传
+- 草案结构损坏宽容修复：接入 json-repair（数组未闭合/CJK 引号值/截断），
+  修复链外新增一次全新采样重试；解析失败信息精确化
+- 草案形态漂移补全：NPC faction 对象归一、扁平素材形状提升、
+  story 标题列表/章节 dict 转换、items→resources、character_cards 门槛 2→1、
+  hero 从 hero_preference 兜底提取
+- 全部 Ollama 请求体（叙事/探针/草稿/director/循环/结局）统一携带
+  think:false + num_ctx——qwen3.5 系思考模型不再超时、不再 4096 运行
+- 嵌入式探针改用共享 probe_body（补 think/num_ctx）；探针超时 10s→30s
+  覆盖冷加载；叙事超时 120s→300s；narration num_predict 1024→4096
+- world_template 分发支持全部四模板；雾港模板增加战斗 NPC/任务/on_use 物品；
+  骨架世界清空模板任务防悬空引用；动作输入 maxLength 4000 对齐
+
+### 新增测试
+- 嵌入式通道 e2e 冒烟（test_embedded_e2e.py）：LocalCoreRuntime 直连真实
+  Ollama，覆盖草案中文/合法、探针与回合 num_ctx、draft→compose→play 全链路
+  ——填补手机 App 实际运行层（第三层）的测试空白
+- 8 项草案漂移回归测试 + 4 项 ADV 敌意场景 + 模型页重构 widget 测试
+
 按 [Keep a Changelog](https://keepachangelog.com/) 风格，版本对应 git tag。
 
 ## [v1.9.0] - 2026-09-30
