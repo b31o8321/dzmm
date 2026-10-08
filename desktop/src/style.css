@@ -236,10 +236,17 @@
   white-space: nowrap;
   border: 0;
 }
+html,
+body,
+#app {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(circle at 12% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 34rem),
     var(--canvas);
@@ -275,7 +282,18 @@ a:focus-visible {
 .shell {
   width: min(1320px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 26px 0 80px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 0 0;
+}
+
+/* 视图内容区：占满剩余高度，页内自滚动——App 式视口锁定 */
+.shell-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
 }
 .skip-link {
   position: fixed;
@@ -630,6 +648,23 @@ h3 {
 }
 .scene {
   animation: rise 0.38s ease-out both;
+}
+
+/* App 式视口锁定：游玩页占满视口高度，编年史/操作区各自滚动 */
+.shell-body .play-scene {
+  height: calc(100vh - 190px);
+  grid-template-rows: 1fr;
+  overflow: hidden;
+}
+
+.shell-body .play-scene .chronicle {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* 非 play 视图保持文档流（在 shell-body 内自然滚动） */
+.shell-body .scene:not(.play-scene) {
+  min-height: auto;
 }
 .eyebrow {
   margin: 0 0 12px;

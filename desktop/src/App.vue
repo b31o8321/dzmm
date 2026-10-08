@@ -1573,6 +1573,7 @@ onUnmounted(() => {
         <div class="host-dot" :class="hostStatus"><i></i> 本机游戏服务 {{ hostStatus === 'ready' ? '已就绪' : hostStatus === 'starting' ? '准备中' : '需要恢复' }}</div>
       </div>
     </header>
+    <div class="shell-body">
 
     <div v-if="run?.state?.clock" class="clock-bar" :class="{ warn: clockWarn }">
       🕐 {{ clockLabel }}<span v-if="loopBadge" class="loop-badge" :class="{ final: loopBadge.final }">第 {{ loopBadge.count }} 次循环</span>
@@ -1930,6 +1931,7 @@ onUnmounted(() => {
       @new-run="beginNewRunFromCurrentWorld"
       @return-world="returnToCurrentWorld"
     />
+    </div>
     </div>
   </main>
 </template>
