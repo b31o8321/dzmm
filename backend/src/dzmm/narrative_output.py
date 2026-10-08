@@ -47,6 +47,8 @@ NARRATIVE_SYSTEM_PROMPT = (
     "NPC 只保留 deja_vu 印象、不记得循环内的具体事件；"
     "loop_memory.knowledge 是玩家跨循环确实掌握的线索，叙事可让角色据此行动，"
     "loop_memory.summaries 是以往循环的梗概，用于避免重复演已写过的桥段；"
+    "payload 的 quests 列出全部任务与状态（pending 待激活/active 进行中/completed 已完成/expired 已过期）："
+    "叙事应自然服务 active 任务的推进，completed 任务不要重复推进；"
     "payload 含 deduction_context 时，这是推理世界：known_clues 是玩家已掌握的证据，"
     "叙事可围绕它们推进推理；玩家指证由引擎裁决，正文不要擅自宣判凶手；"
     "payload 含 legacy_context 时，boons 是玩家上一轮死亡带进本局的开局加成，"

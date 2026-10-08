@@ -866,3 +866,52 @@ def test_probe_body_loads_model_at_configured_context() -> None:
     named = probe_body("ollama", "qwen2.5:7b-32k")
     assert named["options"]["num_ctx"] == 32768
     assert "options" not in probe_body("lm_studio", "qwen3-14b")
+
+
+def test_narration_payload_includes_quest_progress() -> None:
+    """GM payload 必须携带任务进度——否则长会话中模型不知道任务做到哪。"""
+
+
+    from dzmm.model_profiles import ModelProfile, ProviderType
+
+    definition = {
+        "name": "雾港",
+        "story": {
+            "quests": [
+                {
+                    "id": "find-key",
+                    "title": "找到钥匙",
+                    "completion": {"flag": "has-key"},
+                    "rewards": [],
+                }
+            ],
+        },
+    }
+    state = {
+        "revision": 3,
+        "location_id": "harbor",
+        "hero": {"name": "旅人"},
+        "ruleset": {"id": "hybrid", "enabled_capabilities": ["trpg"]},
+        "quests": {"find-key": {"status": "active", "completed_turn": 0}},
+        "narrative_context": {"recent_turns": []},
+    }
+    from dzmm.model_profiles import _narration_body
+
+    profile = ModelProfile(
+        id="payload-test",
+        name="测试",
+        provider_type=ProviderType.OLLAMA,
+        base_url="http://localhost:11434",
+        model_name="qwen2.5:7b",
+    )
+    body = _narration_body(
+        profile,
+        definition,
+        state,
+        "我继续探索",
+        [],
+        [],
+    )
+    user_content = [m for m in body["messages"] if m["role"] == "user"][0]["content"]
+    assert '"title": "找到钥匙"' in user_content
+    assert '"status": "active"' in user_content

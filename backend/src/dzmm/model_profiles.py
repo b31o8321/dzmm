@@ -898,6 +898,31 @@ def _narration_body(
                     },
                     "faction_state": state.get("faction_state", {}),
                     "campaign_state": state.get("campaign_state"),
+                    "quests": [
+                        {
+                            "title": (
+                                quest.get("title") if isinstance(quest, dict) else quest_id
+                            )
+                            or quest_id,
+                            "status": quest_block.get("status", "active"),
+                        }
+                        for quest_id, quest_block in (
+                            state.get("quests") or {}
+                        ).items()
+                        for quest in [
+                            next(
+                                (
+                                    q
+                                    for q in (
+                                        definition.get("story", {}).get("quests")
+                                        or []
+                                    )
+                                    if q.get("id") == quest_id
+                                ),
+                                {},
+                            )
+                        ]
+                    ],
                     "location_state": state.get("location_state", {}),
                     "active_events": [
                         {"id": event.get("id"), "description": str(event.get("description") or "")[:120]}
