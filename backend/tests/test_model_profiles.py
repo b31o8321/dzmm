@@ -915,3 +915,54 @@ def test_narration_payload_includes_quest_progress() -> None:
     user_content = [m for m in body["messages"] if m["role"] == "user"][0]["content"]
     assert '"title": "找到钥匙"' in user_content
     assert '"status": "active"' in user_content
+
+
+def test_visual_pipeline_templates_and_prompt_building() -> None:
+    """ComfyUI 文生图→图生图一致性链：模板加载/注入/描述卡拼接。"""
+
+    from dzmm.visual_pipeline import (
+        build_img2img_workflow,
+        build_prompt,
+        build_txt2img_workflow,
+        load_workflow_template,
+        visual_card_from,
+    )
+
+    card = visual_card_from(
+        {
+            "name": "岚",
+            "description": "雾港码头的神秘少女",
+            "visual": {
+                "appearance": "silver hair, teal eyes, white sailor coat",
+                "seed": 42,
+            },
+        }
+    )
+    assert card.appearance.startswith("silver hair")
+
+    prompt = build_prompt(
+        style_prefix="masterpiece",
+        fragments=[card.prompt_fragment()],
+        scene_note="at the foggy harbor",
+    )
+    assert prompt.startswith("masterpiece")
+    assert "silver hair" in prompt
+
+    t2i = build_txt2img_workflow(
+        load_workflow_template("txt2img"),
+        positive_prompt=prompt,
+        negative_prompt="lowres",
+        seed=42,
+    )
+    assert t2i["5"]["inputs"]["seed"] == 42
+    assert t2i["2"]["inputs"]["text"] == prompt
+
+    i2i = build_img2img_workflow(
+        load_workflow_template("img2img"),
+        positive_prompt=prompt,
+        negative_prompt="lowres",
+        seed=43,
+        reference_image_filename="canonical-lan.png",
+    )
+    assert i2i["10"]["inputs"]["image"] == "canonical-lan.png"
+    assert i2i["5"]["inputs"]["denoise"] == 0.5
