@@ -109,12 +109,26 @@ subject_id, turn_seq, file_path, prompt, seed, created_at, status。
 
 ## 七、里程碑拆分（每步可独立交付验证）
 
-- **M1 管线+设置**：comfy_client/visual_pipeline 已有 → 设置分区 +
-  visual API + media 表 + 单测（mock HTTP）。约 1 个迭代日
-- **M2 触发闭环**：世界创建/回合完成的异步触发 + 重摇 API + 失败标记。
-  约 1 个迭代日
-- **M3 UI 挂载**：桌面+手机的角色卡/游玩页/列表封面。约 1-1.5 迭代日
+- **M1 管线+设置** ✅ 269396d（2026-10-11）：VisualSettings
+  （`<data_dir>/visual_settings.json`，PUT 整体替换+校验）、
+  VisualService（/system_stats 探测、并发 1 异步任务队列、ComfyUI 阻塞调用
+  走 to_thread）、`visual_media` 表（alembic 0016：任务生命周期
+  queued→running→done|failed + prompt/seed/file_path/error）、API 六件套
+  （settings GET/PUT、status、generate、tasks/{id}、media 文件服务带路径
+  穿越防护）、7 个 mock HTTP 单测
+- **M2 触发闭环** ✅ 2ec0d81（2026-10-11）：after_compose 批量生成
+  （封面+主角+≤4 立绘+≤3 场景基准，auto_* 开关门控，单张失败落
+  registry 不阻断）、scene_for_turn（回合叙事≤240 字为提示词，在场
+  ≤2 NPC 基准立绘自动作 img2img 参考——基准图链）、
+  POST /runs/{id}/turns/{seq}:illustration 手动补生成/重摇、
+  after_turn 挂 turns/choices/stream 三入口（created/turn_completed
+  门控，幂等重放不重复生图；失败静默）、heroes 表主角立绘降级、
+  GET /visual/media 媒体列表。与方案差异：失败标记用 registry 状态
+  （无 done 行=待生成/失败可重摇），不回写 world definition 避免版本churn
+- **M3 UI 挂载**：桌面+手机的角色卡/游玩页/列表封面/设置页视觉分区。
+  约 1-1.5 迭代日 ← 下一步
 - **M4 真机联调**：PC ComfyUI --listen 暴露 → 手机跨网生成实测
+  （需用户提供工作流 JSON/checkpoint 名，或先用内置 SDXL 模板）
 
 ## 八、风险与开放问题
 
