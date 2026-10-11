@@ -10,6 +10,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Table,
+    Text,
     UniqueConstraint,
 )
 
@@ -151,5 +152,23 @@ distillations = Table(
     Column("run_id", String(36), ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True),
     Column("kind", String(40), primary_key=True),
     Column("content", JSON(), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+)
+
+visual_media = Table(
+    "visual_media",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("world_id", String(36), ForeignKey("worlds.id", ondelete="CASCADE"), nullable=False),
+    Column("kind", String(20), nullable=False),
+    Column("subject_id", String(120), nullable=False),
+    Column("turn_seq", Integer()),
+    Column("file_path", String(500)),
+    Column("prompt", Text(), nullable=False),
+    Column("negative_prompt", Text()),
+    Column("seed", Integer()),
+    Column("ref_image", String(500)),
+    Column("status", String(20), nullable=False),
+    Column("error", Text()),
     Column("created_at", DateTime(), nullable=False),
 )

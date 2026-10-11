@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -74,6 +74,18 @@ from .persistence import (
     turns,
     world_versions,
 )
+from .visual_service import (
+    SAFE_FILENAME,
+    SAFE_WORLD_ID,
+    VisualDisabledError,
+    VisualGenerateInput,
+    VisualInputError,
+    VisualService,
+    VisualSettings,
+    VisualSettingsError,
+    VisualTaskNotFoundError,
+    VisualWorldNotFoundError,
+)
 from .world_templates import (
     clocktower_mystery_template,
     d20_frontier_template,
@@ -99,12 +111,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.model_profiles = ModelProfileService(app.state.sessions)
         app.state.ai_world_drafts = AIWorldDraftService(app.state.model_profiles)
+        app.state.visual = VisualService(app.state.sessions, resolved_settings)
         app.state.model_prober = ModelProber()
         app.state.world_lifecycle = WorldLifecycle(app.state.sessions)
         app.state.content = ContentService(app.state.sessions)
         try:
             yield
         finally:
+            await app.state.visual.aclose()
             await app.state.engine.dispose()
 
     app = FastAPI(title="DZMM Local Host", version="0.1.0", lifespan=lifespan)
@@ -766,6 +780,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await scan_lan(subnet=payload.subnet, ports=payload.ports)
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=502, detail=f"局域网扫描失败：{error}") from error
+
+    @app.get("/api/v2/visual/settings")
+    async def get_visual_settings() -> dict[str, object]:
+        return app.state.visual.get_settings().model_dump(mode="json")
+
+    @app.put("/api/v2/visual/settings")
+    async def update_visual_settings(payload: VisualSettings) -> dict[str, object]:
+        try:
+            updated = app.state.visual.update_settings(payload)
+        except VisualSettingsError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return updated.model_dump(mode="json")
+
+    @app.get("/api/v2/visual/status")
+    async def visual_status() -> dict[str, object]:
+        return await app.state.visual.status()
+
+    @app.post("/api/v2/visual/generate")
+    async def generate_visual(payload: VisualGenerateInput) -> JSONResponse:
+        try:
+            task = await app.state.visual.generate(payload)
+        except VisualDisabledError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except (VisualWorldNotFoundError, VisualTaskNotFoundError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except VisualInputError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=202, content=task)
+
+    @app.get("/api/v2/visual/tasks/{task_id}")
+    async def get_visual_task(task_id: str) -> dict[str, object]:
+        try:
+            return await app.state.visual.task(task_id)
+        except VisualTaskNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/api/v2/media/{world_id}/{file_name}")
+    async def serve_media(world_id: str, file_name: str) -> FileResponse:
+        if not SAFE_WORLD_ID.match(world_id) or not SAFE_FILENAME.match(file_name):
+            raise HTTPException(status_code=404, detail="media not found")
+        path = (app.state.visual.media_dir / world_id / file_name).resolve()
+        media_root = app.state.visual.media_dir.resolve()
+        if media_root not in path.parents:
+            raise HTTPException(status_code=404, detail="media not found")
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="media not found")
+        return FileResponse(path)
 
     return app
 

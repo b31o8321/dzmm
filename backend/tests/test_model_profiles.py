@@ -912,7 +912,7 @@ def test_narration_payload_includes_quest_progress() -> None:
         [],
         [],
     )
-    user_content = [m for m in body["messages"] if m["role"] == "user"][0]["content"]
+    user_content = next(m for m in body["messages"] if m["role"] == "user")["content"]
     assert '"title": "找到钥匙"' in user_content
     assert '"status": "active"' in user_content
 
