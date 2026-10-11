@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import comfy_client
 from .config import Settings
-from .persistence import visual_media, world_versions
+from .persistence import heroes, runs, turns, visual_media, world_versions
 from .visual_pipeline import (
     DEFAULT_NEGATIVE,
     DEFAULT_STYLE_PREFIX,
@@ -79,6 +79,8 @@ class VisualGenerateInput(BaseModel):
     scene_note: str = ""
     # media 目录内相对路径；提供时走 img2img 延续基准图
     ref_image: str = ""
+    # scene 自动参考：取该地点在场角色的最新基准立绘（≤2）
+    location_id: str = ""
     seed: int | None = None
     turn_seq: int | None = None
 
@@ -154,8 +156,9 @@ class VisualService:
             raise VisualDisabledError("视觉功能未开启（设置页 → 视觉）")
 
         definition = await self._latest_world_definition(payload.world_id)
+        hero = await self._hero_for_portrait(payload, definition)
         prompt_fragments, fallback_seed = self._resolve_prompt(
-            payload, definition
+            payload, definition, hero=hero
         )
         seed = (
             payload.seed
@@ -167,6 +170,11 @@ class VisualService:
             fragments=prompt_fragments,
             scene_note=payload.scene_note if payload.kind == "scene" else "",
         )
+        ref_image = payload.ref_image
+        if payload.kind == "scene" and not ref_image and payload.location_id:
+            ref_image = await self._latest_portrait_ref(
+                payload.world_id, definition, payload.location_id
+            )
 
         record_id = uuid.uuid4().hex
         now = datetime.now(UTC).replace(tzinfo=None)
@@ -182,7 +190,7 @@ class VisualService:
                     prompt=prompt,
                     negative_prompt=vs.negative_prompt,
                     seed=seed,
-                    ref_image=payload.ref_image or None,
+                    ref_image=ref_image or None,
                     status="queued",
                     error=None,
                     created_at=now,
@@ -201,6 +209,10 @@ class VisualService:
             ).mappings().one_or_none()
         if row is None:
             raise VisualTaskNotFoundError(f"visual task not found: {task_id}")
+        return self._serialize(row)
+
+    @staticmethod
+    def _serialize(row: Any) -> dict[str, Any]:
         return {
             key: (value.isoformat() if isinstance(value, datetime) else value)
             for key, value in dict(row).items()
@@ -286,14 +298,36 @@ class VisualService:
             raise VisualWorldNotFoundError(f"world not found: {world_id}")
         return row
 
+    async def _hero_for_portrait(
+        self, payload: VisualGenerateInput, definition: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """主角立绘的降级数据源：subject 不在 character_cards 时查 heroes 表。"""
+
+        if payload.kind != "portrait" or not payload.subject_id.strip():
+            return None
+        for card in definition.get("character_cards") or []:
+            if card.get("id") == payload.subject_id:
+                return None
+        async with self._sessions() as session:
+            row = (
+                await session.execute(
+                    select(heroes.c.name, heroes.c.profile).where(
+                        heroes.c.id == payload.subject_id
+                    )
+                )
+            ).mappings().one_or_none()
+        return dict(row) if row else None
+
     @staticmethod
     def _resolve_prompt(
-        payload: VisualGenerateInput, definition: dict[str, Any]
+        payload: VisualGenerateInput,
+        definition: dict[str, Any],
+        hero: dict[str, Any] | None = None,
     ) -> tuple[list[str], int | None]:
         """Map (kind, subject_id) to prompt fragments + optional fixed seed.
 
-        M1 uses whatever the definition already carries (visual.appearance,
-        npc description, names). LLM 外貌卡生成是 M2 的触发闭环。
+        M1/M2 使用世界定义已有的文本（visual.appearance、npc description、
+        名称）；LLM 外貌卡生成是后续增强。
         """
 
         if payload.kind == "cover":
@@ -315,6 +349,13 @@ class VisualService:
                 visual = visual_card_from(card)
                 description = _npc_description(definition, subject_id)
                 return _fragment(visual, card, description), visual.seed or None
+            if hero is not None:
+                profile_bits = [
+                    str(value)
+                    for value in (hero.get("profile") or {}).values()
+                    if isinstance(value, str)
+                ]
+                return [", ".join([str(hero.get("name") or ""), *profile_bits])], None
             raise VisualInputError(f"character_card 不存在：{subject_id}")
 
         for location in definition.get("locations") or []:
@@ -356,6 +397,165 @@ class VisualService:
             except asyncio.CancelledError:
                 pass
             self._worker = None
+
+    # ---- 触发闭环（M2）：世界创建批量生成 + 回合场景插画 ----
+
+    async def after_compose(self, world_id: str, hero_id: str) -> None:
+        """世界创建成功后的异步批量生成；单张失败只记 registry 不中断。"""
+
+        vs = self.get_settings()
+        if not vs.enabled:
+            return
+        try:
+            definition = await self._latest_world_definition(world_id)
+        except LookupError:
+            return
+
+        jobs: list[tuple[str, str]] = []
+        if vs.auto_cover:
+            jobs.append(("cover", ""))
+        if vs.auto_portraits:
+            jobs.append(("portrait", hero_id))
+            for card in (definition.get("character_cards") or [])[:4]:
+                subject = str(card.get("id") or "").strip()
+                if subject:
+                    jobs.append(("portrait", subject))
+        if vs.auto_locations:
+            for location in (definition.get("locations") or [])[:3]:
+                subject = str(location.get("id") or "").strip()
+                if subject:
+                    jobs.append(("location", subject))
+
+        for kind, subject_id in jobs:
+            try:
+                await self.generate(
+                    VisualGenerateInput(
+                        world_id=world_id, kind=kind, subject_id=subject_id
+                    )
+                )
+            except (LookupError, ValueError, RuntimeError):
+                continue  # 失败已落 visual_media(status=failed)，UI 据此显示重摇
+
+    async def after_turn(self, run_id: str) -> None:
+        """回合结算后的场景插画；取最新回合，失败静默（不阻塞下一回合）。"""
+
+        vs = self.get_settings()
+        if not vs.enabled or not vs.auto_scenes:
+            return
+        async with self._sessions() as session:
+            turn_row = (
+                await session.execute(
+                    select(turns.c.sequence)
+                    .where(turns.c.run_id == run_id)
+                    .order_by(turns.c.sequence.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if turn_row is None:
+            return
+        try:
+            await self.scene_for_turn(run_id, int(turn_row))
+        except (LookupError, ValueError, RuntimeError):
+            return
+
+    async def scene_for_turn(self, run_id: str, sequence: int) -> dict[str, Any]:
+        """为一回合生成场景插画（自动触发与手动补生成的共用实现）。"""
+
+        vs = self.get_settings()
+        if not vs.enabled:
+            raise VisualDisabledError("视觉功能未开启（设置页 → 视觉）")
+
+        async with self._sessions() as session:
+            run_row = (
+                await session.execute(
+                    select(runs.c.world_version_id, runs.c.state).where(
+                        runs.c.id == run_id
+                    )
+                )
+            ).mappings().one_or_none()
+            if run_row is None:
+                raise VisualWorldNotFoundError(f"run not found: {run_id}")
+            world_id = (
+                await session.execute(
+                    select(world_versions.c.world_id).where(
+                        world_versions.c.id == run_row["world_version_id"]
+                    )
+                )
+            ).scalar_one_or_none()
+            turn_row = (
+                await session.execute(
+                    select(turns.c.narrative)
+                    .where(
+                        (turns.c.run_id == run_id) & (turns.c.sequence == sequence)
+                    )
+                )
+            ).scalar_one_or_none()
+        if world_id is None:
+            raise VisualWorldNotFoundError("run has no world version")
+        if turn_row is None:
+            raise VisualTaskNotFoundError(f"turn not found: {run_id}#{sequence}")
+
+        scene_note = str(turn_row or "").strip()[:240]
+        location_id = str((run_row["state"] or {}).get("location_id") or "")
+        return await self.generate(
+            VisualGenerateInput(
+                world_id=world_id,
+                kind="scene",
+                subject_id=run_id,
+                scene_note=scene_note or f"{run_id} 第 {sequence} 回合",
+                location_id=location_id,
+                turn_seq=sequence,
+            )
+        )
+
+    async def list_media(
+        self,
+        world_id: str,
+        *,
+        kind: str | None = None,
+        subject_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """世界维度媒体列表：UI 发现图片与判断「生成中/失败可重摇」。"""
+
+        query = select(visual_media).where(visual_media.c.world_id == world_id)
+        if kind:
+            query = query.where(visual_media.c.kind == kind)
+        if subject_id:
+            query = query.where(visual_media.c.subject_id == subject_id)
+        query = query.order_by(visual_media.c.created_at.desc(), visual_media.c.id)
+        async with self._sessions() as session:
+            rows = (await session.execute(query)).mappings().all()
+        return [self._serialize(row) for row in rows]
+
+    async def _latest_portrait_ref(
+        self, world_id: str, definition: dict[str, Any], location_id: str
+    ) -> str:
+        """在场角色（≤2）最新的完成立绘 → img2img 基准图路径；没有则空。"""
+
+        npc_ids = [
+            str(npc.get("id"))
+            for npc in definition.get("npcs") or []
+            if str(npc.get("location_id") or "") == location_id and npc.get("id")
+        ][:2]
+        if not npc_ids:
+            return ""
+        async with self._sessions() as session:
+            row = (
+                await session.execute(
+                    select(visual_media.c.file_path)
+                    .where(
+                        (visual_media.c.world_id == world_id)
+                        & (visual_media.c.kind == "portrait")
+                        & (visual_media.c.status == "done")
+                        & (visual_media.c.subject_id.in_(npc_ids))
+                    )
+                    .order_by(
+                        visual_media.c.created_at.desc(), visual_media.c.id.desc()
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        return str(row or "")
 
 
 class VisualDisabledError(RuntimeError):

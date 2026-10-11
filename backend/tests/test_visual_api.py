@@ -29,6 +29,7 @@ def compose_payload(request_id: str) -> dict:
                 {
                     "id": "lan",
                     "name": "岚",
+                    "location_id": "harbor",
                     "description": "雾港码头的神秘少女，银发青瞳",
                 },
             ],
@@ -218,3 +219,145 @@ def test_media_serving_blocks_path_traversal(migrated_client) -> None:
         "/api/v2/media/00000000-0000-0000-0000-000000000000/none.png"
     )
     assert missing.status_code == 404
+
+
+def _mock_comfy_generate(blob: bytes = b"\x89PNG-mock"):
+    """Patch comfy_client at the HTTP boundary for batch/scene flows."""
+
+    def _run():
+        fake = (
+            [GeneratedImage(filename="out.png", subfolder="", image_type="output")],
+            [blob],
+        )
+        return fake
+
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    stack.enter_context(patch("dzmm.comfy_client.submit_workflow", return_value="p1"))
+    generate = stack.enter_context(patch("dzmm.comfy_client.generate"))
+    generate.return_value = (
+        [GeneratedImage(filename="out.png", subfolder="", image_type="output")],
+        [blob],
+    )
+    return stack
+
+
+def await_media(
+    client, world_id: str, min_rows: int, timeout_seconds: float = 5.0
+) -> list[dict]:
+    deadline = time.monotonic() + timeout_seconds
+    rows: list[dict] = []
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/v2/visual/media?world_id={world_id}")
+        assert response.status_code == 200, response.text
+        rows = response.json()
+        if len(rows) >= min_rows and all(row["status"] in {"done", "failed"} for row in rows):
+            return rows
+        time.sleep(0.05)
+    return rows
+
+
+def test_compose_triggers_visual_batch(migrated_client) -> None:
+    client, _ = migrated_client
+    enable_visual(client)
+
+    with _mock_comfy_generate():
+        created = client.post(
+            "/api/v2/worlds:compose", json=compose_payload("compose-batch")
+        ).json()
+        rows = await_media(client, created["world_id"], min_rows=5)
+
+    kinds = sorted(row["kind"] for row in rows)
+    assert kinds == ["cover", "location", "location", "portrait", "portrait"]
+    subjects = {row["subject_id"] for row in rows if row["kind"] == "portrait"}
+    assert subjects == {created["hero_id"], "lan"}
+    assert all(row["status"] == "done" for row in rows), rows
+
+
+def test_auto_switches_gate_visual_batch(migrated_client) -> None:
+    client, _ = migrated_client
+    off = client.put(
+        "/api/v2/visual/settings",
+        json={
+            "comfy_url": "http://127.0.0.1:8188",
+            "enabled": True,
+            "auto_portraits": False,
+            "auto_cover": False,
+            "auto_locations": False,
+            "auto_scenes": False,
+        },
+    )
+    assert off.status_code == 200
+
+    with _mock_comfy_generate():
+        created = client.post(
+            "/api/v2/worlds:compose", json=compose_payload("compose-gated")
+        ).json()
+        time.sleep(0.5)
+        rows = client.get(
+            f"/api/v2/visual/media?world_id={created['world_id']}"
+        ).json()
+
+    assert rows == []
+
+
+def _insert_turn(database, run_id: str, sequence: int, narrative: str) -> None:
+    import sqlite3
+
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            INSERT INTO turns (
+                id, run_id, request_id, kind, rollback_target_id, sequence,
+                player_input, narrative, commands, outcomes,
+                before_revision, after_revision, after_state, created_at
+            ) VALUES (?, ?, ?, 'action', NULL, ?, ?, ?, '[]', '[]', 0, 0, ?, datetime('now'))
+            """,
+            (
+                f"turn-{sequence}-{run_id[:8]}",
+                run_id,
+                f"req-{sequence}",
+                sequence,
+                "向码头走去",
+                narrative,
+                '{"location_id": "harbor"}',
+            ),
+        )
+
+
+def test_manual_scene_illustration_reuses_portrait_ref(migrated_client) -> None:
+    client, database = migrated_client
+    enable_visual(client)
+
+    with _mock_comfy_generate():
+        created = client.post(
+            "/api/v2/worlds:compose", json=compose_payload("compose-scene")
+        ).json()
+        await_media(client, created["world_id"], min_rows=5)
+
+    _insert_turn(
+        database, created["run_id"], 1, "岚站在码头尽头，雾气从海面漫上来。"
+    )
+
+    with _mock_comfy_generate():
+        response = client.post(
+            f"/api/v2/runs/{created['run_id']}/turns/1:illustration"
+        )
+        assert response.status_code == 202, response.text
+        task = response.json()
+        final = await_task(client, task["id"])
+
+    assert final["status"] == "done", final
+    assert final["kind"] == "scene"
+    assert final["turn_seq"] == 1
+    assert final["subject_id"] == created["run_id"]
+    # 基准图链：在场 NPC（lan@harbor）的立绘自动作为 img2img 参考
+    assert final["ref_image"], final
+    assert "/".join(final["ref_image"].split("/")[1:]).startswith("portrait-lan-")
+    assert "岚站在码头尽头" in final["prompt"]
+
+    missing_turn = client.post(
+        f"/api/v2/runs/{created['run_id']}/turns/99:illustration"
+    )
+    assert missing_turn.status_code == 404

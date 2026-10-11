@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from typing import Any
@@ -153,6 +154,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except IdempotencyConflictError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
+        if result.created:
+            # 视觉触发闭环：立绘/封面/场景基准图异步批量生成，不阻塞进入游玩
+            asyncio.get_running_loop().create_task(
+                app.state.visual.after_compose(result.world_id, result.hero_id)
+            )
         return JSONResponse(
             status_code=201 if result.created else 200,
             content=result.model_dump(mode="json"),
@@ -456,6 +462,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/v2/runs/{run_id}/turns")
     async def create_turn(run_id: str, payload: TurnInput) -> JSONResponse:
         result = await play_turn(run_id, payload)
+        if result.created:
+            asyncio.get_running_loop().create_task(app.state.visual.after_turn(run_id))
         return JSONResponse(
             status_code=201 if result.created else 200, content=result.model_dump(mode="json")
         )
@@ -463,6 +471,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/v2/runs/{run_id}/choices")
     async def choose_turn(run_id: str, payload: ChoiceTurnInput) -> JSONResponse:
         result = await play_choice(run_id, payload)
+        if result.created:
+            asyncio.get_running_loop().create_task(app.state.visual.after_turn(run_id))
         return JSONResponse(
             status_code=201 if result.created else 200, content=result.model_dump(mode="json")
         )
@@ -515,6 +525,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
                 return
             event_id = 1
+            turn_completed = False
             try:
                 async for event_type, event_payload in app.state.turn_coordinator.stream(
                     run_id,
@@ -522,10 +533,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     planned_choice=planned_choice,
                     choice_id=choice_id,
                 ):
+                    if event_type == "turn_completed":
+                        turn_completed = True
                     yield _sse(event_id, event_type, event_payload)
                     event_id += 1
             finally:
                 app.state.turn_coordinator.finish_operation(payload.request_id)
+                if turn_completed:
+                    # 场景插画异步补生成，失败静默（visual_media 记录状态）
+                    asyncio.get_running_loop().create_task(
+                        app.state.visual.after_turn(run_id)
+                    )
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
@@ -815,6 +833,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await app.state.visual.task(task_id)
         except VisualTaskNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/api/v2/visual/media")
+    async def list_visual_media(
+        world_id: str,
+        kind: str | None = None,
+        subject_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        return await app.state.visual.list_media(
+            world_id, kind=kind, subject_id=subject_id
+        )
+
+    @app.post("/api/v2/runs/{run_id}/turns/{sequence}:illustration")
+    async def illustrate_turn(run_id: str, sequence: int) -> JSONResponse:
+        """手动为本回合补生成/重摇场景插画。"""
+
+        try:
+            task = await app.state.visual.scene_for_turn(run_id, sequence)
+        except VisualDisabledError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except (VisualWorldNotFoundError, VisualTaskNotFoundError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except VisualInputError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return JSONResponse(status_code=202, content=task)
 
     @app.get("/api/v2/media/{world_id}/{file_name}")
     async def serve_media(world_id: str, file_name: str) -> FileResponse:
